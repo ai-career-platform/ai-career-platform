@@ -1,0 +1,24 @@
+[Unit]
+Description=Verified AI Career Staging pull deployment
+Wants=network-online.target
+After=network-online.target docker.service
+ConditionPathExists=/home/kant/ai-career-staging-poc/automation/config.json
+
+[Service]
+Type=oneshot
+User=kant
+WorkingDirectory=/home/kant/ai-career-staging-poc
+ExecStart=/usr/bin/python3 /home/kant/ai-career-staging-poc/automation/deploy.py
+LoadCredential=github-token:/etc/ai-career-staging/github-token
+TimeoutStartSec=20min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/kant/ai-career-staging-poc/.deploy-state
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-career-staging-deploy
+LogRateLimitIntervalSec=60s
+LogRateLimitBurst=10

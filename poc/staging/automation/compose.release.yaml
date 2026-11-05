@@ -1,0 +1,8 @@
+# Overlay only: the existing base compose.yaml owns db, volume, network and ports.
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?digest-pinned frontend image required}
+  backend:
+    image: ${BACKEND_IMAGE:?digest-pinned backend image required}
+    environment:
+      APP_VERSION: ${DEPLOY_SHA:?verified commit SHA required}
