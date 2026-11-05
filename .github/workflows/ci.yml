@@ -1,0 +1,31 @@
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci-smoke-test:
+    name: CI Smoke Test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Verify repository
+        run: |
+          echo "GitHub Actions CI started"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Commit: $GITHUB_SHA"
+          test -f README.md
+          echo "CI_SMOKE_TEST=PASS"
