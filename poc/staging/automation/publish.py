@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import re
 
-from deploy import GitHub, REPO, CI_WORKFLOW, require
+from deploy import GitHub, REPO, CI_WORKFLOW, require, validate_approvers
 
 
 def preflight(api, event, expected_sha, approvers):
@@ -33,7 +33,7 @@ def preflight(api, event, expected_sha, approvers):
 
 def main():
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
-    approved = {s.lower() for s in json.loads(os.environ['APPROVED_MERGERS'])}
+    approved = validate_approvers(json.loads(os.environ['APPROVED_MERGERS']))
     sha = preflight(GitHub(os.environ['GH_TOKEN']), event, os.environ['GITHUB_SHA'], approved)
     if os.environ.get('WRITE_MANIFEST') == '1':
         images = {}

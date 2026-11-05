@@ -35,6 +35,18 @@ def require(condition, reason):
         raise Hold(reason)
 
 
+def validate_approvers(value):
+    """Accept only a nonempty JSON array of GitHub user logins, or reject it all."""
+    require(isinstance(value, list) and bool(value), 'INVALID_APPROVER_ARRAY')
+    approved = set()
+    for login in value:
+        require(isinstance(login, str) and 1 <= len(login) <= 39
+                and re.fullmatch(r'[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*', login) is not None,
+                'INVALID_APPROVER_LOGIN')
+        approved.add(login.lower())
+    return approved
+
+
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
 
@@ -313,11 +325,11 @@ def main():
         require(platform.machine() in ('x86_64', 'amd64'), 'AMD64_SERVER_REQUIRED')
         config = json.loads((ROOT / 'automation' / 'config.json').read_text())
         require(config.get('enabled') is True, 'DEPLOYMENT_NOT_ENABLED')
+        approvers = validate_approvers(config['approved_mergers'])
         require(config['compose_sha256'] == hashlib.sha256((ROOT / 'compose.yaml').read_bytes()).hexdigest(), 'COMPOSE_BASELINE_MISMATCH')
         # Credentials are provisioned separately by the operator, never from the PoC .env.
         credentials = Path(os.environ['CREDENTIALS_DIRECTORY']) / 'github-token'
         api = GitHub(credentials.read_text())
-        approvers = {s.lower() for s in config['approved_mergers'] if re.fullmatch('[A-Za-z0-9-]+', s)}
         result = execute(api, ROOT, approvers)
         return 0 if result in ('PASS', 'UNCHANGED', 'LOCKED') else 1
     except Exception:
