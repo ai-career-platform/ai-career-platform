@@ -1,7 +1,7 @@
 # 감사 이벤트·보존·변조 방지 계약 (T83)
 
 > 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 (T05 완료 후 개정)
-> 근거: [작업지시서 T83](../work-orders/remaining-30/T83.md), F-028 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `GET /api/v1/admin/audit` ([API 계약](../API_CONTRACT.md)), F11 `audit_events` ([T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md)), [AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md), [보안 규정](../SECURITY.md)
+> 근거: [작업지시서 T83](../work-orders/remaining-30/T83.md), F-028 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `GET /api/v1/admin/audit-events` (T06 OpenAPI `listAuditEvents`) ([API 계약](../API_CONTRACT.md)), F11 `audit_events` ([T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md)), [AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md), [보안 규정](../SECURITY.md)
 > 선행 일감: **T05 완료**(PR #17 머지, 데이터 사전 F11 기준으로 개정). T06(API 계약)·T15(인증)는 진행 중이라 실제 Migration·API 연동은 **HOLD** 이고, 이 문서는 데이터 사전 F11 을 확장하는 계약과 일회용 DB mock 검증까지 다룹니다.
 
 ## 0. T05 데이터 사전(F11)과의 관계
@@ -109,8 +109,8 @@
 
 ## 7. API 연결 (T84 참고용)
 
-- `GET /api/v1/admin/audit` 는 `t83_audit_reader` 에 해당하는 **읽기 전용 계정**으로 조회합니다.
-- 필터: `from`, `to`(필수, 최대 90일), `actor_user_id`, `action_code` 접두어, `resource_type`, `result`, `request_id`. 페이지네이션은 공통 규약(`limit` ≤ 100, `cursor`)을 따릅니다.
+- `GET /api/v1/admin/audit-events` (T06 OpenAPI `listAuditEvents`) 는 `t83_audit_reader` 에 해당하는 **읽기 전용 계정**으로 조회합니다.
+- 필터: T06 에 정의된 `from`·`to`(필수)·`actor_user_id`·`action_code` 를 따르고, 최대 90일 범위와 `action_code` 접두어 검색, `resource_type`, `result`, `request_id`. 페이지네이션은 공통 규약(`limit` ≤ 100, `cursor`)을 따릅니다.
 - 응답에 `row_hash` 는 노출하지 않고, 대신 무결성 점검 결과(`integrity: ok|mismatch`)만 표시하는 안을 제안합니다.
 - 이 조회 자체도 `admin.audit.view` 이벤트로 기록합니다.
 
