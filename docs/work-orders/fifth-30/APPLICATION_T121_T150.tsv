@@ -1,0 +1,31 @@
+일감 ID	개발 영역	작업 제목	우선순위	선행 일감	GitHub 작업지시서	신청자 이름	GitHub ID	GitHub 이메일	진행 상태	시작일	완료예정일	PR URL	비고
+T121	기획/PM	기업 사용자 역할·서비스 범위 확정	P0	T04,T05,T06,T91	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T121.md				신청 가능				
+T122	DB/Backend	기업 계정·소속·승인 상태 데이터 계약	P1	T05,T121	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T122.md				신청 가능				
+T123	Backend/보안	기업 담당자 등록·초대·접근 API	P1	T15,T121,T122	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T123.md				신청 가능				
+T124	Frontend	기업 담당자 계정·조직 관리 UI	P1	T20,T21,T123	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T124.md				신청 가능				
+T125	기획/보안	기업 공고 게시·검수·수정 정책	P1	T18,T80,T121	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T125.md				신청 가능				
+T126	Backend	기업 공고 작성·게시 요청 API	P1	T18,T81,T123,T125	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T126.md				신청 가능				
+T127	Frontend	기업 채용공고 관리 콘솔 UI	P1	T20,T124,T126	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T127.md				신청 가능				
+T128	기획/보안	후보자 공개 프로필·동의 범위 정책	P0	T31,T37,T121	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T128.md				신청 가능				
+T129	Backend	공개 포트폴리오 조회·공유 링크 API	P1	T37,T49,T128	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T129.md				신청 가능				
+T130	Frontend	공개 포트폴리오 편집·미리보기 UI	P1	T20,T38,T128,T129	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T130.md				신청 가능				
+T131	기획/학습	Skill Gap 학습경로 추천 계약	P1	T26,T43,T44,T91	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T131.md				신청 가능				
+T132	데이터/Backend	학습 콘텐츠 카탈로그·메타데이터 관리	P1	T61,T131	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T132.md				신청 가능				
+T133	AI/Backend	부족 기술 기반 학습경로 생성 Baseline	P1	T43,T131,T132	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T133.md				신청 가능				
+T134	Frontend	학습경로·추천 강좌 탐색 UI	P1	T20,T44,T132,T133	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T134.md				신청 가능				
+T135	DB/Backend	개인 학습 계획·진도 기록 API	P1	T15,T131,T133	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T135.md				신청 가능				
+T136	Frontend	학습 진도·목표 관리 대시보드	P1	T134,T135	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T136.md				신청 가능				
+T137	기획/데이터	스킬·직무 표준 코드·동의어 관리 정책	P0	T05,T10,T17	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T137.md				신청 가능				
+T138	DB/데이터	스킬·직무 코드 정제·변경 이력 Pipeline	P1	T10,T137	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T138.md				신청 가능				
+T139	Backend	스킬 자동완성·동의어 검색 API	P1	T17,T98,T137,T138	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T139.md				신청 가능				
+T140	Frontend	직무·스킬 자동완성·용어 선택 UX	P1	T20,T23,T34,T139	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T140.md				신청 가능				
+T141	보안/기획	데이터 접근 요청·열람 이력 정책	P0	T31,T83,T128	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T141.md				신청 가능				
+T142	Backend/보안	내 데이터 내보내기·삭제 요청 상태 API	P1	T31,T49,T83,T141	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T142.md				신청 가능				
+T143	Frontend	내 데이터 다운로드·요청 이력 UI	P1	T20,T32,T142	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T143.md				신청 가능				
+T144	보안/QA	스토리지 문서 암호화·키 관리·접근 회귀	P0	T49,T53,T111,T141	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T144.md				신청 가능				
+T145	Backend/QA	백그라운드 작업·이벤트 재처리 통합 계약	P1	T64,T96,T110,T112	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T145.md				신청 가능				
+T146	Frontend/QA	다국어·날짜·접근성 표준과 검증	P1	T20,T89,T92	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T146.md				신청 가능				
+T147	데이터/QA	개발·QA 합성 데이터 공장·환경 격리	P0	T10,T11,T87,T115	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T147.md				신청 가능				
+T148	QA/보안	기업·개인·관리자 다중 역할 E2E 권한 검증	P0	T123,T126,T129,T141,T147	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T148.md				신청 가능				
+T149	DevOps/QA	프로젝트 비용·용량 계획·복구 우선순위 검토	P1	T110,T112,T114,T119	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T149.md				신청 가능				
+T150	PM/QA/운영	기업·학습 확장 릴리스 Gate·최종 인수	P0	T120,T127,T130,T136,T143,T144,T148,T149	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/fifth-30/T150.md				신청 가능				
