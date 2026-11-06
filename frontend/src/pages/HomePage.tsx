@@ -34,7 +34,7 @@ export function HomePage() {
   return (
     <section aria-labelledby="home-title">
       <h1 id="home-title">AI Career Platform</h1>
-      <p>Frontend 기본 구조(T19){env.useMock ? ' — Mock API 모드' : ''}</p>
+      <p>Frontend 기본 구조(T19){env.mockEnabled ? ' — Mock API 모드' : ''}</p>
       <dl aria-label="시스템 상태" aria-busy={status.state === 'loading'}>
         <dt>Backend connection</dt>
         <dd data-testid="backend-status">

@@ -7,11 +7,11 @@ React 기반 Frontend 앱 기본 구조(T19). 기존 `poc/staging/frontend`(정�
 | 구분 | 선택 | 근거 |
 |---|---|---|
 | UI | React 19 | 팀 표준 스택(PR #19 리뷰에서 확정) |
-| 언어 | TypeScript ~6.0 | API 계약(`docs/API_CONTRACT.md`)을 타입으로 고정해 Backend 변경을 빌드 단계에서 감지. 7.x는 `typescript-eslint`가 아직 미지원(`<6.1`)이라 6.0으로 고정 |
+| 언어 | TypeScript 7 | API 계약(`docs/API_CONTRACT.md`)을 타입으로 고정해 Backend 변경을 빌드 단계에서 감지. 7.x(네이티브 컴파일러)로 타입 검사 속도 향상 |
 | 빌드/개발 서버 | Vite 8 | React 공식 문서 권장 빌드 도구, 빠른 HMR, `/api` 개발 프록시 내장 |
 | 라우팅 | React Router 8 | React 표준 라우터, `createBrowserRouter` + 라우트 객체 배열 |
 | 테스트 | Vitest 5 + Testing Library + jsdom | Vite 설정 재사용, Jest 호환 API |
-| Lint | ESLint 10 + typescript-eslint + react-hooks | Hooks 규칙 위반을 PR 단계에서 차단 |
+| Lint | oxlint (`.oxlintrc.json`) | `typescript-eslint`가 TypeScript 7을 아직 지원하지 않아(`<6.1`) TypeScript 비의존 린터로 선택. TS·React·react-hooks·import·vitest 규칙 내장, `--deny-warnings`로 경고도 실패 처리 |
 | 런타임 | Node.js LTS ≥ 24 (`.nvmrc`: 24), npm | `package-lock.json` 기준 `npm ci` |
 
 ## 빠른 시작 (Windows 11 PowerShell)
@@ -39,7 +39,7 @@ npm run dev:mock        # Backend 없이 Mock 데이터로 실행 → http://127
 |---|---|
 | `npm run dev` | 개발 서버(실제 API, `/api` 프록시) |
 | `npm run dev:mock` | 개발 서버(Mock API, `.env.mock`) |
-| `npm run lint` | ESLint |
+| `npm run lint` | oxlint (경고 포함 실패) |
 | `npm run typecheck` | TypeScript 타입 검사 |
 | `npm test` | Vitest 1회 실행 (`npm run test:watch`: 감시 모드) |
 | `npm run build` | 타입 검사 + 프로덕션 빌드(`dist/`) |

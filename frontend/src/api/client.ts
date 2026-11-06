@@ -6,7 +6,7 @@ export { ApiError };
 
 export interface ApiClientOptions {
   baseUrl?: string;
-  useMock?: boolean;
+  mockEnabled?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -15,8 +15,8 @@ export interface ApiClientOptions {
  * path는 Backend 기준 경로(예: '/health', '/v1/jobs')입니다.
  */
 export async function apiGet<T>(path: string, options: ApiClientOptions = {}): Promise<T> {
-  const useMock = options.useMock ?? env.useMock;
-  if (useMock) {
+  const mockEnabled = options.mockEnabled ?? env.mockEnabled;
+  if (mockEnabled) {
     return resolveMock<T>(path);
   }
 
