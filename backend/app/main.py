@@ -3,10 +3,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.request_id import RequestIdMiddleware
+from app.db import create_db_engine, create_session_factory
 from app.routers import api_v1, system
 
 logger = logging.getLogger(__name__)
@@ -14,18 +16,28 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # 시작/종료 시 자원(DB 풀 등)을 여는 자리. DB 연결은 T14에서 추가합니다.
-    app.state.ready = True
-    logger.info("application startup")
-    yield
-    app.state.ready = False
-    logger.info("application shutdown")
+    database = app.state.settings.database
+    engine = create_db_engine(database) if database else None
+    try:
+        if engine is not None:
+            app.state.db_session_factory = create_session_factory(engine)
+        app.state.ready = True
+        logger.info("application startup")
+        yield
+    finally:
+        app.state.ready = False
+        app.state.db_session_factory = None
+        if engine is not None:
+            await run_in_threadpool(engine.dispose)
+        logger.info("application shutdown")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=APP_NAME, version=settings.app_version, lifespan=lifespan)
     app.state.ready = False
+    app.state.settings = settings
+    app.state.db_session_factory = None
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)
     app.include_router(system.router)

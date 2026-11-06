@@ -46,7 +46,7 @@ def test_openapi_lists_system_routes(app):
     spec = response.json()
     assert spec["info"]["title"] == "ai-career-platform"
     assert spec["info"]["version"] == "9.9.9"
-    assert {"/health", "/version"} <= set(spec["paths"])
+    assert {"/health", "/health/db", "/version"} <= set(spec["paths"])
 
 
 def test_docs_page_served(app):
