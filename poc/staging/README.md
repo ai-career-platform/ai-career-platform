@@ -11,7 +11,7 @@ Browser -> ngrok HTTPS -> 127.0.0.1:18080 -> Nginx frontend
                                                   +-> /api/ -> FastAPI -> PostgreSQL
 ```
 
-Only the frontend publishes a host port. Nginx strips `/api/` when forwarding
+Only the frontend publishes a host port. The base Compose now defines the original `127.0.0.1:18080` plus the LAN-only `10.2.10.104:18080` bind; both require host network/ACL approval before server application. Nginx strips `/api/` when forwarding
 to the backend, so `/api/health`, `/api/version`, and `/api/health/db` map to
 `/health`, `/version`, and `/health/db`. Backend and database have no published
 ports. Compose uses its own `ai-career-staging-poc` project network and volume.
@@ -124,3 +124,8 @@ by default; restart with the `up` command above. Never add `-v` or prune volumes
 For DB recovery, restore a previously verified PoC backup into this project's
 database using a separately approved procedure; do not touch another project's
 data. Investigate health-check failures before restarting or restoring anything.
+
+
+## Optional LAN access on the staging host
+
+Source config now **proposes** a second IP-specific host binding: `10.2.10.104:18080:80`, keeping the original localhost binding for the automated deployer's health check. Changes to GitHub do **not** prove the live Ubuntu Compose file was updated. See [Staging runbook](../../docs/STAGING.md#lan-바인딩-변경-절차-서버-미적용--운영자-실행-필요) for host inspection, approved frontend-only apply, LAN verification and rollback. Do not bind `0.0.0.0` or modify the DB service.
