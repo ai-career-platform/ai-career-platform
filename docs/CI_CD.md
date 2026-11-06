@@ -3,12 +3,12 @@
 ## 목표
 PM/JM이 PR을 `main`에 Squash Merge → Actions CI 통과 → 검증된 불변 배포 아티팩트 게시 → Ubuntu `systemd timer`가 1분 주기로 확인 → 변경 시에만 Compose 배포.
 
-## 구현 상태 (2026-11-05)
-- PR #1 기본 Smoke CI Merge 완료, `main` SHA `2efcba7b92e4b09f65ac637550b1e4f92da3ffcc`.
+## 구현 상태 (2026-11-06, PR #4 자동 배포 E2E 기준)
+- PR #1 초기 Smoke CI와 PR #3 Auto-CD 코드 Merge 완료. PR #4 검증 Merge SHA `b1ce5e671bac271bc16a0692ab70d88a754c939c` 자동 배포 PASS (당시 기준 SHA).
 - 기존 CI는 README 파일 존재 여부 등 **Smoke 테스트만** 수행. 전체 품질/보안/배포 게이트가 아님.
-- Codex 로컬 자동화 번들: `C:\dev\ai-career-platform\outputs\staging-automation`에서 정적·Mock 32 PASS 보고. **아직 GitHub 반영/Ubuntu 설치 및 실환경 검증 없음**.
-- GHCR 게시/인증/패키지 가시성, 승인자 계정 매핑, 배포 이미지 Digest 검증, 실제 자동화는 HOLD.
-- systemd 유닛 및 타이머는 **Ubuntu에 아직 설치하지 않음**.
+- GHCR 게시 및 Ubuntu Pull 자동 배포 코드는 PR #3으로 Merge 완료; systemd 배포 service/timer 설치·활성화, 중복 SHA 방지와 실제 배포를 검증했습니다.
+- GitHub main CI·GHCR 게시, 이미지 Digest 고정, 승인자 매핑, PR #4 Merge → Ubuntu 자동 배포 E2E PASS. 인증 토큰 만료·교체는 운영 관리 대상입니다.
+- `ai-career-staging-deploy.timer` 설치·활성화, 1분 폴링과 동일 SHA 중복 배포 방지 확인. DB Migration은 자동 실행하지 않습니다.
 
 ## 신뢰할 수 있는 배포 버전
 - Repo/Branch `ai-career-platform/ai-career-platform:main`, Commit SHA, CI 성공 여부를 연계하여 검증.
