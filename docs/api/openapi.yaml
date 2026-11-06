@@ -1896,7 +1896,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example:
-            type: https://docs.ai-career.invalid/problems/validation
+            type: https://docs.ai-career.invalid/problems/validation-failed
             title: Validation failed
             status: 422
             code: VALIDATION_FAILED

@@ -47,36 +47,66 @@
 
 ### 1.4 오류
 
-모든 오류는 `application/problem+json` 형식입니다.
+모든 오류는 **같은 형식**으로 보냅니다. Backend 구현: [`backend/app/core/exception_handlers.py`](../backend/app/core/exception_handlers.py) (사용법은 [backend/README.md](../backend/README.md#공통-에러-처리)).
+
+**응답 형식** — `Content-Type: application/problem+json` (RFC 9457 + `code`·`request_id`)
 
 ```json
 {
-  "type": "https://docs.ai-career.invalid/problems/validation",
+  "type": "https://docs.ai-career.invalid/problems/validation-failed",
   "title": "Validation failed",
   "status": 422,
   "code": "VALIDATION_FAILED",
-  "request_id": "req-9c0d",
+  "request_id": "req-3f9a1c0b7d2e4a61",
   "errors": [{ "field": "items[0].proficiency", "code": "OUT_OF_RANGE" }]
 }
 ```
 
-- `code`: 화면이 분기에 쓰는 고정 코드(대문자). `title`·`detail`은 사람이 읽는 설명
-- `request_id`: 오류 화면에 표시하고 감사 기록과 연결 (FR-CMN-004, FR-ADM-004)
-- 비밀번호·토큰·이메일·문서 내용·스택트레이스는 넣지 않는다
-
-| 상태 | 쓰는 경우 | 대표 code |
+| 필드 | 필수 | 규칙 |
 |---|---|---|
-| 400 | 요청 형식은 맞지만 업무 규칙상 처리할 수 없음 | `NO_USER_SKILLS`, `NOT_A_TARGET_ROLE`, `INVALID_CURSOR`, `INVALID_RESET_TOKEN` |
-| 401 | 토큰 없음·만료·위조, 로그인 실패 | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `INVALID_CREDENTIALS` |
+| `type` | O | `https://docs.ai-career.invalid/problems/` + `code`를 소문자·하이픈으로 (예: `EMAIL_TAKEN` → `email-taken`) |
+| `title` | O | 코드별 고정 영문 제목. 화면 문구로 그대로 쓰지 않음 |
+| `status` | O | HTTP 상태와 같은 값 |
+| `code` | O | **화면이 분기에 쓰는 고정 코드** (대문자·밑줄). 아래 표에 없는 코드는 계약서에 먼저 추가 |
+| `detail` | 선택 | 사람이 읽는 추가 설명. 없으면 키 자체를 넣지 않음 |
+| `request_id` | O | 응답 헤더 `X-Request-ID`와 같은 값. 오류 화면에 표시하고 로그·감사 기록(`audit_events.request_id`)과 연결 (FR-CMN-004, FR-ADM-004) |
+| `errors` | 422만 | `[{field, code}]`. `field`는 `items[0].proficiency`처럼 본문·쿼리 위치(접두사 `body`·`query` 제외) |
+
+**넣지 않는 것** — 비밀번호, 토큰, 이메일, 사용자가 보낸 입력값, 문서 내용, 예외 메시지, 스택트레이스, 파일 경로. 500은 항상 고정 문구만 보내고 원인은 서버 로그(`request_id`로 검색)에만 남깁니다.
+
+**request_id** — 요청에 안전한 형식(`[A-Za-z0-9._-]` 8~64자)의 `X-Request-ID`가 있으면 그대로 쓰고, 없으면 서버가 `req-` + 16자리 16진수로 만듭니다. 성공 응답에도 `X-Request-ID` 헤더를 넣습니다.
+
+**상태 코드와 code**
+
+| 상태 | 쓰는 경우 | code |
+|---|---|---|
+| 400 | 요청 형식은 맞지만 업무 규칙상 처리할 수 없음, JSON 본문이 깨짐 | `NO_USER_SKILLS`, `NOT_A_TARGET_ROLE`, `INVALID_CURSOR`, `INVALID_RESET_TOKEN`, `MALFORMED_JSON`, `BAD_REQUEST` |
+| 401 | 토큰 없음·만료·위조, 로그인 실패. `WWW-Authenticate: Bearer` 헤더 포함 | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `INVALID_CREDENTIALS` |
 | 403 | 로그인했지만 역할이 없음, 필요한 동의가 없음 | `FORBIDDEN`, `CONSENT_REQUIRED` |
-| 404 | 없음, 또는 다른 사람 소유 | `NOT_FOUND` |
-| 409 | 중복(비교용 이메일 기준 포함), 현재 상태와 충돌 | `EMAIL_TAKEN`, `DELETION_ALREADY_REQUESTED`, `DOCUMENT_NOT_READY`, `APPROVAL_CLOSED`, `LAST_ADMIN` |
+| 404 | 없음, 없는 경로, 또는 다른 사람 소유 | `NOT_FOUND` |
+| 405 | 경로는 있지만 허용하지 않는 메서드. `Allow` 헤더 포함 | `METHOD_NOT_ALLOWED` |
+| 409 | 중복(비교용 이메일 기준 포함), 현재 상태와 충돌 | `EMAIL_TAKEN`, `DELETION_ALREADY_REQUESTED`, `DOCUMENT_NOT_READY`, `APPROVAL_CLOSED`, `LAST_ADMIN`, `CONFLICT` |
 | 413 | 파일 10MB 초과 | `FILE_TOO_LARGE` |
 | 415 | PDF·DOCX가 아니거나 내용과 확장자가 다름 | `UNSUPPORTED_FILE_TYPE` |
-| 422 | 필드 형식·범위 오류 (FastAPI 기본 422를 이 형식으로 바꿈) | `VALIDATION_FAILED`, `DUPLICATE_SKILL` |
+| 422 | 필드 형식·범위 오류 (FastAPI 기본 422를 이 형식으로 바꿈), 업무 검증 오류 | `VALIDATION_FAILED`, `DUPLICATE_SKILL` |
 | 429 | 요청 한도 초과. `Retry-After` 헤더 포함 | `RATE_LIMITED` |
-| 503 | 계산·AI 의존 서비스 장애. 화면은 해당 영역만 오류 표시 | `DEPENDENCY_UNAVAILABLE` |
+| 500 | 처리하지 못한 서버 오류. 내부 정보 없이 고정 문구 | `INTERNAL_ERROR` |
+| 503 | 계산·AI 의존 서비스 장애. 화면은 해당 영역만 오류 표시. `Retry-After` 선택 | `DEPENDENCY_UNAVAILABLE` |
 | 504 | 외부 AI 응답 시간 초과 | `DEPENDENCY_TIMEOUT` |
+
+**422 필드 오류 code** (`errors[].code`)
+
+| code | 뜻 | 예 |
+|---|---|---|
+| `REQUIRED` | 필수 값 없음 | `email` 누락 |
+| `UNKNOWN_FIELD` | 정의되지 않은 필드 | 본문에 `user_id` 포함 |
+| `TOO_SHORT` / `TOO_LONG` | 길이·개수 범위 밖 | 비밀번호 10자 미만, 목표 직무 4개 |
+| `OUT_OF_RANGE` | 숫자 범위 밖 | 숙련도 9, `limit=500` |
+| `INVALID_FORMAT` | 형식 오류 | UUID·날짜·이메일 형식 |
+| `INVALID_CHOICE` | 허용 목록 밖 | `sort=foo` |
+| `INVALID_TYPE` | 타입 오류 | 숫자 자리에 문자열 |
+| `DUPLICATE` | 목록 안 중복 | 같은 skill_id 두 번 |
+| `INVALID` | 그 밖의 검증 실패 | |
 
 ### 1.5 목록과 페이지
 
