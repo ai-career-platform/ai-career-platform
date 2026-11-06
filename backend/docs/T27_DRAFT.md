@@ -5,3 +5,7 @@ Redmine #1531. `app/services/recommendation_baseline.py`는 실제 API/DB에 연
 이 기준은 **팀 승인 전 가안**이다. 직무·공고 기술 가중치, 필수/우대, 점수·동점·만료 경계, 중복 출처 및 사용권은 T17/T18/T25 계약을 확인해야 한다. 점수는 단순 비교이며 채용 성공 확률이나 ML 성능이 아니다. 해시는 개인정보 익명화 수단이 아니며 기록·공유·권한 정책은 별도 검토가 필요하다. 데이터 소유권·접근 제어, API·DB·추천 저장, 실제 데이터 및 CI는 구현하지 않았다.
 
 백엔드 폴더에서 `python -m pytest tests/test_recommendation_baseline.py -q`를 실행한다.
+
+## T05 병합본과 대조 (2026-11-06)
+
+T05 PR #17이 main `a004efb`에 병합됐으나 데이터 사전은 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `recommendation_runs`는 `model_version_id`가 필수이고 `recommendation_items`는 1부터의 순위와 비어 있지 않은 이유(`reason`)를 요구한다. 현재 함수는 버전 문자열과 일치·누락 목록을 반환하지만 DB 모델 ID, 문장형 이유 및 저장을 구현하지 않는다. T05는 미관심 최신 피드백을 다음 추천에서 제외하도록 제안한다. 현재 `excluded_ids`는 호출자가 전달하는 가상 입력이며 실제 피드백 조회는 없다. T06 PR #29는 리뷰 중인 초안이다.
