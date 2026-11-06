@@ -1,0 +1,26 @@
+name: T10 Seed fixture verification
+
+on:
+  pull_request:
+    paths:
+      - 'database/seeds/**'
+      - 'database/tests/test_seed_idempotency.sh'
+      - 'database/model/check_data_dictionary.py'
+      - 'database/DATA_DICTIONARY.md'
+      - '.github/workflows/t10-seed-fixtures-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-test:
+    name: PostgreSQL 18.1 T10 Seed idempotency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run isolated T10 Seed and negative tests
+        env:
+          D1_TEST_ONLY: 'YES'
+        run: bash database/tests/test_seed_idempotency.sh
