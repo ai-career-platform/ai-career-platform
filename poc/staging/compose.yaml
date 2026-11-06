@@ -6,6 +6,7 @@ services:
       context: ./frontend
     ports:
       - "127.0.0.1:18080:80"
+      - "10.2.10.104:18080:80"
     depends_on:
       backend:
         condition: service_healthy
