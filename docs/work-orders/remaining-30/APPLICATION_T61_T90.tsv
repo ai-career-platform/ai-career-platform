@@ -1,8 +1,8 @@
 일감 ID	개발 영역	작업 제목	우선순위	선행 일감	GitHub 작업지시서	신청자 이름	GitHub ID	GitHub 이메일	진행 상태	시작일	완료예정일	PR URL	비고
-T61	데이터/기획	데이터 출처·라이선스·수집 범위 승인	P0	T04,T05,T25	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T61.md				신청 가능				
-T62	데이터/Backend	채용공고 수집 Adapter·정규화	P1	T18,T61	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T62.md				신청 가능				
-T63	데이터/DB	공고 중복·만료·출처 품질 검사	P1	T61,T62,T09	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T63.md				신청 가능				
-T64	데이터/DevOps	공고 수집 실행·장애 재처리 운영	P1	T62,T63,T28	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T64.md				신청 가능				
+T61	데이터/기획	크롤러 데이터 출처·수집 정책·라이선스 관리	P0	T04,T05,T25	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/remaining-30/T61.md				신청 가능				
+T62	데이터/Backend	채용공고 크롤러 Adapter·독립 Batch Worker 개발	P1	T18,T61	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/remaining-30/T62.md				신청 가능				
+T63	데이터/DB	크롤링 데이터 정규화·중복·만료·품질 검증	P1	T61,T62,T09	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/remaining-30/T63.md				신청 가능				
+T64	데이터/DevOps	크롤러 스케줄러·실행 관리·장애 복구	P1	T62,T63,T28	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/remaining-30/T64.md				신청 가능				
 T65	데이터/분석	채용시장 지표·관측 데이터 계약	P0	T04,T05,T61	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T65.md				신청 가능				
 T66	데이터/Backend	시장 관측 지표 집계 Pipeline	P1	T63,T65	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T66.md				신청 가능				
 T67	Backend	채용시장 추세 조회 API	P1	T14,T18,T65,T66	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T67.md				신청 가능				
