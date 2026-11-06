@@ -1,12 +1,13 @@
 from collections.abc import Iterator
 
 import psycopg
-from fastapi import HTTPException, Request
+from fastapi import Request
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import OperationalError, TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import DatabaseSettings
+from app.core.errors import AppError, ErrorCode
 
 
 def create_db_engine(settings: DatabaseSettings) -> Engine:
@@ -38,13 +39,16 @@ def get_db(request: Request) -> Iterator[Session]:
     """요청마다 Session 하나를 제공한다. 성공한 쓰기의 commit은 호출자가 담당한다."""
     factory = request.app.state.db_session_factory
     if factory is None:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="database not configured")
 
     session = factory()
     try:
         yield session
-    except (OperationalError, PoolTimeoutError):
-        raise HTTPException(status_code=503, detail="Database unavailable") from None
+    except (OperationalError, PoolTimeoutError) as exc:
+        # 예외 메시지는 자격정보를 담을 수 있어 로그에도 클래스 이름만 남깁니다.
+        raise AppError(
+            ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail=f"database error: {type(exc).__name__}"
+        ) from None
     finally:
         # 남은 트랜잭션은 롤백되고 연결은 풀로 반환됩니다.
         session.close()

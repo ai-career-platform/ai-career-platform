@@ -58,7 +58,9 @@ def test_connection_errors_return_generic_503(configured_app, error):
     with TestClient(app) as client:
         response = client.get("/health/db")
     assert response.status_code == 503
-    assert response.json() == {"detail": "Database unavailable"}
+    assert response.json()["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert response.json()["status"] == 503
+    assert "sensitive" not in response.text
     session.close.assert_called_once()
 
 
