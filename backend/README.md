@@ -56,14 +56,18 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 |---|---|---|
 | `APP_ENV` | `local-dev` | `/version`의 environment |
 | `APP_VERSION` | `0.1.0` | `/version`의 version, OpenAPI 버전 |
+| `DATABASE_URL` | 미설정 | PostgreSQL 앱 계정 URL. 미설정 시 DB 경로는 503을 반환합니다. |
+| `DB_POOL_SIZE` | `5` | 프로세스당 최대 연결 수 (1–100) |
+| `DB_TIMEOUT_SECONDS` | `5` | 풀 대기 및 접속 시간 제한(초, 1–60) |
 
-`.env` 파일은 자동으로 읽지 않습니다. DB 접속 설정과 `/health/db`는 T14(DB 연결·세션 수명주기)에서 추가합니다.
+`.env` 파일은 자동으로 읽지 않습니다. 실행 환경에서 변수를 설정하세요. 앱에는 최소권한 계정을 사용하고 Migration에는 별도의 계정을 사용합니다. `get_db`는 요청별 연결을 빌려주며 남은 트랜잭션을 롤백한 뒤 반환합니다. 쓰기 호출자가 성공 시 명시적으로 커밋합니다.
 
 ## 현재 API
 
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/health` | 앱 상태 `{"status":"ok","service":"ai-career-backend"}` |
+| GET | `/health/db` | PostgreSQL에서 `SELECT 1` 실행. 접속 실패 시 503 |
 | GET | `/version` | 애플리케이션·환경·버전 |
 | GET | `/openapi.json`, `/docs` | OpenAPI / Swagger UI |
 
