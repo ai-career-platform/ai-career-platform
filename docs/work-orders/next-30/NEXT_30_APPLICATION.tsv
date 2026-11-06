@@ -1,0 +1,31 @@
+일감 ID	개발 영역	작업 제목	우선순위	선행 일감	GitHub 작업지시서	신청자 이름	GitHub ID	GitHub 이메일	진행 상태	시작일	완료예정일	PR URL	비고
+T31	Backend/보안	개인정보 동의·탈퇴 요청 Backend API	P0	T05,T06,T15,T16	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T31.md				신청 가능				
+T32	Frontend	개인정보 설정·동의 UI	P1	T20,T21,T31	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T32.md				신청 가능				
+T33	Backend	내 보유 기술·숙련도 API	P1	T05,T06,T14,T15,T17	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T33.md				신청 가능				
+T34	Frontend	내 기술·숙련도 관리 UI	P1	T20,T21,T23,T33	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T34.md				신청 가능				
+T35	Backend	목표 직무 관리 API	P1	T05,T06,T14,T15,T17	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T35.md				신청 가능				
+T36	Frontend	목표 직무 선택 UI	P1	T20,T21,T23,T35	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T36.md				신청 가능				
+T37	Backend	개인 경력·프로젝트 이력 API	P1	T05,T06,T14,T15,T16	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T37.md				신청 가능				
+T38	Frontend	경력·프로젝트 편집 UI	P1	T20,T21,T22,T37	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T38.md				신청 가능				
+T39	Backend	관심 채용공고 북마크 API	P1	T05,T06,T14,T15,T18	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T39.md				신청 가능				
+T40	Frontend	저장한 채용공고 UI	P1	T20,T21,T24,T39	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T40.md				신청 가능				
+T41	Backend/AI	직무·공고 적합도 평가 API	P1	T15,T17,T18,T25,T27,T33	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T41.md				신청 가능				
+T42	Frontend	직무 적합도 결과 UI	P1	T20,T23,T24,T41	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T42.md				신청 가능				
+T43	Backend/AI	Skill Gap 분석 API	P1	T15,T17,T25,T26,T33,T35	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T43.md				신청 가능				
+T44	Frontend	Skill Gap 결과 UI	P1	T20,T34,T36,T43	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T44.md				신청 가능				
+T45	Backend/AI	개인화 직무·공고 추천 API	P1	T15,T17,T18,T25,T27,T33,T35	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T45.md				신청 가능				
+T46	Frontend	개인화 추천 목록 UI	P1	T20,T23,T24,T45	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T46.md				신청 가능				
+T47	Backend/AI	추천 설명·피드백 API	P1	T15,T25,T45	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T47.md				신청 가능				
+T48	Frontend	추천 설명·피드백 UI	P1	T20,T46,T47	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T48.md				신청 가능				
+T49	Backend/보안	개인 문서 업로드·보관 API	P1	T05,T06,T15	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T49.md				신청 가능				
+T50	Frontend	개인 문서 관리 UI	P1	T20,T21,T49	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T50.md				신청 가능				
+T51	Backend/AI	LLM 기반 이력서 분석 Pipeline·API	P1	T25,T49	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T51.md				신청 가능				
+T52	Frontend	이력서 분석 결과 UI	P1	T20,T50,T51	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T52.md				신청 가능				
+T53	AI/Backend	RAG 문서 청킹·색인·권한 동기화	P2	T25,T49	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T53.md				신청 가능				
+T54	Backend/AI	권한 기반 RAG 검색 API	P2	T15,T25,T53	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T54.md				신청 가능				
+T55	Frontend	근거 기반 지식 검색 UI	P2	T20,T50,T54	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T55.md				신청 가능				
+T56	Backend/AI	RAG Q&A API·인용 근거 검증	P2	T25,T54	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T56.md				신청 가능				
+T57	Frontend	커리어 Q&A 채팅 UI	P2	T20,T55,T56	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T57.md				신청 가능				
+T58	AI/Backend/보안	Agent 승인 기반 실행·감사 API	P2	T15,T25,T28	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T58.md				신청 가능				
+T59	Frontend	Agent 실행·승인 이력 UI	P2	T20,T21,T58	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T59.md				신청 가능				
+T60	AI/QA/Backend	AI 모델 버전·평가·사용량 운영 API	P1	T25,T26,T27,T28	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T60.md				신청 가능				
