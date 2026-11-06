@@ -78,7 +78,10 @@ erDiagram
 
 - [x] 기존 PR #2의 DB/아키텍처/AI·온보딩 정책 검토
 - [x] MVP 10개 논리 테이블 후보 및 관계 초안
-- [ ] 실제 요구사항·화면·API와 매핑 및 확정
+- [x] 기능↔테이블 추적 매트릭스 작성(근거 범위에서만 검토)
+- [x] D1-9 격리 PostgreSQL 18.1에서 Migration SQL 실행 테스트 PASS
+- [x] D1-10 검토·승인 패키지 문서화
+- [ ] 실제 요구사항·화면·API와 매핑 **확정**
 - [x] PostgreSQL 읽기 전용 실태 조사(테이블/스키마/역할 목록; 백업 및 DB 소유권은 별도 확인)
 - [x] D1-5 물리 컬럼·제약조건 및 계정 권한 초안 작성
 - [ ] 실제 서비스 요구사항/화면/API와 테이블 매핑·PM 승인
@@ -158,3 +161,12 @@ erDiagram
 - PR #2의 운영 정책과 PR #5의 설계 문서가 모두 main에 반영되는 시점
 
 **결론:** 이 문서는 D1 설계안이며, PM 검토와 D2 안전 게이트 통과 전까지 실제 DB 객체 생성 및 권한 변경을 승인한 문서가 아닙니다.
+
+## 11. D1-10 심사 결과
+
+- [기능↔테이블 추적표](REQUIREMENTS_MATRIX.md)
+- [요구사항 원본 조사·승인 체크리스트](REQUIREMENTS_APPROVAL_CHECKLIST.md)
+- [실행 증빙·D1 승인 및 D2 안전 게이트](D1_REVIEW_AND_APPROVAL.md)
+- [격리 PostgreSQL 18.1 GitHub Actions PASS](https://github.com/ai-career-platform/ai-career-platform/actions/runs/42149590877)
+
+**판정:** `D1_SQL_TEST=PASS` / `D1_SCHEMA_APPROVAL=HOLD` / `D2_EXECUTION=BLOCKED`. 요구사항/PM 승인과 백업·복원 검증 전 실제 Staging DDL·Seed·계정 생성 금지.
