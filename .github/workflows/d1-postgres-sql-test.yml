@@ -21,3 +21,7 @@ jobs:
         env:
           D1_TEST_ONLY: 'YES'
         run: bash database/tests/test_initial_migration.sh
+      - name: Verify DB role privileges in a separate disposable container
+        env:
+          D1_TEST_ONLY: 'YES'
+        run: bash database/tests/test_role_permissions.sh
