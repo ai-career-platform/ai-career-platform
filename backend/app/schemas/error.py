@@ -13,6 +13,15 @@ class ErrorResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(pattern=r"^[A-Z][A-Z0-9_]+$", description="화면이 분기에 쓰는 고정 코드", examples=["EMAIL_TAKEN"])
-    status: int = Field(ge=400, le=599, description="HTTP 상태 코드와 같은 값", examples=[409])
-    message: str = Field(description="사용자에게 그대로 보여 줄 수 있는 안내 문구", examples=["이미 가입된 이메일입니다."])
+    code: str = Field(
+        pattern=r"^[A-Z][A-Z0-9_]+$",
+        description="화면이 분기에 쓰는 고정 코드",
+        examples=["EMAIL_TAKEN"],
+    )
+    status: int = Field(
+        ge=400, le=599, description="HTTP 상태 코드와 같은 값", examples=[409]
+    )
+    message: str = Field(
+        description="사용자에게 그대로 보여 줄 수 있는 안내 문구",
+        examples=["이미 가입된 이메일입니다."],
+    )

@@ -86,10 +86,12 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 ```python
 from app.core.errors import AppError, ErrorCode
 
-raise AppError(ErrorCode.EMAIL_TAKEN)                                  # 409 이미 가입된 이메일입니다.
-raise AppError(ErrorCode.NOT_FOUND)                                    # 404 (다른 사람 소유도 404)
-raise AppError(ErrorCode.RATE_LIMITED, retry_after=30)                 # 429 + Retry-After: 30
-raise AppError(ErrorCode.DUPLICATE_SKILL, log_detail=f"skill_id={sid}") # 422, log_detail은 로그에만
+raise AppError(ErrorCode.EMAIL_TAKEN)  # 409 이미 가입된 이메일입니다.
+raise AppError(ErrorCode.NOT_FOUND)  # 404 (다른 사람 소유도 404)
+raise AppError(ErrorCode.RATE_LIMITED, retry_after=30)  # 429 + Retry-After: 30
+raise AppError(
+    ErrorCode.DUPLICATE_SKILL, log_detail=f"skill_id={sid}"
+)  # 422, log_detail은 로그에만
 ```
 
 ### 오류 메시지 관리 규칙

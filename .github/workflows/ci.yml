@@ -56,6 +56,12 @@ jobs:
       - name: Run backend pytest
         working-directory: backend
         run: /tmp/backend-venv/bin/python -B -m pytest -p no:cacheprovider -q
+      - name: Validate OpenAPI contract and requirement coverage
+        run: /tmp/backend-venv/bin/python -B docs/api/check_openapi.py
+      - name: Run API contract checker regression tests
+        run: /tmp/backend-venv/bin/python -B -m unittest discover -s docs/api -p 'test_*.py' -v
+      - name: Run data dictionary contract tests (no database required)
+        run: /tmp/backend-venv/bin/python -B -m unittest discover -s database/tests -p 'test_*.py' -v
 
   poc-staging-test:
     name: PoC Staging pytest

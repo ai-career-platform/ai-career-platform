@@ -27,10 +27,12 @@ class ErrorCode(StrEnum):
     NO_USER_SKILLS = "NO_USER_SKILLS"
     NOT_A_TARGET_ROLE = "NOT_A_TARGET_ROLE"
     INVALID_CURSOR = "INVALID_CURSOR"
-    INVALID_RESET_TOKEN = "INVALID_RESET_TOKEN"
+    INVALID_RESET_TOKEN = (
+        "INVALID_RESET_TOKEN"  # secret-scan: allow — 공개 API 오류 코드
+    )
     # 401
     UNAUTHENTICATED = "UNAUTHENTICATED"
-    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"  # secret-scan: allow — 공개 API 오류 코드
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     # 403
     FORBIDDEN = "FORBIDDEN"
@@ -69,31 +71,57 @@ class ErrorSpec:
 ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.BAD_REQUEST: ErrorSpec(400, "요청을 처리할 수 없습니다."),
     ErrorCode.MALFORMED_JSON: ErrorSpec(400, "요청 형식이 올바르지 않습니다."),
-    ErrorCode.NO_USER_SKILLS: ErrorSpec(400, "먼저 보유 기술을 1개 이상 등록해 주세요."),
+    ErrorCode.NO_USER_SKILLS: ErrorSpec(
+        400, "먼저 보유 기술을 1개 이상 등록해 주세요."
+    ),
     ErrorCode.NOT_A_TARGET_ROLE: ErrorSpec(400, "목표 직무로 등록한 직무가 아닙니다."),
-    ErrorCode.INVALID_CURSOR: ErrorSpec(400, "목록 정보가 만료되었습니다. 처음부터 다시 조회해 주세요."),
-    ErrorCode.INVALID_RESET_TOKEN: ErrorSpec(400, "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다."),
+    ErrorCode.INVALID_CURSOR: ErrorSpec(
+        400, "목록 정보가 만료되었습니다. 처음부터 다시 조회해 주세요."
+    ),
+    ErrorCode.INVALID_RESET_TOKEN: ErrorSpec(
+        400, "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다."
+    ),
     ErrorCode.UNAUTHENTICATED: ErrorSpec(401, "로그인이 필요합니다."),
-    ErrorCode.TOKEN_EXPIRED: ErrorSpec(401, "로그인이 만료되었습니다. 다시 로그인해 주세요."),
-    ErrorCode.INVALID_CREDENTIALS: ErrorSpec(401, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    ErrorCode.TOKEN_EXPIRED: ErrorSpec(
+        401, "로그인이 만료되었습니다. 다시 로그인해 주세요."
+    ),
+    ErrorCode.INVALID_CREDENTIALS: ErrorSpec(
+        401, "이메일 또는 비밀번호가 올바르지 않습니다."
+    ),
     ErrorCode.FORBIDDEN: ErrorSpec(403, "접근 권한이 없습니다."),
-    ErrorCode.CONSENT_REQUIRED: ErrorSpec(403, "이 기능을 사용하려면 동의가 필요합니다."),
+    ErrorCode.CONSENT_REQUIRED: ErrorSpec(
+        403, "이 기능을 사용하려면 동의가 필요합니다."
+    ),
     ErrorCode.NOT_FOUND: ErrorSpec(404, "요청한 정보를 찾을 수 없습니다."),
     ErrorCode.METHOD_NOT_ALLOWED: ErrorSpec(405, "지원하지 않는 요청입니다."),
     ErrorCode.CONFLICT: ErrorSpec(409, "현재 상태에서는 처리할 수 없습니다."),
     ErrorCode.EMAIL_TAKEN: ErrorSpec(409, "이미 가입된 이메일입니다."),
-    ErrorCode.DELETION_ALREADY_REQUESTED: ErrorSpec(409, "이미 탈퇴 요청이 접수되었습니다."),
-    ErrorCode.DOCUMENT_NOT_READY: ErrorSpec(409, "문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요."),
+    ErrorCode.DELETION_ALREADY_REQUESTED: ErrorSpec(
+        409, "이미 탈퇴 요청이 접수되었습니다."
+    ),
+    ErrorCode.DOCUMENT_NOT_READY: ErrorSpec(
+        409, "문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요."
+    ),
     ErrorCode.APPROVAL_CLOSED: ErrorSpec(409, "이미 처리되었거나 만료된 요청입니다."),
     ErrorCode.LAST_ADMIN: ErrorSpec(409, "관리자는 최소 1명 이상 있어야 합니다."),
     ErrorCode.FILE_TOO_LARGE: ErrorSpec(413, "파일은 10MB 이하만 올릴 수 있습니다."),
-    ErrorCode.UNSUPPORTED_FILE_TYPE: ErrorSpec(415, "PDF 또는 DOCX 파일만 올릴 수 있습니다."),
+    ErrorCode.UNSUPPORTED_FILE_TYPE: ErrorSpec(
+        415, "PDF 또는 DOCX 파일만 올릴 수 있습니다."
+    ),
     ErrorCode.VALIDATION_FAILED: ErrorSpec(422, "입력값을 확인해 주세요."),
     ErrorCode.DUPLICATE_SKILL: ErrorSpec(422, "같은 기술이 중복으로 들어 있습니다."),
-    ErrorCode.RATE_LIMITED: ErrorSpec(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
-    ErrorCode.INTERNAL_ERROR: ErrorSpec(500, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
-    ErrorCode.DEPENDENCY_UNAVAILABLE: ErrorSpec(503, "서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
-    ErrorCode.DEPENDENCY_TIMEOUT: ErrorSpec(504, "응답이 늦어지고 있습니다. 잠시 후 다시 시도해 주세요."),
+    ErrorCode.RATE_LIMITED: ErrorSpec(
+        429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
+    ),
+    ErrorCode.INTERNAL_ERROR: ErrorSpec(
+        500, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+    ),
+    ErrorCode.DEPENDENCY_UNAVAILABLE: ErrorSpec(
+        503, "서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."
+    ),
+    ErrorCode.DEPENDENCY_TIMEOUT: ErrorSpec(
+        504, "응답이 늦어지고 있습니다. 잠시 후 다시 시도해 주세요."
+    ),
 }
 
 

@@ -99,7 +99,9 @@ def assert_error(response, code: ErrorCode) -> dict:
 # ---------- 형식 ----------
 
 
-@pytest.mark.parametrize("code", [c for c in ErrorCode if c is not ErrorCode.INTERNAL_ERROR])
+@pytest.mark.parametrize(
+    "code", [c for c in ErrorCode if c is not ErrorCode.INTERNAL_ERROR]
+)
 def test_every_code_is_sent_as_code_status_message(client, code):
     assert_error(client.get(f"/api/v1/_probe/raise/{code}"), code)
 
@@ -113,12 +115,20 @@ def test_log_detail_stays_in_server_log(client, caplog):
 
 def test_unauthorized_sends_www_authenticate(client):
     for code in ("UNAUTHENTICATED", "TOKEN_EXPIRED", "INVALID_CREDENTIALS"):
-        assert client.get(f"/api/v1/_probe/raise/{code}").headers["www-authenticate"] == "Bearer"
+        assert (
+            client.get(f"/api/v1/_probe/raise/{code}").headers["www-authenticate"]
+            == "Bearer"
+        )
 
 
 def test_retry_after_header(client):
-    assert client.get("/api/v1/_probe/raise/RATE_LIMITED").headers["retry-after"] == "30"
-    assert client.get("/api/v1/_probe/raise/DEPENDENCY_UNAVAILABLE").headers["retry-after"] == "5"
+    assert (
+        client.get("/api/v1/_probe/raise/RATE_LIMITED").headers["retry-after"] == "30"
+    )
+    assert (
+        client.get("/api/v1/_probe/raise/DEPENDENCY_UNAVAILABLE").headers["retry-after"]
+        == "5"
+    )
 
 
 # ---------- 핸들러가 바꾸는 오류 ----------
@@ -128,7 +138,16 @@ def test_request_validation_is_422_without_field_details(client, caplog):
     with caplog.at_level(logging.INFO, logger="app.errors"):
         r = client.post(
             "/api/v1/_probe/skills",
-            json={"items": [{"skill_id": "6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f", "proficiency": 9}, {}], "extra": 1},
+            json={
+                "items": [
+                    {
+                        "skill_id": "6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f",
+                        "proficiency": 9,
+                    },
+                    {},
+                ],
+                "extra": 1,
+            },
         )
     assert_error(r, ErrorCode.VALIDATION_FAILED)
     assert "proficiency" not in r.text
@@ -138,19 +157,28 @@ def test_request_validation_is_422_without_field_details(client, caplog):
 
 
 def test_query_validation_is_422(client):
-    assert_error(client.get("/api/v1/_probe/list?limit=500"), ErrorCode.VALIDATION_FAILED)
+    assert_error(
+        client.get("/api/v1/_probe/list?limit=500"), ErrorCode.VALIDATION_FAILED
+    )
 
 
 def test_validation_never_echoes_input_even_in_logs(client, caplog):
     with caplog.at_level(logging.INFO, logger="app.errors"):
-        r = client.post("/api/v1/_probe/signup", json={"email": "seeker@example.com", "password": "pw9Xq!"})
+        r = client.post(
+            "/api/v1/_probe/signup",
+            json={"email": "seeker@example.com", "password": "pw9Xq!"},
+        )
     assert_error(r, ErrorCode.VALIDATION_FAILED)
     for secret in ("pw9Xq!", "seeker@example.com"):
         assert secret not in r.text and secret not in caplog.text
 
 
 def test_malformed_json_is_400(client):
-    r = client.post("/api/v1/_probe/signup", content=b'{"email": ', headers={"content-type": "application/json"})
+    r = client.post(
+        "/api/v1/_probe/signup",
+        content=b'{"email": ',
+        headers={"content-type": "application/json"},
+    )
     assert_error(r, ErrorCode.MALFORMED_JSON)
 
 
@@ -175,13 +203,18 @@ def test_unhandled_exception_hides_internals(client):
 
 
 def test_request_id_is_reused_when_safe(client):
-    r = client.get("/api/v1/_probe/raise/NOT_FOUND", headers={"X-Request-ID": "nginx-7f3a9c21"})
+    r = client.get(
+        "/api/v1/_probe/raise/NOT_FOUND", headers={"X-Request-ID": "nginx-7f3a9c21"}
+    )
     assert r.headers["x-request-id"] == "nginx-7f3a9c21"
     assert "nginx-7f3a9c21" not in r.text  # 본문에는 넣지 않음
 
 
 def test_request_id_is_replaced_when_unsafe(client):
-    r = client.get("/api/v1/_probe/raise/NOT_FOUND", headers={"X-Request-ID": "<script>alert(1)</script>"})
+    r = client.get(
+        "/api/v1/_probe/raise/NOT_FOUND",
+        headers={"X-Request-ID": "<script>alert(1)</script>"},
+    )
     assert re.fullmatch(r"req-[0-9a-f]{16}", r.headers["x-request-id"])
 
 
@@ -197,9 +230,15 @@ def test_success_responses_also_carry_request_id(client):
 def test_openapi_documents_error_response_for_api_v1(client):
     spec = client.get("/openapi.json").json()
     responses = spec["paths"]["/api/v1/_probe/skills"]["post"]["responses"]
-    assert responses["422"]["content"] == {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+    assert responses["422"]["content"] == {
+        "application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}
+    }
     schema = spec["components"]["schemas"]["ErrorResponse"]
-    assert set(schema["properties"]) == set(schema["required"]) == {"code", "status", "message"}
+    assert (
+        set(schema["properties"])
+        == set(schema["required"])
+        == {"code", "status", "message"}
+    )
     assert "HTTPValidationError" not in str(responses)
 
 
@@ -236,18 +275,25 @@ def test_contract_table_matches_catalog():
     section = text.split("### 1.4 오류", 1)[1].split("\n### ", 1)[0]
     rows = re.findall(r"^\| (\d{3}) \| `([A-Z_]+)` \| ([^|]+?) \|", section, re.M)
     documented = {code: (int(status), message) for status, code, message in rows}
-    expected = {str(code): (spec.status, spec.message) for code, spec in ERROR_CATALOG.items()}
+    expected = {
+        str(code): (spec.status, spec.message) for code, spec in ERROR_CATALOG.items()
+    }
     assert documented == expected
 
 
 def test_openapi_examples_match_catalog():
     """docs/api/openapi.yaml 의 모든 오류 예시 message = 카탈로그 문구."""
-    spec = yaml.safe_load((REPO / "docs" / "api" / "openapi.yaml").read_text(encoding="utf-8"))
+    spec = yaml.safe_load(
+        (REPO / "docs" / "api" / "openapi.yaml").read_text(encoding="utf-8")
+    )
     examples = []
 
     def walk(node):
         if isinstance(node, dict):
-            if node.get("schema") == {"$ref": "#/components/schemas/ErrorResponse"} and "example" in node:
+            if (
+                node.get("schema") == {"$ref": "#/components/schemas/ErrorResponse"}
+                and "example" in node
+            ):
                 examples.append(node["example"])
             for v in node.values():
                 walk(v)
@@ -259,4 +305,8 @@ def test_openapi_examples_match_catalog():
     assert examples
     for ex in examples:
         spec_ = ERROR_CATALOG[ErrorCode(ex["code"])]
-        assert ex == {"code": ex["code"], "status": spec_.status, "message": spec_.message}
+        assert ex == {
+            "code": ex["code"],
+            "status": spec_.status,
+            "message": spec_.message,
+        }

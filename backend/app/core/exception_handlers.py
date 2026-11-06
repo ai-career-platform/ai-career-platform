@@ -28,7 +28,9 @@ logger = logging.getLogger("app.errors")
 # Starlette/FastAPI가 직접 내는 HTTP 오류의 상태 → 코드
 _STATUS_CODES: dict[int, ErrorCode] = {
     spec.status: code
-    for code, spec in reversed(ERROR_CATALOG.items())  # 상태별 첫 코드(기본 코드)가 남도록 역순
+    for code, spec in reversed(
+        ERROR_CATALOG.items()
+    )  # 상태별 첫 코드(기본 코드)가 남도록 역순
 }
 
 
@@ -36,7 +38,9 @@ def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", None) or new_request_id()
 
 
-def error_response(request: Request, code: ErrorCode, headers: dict[str, str] | None = None) -> JSONResponse:
+def error_response(
+    request: Request, code: ErrorCode, headers: dict[str, str] | None = None
+) -> JSONResponse:
     spec = ERROR_CATALOG[code]
     body = ErrorResponse(code=code, status=spec.status, message=spec.message)
     # 500은 RequestIdMiddleware 바깥(ServerErrorMiddleware)에서 응답되므로 헤더를 여기서도 넣는다
@@ -51,19 +55,34 @@ def _field_path(loc: tuple[Any, ...]) -> str:
     """('body', 'items', 0, 'proficiency') → 'body.items[0].proficiency' (로그용)."""
     out = ""
     for part in loc:
-        out += f"[{part}]" if isinstance(part, int) else ("." if out else "") + str(part)
+        out += (
+            f"[{part}]" if isinstance(part, int) else ("." if out else "") + str(part)
+        )
     return out
 
 
 async def _app_error(request: Request, exc: AppError) -> JSONResponse:
     level = logging.ERROR if exc.status >= 500 else logging.INFO
-    logger.log(level, "%s %s request_id=%s detail=%s", exc.status, exc.code, _request_id(request), exc.log_detail)
+    logger.log(
+        level,
+        "%s %s request_id=%s detail=%s",
+        exc.status,
+        exc.code,
+        _request_id(request),
+        exc.log_detail,
+    )
     return error_response(request, exc.code, exc.headers)
 
 
-async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def _validation_error(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     raw = exc.errors()
-    code = ErrorCode.MALFORMED_JSON if any(e.get("type") == "json_invalid" for e in raw) else ErrorCode.VALIDATION_FAILED
+    code = (
+        ErrorCode.MALFORMED_JSON
+        if any(e.get("type") == "json_invalid" for e in raw)
+        else ErrorCode.VALIDATION_FAILED
+    )
     # 어떤 필드가 왜 틀렸는지는 로그에만 (입력값 e["input"]은 남기지 않음)
     fields = [f"{_field_path(tuple(e.get('loc', ())))}:{e.get('type')}" for e in raw]
     logger.info("%s request_id=%s fields=%s", code, _request_id(request), fields)
@@ -71,7 +90,10 @@ async def _validation_error(request: Request, exc: RequestValidationError) -> JS
 
 
 async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    code = _STATUS_CODES.get(exc.status_code, ErrorCode.INTERNAL_ERROR if exc.status_code >= 500 else ErrorCode.BAD_REQUEST)
+    code = _STATUS_CODES.get(
+        exc.status_code,
+        ErrorCode.INTERNAL_ERROR if exc.status_code >= 500 else ErrorCode.BAD_REQUEST,
+    )
     headers = dict(exc.headers or {})
     if exc.status_code == 401:
         headers.setdefault("WWW-Authenticate", "Bearer")
@@ -97,7 +119,13 @@ _ERROR_REF = {"$ref": "#/components/schemas/ErrorResponse"}
 
 def error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
     """라우터 responses= 에 넣는 공통 오류 응답 정의 (FastAPI 기본 HTTPValidationError 대신)."""
-    return {s: {"description": "Error", "content": {"application/json": {"schema": _ERROR_REF}}} for s in statuses}
+    return {
+        s: {
+            "description": "Error",
+            "content": {"application/json": {"schema": _ERROR_REF}},
+        }
+        for s in statuses
+    }
 
 
 def install_error_openapi(app: FastAPI) -> None:
@@ -108,8 +136,8 @@ def install_error_openapi(app: FastAPI) -> None:
         if app.openapi_schema:
             return app.openapi_schema
         spec = original()
-        spec.setdefault("components", {}).setdefault("schemas", {})["ErrorResponse"] = ErrorResponse.model_json_schema(
-            ref_template="#/components/schemas/{model}"
+        spec.setdefault("components", {}).setdefault("schemas", {})["ErrorResponse"] = (
+            ErrorResponse.model_json_schema(ref_template="#/components/schemas/{model}")
         )
         app.openapi_schema = spec
         return spec

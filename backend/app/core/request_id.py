@@ -28,15 +28,23 @@ class RequestIdMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        incoming = dict(scope.get("headers") or []).get(REQUEST_ID_HEADER.lower().encode())
+        incoming = dict(scope.get("headers") or []).get(
+            REQUEST_ID_HEADER.lower().encode()
+        )
         value = incoming.decode("latin-1") if incoming else ""
         request_id = value if _SAFE.match(value) else new_request_id()
         scope.setdefault("state", {})["request_id"] = request_id
 
         async def send_with_header(message: Message) -> None:
             if message["type"] == "http.response.start":
-                headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-request-id"]
-                headers.append((REQUEST_ID_HEADER.lower().encode(), request_id.encode()))
+                headers = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() != b"x-request-id"
+                ]
+                headers.append(
+                    (REQUEST_ID_HEADER.lower().encode(), request_id.encode())
+                )
                 message["headers"] = headers
             await send(message)
 

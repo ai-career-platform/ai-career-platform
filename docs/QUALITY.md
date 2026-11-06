@@ -24,7 +24,7 @@
 | Job (표시 이름) | 검사 내용 | 증명하지 않는 것 |
 |---|---|---|
 | `CI Smoke Test` (기존, **이름·단계 변경 금지**) | `README.md` 존재, `poc/staging/automation/tests` unittest(Auto-CD 자동화 42개) | 서비스 기능 |
-| `Backend pytest` | `backend/requirements-dev.txt` 설치 후 `backend/` pytest (T13 FastAPI) | 실제 DB 연결, 배포 환경 |
+| `Backend pytest` | `backend/requirements-dev.txt` 설치 후 `backend/` pytest, OpenAPI 3.1 계약·요구사항 매핑 검사, API 검사기 실패 주입 테스트, 데이터 사전 계약 테스트(로컬 파일 검사) | 실제 DB 연결, SQL 실행, 배포 환경 |
 | `PoC Staging pytest` | `staging-publish.yml`과 같은 고정 버전으로 `poc/staging/tests` pytest. 배포 직전에만 잡히던 실패를 PR에서 탐지 | 실제 Compose·Staging 상태 |
 | `Lint (ruff, compile, shell syntax)` | `ruff==0.16.9` + 루트 `ruff.toml`(E9 문법, F pyflakes만), `backend`·`scripts/ci` 포맷 검사, `compileall`, `*.sh`의 `bash -n` | 스타일 전반(E501 등), 타입 검사, shellcheck, actionlint |
 | `Frontend lint, test, build` | `frontend/.nvmrc`(Node 24)로 `npm ci`(lock 기준) → `npm run lint`(oxlint, 경고도 실패) → `npm test`(Vitest) → `npm run build`(tsc 타입 검사 + Vite 빌드) (T19 React 앱) | 실제 Backend 연동(E2E), 브라우저 호환·접근성, 화면 디자인 |
@@ -53,6 +53,9 @@ python3 -m venv .venv/ci
 .venv/ci/bin/pip install -r backend/requirements-dev.txt ruff==0.16.9
 python3 -B -m unittest discover -s poc/staging/automation/tests -v
 (cd backend && ../.venv/ci/bin/python -B -m pytest -p no:cacheprovider -q)
+.venv/ci/bin/python -B docs/api/check_openapi.py
+.venv/ci/bin/python -B -m unittest discover -s docs/api -p 'test_*.py' -v
+.venv/ci/bin/python -B -m unittest discover -s database/tests -p 'test_*.py' -v
 python3 -m venv .venv/poc
 .venv/poc/bin/pip install -r poc/staging/backend/requirements.txt pytest==8.3.5 httpx==0.28.1
 .venv/poc/bin/python -B -m pytest -p no:cacheprovider poc/staging/tests -q
@@ -72,6 +75,9 @@ py -3.12 -m venv .venv/ci
 .\.venv\ci\Scripts\pip install -r backend\requirements-dev.txt ruff==0.16.9
 py -3.12 -B -m unittest discover -s poc/staging/automation/tests -v
 Push-Location backend; ..\.venv\ci\Scripts\python -B -m pytest -p no:cacheprovider -q; Pop-Location
+.\.venv\ci\Scripts\python -B docs/api/check_openapi.py
+.\.venv\ci\Scripts\python -B -m unittest discover -s docs/api -p 'test_*.py' -v
+.\.venv\ci\Scripts\python -B -m unittest discover -s database/tests -p 'test_*.py' -v
 py -3.12 -m venv .venv/poc
 .\.venv\poc\Scripts\pip install -r poc\staging\backend\requirements.txt pytest==8.3.5 httpx==0.28.1
 .\.venv\poc\Scripts\python -B -m pytest -p no:cacheprovider poc/staging/tests -q
@@ -88,7 +94,7 @@ Push-Location frontend; npm ci; npm run lint; npm test; npm run build; Pop-Locat
 ### 알려진 한계
 - `poc/staging/automation/tests/test_boundaries.py`의 미사용 import(F401) 1건은 Auto-CD 코드 수정 금지 원칙에 따라 `ruff.toml`에서 예외 처리했습니다. 별도 승인 PR에서 정리합니다.
 - actionlint·shellcheck·Python 타입 검사(mypy/pyright)·Frontend E2E·의존성 취약점 검사(npm audit 포함)는 아직 게이트에 없습니다.
-- 간접 의존성(anyio, starlette, pydantic 등)은 고정되지 않아 경고·결과가 달라질 수 있습니다.
+- Backend 직접 의존성(pydantic 포함)은 `requirements.txt`에 고정되어 있습니다. 간접 의존성(anyio, starlette 등)은 고정되지 않아 경고·결과가 달라질 수 있습니다.
 - 기존 `CI Smoke Test` job의 `actions/checkout@v5`는 Auto-CD 보존을 위해 그대로 두었습니다(태그 고정). 신규 job은 SHA 고정입니다.
 
 ## 배포 게이트
