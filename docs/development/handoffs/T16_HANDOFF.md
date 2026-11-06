@@ -16,7 +16,8 @@
 
 - AI Career Platform — https://github.com/ai-career-platform/ai-career-platform
 - 로컬 경로: `C:\dev\ai-career-platform`
-- 작업 브랜치: `task/t16-user-profile-api` (2026-11-06 main `d1fae3a`에서 생성, 원격 push 안 함)
+- 작업 브랜치: `task/t16-user-profile-api` (2026-11-06 main `d1fae3a`에서 생성)
+- PR: [#42](https://github.com/ai-career-platform/ai-career-platform/pull/42) (ready for review, `[PARTIAL]`, Auto-fix 켜짐)
 
 ## 2. 일감
 
@@ -30,8 +31,8 @@
 | 항목 | 상태 | 근거 |
 |---|---|---|
 | Google Sheets | 확인됨: 진행 상태 `신청`, GitHub ID `kyrdufmal-summer` | 2026-11-06 시트 CSV 조회 |
-| Redmine | 확인됨: [#1556](https://sulfite-footbath-next.ngrok-free.dev/issues/1556) Feature/New/High, 담당자 Yeoreum Kim, 시작 2026-11-16, 완료 2026-11-20, 진척 0% | 2026-11-06 이슈 JSON 조회. 담당자는 본인 요청으로 지정, 일정은 다른 사용자(길래 문)가 입력 |
-| PM 담당 확정 | **미확인** | 이슈 본문: "PM 승인 여부는 별도 확인" |
+| Redmine | 확인됨: [#1556](https://sulfite-footbath-next.ngrok-free.dev/issues/1556) Feature/**In Progress**/High, 담당자 Yeoreum Kim, 2026-11-16~2026-11-20, 진척 10% | 2026-11-06 이슈 JSON 조회 |
+| PM 담당 확정 | 일정을 PM(문길래)이 직접 입력 → 확정으로 보고 진행 | Redmine 이력. PM·PL에게 따로 묻지 않기로 함 (리뷰는 PR에서) |
 
 ## 4. 원본 문서 (작업 전 반드시 확인)
 
@@ -68,10 +69,11 @@
 | T05 ERD | users·user_profiles 확정 | **병합됨** | PR #17, `database/DATA_DICTIONARY.md` |
 | T06 API 계약 | /me 계약·오류 규칙 | **병합됨, 단 PM 승인 전·`T06_STATUS=PARTIAL`** | PR #29, `docs/API_CONTRACT.md` 머리말 |
 | T13 Backend 골격 | `backend/app` 구조 | **병합됨**, smoke 7 passed (아래 6절) | PR #14 |
-| T14 DB 세션 | `get_db`, 연결 풀 | **미병합**: Draft PR #25 `[HOLD]` (T07·T08 대기) | `gh pr view 25` |
-| T15 인증 | 현재 사용자(`sub`) 추출 | **시작 흔적 없음**: PR·원격 브랜치 없음 | `gh pr list --search T15`, `git ls-remote` |
+| T14 DB 세션 | `get_db`, 연결 풀 | **미병합**: Draft PR #25 `[HOLD]` (T07·T08 대기). `get_db`는 psycopg `Connection`을 빌려주고 **커밋은 호출자 책임** | `gh pr view 25`, 브랜치 `task/t14-db-session-lifecycle`의 `backend/app/db.py` |
+| T15 인증 | 현재 사용자(`sub`) 추출 | **진행 중**: Redmine #1499 In Progress 10%, 2026-11-11~2026-11-17. PR·원격 브랜치는 아직 없음 | Redmine 조회 (2026-11-06) |
+| T06 공통 에러 | 오류 응답 형식 | **병합됨**: #41 `{code, status, message}`, `AppError(ErrorCode)` | T16 브랜치에 병합(`2dff633`) |
 
-판정: `T16_STATUS=IN_PROGRESS` (mock 범위 구현 완료, 커밋 전). 실제 인증 연동은 T15, 실제 DB 연동은 T14 병합까지 HOLD → 이대로 PR을 내면 `PARTIAL`.
+판정: `T16_STATUS=PARTIAL`. 코드·mock 테스트·로컬 일회용 DB 검증 완료. T14 병합 후 `get_user_profile_repository` 연결, T15 병합 후 `get_token_verifier` 연결만 남음.
 
 ## 6. 개발환경 (본인 Windows 11 PC)
 
@@ -82,7 +84,9 @@
 | 시스템 Python | 3.13.7 (기본, 유지) | `python --version` |
 | Python 3.12 | 3.12.13 (uv 설치). `py -0p`에 `Astral/CPython3.12.13`로 표시되어 `py -3.12`로는 선택되지 않음 | `py -0p` |
 | 가상환경 | `poc\staging\backend\.venv` (git 무시): fastapi 0.115.12 / uvicorn 0.34.2 / psycopg 3.2.9 / pytest 8.3.5 / httpx 0.28.1 | import 버전 출력 |
-| `backend\` 전용 venv | **아직 없음**. 현재는 PoC venv로 backend 테스트 실행 중 (같은 버전) | |
+| `backend\.venv` | Python 3.12.13, `requirements-dev.txt` 설치 (pytest, httpx, PyYAML, openapi-spec-validator, psycopg 3.3.4) | 2026-11-06 생성. 백엔드 테스트는 이 venv로 실행 |
+| 일회용 테스트 DB | 로컬 PostgreSQL 18.4 바이너리로 `initdb`(trust, 포트 55416, 임시 폴더). 테스트 후 중지 | 기존 `postgresql-x64-18` 서비스와 별개 |
+| 공용 Staging DB 접속 정보 | 사용자가 교수님께 받음 (2026-11-06). **이 파일·채팅에 기록하지 않음** | T16은 공용 DB 쓰기 불필요 |
 | GitHub CLI | `kyrdufmal-summer` 로그인 | `gh auth status` |
 | 로컬 PostgreSQL | 서비스 `postgresql-x64-18` 실행 중, `C:\Program Files\PostgreSQL\18\bin\psql.exe` (PATH 미등록). T16 전용 DB **없음** | `Get-Service postgresql*` |
 | Docker Desktop | 29.7.2 / Compose v5.4.0 설치, **엔진 시작 실패** (8절) | Backend 작업에는 불필요 |
@@ -99,13 +103,24 @@
 | 2026-11-06 | T16 mock 구현 후 `backend` `pytest -q` (브랜치 `task/t16-user-profile-api`, 커밋 전) | PASS: 44 passed, 1 warning (`test_me.py` 37 + smoke 7) |
 | 2026-11-06 | `uvicorn app.main:app --port 8016` 실제 기동: `GET /api/v1/me` 토큰 없음 / 임의 토큰 | 둘 다 401 (T15 전 기본 검증기가 모든 토큰 거부 — 의도대로) |
 | 2026-11-06 | Swagger `/docs` | PASS: `me` 태그에 GET·PATCH `/api/v1/me`, Authorize(Bearer) 표시 |
+| 2026-11-06 | main 병합(공통 에러 계약) 후 `backend` `pytest -q` | PASS: 89 passed (DB 테스트 13 skipped) |
+| 2026-11-06 | 일회용 PostgreSQL 18.4 + 데이터 사전 DDL로 `tests/test_me_postgres.py` | PASS: 13 passed. 전체 102 passed |
 | — | 본인 PowerShell에서 직접 재확인 | **미확인** |
 
 재현 (Windows PowerShell):
 
 ```powershell
 Set-Location C:\dev\ai-career-platform\backend
-..\poc\staging\backend\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest -q          # DB 테스트는 skip
+
+# 일회용 DB로 저장소까지 (버려도 되는 DB만! Staging 금지)
+$pg = "C:\Program Files\PostgreSQL\18\bin"; $data = "$env:TEMP\t16pg"
+& "$pg\initdb.exe" -D $data -U t16 -A trust -E UTF8 --locale=C
+& "$pg\pg_ctl.exe" -D $data -l "$data.log" -o "-p 55416 -c listen_addresses=localhost" start
+& "$pg\psql.exe" -h localhost -p 55416 -U t16 -d postgres -c "CREATE DATABASE t16_test"
+$env:T16_TEST_ONLY = "YES"; $env:T16_TEST_DATABASE_URL = "postgresql://t16@localhost:55416/t16_test"
+.\.venv\Scripts\python.exe -m pytest -q
+& "$pg\pg_ctl.exe" -D $data stop -m fast
 ```
 
 ## 7. 작업 기록
@@ -117,7 +132,10 @@ Set-Location C:\dev\ai-career-platform\backend
 | 2026-11-06 | Redmine #1556 확인, main fast-forward(`6cf271b`→`d1fae3a`), 브랜치 `task/t16-user-profile-api` 생성 | 3·5절 |
 | 2026-11-06 | T05/T06/T13/T14 결과와 계약 문서 검토, 미확정 사항 기록 | 4·5·8절 |
 | 2026-11-06 | 이 HANDOFF 파일 생성 | 커밋 안 함 |
-| 2026-11-06 | mock 범위 구현 (담당자 승인 후). 아래 "구현 내용" | pytest 44 passed, 커밋 안 함 |
+| 2026-11-06 | mock 범위 구현 (담당자 승인 후). 아래 "구현 내용" | pytest 44 passed, 커밋 `a6cbd59` |
+| 2026-11-06 | PR #42 생성, Auto-fix 켬 | |
+| 2026-11-06 | main 충돌 해결: 공통 에러 계약(#41) 병합, T16 오류를 `AppError`로 변경 | 89 passed, 커밋 `2dff633` |
+| 2026-11-06 | PostgreSQL 저장소 `user_profile_postgres.py` + 일회용 DB 테스트 13개 | 102 passed |
 
 ### 구현 내용 (2026-11-06, 커밋 전)
 
@@ -137,8 +155,16 @@ Set-Location C:\dev\ai-career-platform\backend
 - `display_name` 공백만 → 422, 다른 필드의 빈 문자열 `""` → 그대로 저장 (8절 5번)
 - 프로필 행이 없으면 GET은 프로필 필드 null, PATCH는 값 저장 (8절 4번)
 - `status=disabled` 사용자도 현재는 조회·수정 가능 (8절 3번, T15 토큰 정책 대기)
-- 오류 형식은 FastAPI 기본 `{"detail": ...}`. problem+json 아님 (8절 6번)
+- ~~오류 형식은 FastAPI 기본~~ → main의 공통 에러 계약(#41)으로 해결: 401 `UNAUTHENTICATED`, 404 `NOT_FOUND`, 422 `VALIDATION_FAILED`, 503 `DEPENDENCY_UNAVAILABLE`
 - OpenAPI에 `MePatch.minProperties: 1`은 표시되지 않음(실행 시 검사는 함)
+- `updated_at`은 앱 SQL에서 `now()`로 갱신 (8절 7번 — DB 트리거로 정해지면 제거)
+
+PostgreSQL 저장소 (`backend/app/repositories/user_profile_postgres.py`, 2026-11-06):
+- T14 `get_db`의 psycopg `Connection`을 받음. `update`는 자기 트랜잭션에서 커밋 (T14: 커밋은 호출자 책임)
+- `users` 행을 `FOR UPDATE`로 잠근 뒤 `user_profiles`는 `INSERT ... ON CONFLICT DO UPDATE`로 보낸 컬럼만 반영
+- 컬럼 이름은 허용 목록만 `sql.Identifier`로. 값은 모두 바인딩
+- psycopg는 T14가 `requirements.txt`에 넣으므로 T16은 `requirements-dev.txt`에만 같은 버전(3.3.4) 추가 → 충돌 방지
+- **아직 앱에 연결 안 함**: `get_user_profile_repository`는 계속 503. T14 병합 후 `PostgresUserProfileRepository(conn)`을 돌려주게 바꾸면 끝
 
 ## 8. 미해결 문제
 
@@ -149,8 +175,8 @@ Set-Location C:\dev\ai-career-platform\backend
 3. **`status=disabled` 사용자의 /me**: 탈퇴 요청 시 즉시 비활성화(FR-ACC-007). 이 사용자가 /me를 조회·수정할 수 있는지 계약에 없음 (T15 토큰 정책과 연결).
 4. **`user_profiles` 행이 없을 때**: 가입 시 함께 만드는지(T15) 계약에 없음. 없으면 GET은 `profile` 필드를 모두 null로, PATCH는 행을 만드는(upsert) 방식이 자연스러움 → 확인 필요.
 5. **빈 문자열 처리**: FR-ACC-005 수용 기준 2 "항목을 비우면 빈 값으로 저장". `""`를 그대로 저장할지, null로 바꿀지 미정. `display_name`의 공백만 있는 값(`"  "`)은 1~100자 규칙상 통과됨 → 거부할지 결정 필요.
-6. **Problem 응답·422 변환기**: 계약은 FastAPI 기본 422를 problem+json으로 바꾸라고 하지만, 공통 오류 처리기가 `backend`에 아직 없음. T16에서 만들지, 공통(T13/T15) 담당이 만들지 결정 필요.
-7. **`updated_at` 갱신**: 앱에서 넣을지 DB 트리거로 할지 미정 (T08/T09).
+6. ~~Problem 응답·422 변환기~~ → **해결**: T06 #41 공통 에러 계약 병합.
+7. **`updated_at` 갱신**: 앱에서 넣을지 DB 트리거로 할지 미정 (T08/T09). 현재 앱 SQL에서 `now()`.
 8. **경로 접두사(T06-4)**: 앱의 `/api/v1`과 Staging Nginx의 `/api/` 제거가 충돌. T13·T30 결정 대기. T16 코드는 `API_V1_PREFIX`만 따르면 영향 없음.
 
 ### 오류
@@ -159,10 +185,7 @@ Set-Location C:\dev\ai-career-platform\backend
 
 ### 결정 대기
 
-- PM의 T16 담당 확정
-- 브랜치 규칙: 작업지시서 `task/t16-...`(채택) vs 가이드 STEP 11 `feature/<Redmine ID>-backend`
-- `career_reader` 비밀번호 전달 방법(직접 받아 세션 변수로만 사용)
-- 위 미확정 1~7번 → 담당자(T06 이상재, T15 kixxuya) 또는 PM 답변
+- 위 미확정 1~5·7번 → PR #42 리뷰에서 확인 (PM·PL에게 따로 묻지 않음)
 
 ### 위험 요소
 
@@ -174,7 +197,10 @@ Set-Location C:\dev\ai-career-platform\backend
 
 ## 9. 다음 작업 (한 단계)
 
-담당자가 변경 내용(`git diff main` — 7절 "구현 내용" 8개 파일 + 이 파일)을 검토하고 커밋 여부를 정한다. 커밋은 담당자 승인 후에만.
+**T14(PR #25)나 T15가 main에 병합되기를 기다린다.** 병합되면:
+- T14 → `app/routers/me.py`의 `get_user_profile_repository`가 `get_db` 연결로 `PostgresUserProfileRepository(conn)`을 돌려주게 바꾸고, `requirements-dev.txt`의 중복 psycopg 줄을 정리한다.
+- T15 → `app/core/auth.py`의 `get_token_verifier`를 T15의 JWT 검증으로 바꾼다.
+그 사이 PR #42 리뷰 댓글·충돌은 Auto-fix로 처리한다.
 
 ## 10. 보안
 
