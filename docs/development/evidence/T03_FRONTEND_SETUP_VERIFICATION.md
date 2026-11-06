@@ -8,7 +8,9 @@
 | Git | 2.55.0.windows.3 |
 | VS Code | 1.145.0 |
 | Docker / Compose | 29.7.2 / v5.5.0, OSType `linux` |
-| Node.js | 설치되어 있으나 사용하지 않음(`package.json` 없음 — 가이드 정책과 일치) |
+| Node.js / npm | v24.19.0 / 11.17.0 (`C:\Program Files\nodejs\node.exe`) — LTS 짝수 버전. 신규 설치 권장 LTS는 26.x(`winget show OpenJS.NodeJS.LTS` → 26.13.0) |
+| npm registry | `https://registry.npmjs.org/`, `npm view react version` → 19.3.1 (레지스트리 접속 PASS) |
+| PowerShell 실행 정책 | CurrentUser `RemoteSigned` — `npm`·`npm.cmd` 모두 실행 PASS |
 | `.env` | `.env.example` 복사 후 무작위 로컬 비밀번호로 변경, `.gitignore`로 제외 확인 |
 
 ## 실행 결과 (STEP 02~06)
@@ -35,8 +37,10 @@
 2. STEP 06: 예외 케이스(404 / DB 중지 503·Degraded) 재현·복구 명령 추가, `Checking...` 지연 원인(`connect_timeout=3`) 명시
 3. STEP 11-1 신설: 로컬 PoC 안전한 중지 방법(`stop`/`down`, `-v` 금지)
 4. STEP 12: 브랜치명을 작업지시서 규칙 `task/t##-short-name`으로 통일
+5. (리뷰 반영) 표준 스택 React 명시, STEP 01-1 Node.js LTS 설치 절차(winget/MSI, 설치 확인, PATH·실행 정책·registry 오류 대응) 추가, STEP 09·오류표·체크리스트·README 갱신
 
 ## 미검증 / HOLD
 - Mock 데이터 연결(STEP 08): 기능 API 계약(T06) 미확정으로 HOLD — T19에서 진행
 - 다른 Origin 직접 호출 시 CORS(STEP 07): 현재 CORSMiddleware 없음, 별도 Origin 앱이 없어 미검증
-- 빌드/Lint/테스트: `package.json` 없음 → 해당 없음
+- 빌드/Lint/테스트: React 프로젝트(`frontend/package.json`) 미생성 → T19 병합 후 검증
+- Node 신규 설치(winget install): 이 PC에 이미 LTS 24.x가 설치되어 있어 설치 명령 자체는 미실행, 설치 후 확인 명령만 PASS
