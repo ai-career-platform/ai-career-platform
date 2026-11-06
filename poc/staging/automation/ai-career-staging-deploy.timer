@@ -1,0 +1,13 @@
+[Unit]
+Description=Check verified Staging release every calendar minute
+
+[Timer]
+OnBootSec=1min
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+Unit=ai-career-staging-deploy.service
+
+[Install]
+WantedBy=timers.target

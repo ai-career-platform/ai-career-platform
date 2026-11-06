@@ -29,3 +29,6 @@ jobs:
           echo "Commit: $GITHUB_SHA"
           test -f README.md
           echo "CI_SMOKE_TEST=PASS"
+
+      - name: Run automation unit tests
+        run: python3 -B -m unittest discover -s poc/staging/automation/tests -v
