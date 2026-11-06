@@ -51,6 +51,36 @@ def validate_example_dataset(records):
     return errors
 
 
+def select_available_example(records, decision_time):
+    """Select the latest usable synthetic observation; reject ambiguous ties.
+
+    This deliberately does not handle production data, permissions, or persistence.
+    """
+    cutoff = datetime.fromisoformat(decision_time.replace('Z', '+00:00'))
+    if cutoff.utcoffset() is None:
+        raise ValueError('timezone required')
+    eligible = []
+    for record in records:
+        candidate = copy.deepcopy(record)
+        candidate['decision_time'] = decision_time
+        errors = validate_example(candidate)
+        if errors == ['time-order']:
+            event = datetime.fromisoformat(candidate['event_time'].replace('Z', '+00:00'))
+            available = datetime.fromisoformat(candidate['available_at'].replace('Z', '+00:00'))
+            if event <= available and available > cutoff:
+                continue
+        if errors:
+            raise ValueError(','.join(errors))
+        eligible.append(candidate)
+    if not eligible:
+        return None
+    latest = max(datetime.fromisoformat(r['available_at'].replace('Z', '+00:00')) for r in eligible)
+    winners = [r for r in eligible if datetime.fromisoformat(r['available_at'].replace('Z', '+00:00')) == latest]
+    if len(winners) != 1:
+        raise ValueError('ambiguous latest observation')
+    return winners[0]
+
+
 class ContractExampleTests(unittest.TestCase):
     def test_skill_example_preserves_missing_self_assessment(self):
         # This checks the illustrative fixture, not an approved API/DB schema.
@@ -97,6 +127,24 @@ class ContractExampleTests(unittest.TestCase):
         invalid.update(source_id='', split='test')
         self.assertEqual(validate_example_dataset([FIXTURES['valid'], invalid]),
                          ['row:1:missing:source_id'])
+
+    def test_point_in_time_ignores_late_data_and_is_order_independent(self):
+        early = copy.deepcopy(FIXTURES['valid'])
+        late = copy.deepcopy(early)
+        late['available_at'] = '2026-01-04T00:00:00Z'
+        cutoff = '2026-01-03T00:00:00Z'
+        self.assertEqual(select_available_example([late, early], cutoff), early)
+        self.assertEqual(select_available_example([early, late], cutoff), early)
+        self.assertIsNone(select_available_example([late], cutoff))
+
+    def test_point_in_time_rejects_ambiguous_and_invalid_inputs(self):
+        valid = copy.deepcopy(FIXTURES['valid'])
+        with self.assertRaisesRegex(ValueError, 'ambiguous'):
+            select_available_example([valid, copy.deepcopy(valid)], valid['decision_time'])
+        invalid = copy.deepcopy(valid)
+        invalid['source_id'] = 'unapproved'
+        with self.assertRaisesRegex(ValueError, 'unapproved'):
+            select_available_example([invalid], valid['decision_time'])
 
 
 if __name__ == '__main__':
