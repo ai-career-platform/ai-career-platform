@@ -7,7 +7,7 @@
 
 | 항목 | 제안 | 이유 |
 |---|---|---|
-| 도구 | 순수 SQL 파일 + `database/migrate.py` (Python 표준 라이브러리, `psql` 사용) | 기존 DRAFT·CI가 psql 기반이고, Backend에 아직 ORM(SQLAlchemy)이 없음. 드라이버 설치 불필요 |
+| 도구 | 순수 SQL 파일 + `database/migrate.py` (Python 표준 라이브러리, `psql` 사용) | 기존 DRAFT·CI·T05 데이터 사전이 SQL 기반이고 리뷰어가 DDL을 그대로 읽을 수 있음. 드라이버 설치 불필요. SQLAlchemy 도입(#44) 후에도 스키마의 단일 기준은 SQL migration (§7 참고) |
 | 방향 | **Forward-only** (down 스크립트 없음) | 운영 DB의 down은 데이터 손실 위험. 되돌릴 때는 "수정 migration" 또는 백업 복원 |
 | 이력 | `career_migration.schema_migrations` | 앱 역할(`career_app`)은 `career` 스키마 테이블에 기본 CRUD를 받으므로, 이력은 앱이 접근할 수 없는 별도 스키마에 둠 |
 | 원자성 | migration 1개 = 트랜잭션 1개 (SQL + 이력 기록 함께 커밋) | 실패하면 둘 다 롤백, 다음 파일은 실행하지 않음 |
@@ -100,7 +100,22 @@ MIGRATION_TEST_ADMIN_PSQL="psql -h localhost -U postgres" \
 
 검증 항목: 신규 설치(DRAFT 10개 테이블 재현·소유자·권한), 재실행 no-op, 실패 시 롤백·중단, 체크섬 DRIFT 차단, 순서 위반 거부, `--to`/`--dry-run`, 트랜잭션 내 중복 적용 차단, Staging 안전장치, 이력 테이블 앱 변경 차단.
 
-## 7. 미결정·후속 (리뷰 요청)
+## 7. SQLAlchemy·Pydantic과의 역할 분리
+
+Backend API는 SQLAlchemy 2.0 + Pydantic 2로 작성합니다(PM 공지, #44). 스키마 기준이 두 곳으로 나뉘지 않도록 아래처럼 역할을 나눕니다.
+
+| 담당 | 하는 일 | 하지 않는 일 |
+|---|---|---|
+| SQL migration (`database/migrations/`) | 테이블·컬럼·제약조건·인덱스 생성/변경 (스키마의 단일 기준) | 애플리케이션 데이터 처리 |
+| SQLAlchemy 모델 (`backend/app/...`) | 이미 존재하는 테이블을 매핑해 조회·저장 | 테이블 생성/변경 |
+| Pydantic 스키마 | API 요청·응답 DTO 검증 | DB 구조 정의 |
+
+- 공용/Staging DB에서 `Base.metadata.create_all()`·`drop_all()`을 호출하지 않습니다. 테스트에서만 일회용 DB에 한해 사용할 수 있습니다.
+- 모델에 컬럼이 필요하면 **먼저 migration PR**을 올리고, 모델 변경은 같은 PR 또는 후속 PR에서 migration과 일치시킵니다.
+- 모델의 `__table_args__ = {"schema": "career"}`, 컬럼 타입·NULL 여부·제약 이름은 migration SQL과 동일하게 맞춥니다.
+- Alembic으로 전환할지는 PM 결정 사항입니다. 전환하더라도 이미 적용된 SQL migration 이력(`career_migration.schema_migrations`)을 기준선으로 이어받는 방식을 권장합니다.
+
+## 8. 미결정·후속 (리뷰 요청)
 
 - T07(DB 계정·권한) 결과에 따라 실제 LOGIN 계정과 `career_migrator` 부여 방식 확정.
 - `CREATE INDEX CONCURRENTLY` 같은 비트랜잭션 migration 지원 여부 (T99 인덱스 작업 때 필요할 수 있음).
