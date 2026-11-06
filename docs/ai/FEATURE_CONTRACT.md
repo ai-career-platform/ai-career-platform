@@ -1,6 +1,6 @@
 # AI·ML 공통 데이터·Feature 계약 초안 (T25)
 
-상태: **DRAFT / NOT APPROVED / PARTIAL**. 기준 `main` 0f34dd6. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17은 main에 병합됐고 데이터 사전은 DRAFT이며, T06 PR #29는 검토 중이다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
+상태: **DRAFT / NOT APPROVED / PARTIAL**. 기준 `main` 0f34dd6. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17은 main에 병합됐고 데이터 사전은 DRAFT이며, T06 PR #29는 병합됐으며 해당 API 구현·CI 검증은 별도다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
 
 ## 1. 목적과 용어
 
@@ -70,7 +70,7 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 ## 8. 선행 상태 재확인 (2026-11-06)
 
 - T04 PR #13과 T05 PR #17은 병합됐다. T05 데이터 사전은 DRAFT / PM·DB 리뷰 대기 / DDL 미적용 상태를 명시한다. PR 설명에는 PostgreSQL 대상 버전 재검증 및 CI 연결이 남아 있다.
-- T06 PR #29는 OpenAPI 3.1 초안으로 검토 중이며 완료나 실제 API 구현을 뜻하지 않는다.
+- T06 PR #29는 OpenAPI 문서를 병합했다. 실제 API 구현 및 T06 검사 CI 연결은 별도다.
 - 기준 `origin/main` 0f34dd6. 선행 문서 내용과 상태는 변할 수 있으므로 실제 확정·구현·통합 전 최신 버전을 재확인한다.
 
 ## 9. T04 요구사항과 T25 입력 후보 연결 (검토용)
@@ -102,4 +102,8 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 | 평가 | `model_evaluations`: 필수 `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | boolean 하나로 누수 부재를 증명할 수 없다. 데이터/피처 버전, 분할·검사 방법·증빙 저장 위치는 별도 협의 |
 | 삭제 | 사용자 원본·관련 행의 삭제 규칙과 문서 원본·인덱스 정리는 별도 책임 | 데이터셋·파생 feature·학습된 모델의 삭제/재학습 정책은 미확정 |
 
-T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 리뷰 대기 초안이다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. PR #26 CI는 `515b3da`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다. 이후 커밋의 CI는 별도 확인한다.
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 병합된 계약 문서다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. PR #26 CI는 `d82a29d`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다. 이후 커밋의 CI는 별도 확인한다.
+
+## 12. 병합된 T06 계약과 후속 확인 (2026-11-06)
+
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)는 `d1fae3a`에 병합됐지만 문서·검증 도구이며 실제 API 구현이 아니다. PR 작성자는 해당 검사의 CI 미연결로 PARTIAL을 보고했다. SkillGapItem의 observed_level 0은 미입력 표시를 위한 계산값이며 원본 user_skills.proficiency NULL과 구분한다. DTO에는 미등록/미기재 구분 필드가 없으므로 별도 구분이 필요한지 협의한다. model_version은 응답에 필요하지만 T25의 가상 문자열이 승인된 모델 ID를 대신하지 않는다. RecommendationRunRequest는 limit 1~50, 기본 20이며 항목별 reason이 필요하다.

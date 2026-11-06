@@ -46,3 +46,7 @@
 ## 4. 한계
 
 이 문서는 논의를 위한 텍스트 예제다. 위 JSON은 검증된 스키마가 아니고, 권한 동기화·삭제 전파·API·DB·색인 구현이나 실제 데이터 보안 테스트를 수행하지 않았다. PR #26은 Draft이며 CI 및 팀 리뷰 결과는 별도 확인이 필요하다.
+
+## 5. T06 병합본과 공개 경계 확인 (2026-11-06)
+
+T06 OpenAPI의 `askKnowledge` 설명은 검색 API를 공개하지 않고 Q&A 엔드포인트 내부에서 사용한다고 명시한다. T54 작업지시서의 “검색 API”와 외부 공개 범위에 차이가 있어 담당자 간 확인이 필요하다. T06의 KnowledgeAnswer는 status(`answered`/`no_evidence`), answer, citations, limitations 등을 요구한다. 이 문서의 가상 청크는 내부 Mock 후보이며 공개 API 계약 확정이나 권한 구현을 뜻하지 않는다.
