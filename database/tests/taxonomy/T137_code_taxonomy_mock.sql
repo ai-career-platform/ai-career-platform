@@ -42,6 +42,8 @@ CREATE TABLE taxonomy_mock.taxonomy_codes (
     replaced_by    varchar(64),
     introduced_in  varchar(20) NOT NULL REFERENCES taxonomy_mock.taxonomy_versions (version),
     deprecated_in  varchar(20) REFERENCES taxonomy_mock.taxonomy_versions (version),
+    -- T05 B04/B05 keep only is_active (soft delete). status/replaced_by are T137 proposals; is_active is derived
+    is_active      boolean GENERATED ALWAYS AS (status = 'active') STORED,
     PRIMARY KEY (entity_type, code),
     FOREIGN KEY (entity_type, replaced_by) REFERENCES taxonomy_mock.taxonomy_codes (entity_type, code),
     CONSTRAINT code_entity_type CHECK (entity_type IN ('skill', 'job_role')),

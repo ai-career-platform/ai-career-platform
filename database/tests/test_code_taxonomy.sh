@@ -101,6 +101,7 @@ expect_rejected "reactivate merged code (owner)" "UPDATE taxonomy_mock.taxonomy_
 # 5. deprecate without replacement
 curator "taxonomy_mock.deprecate_code('skill', 'SPRING_FRAMEWORK', '2.0.0', '단독 사용 빈도가 낮아 신규 입력 중단')" >/dev/null
 expect_eq "deprecated code still resolves with flag" "$(resolve skill 'spring framework')" "SPRING_FRAMEWORK,SPRING_FRAMEWORK,code,true"
+expect_eq "T05 is_active follows status (merged/deprecated -> false)" "$(q "SELECT string_agg(code || '=' || is_active, ',' ORDER BY code) FROM taxonomy_mock.taxonomy_codes WHERE code IN ('GO','GOLANG','SPRING_FRAMEWORK')")" "GO=true,GOLANG=false,SPRING_FRAMEWORK=false"
 
 # 6. change log is complete and append-only
 expect_eq "change log rows (add, alias_add x2, merge, deprecate)" "$(q "SELECT string_agg(change_type, ',' ORDER BY change_id) FROM taxonomy_mock.taxonomy_change_log")" "add,alias_add,alias_add,merge,deprecate"

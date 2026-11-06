@@ -1,8 +1,19 @@
 # 스킬·직무 표준 코드·동의어 관리 정책 (T137)
 
-> 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 · Redmine #1549
-> 근거: [작업지시서 T137](../work-orders/fifth-30/T137.md), B04 `job_roles`·B05 `skills` ([전체 데이터 모델](../../database/FULL_DATABASE_MODEL.md)), [API 계약](../API_CONTRACT.md) "식별자: `code`는 안정적인 직무·기술 식별", T10 초기 Seed(직무 30·기술 100 코드, PR #15 리뷰 중)
-> 선행 일감 T05(ERD)·T17(직무·기술 조회 API)은 미완료이고 T10 은 리뷰 중입니다. 그래서 이 문서는 **정책과 일회용 DB mock 검증까지만** 다룹니다. 실제 테이블 변경·자동완성 API(T139)·정규화 파이프라인(T138)은 **HOLD** 입니다.
+> 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 (T05 완료 후 개정)
+> 근거: [작업지시서 T137](../work-orders/fifth-30/T137.md), B04 `job_roles`·B05 `skills` ([T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md)), [API 계약](../API_CONTRACT.md) "식별자: `code`는 안정적인 직무·기술 식별", T10 초기 Seed(직무 30·기술 100 코드, PR #15 리뷰 중)
+> 선행 일감: **T05 완료**(PR #17). T10(초기 Seed)은 같은 담당자가 함께 진행 중이고 T17(직무·기술 조회 API)은 진행 중이라, 이 문서는 **정책과 일회용 DB mock 검증까지만** 다룹니다. 실제 테이블 변경·자동완성 API(T139)·정규화 파이프라인(T138)은 **HOLD** 입니다.
+
+## 0. T05 데이터 사전과의 관계
+
+| T05 (B04 `job_roles`, B05 `skills`) | 이 정책 |
+|---|---|
+| `code varchar(64) UQ`, `CHECK (length(btrim(code)) > 0)` | 형식을 `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$` 로 좁히는 CHECK 추가 제안 |
+| `is_active boolean` — 폐기 시 `false` (참조 보존, 삭제 안 함) | 그대로 따름. `active` 상태 = `is_active true`, `deprecated`·`merged` = `false` (mock 에서 생성 컬럼으로 연결) |
+| 대체 코드·별칭·변경 이력 없음 | `status`, `replaced_by`, `taxonomy_aliases`, `taxonomy_change_log`, `taxonomy_versions` 를 T09 에 추가 제안 |
+| `skills (lower(name))` 인덱스 | 이름 검색 보조. 별칭 검색은 정규화된 `alias_norm` 으로 |
+| `job_roles.description` (UI-006) | 표시 정보라 코드 정책과 무관 |
+
 
 ## 1. 왜 필요한가
 
@@ -97,7 +108,7 @@
 | 파일 | 내용 |
 |---|---|
 | [`database/tests/taxonomy/T137_code_taxonomy_mock.sql`](../../database/tests/taxonomy/T137_code_taxonomy_mock.sql) | 정책을 옮긴 mock 스키마 `taxonomy_mock` + T10 코드 기반 샘플 (Migration 아님) |
-| [`database/tests/test_code_taxonomy.sh`](../../database/tests/test_code_taxonomy.sh) | 일회용 `postgres:18.1` 컨테이너에서 41개 항목 검증 |
+| [`database/tests/test_code_taxonomy.sh`](../../database/tests/test_code_taxonomy.sh) | 일회용 `postgres:18.1` 컨테이너에서 42개 항목 검증 |
 
 ```bash
 D1_TEST_ONLY=YES bash database/tests/test_code_taxonomy.sh
@@ -107,7 +118,7 @@ D1_TEST_ONLY=YES bash database/tests/test_code_taxonomy.sh
 |---|---|
 | 조회 | 대소문자 무시 코드 매칭, 한글 별칭, 공백·마침표 정규화(`Node . JS`), 짧은 별칭(k8s), C++·C# 구분, React·React Native 구분, 다의어(Spring) 후보 2개, 이름공간 분리, 없는 표기 |
 | 거부 | 소문자·하이픈 코드, 중복 코드, 별칭과 같은 새 코드, 이미 쓰인 exact 별칭, 다른 코드 철자와 같은 별칭, exact·ambiguous 혼합, 없는 버전, 짧은 이유, 자기 자신 병합, 코드 삭제, 코드 값 변경 |
-| 병합·폐기 | 옛 코드 → 살아 있는 코드 + deprecated 표시, 별칭 이동(`고랭`), 코드 철자와 같은 별칭 정리, 병합된 코드로 병합 거부, 순환 체인 거부, 병합 코드에 별칭 거부, 재활성화 거부, 대체 없는 폐기 |
+| 병합·폐기 | T05 `is_active` 가 상태를 따름(병합·폐기 → false), 옛 코드 → 살아 있는 코드 + deprecated 표시, 별칭 이동(`고랭`), 코드 철자와 같은 별칭 정리, 병합된 코드로 병합 거부, 순환 체인 거부, 병합 코드에 별칭 거부, 재활성화 거부, 대체 없는 폐기 |
 | 이력·권한 | 변경 이력 5건 기록, 이력 수정·삭제 거부, 조회 계정의 변경·직접 INSERT·이력 조회 거부, 큐레이터의 직접 UPDATE·DELETE 거부 |
 | 정합성 | `validate_taxonomy()` 위반 0건 |
 
@@ -118,9 +129,9 @@ D1_TEST_ONLY=YES bash database/tests/test_code_taxonomy.sh
 1. T10 Seed 코드(직무 30·기술 100)를 1.0.0 기준선으로 승인할지
 2. 외부 분류체계(ESCO/O\*NET/NCS) 매핑 여부와 라이선스 (T61)
 3. 큐레이터 역할을 누가 맡는지, 변경 승인 절차(1인/2인)
-4. 실제 테이블 반영 방식: `career.skills`·`career.job_roles` 에 `status`·`replaced_by` 컬럼 추가 + 별칭·이력 표 신설 (T05/T08 절차)
+4. 실제 테이블 반영 방식: T05 의 `is_active` 는 유지하고 `status`·`replaced_by` 컬럼 + 별칭·이력·버전 표를 추가할지 (T09 절차)
 5. 병합 후 `user_skills`·`job_posting_skills` 등 저장 데이터를 옮기는 배치 주기 (T138)
 6. 정규화 규칙에서 추가로 남길 기호가 있는지 (예: `F#`, `Objective-C`)
 7. 직무 다의어(예: "엔지니어", "개발자" 단독 입력) 처리 기준
 
-**판정:** `T137_STATUS=PARTIAL` — 정책·mock 검증 PASS(로컬), 코드 기준선·변경 절차 PM 승인 전, 실연동 HOLD.
+**판정:** `T137_STATUS=PARTIAL` — T05 B04/B05 기준 정책·mock 검증 PASS(로컬 42항목), 코드 기준선·변경 절차 PM 승인 전, T17 미완료로 실연동 HOLD.
