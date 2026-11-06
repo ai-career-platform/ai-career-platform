@@ -46,8 +46,8 @@ fks="$(psql_test -Atc "SELECT count(*) FROM information_schema.table_constraints
 [[ "$fks" == "11" ]] || { echo "FAIL foreign_keys=$fks"; exit 1; }
 echo "PASS foreign_keys=11"
 
-user_id="$(psql_test -Atc "INSERT INTO career.users(email,display_name) VALUES('test@example.org','Test') RETURNING user_id")"
-skill_id="$(psql_test -Atc "INSERT INTO career.skills(code,name) VALUES('PYTHON','Python') RETURNING skill_id")"
+user_id="$(psql_test -Atc "WITH created AS (INSERT INTO career.users(email,display_name) VALUES('test@example.org','Test') RETURNING user_id) SELECT user_id FROM created")"
+skill_id="$(psql_test -Atc "WITH created AS (INSERT INTO career.skills(code,name) VALUES('PYTHON','Python') RETURNING skill_id) SELECT skill_id FROM created")"
 psql_test -c "INSERT INTO career.user_skills(user_id,skill_id,proficiency) VALUES('$user_id','$skill_id',3)" >/dev/null
 echo "PASS valid rows and FK"
 
