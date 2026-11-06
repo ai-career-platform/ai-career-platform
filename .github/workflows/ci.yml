@@ -32,3 +32,112 @@ jobs:
 
       - name: Run automation unit tests
         run: python3 -B -m unittest discover -s poc/staging/automation/tests -v
+
+  # ---------------------------------------------------------------------------
+  # T28 PR 품질 게이트 (docs/QUALITY.md "PR CI 게이트").
+  # 아래 job은 모두 같은 'CI' run의 결론에 포함되므로, 하나라도 실패하면
+  # main push 시 staging-publish.yml(Auto-CD)도 진행되지 않습니다.
+  # 위 'CI Smoke Test' job의 이름·단계는 Auto-CD가 직접 확인하므로 변경하지 않습니다.
+  # 네트워크 사용은 checkout, 버전 고정 pip 설치, setup-node, npm ci(lock 기준)로 한정합니다. Secret 사용 없음.
+  # ---------------------------------------------------------------------------
+  backend-test:
+    name: Backend pytest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install backend dev requirements (ubuntu-24.04 python3 = 3.12)
+        run: |
+          python3 --version
+          python3 -m venv /tmp/backend-venv
+          /tmp/backend-venv/bin/pip install --retries 5 --timeout 60 -r backend/requirements-dev.txt
+      - name: Run backend pytest
+        working-directory: backend
+        run: /tmp/backend-venv/bin/python -B -m pytest -p no:cacheprovider -q
+
+  poc-staging-test:
+    name: PoC Staging pytest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run PoC Staging pytest (same pins as staging-publish.yml)
+        run: |
+          python3 -m venv /tmp/poc-staging-venv
+          /tmp/poc-staging-venv/bin/pip install --retries 5 --timeout 60 -r poc/staging/backend/requirements.txt pytest==8.3.5 httpx==0.28.1
+          /tmp/poc-staging-venv/bin/python -B -m pytest -p no:cacheprovider poc/staging/tests -q
+
+  lint:
+    name: Lint (ruff, compile, shell syntax)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned ruff
+        run: |
+          python3 -m venv /tmp/lint-venv
+          /tmp/lint-venv/bin/pip install --retries 5 --timeout 60 ruff==0.16.9
+      - name: Ruff check (ruff.toml, E9 + F only)
+        run: /tmp/lint-venv/bin/ruff check --no-cache --output-format=github .
+      - name: Ruff format check (backend, scripts/ci only)
+        run: /tmp/lint-venv/bin/ruff format --no-cache --check backend scripts/ci
+      - name: Python compile check
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/ci-pycache
+        run: python3 -m compileall -q backend poc scripts
+      - name: Shell syntax check (bash -n)
+        run: |
+          set -euo pipefail
+          git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
+          echo "SHELL_SYNTAX_CHECK=PASS ($(git ls-files '*.sh' | wc -l) files, bash -n only; shellcheck not applied)"
+
+  frontend-test:
+    name: Frontend lint, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: Install (package-lock.json)
+        run: npm ci --no-audit --no-fund
+      - name: Lint (oxlint --deny-warnings)
+        run: npm run lint
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: Typecheck and production build
+        run: npm run build
+
+  repo-hygiene:
+    name: Docs links, secret patterns, coverage notes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests for CI scripts
+        run: python3 -B -m unittest discover -s scripts/ci/tests -v
+      - name: Markdown relative link check
+        run: python3 -B scripts/ci/check_md_links.py
+      - name: Secret pattern scan (regex, offline)
+        run: python3 -B scripts/ci/check_secrets.py
+      - name: Report areas without automated tests
+        run: |
+          set -euo pipefail
+          echo "FRONTEND_TESTS=CI_JOB (frontend/: oxlint, vitest, tsc + vite build in 'Frontend lint, test, build')"
+          echo "POC_FRONTEND_TESTS=NOT_APPLICABLE (poc/staging/frontend is static HTML served by Nginx; no build tooling)"
+          echo "DB_TESTS=SEPARATE_WORKFLOW (.github/workflows/d1-postgres-sql-test.yml, database/** PRs only)"
+          echo "WORKFLOW_LINT=NOT_APPLIED (actionlint not installed in this gate)"

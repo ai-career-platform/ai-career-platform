@@ -1,0 +1,12 @@
+# T28 PR 게이트용 최소 Ruff 설정 (ruff==0.16.9, CI에서 버전 고정).
+# 실제 오류(문법 E9, pyflakes F)만 검사합니다. 스타일 규칙은 별도 합의 후 확대합니다.
+target-version = "py312"
+src = ["backend", "scripts/ci"]
+
+[lint]
+select = ["E9", "F"]
+
+[lint.per-file-ignores]
+# Auto-CD 코드(poc/staging/automation/**)는 T28 범위에서 수정 금지.
+# 기존 미사용 import 1건은 별도 승인 PR에서 정리할 때까지 예외로 둡니다.
+"poc/staging/automation/tests/test_boundaries.py" = ["F401"]

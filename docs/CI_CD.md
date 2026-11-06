@@ -5,7 +5,8 @@ PM/JM이 PR을 `main`에 Squash Merge → Actions CI 통과 → 검증된 불변
 
 ## 구현 상태 (2026-11-06, PR #4 자동 배포 E2E 기준)
 - PR #1 초기 Smoke CI와 PR #3 Auto-CD 코드 Merge 완료. PR #4 검증 Merge SHA `b1ce5e671bac271bc16a0692ab70d88a754c939c` 자동 배포 PASS (당시 기준 SHA).
-- 기존 CI는 README 파일 존재 여부 등 **Smoke 테스트만** 수행. 전체 품질/보안/배포 게이트가 아님.
+- CI(`ci.yml`)는 기존 `CI Smoke Test`에 더해 T28 PR 게이트(Backend/PoC pytest, Frontend lint·test·build, ruff E9·F, 문서 링크, Secret 패턴 검사)를 같은 run에서 실행합니다. 어느 job이든 실패하면 Auto-CD가 진행되지 않습니다. 전체 품질/보안을 증명하는 게이트는 아니며 범위와 한계는 [QUALITY.md](QUALITY.md)를 따릅니다.
+- Auto-CD 의존 조건: 워크플로 이름 `CI`, 경로 `.github/workflows/ci.yml`, job 이름 `CI Smoke Test` 1개, `main` push 트리거(경로 필터 없음). 이 조건은 변경하지 않습니다.
 - GHCR 게시 및 Ubuntu Pull 자동 배포 코드는 PR #3으로 Merge 완료; systemd 배포 service/timer 설치·활성화, 중복 SHA 방지와 실제 배포를 검증했습니다.
 - GitHub main CI·GHCR 게시, 이미지 Digest 고정, 승인자 매핑, PR #4 Merge → Ubuntu 자동 배포 E2E PASS. 인증 토큰 만료·교체는 운영 관리 대상입니다.
 - `ai-career-staging-deploy.timer` 설치·활성화, 1분 폴링과 동일 SHA 중복 배포 방지 확인. DB Migration은 자동 실행하지 않습니다.

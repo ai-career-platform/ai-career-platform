@@ -35,4 +35,4 @@
 - SECRET/개인정보 유출, 무단 DB Migration, 실패한 테스트, API 계약 불일치, 승인 없는 운영 설정 변경, 근거 없는 'PASS' 표기.
 
 ## 현재 CI에 관한 주의
-초기 `.github/workflows/ci.yml`은 제한된 Smoke CI입니다. 2026-11-06 현재 PR #5에 별도 PostgreSQL 격리 검증 CI가 추가되어 있으며, PR #3/4의 GHCR→Ubuntu Auto-CD E2E도 검증되었습니다. 전체 서비스 품질·보안을 자동 보증하지는 않습니다.
+`.github/workflows/ci.yml`은 T28에서 Smoke CI에 Backend/PoC pytest, Frontend lint·test·build(T19 `frontend/`), ruff(E9·F), Markdown 링크, Secret 패턴 검사를 추가한 경량 PR 게이트입니다(상세·로컬 실행: [QUALITY.md](QUALITY.md)). DB 변경은 별도 PostgreSQL 격리 검증 CI(`d1-postgres-sql-test.yml`)가 확인하며, PR #3/4의 GHCR→Ubuntu Auto-CD E2E도 검증되었습니다. 이 CI가 전체 서비스 품질·보안을 자동 보증하지는 않습니다.
