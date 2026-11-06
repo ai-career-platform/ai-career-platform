@@ -1,8 +1,18 @@
 # 감사 이벤트·보존·변조 방지 계약 (T83)
 
-> 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 · Redmine #1518
-> 근거: [작업지시서 T83](../work-orders/remaining-30/T83.md), F-028 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `GET /api/v1/admin/audit` ([API 계약](../API_CONTRACT.md)), F11 `audit_events` ([전체 데이터 모델](../../database/FULL_DATABASE_MODEL.md)), [AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md), [보안 규정](../SECURITY.md)
-> 선행 일감 T05(ERD)·T06(API 계약)·T15(인증)는 아직 완료 증빙이 없습니다. 그래서 이 문서는 **설계와 일회용 DB mock 검증까지만** 다룹니다. 실제 Migration·API 연동은 **HOLD** 입니다.
+> 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 (T05 완료 후 개정)
+> 근거: [작업지시서 T83](../work-orders/remaining-30/T83.md), F-028 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `GET /api/v1/admin/audit` ([API 계약](../API_CONTRACT.md)), F11 `audit_events` ([T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md)), [AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md), [보안 규정](../SECURITY.md)
+> 선행 일감: **T05 완료**(PR #17 머지, 데이터 사전 F11 기준으로 개정). T06(API 계약)·T15(인증)는 진행 중이라 실제 Migration·API 연동은 **HOLD** 이고, 이 문서는 데이터 사전 F11 을 확장하는 계약과 일회용 DB mock 검증까지 다룹니다.
+
+## 0. T05 데이터 사전(F11)과의 관계
+
+| 구분 | 컬럼 |
+|---|---|
+| T05 F11 에 이미 있음 (그대로 따름) | `audit_event_id`, `actor_user_id`(FK → users, **SET NULL**), `action_code`, `resource_type`, `resource_id`, `request_id`, `occurred_at` |
+| T83 이 T09 에 추가 제안 | `audit_seq`, `recorded_at`, `actor_type`, `result`, `reason_code`, `client_ip_hash`, `changed_fields`, `metadata`, `retention_class`, `retain_until`, `row_hash` |
+
+- T05 결정에 맞춰 바꾼 점: ① `correlation_id` → `request_id` (이름·NULL 허용), ② `actor_user_id` FK 를 두고 탈퇴 시 **SET NULL 로 익명화**, ③ 기본 보존 1년.
+- 데이터 사전에 쓰인 `role.grant`, `account.deletion_requested` 같은 action_code 는 이 계약의 형식 규칙을 그대로 만족합니다.
 
 ## 1. 목적과 범위
 
@@ -24,14 +34,14 @@
 | `audit_seq` | bigint identity | O | DB | 기록 순서. 빈 번호는 롤백으로도 생길 수 있어 삭제 증거로 쓰지 않음 |
 | `occurred_at` | timestamptz (UTC) | O | 앱 | 실제 행동 시각. DB 시각보다 5분 넘게 미래면 거부 |
 | `recorded_at` | timestamptz (UTC) | O | **DB 트리거** | 앱이 넣은 값은 무시하고 DB 시각으로 덮어씀 |
-| `actor_type` | `user` `admin` `system` `ai_agent` `service` | O | 앱 | `user`·`admin` 이면 `actor_user_id` 필수 |
-| `actor_user_id` | uuid | 조건부 | 앱 | 사용자 ID만. 이메일·이름 금지 |
+| `actor_type` | `user` `admin` `system` `ai_agent` `service` | O | 앱 | `user`·`admin` 이면 **기록 시점에** `actor_user_id`·`request_id` 필수 (INSERT 트리거 검사) |
+| `actor_user_id` | uuid, FK → users (SET NULL) | 조건부 | 앱 | 사용자 ID만. 이메일·이름 금지. 탈퇴 후 NULL 로 익명화 (T05) |
 | `action_code` | `영역.대상.동작` 소문자 점 표기, 2~4단계 | O | 앱 | 예: `user.profile.update`, `admin.posting.close`, `agent.tool.call` |
 | `resource_type` | 소문자 스네이크 | O | 앱 | 예: `user_profile`, `job_posting`, `agent_run` |
 | `resource_id` | uuid | - | 앱 | 대상이 없으면 NULL |
 | `result` | `success` `denied` `failed` | O | 앱 | 권한 거부(403)와 실패(4xx/5xx)를 구분 |
 | `reason_code` | 대문자 스네이크 | 조건부 | 앱 | `success` 가 아니면 필수. 예: `NOT_AUTHORIZED`, `TOOL_TIMEOUT` |
-| `correlation_id` | `[A-Za-z0-9._:-]{8,64}` | O | 앱 | API 오류 응답의 `request_id` 와 같은 값 |
+| `request_id` | `[A-Za-z0-9._:-]{8,64}` | 조건부 | 앱 | API 오류 응답의 `request_id` 와 같은 값 (T05 이름). 시스템 작업은 NULL 가능 |
 | `client_ip_hash` | 소문자 hex 64자리 | - | 앱 | 원본 IP 금지. 서버 비밀키로 만든 HMAC-SHA256 만 저장 |
 | `changed_fields` | text[] (필드 **이름** 만, 최대 50개) | - | 앱 | 값은 절대 넣지 않음. 변경이 없으면 빈 배열 대신 NULL |
 | `metadata` | jsonb 객체, 최대 4KB | - | 앱 | 아래 금지 규칙 적용 |
@@ -68,15 +78,16 @@
 
 - DB CHECK 는 **마지막 방어선**입니다. 1차 책임은 Backend 의 감사 기록 함수(T84)가 허용 목록(allow-list) 키만 넣는 것입니다.
 - 이름에 금지어가 들어간 정상 키(예: `token_count`)도 거부됩니다. AI 사용량은 감사 이벤트가 아니라 `ai_usage_records` 에 저장합니다.
-- `actor_user_id` 에 FK 를 걸지 않습니다. 탈퇴 등으로 사용자가 지워져도 감사 기록은 보존 기간 동안 남아야 하고, 감사 테이블은 수정할 수 없기 때문입니다 (FULL_DATABASE_MODEL F11 의 "FK → users" 와 다름 — **PM 결정 필요**).
+- `actor_user_id` 는 T05 결정대로 `users` 를 참조하고, 탈퇴로 사용자 행이 지워지면 **NULL 로 익명화**됩니다. 감사 행 자체는 보존 기간 동안 남습니다.
+- 그래서 "user·admin 이면 행위자 필수" 규칙은 CHECK 가 아니라 **INSERT 트리거**로 검사합니다. CHECK 로 두면 탈퇴 시 익명화가 막혀 회원 삭제가 실패합니다.
 
 ## 5. 보존 기간 (제안, 법무·PM 승인 필요)
 
 | retention_class | 기간 | 근거 후보 |
 |---|---|---|
-| security | 2년 | 개인정보처리시스템 접속기록 보관 기준(최소 1년, 조건에 따라 2년) 후보. **법무 확인 필요** |
-| standard | 1년 | 운영 문의·분쟁 대응 |
-| ai_agent | 1년 | Agent 승인·실행 추적 |
+| standard | 1년 | T05 F11 가안(1년)과 같음. 일반 데이터 변경 |
+| ai_agent | 1년 | T05 가안과 같음. Agent 승인·실행 추적 |
+| security | 2년 | **T05 가안보다 긴 제안.** 개인정보처리시스템 접속기록 보관 기준(최소 1년, 조건에 따라 2년) 후보 — **법무 확인 필요** |
 
 - 보존 기간은 `audit_retention_policies` 표에 두고, 기록 시점에 `retain_until` 을 계산해 고정합니다. 나중에 표를 바꿔도 이미 쌓인 행의 기한은 바뀌지 않습니다.
 - 삭제는 **`purge_expired()` 하나로만** 합니다. `retain_until` 이 지난 행만 지우고, 실행 결과는 `system.audit.purge` 이벤트로 다시 기록합니다 (T84 구현).
@@ -87,7 +98,7 @@
 | 층 | 방법 | 막는 대상 |
 |---|---|---|
 | 권한 | 앱 계정은 `INSERT` 만, 관리자 조회 계정은 `SELECT` 만. `UPDATE`/`DELETE`/`TRUNCATE` 권한은 아무에게도 주지 않음 | 앱 버그·SQL Injection 으로 인한 수정·삭제 |
-| 트리거 | `UPDATE` 는 항상 거부, `DELETE` 는 purge 중이고 기한이 지난 행만 허용, `TRUNCATE` 거부 | 테이블 소유자(migrator)의 실수 |
+| 트리거 | `UPDATE` 는 거부하되 **탈퇴 익명화(`actor_user_id` → NULL, 다른 값 변경 없음)만 허용**하고 그때 `row_hash` 를 다시 계산. `DELETE` 는 purge 중이고 기한이 지난 행만 허용, `TRUNCATE` 거부 | 테이블 소유자(migrator)의 실수 |
 | DB 소유 필드 | `recorded_at`, `retain_until`, `row_hash` 는 트리거가 덮어씀 | 앱이 시각·기한을 속이는 것 |
 | 내용 지문 | `row_hash = sha256(정해진 순서의 모든 필드)` + `find_tampered_rows()` 로 정기 점검 | 소유자가 트리거를 끄고 몰래 고친 경우 **감지** |
 
@@ -99,7 +110,7 @@
 ## 7. API 연결 (T84 참고용)
 
 - `GET /api/v1/admin/audit` 는 `t83_audit_reader` 에 해당하는 **읽기 전용 계정**으로 조회합니다.
-- 필터: `from`, `to`(필수, 최대 90일), `actor_user_id`, `action_code` 접두어, `resource_type`, `result`, `correlation_id`. 페이지네이션은 공통 규약(`limit` ≤ 100, `cursor`)을 따릅니다.
+- 필터: `from`, `to`(필수, 최대 90일), `actor_user_id`, `action_code` 접두어, `resource_type`, `result`, `request_id`. 페이지네이션은 공통 규약(`limit` ≤ 100, `cursor`)을 따릅니다.
 - 응답에 `row_hash` 는 노출하지 않고, 대신 무결성 점검 결과(`integrity: ok|mismatch`)만 표시하는 안을 제안합니다.
 - 이 조회 자체도 `admin.audit.view` 이벤트로 기록합니다.
 
@@ -108,7 +119,7 @@
 | 파일 | 내용 |
 |---|---|
 | [`database/tests/audit/T83_audit_events_mock.sql`](../../database/tests/audit/T83_audit_events_mock.sql) | 계약을 그대로 옮긴 mock 스키마 `audit_mock` (Migration 아님) |
-| [`database/tests/test_audit_contract.sh`](../../database/tests/test_audit_contract.sh) | 일회용 `postgres:18.1` 컨테이너에서 아래 29개 항목 검증 |
+| [`database/tests/test_audit_contract.sh`](../../database/tests/test_audit_contract.sh) | 일회용 `postgres:18.1` 컨테이너에서 아래 35개 항목 검증 |
 
 ```bash
 D1_TEST_ONLY=YES bash database/tests/test_audit_contract.sh
@@ -120,18 +131,19 @@ D1_TEST_ONLY=YES bash database/tests/test_audit_contract.sh
 | 권한 경계 | 앱 계정 UPDATE·DELETE·SELECT·purge 거부, purge 플래그를 직접 켜도 DELETE 거부, 조회 계정 INSERT 거부 |
 | 변경 방지 | 소유자 UPDATE·DELETE·TRUNCATE 트리거 거부 |
 | 금지 내용 | password 키, 중첩된 access_token 키, prompt 키, 값 속 이메일, 4KB 초과, 값이 섞인 changed_fields |
-| 형식 | 잘못된 action_code, reason_code 누락, user 인데 actor_user_id 없음, correlation_id 없음, 미래 시각, 없는 보존 등급 |
+| 형식 | 잘못된 action_code, reason_code 누락, user 인데 actor_user_id 없음, user 인데 request_id 없음, 잘못된 request_id, 없는 사용자(FK), 미래 시각, 없는 보존 등급 |
+| 탈퇴 익명화 (T05) | 사용자 삭제 시 `actor_user_id` 만 NULL·행 유지·`row_hash` 유효, 다른 사용자로 바꾸기 거부, 익명화와 다른 값 변경을 함께 하면 거부 |
 | 보존 | 기한 지난 2건만 purge, 나머지 4건 유지, purge 후 일반 DELETE 다시 거부 |
 | 변조 감지 | 소유자가 트리거를 끄고 고친 행을 `find_tampered_rows()` 가 찾아냄 |
 
 ## 9. 미확정 항목 (PM·담당자 결정 필요)
 
-1. 보존 기간 2년/1년/1년 — 법무 확인
-2. `actor_user_id` FK 미사용 — FULL_DATABASE_MODEL F11 수정 여부
+1. security 등급 2년(T05 가안 1년보다 김) — 법무 확인
+2. T83 추가 제안 컬럼을 T09 Migration 에 넣을지 (§0 표)
 3. 감사 테이블 스키마 위치 — `career` 와 분리된 `audit` 스키마 여부 (FULL_DATABASE_MODEL §1 "감사 경계" 항목)
 4. IP HMAC 비밀키 보관 위치와 교체 주기 (Secret 관리 방식 결정 후)
 5. HMAC 서명·외부 앵커링·해시 체인 도입 시점
 6. legal hold 절차
-7. T05/T06/T15 완료 후 실제 Migration(T08 절차)과 Backend 기록 함수(T84) 연동
+7. T06/T15 완료 후 실제 Migration(T08/T09 절차)과 Backend 기록 함수(T84) 연동
 
-**판정:** `T83_STATUS=PARTIAL` — 계약·mock 검증 PASS(로컬), 보존정책·금지필드 PM 승인 전, 실연동 HOLD.
+**판정:** `T83_STATUS=PARTIAL` — T05 F11 기준 계약·mock 검증 PASS(로컬 35항목), 보존정책·추가 컬럼 PM 승인 전, T06/T15 미완료로 실연동 HOLD.

@@ -34,9 +34,9 @@ CREATE TABLE audit_mock.audit_retention_policies (
 );
 
 INSERT INTO audit_mock.audit_retention_policies (retention_class, retain_for, note) VALUES
-    ('security', interval '2 years', '인증·권한·관리자 조치·개인정보 접근 (접속기록 보관 기준 후보, 법무 확인 필요)'),
-    ('standard', interval '1 year',  '일반 데이터 변경 (프로필·북마크 등)'),
-    ('ai_agent', interval '1 year',  'AI/Agent 실행·승인·도구 호출 요약');
+    ('standard', interval '1 year',  '일반 데이터 변경 (T05 F11 가안: 1년)'),
+    ('ai_agent', interval '1 year',  'AI/Agent 실행·승인·도구 호출 요약 (T05 가안과 동일)'),
+    ('security', interval '2 years', '인증·권한·관리자 조치·개인정보 접근. T05 가안(1년)보다 긴 제안 — 법무 확인 필요');
 
 -- ------------------------------------------------------------ forbidden content
 -- true when any object key at any depth looks like a secret / credential / raw content
@@ -62,20 +62,27 @@ LANGUAGE sql IMMUTABLE STRICT AS $$
     )
 $$;
 
+-- stand-in for career.users so the T05 FK (actor_user_id -> users ON DELETE SET NULL) can be tested
+CREATE TABLE audit_mock.users (
+    user_id uuid PRIMARY KEY
+);
+
 -- ------------------------------------------------------------ audit_events
+-- T05 F11 columns: audit_event_id, actor_user_id, action_code, resource_type, resource_id,
+-- request_id, occurred_at. Everything else below is a T83 proposal for T09.
 CREATE TABLE audit_mock.audit_events (
     audit_seq        bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
     audit_event_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     occurred_at      timestamptz NOT NULL,                 -- when the action happened (app clock)
     recorded_at      timestamptz NOT NULL DEFAULT now(),   -- forced by trigger (DB clock)
     actor_type       varchar(16) NOT NULL,
-    actor_user_id    uuid,                                 -- no FK on purpose, see contract §4
+    actor_user_id    uuid REFERENCES audit_mock.users (user_id) ON DELETE SET NULL, -- T05: anonymized on account deletion
     action_code      varchar(100) NOT NULL,
     resource_type    varchar(80) NOT NULL,
     resource_id      uuid,
     result           varchar(16) NOT NULL,
     reason_code      varchar(80),
-    correlation_id   varchar(64) NOT NULL,                 -- = API request_id
+    request_id       varchar(64),                          -- T05 name; = API error response request_id
     client_ip_hash   char(64),                             -- keyed hash, never raw IP
     changed_fields   text[],                               -- field NAMES only, never values
     metadata         jsonb,
@@ -84,13 +91,12 @@ CREATE TABLE audit_mock.audit_events (
     row_hash         char(64) NOT NULL DEFAULT '',          -- forced by trigger
 
     CONSTRAINT audit_actor_type_check CHECK (actor_type IN ('user', 'admin', 'system', 'ai_agent', 'service')),
-    CONSTRAINT audit_actor_user_required CHECK (actor_type NOT IN ('user', 'admin') OR actor_user_id IS NOT NULL),
     CONSTRAINT audit_action_code_format CHECK (action_code ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,3}$'),
     CONSTRAINT audit_resource_type_format CHECK (resource_type ~ '^[a-z][a-z0-9_]*$'),
     CONSTRAINT audit_result_check CHECK (result IN ('success', 'denied', 'failed')),
     CONSTRAINT audit_reason_required CHECK (result = 'success' OR reason_code IS NOT NULL),
     CONSTRAINT audit_reason_code_format CHECK (reason_code IS NULL OR reason_code ~ '^[A-Z][A-Z0-9_]*$'),
-    CONSTRAINT audit_correlation_format CHECK (correlation_id ~ '^[A-Za-z0-9._:-]{8,64}$'),
+    CONSTRAINT audit_request_id_format CHECK (request_id IS NULL OR request_id ~ '^[A-Za-z0-9._:-]{8,64}$'),
     CONSTRAINT audit_ip_hash_format CHECK (client_ip_hash IS NULL OR client_ip_hash ~ '^[0-9a-f]{64}$'),
     CONSTRAINT audit_changed_fields_names CHECK (
         changed_fields IS NULL
@@ -109,7 +115,8 @@ CREATE TABLE audit_mock.audit_events (
 CREATE INDEX ix_audit_events_occurred_at ON audit_mock.audit_events (occurred_at DESC);
 CREATE INDEX ix_audit_events_actor ON audit_mock.audit_events (actor_user_id, occurred_at DESC);
 CREATE INDEX ix_audit_events_resource ON audit_mock.audit_events (resource_type, resource_id);
-CREATE INDEX ix_audit_events_correlation ON audit_mock.audit_events (correlation_id);
+CREATE INDEX ix_audit_events_request ON audit_mock.audit_events (request_id);
+CREATE INDEX ix_audit_events_action ON audit_mock.audit_events (action_code, occurred_at DESC);
 
 -- canonical content hash (timezone independent). Detects silent edits of stored rows.
 CREATE FUNCTION audit_mock.compute_row_hash(e audit_mock.audit_events) RETURNS char(64)
@@ -120,7 +127,7 @@ LANGUAGE sql IMMUTABLE AS $$
         extract(epoch FROM e.recorded_at)::text,
         e.actor_type, coalesce(e.actor_user_id::text, ''),
         e.action_code, e.resource_type, coalesce(e.resource_id::text, ''),
-        e.result, coalesce(e.reason_code, ''), e.correlation_id,
+        e.result, coalesce(e.reason_code, ''), coalesce(e.request_id, ''),
         coalesce(e.client_ip_hash, ''), coalesce(e.changed_fields::text, ''),
         coalesce(e.metadata::text, ''), e.retention_class,
         extract(epoch FROM e.retain_until)::text
@@ -131,6 +138,10 @@ $$;
 CREATE FUNCTION audit_mock.audit_events_before_insert() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+    -- checked at write time only (not a CHECK), so the T05 FK can later anonymize actor_user_id
+    IF NEW.actor_type IN ('user', 'admin') AND (NEW.actor_user_id IS NULL OR NEW.request_id IS NULL) THEN
+        RAISE EXCEPTION 'user/admin events need actor_user_id and request_id' USING ERRCODE = '23514';
+    END IF;
     NEW.recorded_at := now();
     SELECT NEW.recorded_at + p.retain_for INTO NEW.retain_until
     FROM audit_mock.audit_retention_policies p
@@ -142,10 +153,23 @@ BEGIN
     RETURN NEW;
 END $$;
 
--- append-only guard: UPDATE always rejected; DELETE only through purge_expired()
+-- append-only guard. Only two changes are allowed:
+--   * UPDATE that anonymizes actor_user_id to NULL and changes nothing else (T05 FK ON DELETE SET NULL
+--     on account deletion); row_hash is recomputed so integrity checks keep passing
+--   * DELETE of expired rows through purge_expired()
 CREATE FUNCTION audit_mock.audit_events_block_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    probe audit_mock.audit_events;
 BEGIN
+    IF TG_OP = 'UPDATE' AND OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL THEN
+        probe := NEW;
+        probe.actor_user_id := OLD.actor_user_id;
+        IF probe IS NOT DISTINCT FROM OLD THEN
+            NEW.row_hash := audit_mock.compute_row_hash(NEW);
+            RETURN NEW;
+        END IF;
+    END IF;
     IF TG_OP = 'DELETE'
        AND current_setting('audit_mock.purge_in_progress', true) = 'on'
        AND OLD.retain_until <= now() THEN

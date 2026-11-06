@@ -50,8 +50,10 @@ expect_rejected() {
   echo "PASS expected rejected: $label"
 }
 
-base_cols="occurred_at, actor_type, actor_user_id, action_code, resource_type, resource_id, result, reason_code, correlation_id, changed_fields, metadata, retention_class"
+base_cols="occurred_at, actor_type, actor_user_id, action_code, resource_type, resource_id, result, reason_code, request_id, changed_fields, metadata, retention_class"
 uid="11111111-1111-4111-8111-111111111111"
+uid2="33333333-3333-4333-8333-333333333333"
+psql_test -c "INSERT INTO audit_mock.users VALUES ('$uid'), ('$uid2')" >/dev/null
 rid="22222222-2222-4222-8222-222222222222"
 
 # 1. normal writes by the application role
@@ -69,7 +71,7 @@ echo "PASS DB-owned fields set (row_hash, retain_until)"
 
 spoof="$(as_writer "INSERT INTO audit_mock.audit_events ($base_cols, recorded_at, retain_until, row_hash) VALUES
   (now(), 'system', NULL, 'system.seed.apply', 'seed', NULL, 'success', NULL, 'req-t83-0004', NULL, NULL, 'standard',
-   '2000-01-01', '2000-01-02', repeat('0', 64));" && psql_test -Atc "SELECT recorded_at > '2020-01-01' AND retain_until > now() AND row_hash <> repeat('0',64) FROM audit_mock.audit_events WHERE correlation_id = 'req-t83-0004'")"
+   '2000-01-01', '2000-01-02', repeat('0', 64));" && psql_test -Atc "SELECT recorded_at > '2020-01-01' AND retain_until > now() AND row_hash <> repeat('0',64) FROM audit_mock.audit_events WHERE request_id = 'req-t83-0004'")"
 [[ "$spoof" == *t ]] || { echo "FAIL client could spoof recorded_at/retain_until/row_hash"; exit 1; }
 echo "PASS client-supplied recorded_at/retain_until/row_hash ignored"
 
@@ -98,7 +100,9 @@ expect_rejected "changed_fields with values" "$(ins "now(), 'user', '$uid', 'use
 expect_rejected "invalid action_code format" "$(ins "now(), 'system', NULL, 'DeleteUser', 'user', NULL, 'success', NULL, 'req-t83-0207', NULL, NULL, 'standard'")"
 expect_rejected "non-success without reason_code" "$(ins "now(), 'system', NULL, 'system.job.run', 'job', NULL, 'failed', NULL, 'req-t83-0208', NULL, NULL, 'standard'")"
 expect_rejected "user actor without actor_user_id" "$(ins "now(), 'user', NULL, 'user.profile.update', 'user_profile', NULL, 'success', NULL, 'req-t83-0209', NULL, NULL, 'standard'")"
-expect_rejected "missing correlation_id" "$(ins "now(), 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, '', NULL, NULL, 'standard'")"
+expect_rejected "user actor without request_id" "$(ins "now(), 'user', '$uid', 'user.profile.update', 'user_profile', '$uid', 'success', NULL, NULL, NULL, NULL, 'standard'")"
+expect_rejected "malformed request_id" "$(ins "now(), 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, 'bad id!', NULL, NULL, 'standard'")"
+expect_rejected "actor_user_id not in users (FK)" "$(ins "now(), 'user', '44444444-4444-4444-8444-444444444444', 'user.profile.update', 'user_profile', NULL, 'success', NULL, 'req-t83-0212', NULL, NULL, 'standard'")"
 expect_rejected "occurred_at far in future" "$(ins "now() + interval '1 day', 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, 'req-t83-0210', NULL, NULL, 'standard'")"
 expect_rejected "unknown retention_class" "$(ins "now(), 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, 'req-t83-0211', NULL, NULL, 'forever'")"
 
@@ -113,13 +117,26 @@ left="$(psql_test -Atc "SELECT count(*) FROM audit_mock.audit_events")"
 echo "PASS retention purge removed 2 expired rows, kept 4 unexpired"
 expect_rejected "plain DELETE after purge (flag reset)" "DELETE FROM audit_mock.audit_events;"
 
+# 4b. account deletion anonymizes actor (T05 FK ON DELETE SET NULL), nothing else may change
+as_writer "INSERT INTO audit_mock.audit_events ($base_cols) VALUES
+  (now(), 'user', '$uid2', 'user.skill.update', 'user_skill', NULL, 'success', NULL, 'req-t83-0401', ARRAY['proficiency'], NULL, 'standard');" >/dev/null
+expect_rejected "re-assign actor to another user (owner)" "UPDATE audit_mock.audit_events SET actor_user_id = '$uid' WHERE request_id = 'req-t83-0401';"
+expect_rejected "anonymize + change result together (owner)" "UPDATE audit_mock.audit_events SET actor_user_id = NULL, result = 'failed', reason_code = 'X_TEST' WHERE request_id = 'req-t83-0401';"
+psql_test -c "DELETE FROM audit_mock.users WHERE user_id = '$uid2'" >/dev/null
+anon="$(psql_test -qAtc "SELECT actor_user_id IS NULL AND result = 'success' FROM audit_mock.audit_events WHERE request_id = 'req-t83-0401'")"
+[[ "$anon" == "t" ]] || { echo "FAIL account deletion did not anonymize: $anon"; exit 1; }
+echo "PASS account deletion anonymized actor_user_id (row kept, other fields unchanged)"
+still_ok="$(psql_test -qAtc "SELECT count(*) FROM audit_mock.find_tampered_rows()")"
+[[ "$still_ok" == "0" ]] || { echo "FAIL anonymized row flagged as tampered"; exit 1; }
+echo "PASS anonymized row keeps a valid row_hash"
+
 # 5. tamper detection: owner bypasses triggers and edits a row silently
 before="$(psql_test -Atc "SELECT count(*) FROM audit_mock.find_tampered_rows()")"
 [[ "$before" == "0" ]] || { echo "FAIL tampered rows before=$before"; exit 1; }
 psql_test -c "BEGIN; ALTER TABLE audit_mock.audit_events DISABLE TRIGGER trg_audit_events_block_change;
-              UPDATE audit_mock.audit_events SET result = 'success', reason_code = NULL WHERE correlation_id = 'req-t83-0002';
+              UPDATE audit_mock.audit_events SET result = 'success', reason_code = NULL WHERE request_id = 'req-t83-0002';
               ALTER TABLE audit_mock.audit_events ENABLE TRIGGER trg_audit_events_block_change; COMMIT;" >/dev/null
-tampered="$(as_reader "SELECT correlation_id FROM audit_mock.audit_events WHERE audit_event_id IN (SELECT audit_event_id FROM audit_mock.find_tampered_rows())")"
+tampered="$(as_reader "SELECT request_id FROM audit_mock.audit_events WHERE audit_event_id IN (SELECT audit_event_id FROM audit_mock.find_tampered_rows())")"
 [[ "$tampered" == "req-t83-0002" ]] || { echo "FAIL tamper not detected: '$tampered'"; exit 1; }
 echo "PASS tamper detected by row_hash (req-t83-0002)"
 
