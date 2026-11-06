@@ -19,10 +19,14 @@ async function stopBackend() {
 }
 
 beforeAll(async () => {
+  // Pass only OS bootstrap variables; never inherit user DB/registry credentials.
+  const safeEnvironment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+    ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL'].includes(key.toUpperCase()),
+  ));
   const child = spawn(process.env.INTEGRATION_PYTHON || 'python', ['-B', runner], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...safeEnvironment,
       APP_ENV: 't29-local-integration',
       APP_VERSION: 't29-http-regression',
     },

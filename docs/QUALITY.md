@@ -28,7 +28,7 @@
 | `PoC Staging pytest` | `staging-publish.yml`과 같은 고정 버전으로 `poc/staging/tests` pytest. 배포 직전에만 잡히던 실패를 PR에서 탐지 | 실제 Compose·Staging 상태 |
 | `Lint (ruff, compile, shell syntax)` | `ruff==0.16.9` + 루트 `ruff.toml`(E9 문법, F pyflakes만), `backend`·`scripts/ci` 포맷 검사, `compileall`, `*.sh`의 `bash -n` | 스타일 전반(E501 등), 타입 검사, shellcheck, actionlint |
 | `Frontend lint, test, build` | `frontend/.nvmrc`(Node 24)로 `npm ci`(lock 기준) → `npm run lint`(oxlint, 경고도 실패) → `npm test`(Vitest) → `npm run build`(tsc 타입 검사 + Vite 빌드), `npm run test:integration`(정식 FE 클라이언트 → 실제 로컬 Backend HTTP, T29) | 업무 기능·React 화면 E2E, Nginx/CORS, DB, 브라우저 호환·접근성, 화면 디자인 |
-| `Docs links, secret patterns, coverage notes` | `scripts/ci` 단위 테스트, Markdown 상대 링크 검사, 정규식 Secret 패턴 검사, 테스트가 없는 영역 표기 | 앵커·외부 URL 유효성, 알려지지 않은 형식의 비밀정보, git 이력 속 비밀정보 |
+| `Docs links, secret patterns, coverage notes` | `scripts/ci` 단위 테스트, Markdown 상대 링크 검사, 환경 예시 계약 검사(T111), 정규식 Secret 패턴 검사, 테스트가 없는 영역 표기 | 실환경 설정·Secret 회전, 앵커·외부 URL 유효성, 알려지지 않은 형식의 비밀정보, git 이력 속 비밀정보 |
 
 DB 격리 테스트는 별도 워크플로 `d1-postgres-sql-test.yml`(`database/**` 변경 PR)에서 일회용 PostgreSQL 컨테이너로 실행되며 위 게이트에는 포함되지 않습니다.
 
@@ -65,6 +65,7 @@ PYTHONPYCACHEPREFIX=/tmp/ci-pycache python3 -m compileall -q backend poc scripts
 git ls-files -z '*.sh' | xargs -0 -r -n1 bash -n
 python3 -B -m unittest discover -s scripts/ci/tests -v
 python3 -B scripts/ci/check_md_links.py
+python3 -B scripts/ci/check_env_examples.py
 python3 -B scripts/ci/check_secrets.py
 (cd frontend && npm ci && npm run lint && npm test && npm run build)  # Node 24
 ```
@@ -86,6 +87,7 @@ py -3.12 -m venv .venv/poc
 $env:PYTHONPYCACHEPREFIX = "$env:TEMP\ci-pycache"; py -3.12 -m compileall -q backend poc scripts; Remove-Item Env:PYTHONPYCACHEPREFIX
 py -3.12 -B -m unittest discover -s scripts/ci/tests -v
 py -3.12 -B scripts/ci/check_md_links.py
+py -3.12 -B scripts/ci/check_env_examples.py
 py -3.12 -B scripts/ci/check_secrets.py
 Push-Location frontend; npm ci; npm run lint; npm test; npm run build; Pop-Location
 ```

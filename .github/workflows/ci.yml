@@ -146,6 +146,8 @@ jobs:
         run: python3 -B -m unittest discover -s scripts/ci/tests -v
       - name: Markdown relative link check
         run: python3 -B scripts/ci/check_md_links.py
+      - name: Environment example contract check (no runtime secrets)
+        run: python3 -B scripts/ci/check_env_examples.py
       - name: Secret pattern scan (regex, offline)
         run: python3 -B scripts/ci/check_secrets.py
       - name: Report areas without automated tests
