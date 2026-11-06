@@ -1,6 +1,6 @@
 # 기능 요구사항 — 직무·기업·채용공고 (FR-JOB)
 
-[목차로](../README.md) · 양식은 [FR-ACC](ACCOUNT.md#양식)와 같습니다.
+[목차로](../README.md) · 양식은 [README](../README.md#기능-요구사항)를 따릅니다.
 
 ---
 

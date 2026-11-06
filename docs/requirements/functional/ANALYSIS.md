@@ -1,6 +1,6 @@
 # 기능 요구사항 — 분석·추천 (FR-ANL)
 
-[목차로](../README.md) · 양식은 [FR-ACC](ACCOUNT.md#양식)와 같습니다.
+[목차로](../README.md) · 양식은 [README](../README.md#기능-요구사항)를 따릅니다.
 
 **공통 표시 규칙** ([NFR-AIQ-001](../non-functional/NON_FUNCTIONAL.md#nfr-aiq-001-분석-결과-표시)): 모든 점수는 0~100점이며 합격 확률이 아니라고 화면에 밝힙니다. 결과마다 계산 기준(규칙·모델 버전)과 계산 시각을 함께 보여줍니다.
 

@@ -1,8 +1,8 @@
 # 기능 요구사항 — AI (FR-AI)
 
-[목차로](../README.md) · 양식은 [FR-ACC](ACCOUNT.md#양식)와 같습니다.
+[목차로](../README.md) · 양식은 [README](../README.md#기능-요구사항)를 따릅니다.
 
-AI 기능의 공통 보안·품질 기준은 [NFR-SEC-003](../non-functional/NON_FUNCTIONAL.md#nfr-sec-003-업로드-파일-검사), [NFR-SEC-004](../non-functional/NON_FUNCTIONAL.md#nfr-sec-004-ai-입력-보호), [NFR-PRV-003](../non-functional/NON_FUNCTIONAL.md#nfr-prv-003-외부-ai-전송), [NFR-AVL-001](../non-functional/NON_FUNCTIONAL.md#nfr-avl-001-ai-장애-격리)을 따릅니다.
+AI 기능의 공통 보안·품질 기준은 [NFR-SEC-003](../non-functional/NON_FUNCTIONAL.md#nfr-sec-003-업로드-파일-보호), [NFR-SEC-004](../non-functional/NON_FUNCTIONAL.md#nfr-sec-004-ai-입력-보호), [NFR-PRV-003](../non-functional/NON_FUNCTIONAL.md#nfr-prv-003-외부-ai-전송), [NFR-AVL-001](../non-functional/NON_FUNCTIONAL.md#nfr-avl-001-ai-장애-격리)을 따릅니다.
 
 ---
 
@@ -13,11 +13,11 @@ AI 기능의 공통 보안·품질 기준은 [NFR-SEC-003](../non-functional/NON
 | 요구사항명 | 이력서·포트폴리오 파일 업로드, 목록, 삭제 |
 | 우선순위 | Should |
 | 사용자 스토리 | 구직자로서, 이력서 파일을 올려 두고 싶다. 직접 입력하지 않고 분석을 받기 위해서다. |
-| 설명 | PDF·DOCX 파일을 올리면 안전 검사 후 사용할 수 있는 상태가 된다. 문서를 삭제하면 원본, 분석 결과, 검색용 자료까지 모두 지운다. |
+| 설명 | PDF·DOCX 파일을 올리면 안전 검사 후 사용할 수 있는 상태가 된다. 파일은 API 서버와 분리된 파일 저장소에 실행할 수 없는 상태로, 추측할 수 없는 이름으로 저장한다([NFR-SEC-003](../non-functional/NON_FUNCTIONAL.md#nfr-sec-003-업로드-파일-보호)). 문서를 삭제하면 원본, 분석 결과, 검색용 자료까지 모두 지운다. |
 | 입력 | 파일(PDF·DOCX, 최대 10MB), 문서 종류(이력서·포트폴리오) |
 | 출력 | 문서 목록(파일명, 종류, 크기, 상태, 올린 시각) |
 | 선행 조건 | 로그인 상태 |
-| 수용 기준 | 1. 확장자가 아니라 실제 파일 내용으로 형식을 확인한다.<br>2. 검사 중에는 "검사 중" 상태를 보여주고, 끝나면 "사용 가능" 또는 "거부됨"으로 바뀐다.<br>3. 삭제 후에는 해당 문서가 목록·분석·Q&A 근거 어디에도 나오지 않는다.<br>4. 다른 사용자의 문서는 조회·삭제할 수 없다. |
+| 수용 기준 | 1. 확장자가 아니라 실제 파일 내용으로 형식을 확인한다.<br>2. 검사 중에는 "검사 중" 상태를 보여주고, 끝나면 "사용 가능" 또는 "거부됨"으로 바뀐다.<br>3. 삭제 후에는 해당 문서가 목록·분석·Q&A 근거 어디에도 나오지 않는다.<br>4. 다른 사용자의 문서는 조회·삭제할 수 없다.<br>5. 화면에는 사용자가 올린 원래 파일 이름을 보여주지만, 저장소의 파일 이름은 무작위 값이다. |
 | 예외 처리 | 10MB 초과: "10MB 이하 파일만 올릴 수 있습니다". 지원하지 않는 형식: "PDF 또는 DOCX 파일만 올릴 수 있습니다". 검사 실패: "거부됨"과 이유 표시. |
 | 관련 화면 | UI-019 문서 관리 |
 
