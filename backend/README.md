@@ -11,13 +11,13 @@ backend/
 ├── app/
 │   ├── main.py            # create_app() 팩토리, lifespan(시작/종료), 라우터 등록
 │   ├── core/config.py     # 환경변수 기반 Settings
-│   ├── core/errors.py     # 공통 에러 코드(ErrorCode)와 앱 예외(AppError 하위 클래스)
-│   ├── core/exception_handlers.py  # 글로벌 예외 핸들러 → ProblemDetail 응답
+│   ├── core/errors.py     # 에러 코드·메시지 카탈로그(ERROR_CATALOG)와 AppError
+│   ├── core/exception_handlers.py  # 글로벌 예외 핸들러 → {code, status, message} 응답
 │   ├── core/request_id.py # X-Request-ID 미들웨어
 │   ├── routers/           # HTTP 계층 (system: /health·/version, api_v1: /api/v1 진입점)
 │   ├── services/          # 업무 규칙
 │   ├── repositories/      # DB 쿼리 (T14에서 DB 연결과 함께 추가)
-│   └── schemas/           # Pydantic DTO (error.py: ProblemDetail·FieldError)
+│   └── schemas/           # Pydantic DTO (error.py: ErrorResponse)
 ├── tests/test_smoke.py    # 기동·종료·OpenAPI smoke 테스트
 ├── tests/test_errors.py   # 공통 에러 계약 테스트
 ├── requirements.txt       # 실행 의존성 (PoC와 동일 버전 pin)
@@ -73,51 +73,44 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 
 ## 공통 에러 처리
 
-모든 오류는 `application/problem+json` 형식의 `ProblemDetail`로 응답합니다. 계약: [API_CONTRACT.md §1.4](../docs/API_CONTRACT.md#14-오류).
+모든 오류는 `code`, `status`, `message` 세 필드만 보냅니다 (`application/json`). 계약: [API_CONTRACT.md §1.4](../docs/API_CONTRACT.md#14-오류).
 
 ```json
-{"type": "https://docs.ai-career.invalid/problems/email-taken", "title": "Email already registered",
- "status": 409, "code": "EMAIL_TAKEN", "request_id": "req-3f9a1c0b7d2e4a61"}
+{"code": "EMAIL_TAKEN", "status": 409, "message": "이미 가입된 이메일입니다."}
 ```
 
 ### 서비스·라우터에서 오류 내기
 
-`HTTPException`을 쓰지 말고 `app.core.errors`의 예외를 raise 합니다. 응답 변환은 글로벌 핸들러가 합니다.
+`HTTPException`을 쓰지 말고 코드만 골라 `AppError`를 raise 합니다. 상태와 메시지는 카탈로그에서 정해집니다.
 
 ```python
-from app.core.errors import ConflictError, ErrorCode, NotFoundError, ValidationFailedError
+from app.core.errors import AppError, ErrorCode
 
-raise ConflictError(ErrorCode.EMAIL_TAKEN)                     # 409
-raise NotFoundError()                                          # 404 NOT_FOUND (다른 사람 소유도 404)
-raise ValidationFailedError(ErrorCode.DUPLICATE_SKILL,         # 422 + errors
-                            errors=[{"field": "items[1].skill_id", "code": "DUPLICATE"}])
-raise RateLimitedError(retry_after=30)                         # 429 + Retry-After
+raise AppError(ErrorCode.EMAIL_TAKEN)                                  # 409 이미 가입된 이메일입니다.
+raise AppError(ErrorCode.NOT_FOUND)                                    # 404 (다른 사람 소유도 404)
+raise AppError(ErrorCode.RATE_LIMITED, retry_after=30)                 # 429 + Retry-After: 30
+raise AppError(ErrorCode.DUPLICATE_SKILL, log_detail=f"skill_id={sid}") # 422, log_detail은 로그에만
 ```
 
-| 예외 | 상태 | 기본 code |
-|---|---|---|
-| `BadRequestError` | 400 | `BAD_REQUEST` |
-| `UnauthorizedError` | 401 (+ `WWW-Authenticate: Bearer`) | `UNAUTHENTICATED` |
-| `ForbiddenError` | 403 | `FORBIDDEN` |
-| `NotFoundError` | 404 | `NOT_FOUND` |
-| `ConflictError` | 409 | `CONFLICT` |
-| `PayloadTooLargeError` / `UnsupportedMediaTypeError` | 413 / 415 | `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE` |
-| `ValidationFailedError` | 422 | `VALIDATION_FAILED` |
-| `RateLimitedError` | 429 (+ `Retry-After`) | `RATE_LIMITED` |
-| `DependencyUnavailableError` / `DependencyTimeoutError` | 503 / 504 | `DEPENDENCY_UNAVAILABLE` / `DEPENDENCY_TIMEOUT` |
+### 오류 메시지 관리 규칙
 
-새 `code`가 필요하면 `ErrorCode`와 `DEFAULT_TITLES`, 그리고 API_CONTRACT.md §1.4 표에 함께 추가합니다(테스트가 제목 누락을 잡습니다).
+- 메시지는 [`app/core/errors.py`](app/core/errors.py)의 `ERROR_CATALOG` **한 곳**에만 있습니다. 문구를 바꿀 때는 여기만 고칩니다.
+- 호출하는 쪽에서 메시지 문자열을 직접 쓰지 않습니다. 다른 문구가 필요하면 새 `ErrorCode`를 추가합니다.
+- 메시지는 사용자에게 그대로 보여 줄 문장입니다. 내부 정보(경로, SQL, 예외 내용, 입력값)는 넣지 않습니다.
+- 개발자용 원인은 `log_detail=`로 넘깁니다. 응답에는 나가지 않고 `X-Request-ID`와 함께 로그에 남습니다.
+- 코드를 추가·변경하면 [API_CONTRACT.md §1.4](../docs/API_CONTRACT.md#14-오류) 표와 `openapi.yaml` 예시도 맞춥니다. `tests/test_errors.py`가 셋이 다르면 실패합니다.
 
 ### 핸들러가 자동으로 바꾸는 오류
 
-| 상황 | 응답 |
-|---|---|
-| Pydantic 요청 검증 실패 (본문·쿼리·경로) | 422 `VALIDATION_FAILED` + `errors[{field, code}]`. 입력값은 넣지 않음 |
-| 깨진 JSON 본문 | 400 `MALFORMED_JSON` |
-| 없는 경로 / 허용 안 된 메서드 | 404 `NOT_FOUND` / 405 `METHOD_NOT_ALLOWED` |
-| 그 밖의 모든 예외 | 500 `INTERNAL_ERROR`. 고정 문구만 보내고 원인은 로그(`request_id`)에만 |
+| 상황 | 응답 code | 로그에 남는 것 |
+|---|---|---|
+| `AppError` | 예외의 code | code, request_id, log_detail |
+| Pydantic 요청 검증 실패 (본문·쿼리·경로) | 422 `VALIDATION_FAILED` | 틀린 필드 위치와 종류 (입력값은 남기지 않음) |
+| 깨진 JSON 본문 | 400 `MALFORMED_JSON` | |
+| 없는 경로 / 허용 안 된 메서드 | 404 `NOT_FOUND` / 405 `METHOD_NOT_ALLOWED` | |
+| 그 밖의 모든 예외 | 500 `INTERNAL_ERROR` | 스택트레이스 |
 
-모든 응답(성공 포함)에 `X-Request-ID` 헤더가 붙습니다. `/api/v1` 라우터는 OpenAPI에 422·500의 `ProblemDetail` 응답을 자동으로 표시합니다.
+401은 `WWW-Authenticate: Bearer`가 자동으로 붙습니다. 모든 응답(성공 포함)에 `X-Request-ID` 헤더가 붙고, 오류 화면은 이 값을 문의용 요청 번호로 보여 줍니다. `/api/v1` 라우터는 OpenAPI에 422·500의 `ErrorResponse`를 자동으로 표시합니다.
 
 ## 기능 추가 방법
 
@@ -125,5 +118,5 @@ raise RateLimitedError(retry_after=30)                         # 429 + Retry-Aft
 2. `app/repositories/<기능>.py`에 DB 쿼리
 3. `app/services/<기능>.py`에 업무 규칙
 4. `app/routers/<기능>.py`에 `APIRouter`를 만들고 `app/routers/api_v1.py`에서 `api_router.include_router(...)`
-5. 오류는 `app.core.errors` 예외로 raise (위 [공통 에러 처리](#공통-에러-처리))
-6. `tests/`에 정상·예외(401/403/404/422 등) 테스트 — 응답 형식은 `tests/test_errors.py`의 `assert_problem` 참고
+5. 오류는 `raise AppError(ErrorCode.XXX)` (위 [공통 에러 처리](#공통-에러-처리))
+6. `tests/`에 정상·예외(401/403/404/422 등) 테스트 — 응답 형식은 `tests/test_errors.py`의 `assert_error` 참고

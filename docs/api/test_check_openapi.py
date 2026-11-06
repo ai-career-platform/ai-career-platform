@@ -65,12 +65,17 @@ class OpenApiContractTest(unittest.TestCase):
                     op["x-requirements"] = [r for r in op["x-requirements"] if r != "FR-JOB-007"] or ["FR-JOB-001"]
         self.assertTrue(any("FR-JOB-007" in e for e in errors(spec)))
 
-    def test_errors_must_be_problem_json(self):
+    def test_errors_must_use_error_response(self):
         spec = copy.deepcopy(SPEC)
-        resp = spec["paths"]["/auth/login"]["post"]["responses"]["401"]
-        resp["content"] = {"application/json": resp["content"]["application/problem+json"]}
-        self.assertTrue(any("problem+json" in e for e in errors(spec)))
+        content = spec["paths"]["/auth/login"]["post"]["responses"]["401"]["content"]
+        content["application/problem+json"] = content.pop("application/json")
+        self.assertTrue(any("ErrorResponse" in e for e in errors(spec)))
 
+    def test_error_schema_must_be_error_response(self):
+        spec = copy.deepcopy(SPEC)
+        content = spec["paths"]["/auth/login"]["post"]["responses"]["401"]["content"]["application/json"]
+        content["schema"] = {"type": "object"}
+        self.assertTrue(any("ErrorResponse" in e for e in errors(spec)))
 
 if __name__ == "__main__":
     unittest.main()
