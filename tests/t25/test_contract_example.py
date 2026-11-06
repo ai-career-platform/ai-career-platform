@@ -7,7 +7,7 @@ from pathlib import Path
 
 FIXTURES = json.loads((Path(__file__).parent / 'fixtures.json').read_text(encoding='utf-8'))
 SKILL_GAP = json.loads((Path(__file__).parent / 'skill_gap_example.json').read_text(encoding='utf-8'))
-REQUIRED = ('entity_id', 'event_time', 'available_at', 'decision_time', 'source_id',
+REQUIRED = ('entity_id', 'feature_id', 'event_time', 'available_at', 'decision_time', 'source_id',
             'feature_version', 'dataset_version', 'split', 'usage_basis')
 
 
@@ -66,7 +66,7 @@ def select_available_example(records, decision_time):
         candidate['decision_time'] = decision_time
         errors = validate_example(candidate)
         if not any(error.startswith('missing:') for error in errors):
-            key = (candidate['entity_id'], candidate['feature_version'], candidate['dataset_version'], candidate['split'])
+            key = (candidate['entity_id'], candidate['feature_id'], candidate['feature_version'], candidate['dataset_version'], candidate['split'])
             if identity is None:
                 identity = key
             elif identity != key:
@@ -156,9 +156,11 @@ class ContractExampleTests(unittest.TestCase):
     def test_point_in_time_rejects_mixed_groups_even_when_late(self):
         valid = copy.deepcopy(FIXTURES['valid'])
         late = copy.deepcopy(valid)
-        late.update(entity_id='synthetic-user-002', available_at='2026-01-04T00:00:00Z')
-        with self.assertRaisesRegex(ValueError, 'mixed observation groups'):
-            select_available_example([valid, late], valid['decision_time'])
+        for changes in ({'entity_id': 'synthetic-user-002'}, {'feature_id': 'synthetic-other-feature'}):
+            late = copy.deepcopy(valid)
+            late.update(changes, available_at='2026-01-04T00:00:00Z')
+            with self.assertRaisesRegex(ValueError, 'mixed observation groups'):
+                select_available_example([valid, late], valid['decision_time'])
 
 
 if __name__ == '__main__':
