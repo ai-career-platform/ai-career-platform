@@ -86,7 +86,7 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 
 ## 10. 시점 기준 선택 및 평가 기록 연결 예시 (검토용)
 
-`select_available_example`은 합성 관측값 가운데 기준 시각까지 이용 가능했던 가장 최근 항목을 고르는 예시다. 늦게 들어온 값은 제외하고, 가장 최근 시각이 같은 항목이 둘 이상이면 임의로 고르지 않고 오류를 낸다. 입력 순서를 바꿔도 결과가 같으며, 이용 가능한 항목이 없으면 `None`이다. 동일 대상·동일 피처의 후보를 이미 모았다고 가정하며, 실제 저장소 조회·권한·수정 이력·시간대 정책을 구현하지 않는다. 이 규칙은 팀 합의 전 제안이다.
+`select_available_example`은 합성 관측값 가운데 기준 시각까지 이용 가능했던 가장 최근 항목을 고르는 예시다. 늦게 들어온 값은 제외하고, 가장 최근 시각이 같은 항목이 둘 이상이면 임의로 고르지 않고 오류를 낸다. 입력 순서를 바꿔도 결과가 같으며, 이용 가능한 항목이 없으면 `None`이다. 같은 대상·feature_version·dataset_version·split만 허용하며, feature ID가 없어 동일 피처 여부는 별도 확인해야 한다. 이 예제는 실제 저장소 조회·권한·수정 이력·시간대 정책을 구현하지 않는다. 이 규칙은 팀 합의 전 제안이다.
 
 평가 재현성 검토 시 DB 초안의 `model_versions.model_version_id`와 `model_evaluations.model_version_id` 연결, `dataset_ref`, 지표 및 평가 시각을 확인한다. 데이터셋/피처 버전, 분할 방법, 기준 시각, 코드 버전 및 출처/사용 권한은 별도 기록 후보이며 기존 DB 컬럼에 이미 있다고 가정하지 않는다. 실제 스키마·저장 위치와 보존 기간은 T05/T06 및 담당자와 협의한다. 삭제·동의 철회 시 데이터와 파생 산출물 처리도 미결이다.
 
@@ -102,4 +102,4 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 | 평가 | `model_evaluations`: 필수 `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | boolean 하나로 누수 부재를 증명할 수 없다. 데이터/피처 버전, 분할·검사 방법·증빙 저장 위치는 별도 협의 |
 | 삭제 | 사용자 원본·관련 행의 삭제 규칙과 문서 원본·인덱스 정리는 별도 책임 | 데이터셋·파생 feature·학습된 모델의 삭제/재학습 정책은 미확정 |
 
-T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 리뷰 대기 초안이다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. 현재 PR #26의 CI는 `5cbff34`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다.
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 리뷰 대기 초안이다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. PR #26 CI는 `515b3da`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다. 이후 커밋의 CI는 별도 확인한다.

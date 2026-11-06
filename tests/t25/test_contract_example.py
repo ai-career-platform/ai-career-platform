@@ -60,10 +60,17 @@ def select_available_example(records, decision_time):
     if cutoff.utcoffset() is None:
         raise ValueError('timezone required')
     eligible = []
+    identity = None
     for record in records:
         candidate = copy.deepcopy(record)
         candidate['decision_time'] = decision_time
         errors = validate_example(candidate)
+        if not any(error.startswith('missing:') for error in errors):
+            key = (candidate['entity_id'], candidate['feature_version'], candidate['dataset_version'], candidate['split'])
+            if identity is None:
+                identity = key
+            elif identity != key:
+                raise ValueError('mixed observation groups')
         if errors == ['time-order']:
             event = datetime.fromisoformat(candidate['event_time'].replace('Z', '+00:00'))
             available = datetime.fromisoformat(candidate['available_at'].replace('Z', '+00:00'))
@@ -145,6 +152,13 @@ class ContractExampleTests(unittest.TestCase):
         invalid['source_id'] = 'unapproved'
         with self.assertRaisesRegex(ValueError, 'unapproved'):
             select_available_example([invalid], valid['decision_time'])
+
+    def test_point_in_time_rejects_mixed_groups_even_when_late(self):
+        valid = copy.deepcopy(FIXTURES['valid'])
+        late = copy.deepcopy(valid)
+        late.update(entity_id='synthetic-user-002', available_at='2026-01-04T00:00:00Z')
+        with self.assertRaisesRegex(ValueError, 'mixed observation groups'):
+            select_available_example([valid, late], valid['decision_time'])
 
 
 if __name__ == '__main__':
