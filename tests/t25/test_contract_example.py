@@ -13,6 +13,8 @@ REQUIRED = ('entity_id', 'feature_id', 'event_time', 'available_at', 'decision_t
 
 def validate_example(record):
     """Return stable error codes for the narrow proposed synthetic example."""
+    if not isinstance(record, dict):
+        return ['invalid-record']
     errors = []
     for field in REQUIRED:
         if not isinstance(record.get(field), str) or not record[field].strip():
@@ -95,6 +97,11 @@ class ContractExampleTests(unittest.TestCase):
         self.assertEqual(SKILL_GAP['observation_kind'], 'self_reported')
         self.assertTrue(1 <= SKILL_GAP['required_level'] <= 5)
         self.assertIsNone(SKILL_GAP['observed_level'])
+
+    def test_non_mapping_input_is_rejected(self):
+        for invalid in (None, [], 'bad', 123):
+            self.assertEqual(validate_example(invalid), ['invalid-record'])
+            self.assertEqual(validate_example_dataset([invalid]), ['row:0:invalid-record'])
 
     def test_valid_example_and_repeatability(self):
         self.assertEqual(validate_example(FIXTURES['valid']), [])
