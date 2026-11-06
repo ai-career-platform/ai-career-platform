@@ -4,7 +4,7 @@
 Checks docs/api/openapi.yaml for:
   1. OpenAPI 3.1 syntax and $ref resolution (openapi-spec-validator)
   2. every example matches its schema (JSON Schema 2020-12)
-  3. contract rules: problem+json errors, 401 on protected operations, no user_id under /me
+  3. contract rules: errors use application/json + ErrorResponse, 401 on protected operations, no user_id under /me
   4. traceability 100%: requirement <-> operation, screen <-> operation, table <-> operation,
      with every exemption listed below and explained
 
@@ -26,10 +26,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "docs" / "api" / "openapi.yaml"
 DICTIONARY = ROOT / "database" / "DATA_DICTIONARY.md"
 METHODS = ("get", "post", "put", "patch", "delete")
+ERROR_SCHEMA = {"$ref": "#/components/schemas/ErrorResponse"}
 
 # Requirements with no API in this contract, and why. Keep this list short and reviewed.
 REQUIREMENT_EXEMPT = {
-    "FR-CMN-004": "공통 상태 화면: 별도 API 없음. 모든 operation의 공통 오류 응답(Problem)으로 충족",
+    "FR-CMN-004": "공통 상태 화면: 별도 API 없음. 모든 operation의 공통 오류 응답(ErrorResponse)으로 충족",
 }
 SCREEN_EXEMPT: dict[str, str] = {}
 TABLE_EXEMPT = {
@@ -131,10 +132,11 @@ def check(spec: dict, req_root: Path) -> tuple[list[str], dict]:
             bodies += [("request", mt, c) for mt, c in op["requestBody"]["content"].items()]
         for code, resp in responses.items():
             resp = resolve(resp, spec)
+            error_schema = resolve(ERROR_SCHEMA, spec)
             for mt, c in resp.get("content", {}).items():
                 bodies.append((code, mt, c))
-                if code[0] in "45" and mt != "application/problem+json":
-                    errors.append(f"{where} {code}: errors must use application/problem+json")
+                if code[0] in "45" and (mt != "application/json" or resolve(c.get("schema"), spec) != error_schema):
+                    errors.append(f"{where} {code}: errors must use application/json + ErrorResponse")
         for label, mt, content in bodies:
             if "example" in content and "schema" in content:
                 examples += 1

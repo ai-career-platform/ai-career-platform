@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import APP_NAME, get_settings
+from app.core.exception_handlers import register_exception_handlers
+from app.core.request_id import RequestIdMiddleware
 from app.routers import api_v1, system
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=APP_NAME, version=settings.app_version, lifespan=lifespan)
     app.state.ready = False
+    app.add_middleware(RequestIdMiddleware)
+    register_exception_handlers(app)
     app.include_router(system.router)
     app.include_router(api_v1.api_router)
     return app
