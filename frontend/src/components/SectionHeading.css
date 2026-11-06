@@ -1,0 +1,12 @@
+.home-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.home-section-heading h2 { margin: 0; font-size: 24px; letter-spacing: -0.035em; line-height: 1.4; word-break: keep-all; }
+.home-eyebrow { margin: 0 0 12px; color: #3454d1; font-size: 11px; font-weight: 800; letter-spacing: 0.13em; }
+.home-demo-label { color: #657086; font-size: 12px; }
+@media (max-width: 767px) { .home-section-heading { align-items: flex-start; flex-direction: column; } }
