@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "${D1_TEST_ONLY:-}" == "YES" ]] || { echo "D1_TEST_ONLY=YES required"; exit 2; }
+c="career-role-test-${GITHUB_RUN_ID:-manual}-$$"
+cleanup() { docker rm -f "$c" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+docker run -d --name "$c" -e POSTGRES_USER=d1admin -e POSTGRES_PASSWORD=disposable-test-only -e POSTGRES_DB=d1roles postgres:18.1 >/dev/null
+ready=0
+for i in $(seq 1 50); do
+ if docker exec "$c" pg_isready -U d1admin -d d1roles >/dev/null 2>&1; then ready=1; break; fi
+ sleep 2
+done
+[[ "$ready" == 1 ]] || exit 1
+
+docker cp database/security/DRAFT_00_create_roles_schema.sql "$c:/tmp/roles.sql"
+docker cp database/migrations/DRAFT_0001_initial_schema.sql "$c:/tmp/schema.sql"
+sql() { docker exec "$c" psql -X -v ON_ERROR_STOP=1 -U d1admin -d d1roles "$@"; }
+
+sql -f /tmp/roles.sql >/dev/null
+sql -c 'SET ROLE career_migrator' -f /tmp/schema.sql >/dev/null
+
+role_count="$(sql -Atc "SELECT COUNT(*) FROM pg_roles WHERE rolname IN ('career_reader','career_app','career_migrator','career_admin') AND rolcanlogin=false AND rolsuper=false")"
+[[ "$role_count" == 4 ]] || { echo "FAIL roles=$role_count"; exit 1; }
+echo "PASS roles=4 no-login and no-superuser"
+
+# can use SET ROLE as superuser to simulate grant enforcement;
+# default ACLs attached to career_migrator are applied because DDL was
+# executed as career_migrator, not d1admin.
+reader_can_read="$(sql -Atc "SELECT has_table_privilege('career_reader','career.users','SELECT')")"
+reader_can_write="$(sql -Atc "SELECT has_table_privilege('career_reader','career.users','INSERT')")"
+app_can_write="$(sql -Atc "SELECT has_table_privilege('career_app','career.users','INSERT')")"
+app_can_create="$(sql -Atc "SELECT has_schema_privilege('career_app','career','CREATE')")"
+[[ "$reader_can_read" == t && "$reader_can_write" == f && "$app_can_write" == t && "$app_can_create" == f ]] || {
+ echo "FAIL ACL reader_read=$reader_can_read reader_write=$reader_can_write app_write=$app_can_write app_create=$app_can_create"; exit 1;
+}
+echo "PASS reader SELECT-only; app CRUD without schema CREATE"
+
+# Verify actual read-only behavior in a transaction as reader.
+sql -c "SET ROLE career_reader; SELECT count(*) FROM career.users;" >/dev/null
+if sql -c "SET ROLE career_reader; INSERT INTO career.users(email,display_name) VALUES ('blocked@example.org','No');" >/dev/null 2>&1; then
+ echo "FAIL reader insert allowed"; exit 1
+fi
+echo "PASS reader INSERT denied"
+
+# Need reapply read-only bootstrap idempotently; do not recreate schema.
+sql -f /tmp/roles.sql >/dev/null
+echo "PASS safe bootstrap rerun"
+echo "D2_ROLE_TEST=PASS"
