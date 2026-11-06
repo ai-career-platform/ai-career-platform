@@ -1,7 +1,7 @@
 # 서비스 행동 이벤트·동의 계약 (T71)
 
 > 상태: **DRAFT / NOT APPROVED / NOT MIGRATED** · 2026-11-06 (T05 완료 후 개정)
-> 근거: [작업지시서 T71](../work-orders/remaining-30/T71.md), [T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md) B09 `consent_policies`·B01 `user_consents`·F07 `behavior_events`, F-025·F-005 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `POST /api/v1/me/consents`·`GET /api/v1/insights` ([API 계약](../API_CONTRACT.md)), ML04/ML06/ML07 ([AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md)), [감사 이벤트 계약 T83](../security/AUDIT_EVENT_CONTRACT.md)
+> 근거: [작업지시서 T71](../work-orders/remaining-30/T71.md), [T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md) B09 `consent_policies`·B01 `user_consents`·F07 `behavior_events`, F-025·F-005 ([추적표](../FULL_SCOPE_TRACEABILITY.md)), `POST /api/v1/me/consents` ([T06 OpenAPI](../api/openapi.yaml)), ML04/ML06/ML07 ([AI 시스템 구조](../AI_SYSTEM_ARCHITECTURE.md)), [감사 이벤트 계약 T83](../security/AUDIT_EVENT_CONTRACT.md)
 > 선행 일감: T04 완료, **T05 완료**(PR #17). T31(동의·탈퇴 API)은 진행 중이라 수집 API·실제 Migration 은 **HOLD** 이고, 이 문서는 데이터 사전을 확장하는 계약과 일회용 DB mock 검증까지 다룹니다.
 > **동의 정책이 승인되기 전에는 실제 사용자 행동을 추적하지 않습니다.**
 
@@ -114,7 +114,8 @@
 
 - 분석 계정은 원본 이벤트·동의 이력을 볼 수 없고 `insights_daily`(날짜, event_code, 이벤트 수, 사용자 수)만 봅니다. 이 뷰에는 `user_id` 가 없습니다.
 - **같은 날·같은 이벤트에 서로 다른 사용자가 5명 미만이면 그 줄은 보여주지 않습니다** (k = 5).
-- `GET /api/v1/insights` 응답의 `limitations[]` 에 "5명 미만 그룹 숨김"을 명시하는 안을 제안합니다.
+- T06 OpenAPI 에는 행동 이벤트 집계 전용 경로가 없습니다. 행동 데이터를 쓰는 관리자 화면(`/admin/segments`, `/admin/anomalies`)과 이후 추가될 집계 API 에 같은 k=5 규칙을 적용하고, 응답에 "5명 미만 그룹 숨김"을 명시하는 안을 제안합니다.
+- T06 `POST /me/consents` 는 선택 항목으로 `llm_processing`, `behavior_tracking` 만 받습니다. `personalization` 을 채택하면 T06 에도 추가가 필요합니다.
 
 ## 8. 권한 경계 (mock 기준)
 
