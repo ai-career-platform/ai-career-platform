@@ -86,3 +86,16 @@ def test_database_health_missing_environment(monkeypatch):
     response = client.get("/health/db")
     assert response.status_code == 503
     assert response.json() == {"detail": "Database unavailable"}
+
+
+def test_docs_use_proxy_prefixed_openapi_url():
+    response = client.get("/docs")
+    assert response.status_code == 200
+    assert 'url: \'/api/openapi.json\'' in response.text
+
+
+def test_openapi_available_to_proxy():
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.json()["openapi"].startswith("3.")
+    assert "/health" in response.json()["paths"]

@@ -4,7 +4,7 @@ import os
 import psycopg
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI()
+app = FastAPI(root_path="/api")
 logger = logging.getLogger(__name__)
 
 

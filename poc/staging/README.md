@@ -124,3 +124,8 @@ by default; restart with the `up` command above. Never add `-v` or prune volumes
 For DB recovery, restore a previously verified PoC backup into this project's
 database using a separately approved procedure; do not touch another project's
 data. Investigate health-check failures before restarting or restoring anything.
+
+
+## Swagger behind /api reverse proxy
+
+The app uses FastAPI `root_path="/api"` because Nginx strips the `/api/` prefix when proxying requests. On the host, `/api/docs` must fetch its OpenAPI definition from `/api/openapi.json`; the backend continues to serve `/docs` and `/openapi.json` internally. Local tests assert the Swagger HTML definition URL and OpenAPI availability. Deployment still requires PR review, CI and an authorized release; the running Ubuntu GHCR image is not modified by this source change alone.
