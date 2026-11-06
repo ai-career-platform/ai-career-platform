@@ -46,7 +46,7 @@ def test_openapi_lists_system_routes(app):
     spec = response.json()
     assert spec["info"]["title"] == "ai-career-platform"
     assert spec["info"]["version"] == "9.9.9"
-    assert set(spec["paths"]) == {"/health", "/version"}
+    assert set(spec["paths"]) == {"/health", "/version", "/api/v1/me"}
 
 
 def test_docs_page_served(app):
@@ -58,7 +58,7 @@ def test_docs_page_served(app):
 
 def test_unimplemented_api_v1_route_returns_404(app):
     with TestClient(app) as client:
-        response = client.get("/api/v1/me")
+        response = client.get("/api/v1/not-implemented")
     assert response.status_code == 404
 
 

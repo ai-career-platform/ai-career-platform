@@ -7,5 +7,7 @@
 from fastapi import APIRouter
 
 from app.core.config import API_V1_PREFIX
+from app.routers import profile
 
 api_router = APIRouter(prefix=API_V1_PREFIX)
+api_router.include_router(profile.router)

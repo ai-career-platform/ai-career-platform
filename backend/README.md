@@ -2,7 +2,7 @@
 
 정식 FastAPI Backend 애플리케이션입니다. `poc/staging/backend/main.py`(Staging PoC)와는 **별개**이며 PoC와 자동 배포 설정은 변경하지 않습니다.
 
-> 상태: 골격만 구현. `/api/v1` 서비스 API는 [API 계약 초안](../docs/API_CONTRACT.md) 확정(T06) 후 기능별 일감에서 추가합니다.
+> 상태: T13 골격 + T16 내 프로필 조회·부분수정 후보 구현. T14 DB 연결과 T15 인증이 main에 없어 T16 실연동은 대기 중입니다. 기본 앱은 미인증 401, 인증/저장소 미연동 503으로 차단하며 테스트용 인증을 운영에 제공하지 않습니다. [T16 구현·검증](../docs/work-orders/initial-30/T16_IMPLEMENTATION.md)을 참조하세요.
 
 ## 구조
 
@@ -65,6 +65,7 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 |---|---|---|
 | GET | `/health` | 앱 상태 `{"status":"ok","service":"ai-career-backend"}` |
 | GET | `/version` | 애플리케이션·환경·버전 |
+| GET/PATCH | `/api/v1/me` | 내 프로필 조회·부분수정 (T14/T15 실연동 전 차단) |
 | GET | `/openapi.json`, `/docs` | OpenAPI / Swagger UI |
 
 ## 기능 추가 방법
