@@ -6,7 +6,7 @@ from hashlib import sha256
 import json
 from typing import Sequence
 
-RULE_VERSION = 'skill-overlap-draft-v1'
+RULE_VERSION = 'skill-overlap-draft-v2'
 LIMITATION = '기술 목록의 단순 일치 비율이며 채용 성공 확률이 아닙니다.'
 
 
@@ -26,6 +26,7 @@ class Recommendation:
     matched_skills: tuple[str, ...]
     missing_skills: tuple[str, ...]
     source_id: str
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -52,13 +53,15 @@ def _skills(values: Sequence[str]) -> tuple[str, ...]:
 
 
 def recommend(user_skills: Sequence[str], postings: Sequence[Posting], *,
-              as_of: date, excluded_ids: Sequence[str] = ()) -> RecommendationResult:
+              as_of: date, excluded_ids: Sequence[str] = (), limit: int = 20) -> RecommendationResult:
     """Rank published, non-expired items by matched / required skill count.
 
     Draft choices: expiry date is inclusive; ties use exact ID ordering;
     skill-free postings are omitted. All IDs/codes are opaque and exact-match.
     Caller is responsible for authorization and a privacy-reviewed provenance scheme.
     """
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError('추천 개수는 1~50 사이 정수여야 합니다')
     if type(as_of) is not date:
         raise ValueError('기준일은 date여야 합니다')
     skills = _skills(user_skills)
@@ -87,9 +90,10 @@ def recommend(user_skills: Sequence[str], postings: Sequence[Posting], *,
         matched = tuple(code for code in required if code in skills)
         missing = tuple(code for code in required if code not in skills)
         score = int((Decimal(len(matched)) * 100 / Decimal(len(required))).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-        results.append(Recommendation(pid, score, matched, missing, source))
+        results.append(Recommendation(pid, score, matched, missing, source,
+                                      f'요구 기술 {len(required)}개 중 {len(matched)}개가 일치합니다.'))
     results.sort(key=lambda item: (-item.score, item.posting_id))
-    canonical = {'rule_version': RULE_VERSION, 'as_of': as_of.isoformat(), 'skills': skills,
+    canonical = {'rule_version': RULE_VERSION, 'as_of': as_of.isoformat(), 'limit': limit, 'skills': skills,
                  'excluded_ids': excluded, 'postings': sorted(normalized, key=lambda item: item['id'])}
     digest = sha256(json.dumps(canonical, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
-    return RecommendationResult(tuple(results), digest)
+    return RecommendationResult(tuple(results[:limit]), digest)

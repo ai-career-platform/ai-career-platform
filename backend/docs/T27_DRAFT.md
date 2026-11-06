@@ -8,4 +8,8 @@ Redmine #1531. `app/services/recommendation_baseline.py`는 실제 API/DB에 연
 
 ## T05 병합본과 대조 (2026-11-06)
 
-T05 PR #17이 main `a004efb`에 병합됐으나 데이터 사전은 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `recommendation_runs`는 `model_version_id`가 필수이고 `recommendation_items`는 1부터의 순위와 비어 있지 않은 이유(`reason`)를 요구한다. 현재 함수는 버전 문자열과 일치·누락 목록을 반환하지만 DB 모델 ID, 문장형 이유 및 저장을 구현하지 않는다. T05는 미관심 최신 피드백을 다음 추천에서 제외하도록 제안한다. 현재 `excluded_ids`는 호출자가 전달하는 가상 입력이며 실제 피드백 조회는 없다. T06 PR #29는 리뷰 중인 초안이다.
+T05 PR #17이 main `a004efb`에 병합됐으나 데이터 사전은 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `recommendation_runs`는 `model_version_id`가 필수이고 `recommendation_items`는 1부터의 순위와 비어 있지 않은 이유(`reason`)를 요구한다. 현재 함수는 버전 문자열과 일치·누락 목록을 반환하지만 DB 모델 ID 및 저장을 구현하지 않는다. T05는 미관심 최신 피드백을 다음 추천에서 제외하도록 제안한다. 현재 `excluded_ids`는 호출자가 전달하는 가상 입력이며 실제 피드백 조회는 없다. T06 PR #29는 병합됐고 실제 API 구현은 별도다.
+
+## T06 병합 계약 반영 (2026-11-06)
+
+T06 PR #29가 main `d1fae3a`에 병합됐다. RecommendationRunRequest의 limit 기본 20, 범위 1~50과 RecommendationItem의 빈 값이 아닌 reason에 맞춰 가상 계산 결과를 제한하고 기술 일치 개수로 이유를 만든다. 정렬 후 제한하며 limit도 가상 입력 해시에 포함한다. API 응답의 rank, feedback, job_posting과 model_version 등은 실제 DTO 조립·조회가 없어 미구현이다. 설명은 단순 기술 일치이며 개인화 품질을 증명하지 않는다. T06 PR 작성자는 CI 미연결로 PARTIAL을 보고했고 구현이 병합된 것은 아니다.

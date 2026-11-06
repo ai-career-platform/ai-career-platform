@@ -38,3 +38,15 @@ def test_reject_duplicates_bad_input_and_no_skills():
             recommend(values, postings, as_of=TODAY)
     with pytest.raises(ValueError):
         recommend(['python'], [p('a')], as_of=datetime(2026, 11, 6))
+
+
+def test_limit_and_reason_follow_t06_example():
+    postings = [p(f'id-{i:02d}', ('python',)) for i in range(25)]
+    default = recommend(['python'], postings, as_of=TODAY)
+    assert len(default.items) == 20
+    assert default.items[0].reason == '요구 기술 1개 중 1개가 일치합니다.'
+    assert len(recommend(['python'], postings, as_of=TODAY, limit=2).items) == 2
+    assert default.input_hash != recommend(['python'], postings, as_of=TODAY, limit=2).input_hash
+    for invalid in (0, 51, True, 1.5):
+        with pytest.raises(ValueError):
+            recommend(['python'], postings, as_of=TODAY, limit=invalid)
