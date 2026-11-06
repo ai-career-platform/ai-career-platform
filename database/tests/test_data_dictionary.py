@@ -1,6 +1,7 @@
 """T05: unit tests for database/model/check_data_dictionary.py (no database needed).
 
 Run: python3 -B -m unittest discover -s database/tests -p "test_data_dictionary.py" -v
+Requirement-coverage tests need docs/requirements (T04) or T05_REQUIREMENTS_DIR.
 """
 import sys
 import unittest
@@ -10,20 +11,26 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "database" / "model"))
 import check_data_dictionary as cdd  # noqa: E402
 
+import os
+
 TEXT = cdd.DICTIONARY.read_text(encoding="utf-8")
+REQ_DIR = Path(os.environ.get("T05_REQUIREMENTS_DIR", cdd.REQUIREMENTS_DIR))
+REQ_IDS = cdd.load_requirement_ids(REQ_DIR)
 
 
 def errors_for(text):
-    return cdd.validate(cdd.parse(text))
+    return cdd.validate(cdd.parse(text), REQ_IDS)
 
 
 class DataDictionaryTest(unittest.TestCase):
     def test_current_dictionary_is_valid(self):
         self.assertEqual(errors_for(TEXT), [])
 
-    def test_every_kept_feature_maps_to_a_table(self):
+    @unittest.skipIf(REQ_IDS is None, "docs/requirements (T04) not in tree")
+    def test_every_functional_requirement_maps_to_a_table(self):
         mapped = set().union(*(t.features for t in cdd.parse(TEXT)))
-        self.assertEqual(cdd.ALL_FEATURES - mapped, cdd.DROPPED_FEATURES | cdd.NO_DATA_FEATURES)
+        functional = {r for r in REQ_IDS if r.startswith("FR-")}
+        self.assertEqual(functional - mapped, set(cdd.NO_DATA_REQUIREMENTS))
 
     def test_ddl_orders_referenced_tables_first(self):
         ddl = cdd.ddl(cdd.parse(TEXT))
@@ -42,22 +49,24 @@ class DataDictionaryTest(unittest.TestCase):
         )
         self.assertTrue(any("SET NULL on NOT NULL" in e for e in errors_for(bad)))
 
-    def test_rejects_mapping_to_dropped_feature(self):
-        bad = TEXT.replace("- 기능: F-004, F-005, F-028 (", "- 기능: F-004, F-005, F-027, F-028 (")
-        self.assertTrue(any("dropped feature" in e for e in errors_for(bad)))
+    @unittest.skipIf(REQ_IDS is None, "docs/requirements (T04) not in tree")
+    def test_rejects_unknown_requirement_id(self):
+        bad = TEXT.replace("- 요구사항: FR-ACC-007", "- 요구사항: FR-ACC-999, FR-ACC-007", 1)
+        self.assertTrue(any("unknown requirement" in e for e in errors_for(bad)))
 
     def test_rejects_catalog_cascade_into_personal_data(self):
         tables = cdd.parse(TEXT)
         user_skills = next(t for t in tables if t.name == "user_skills")
         col = next(c for c in user_skills.columns if c.name == "skill_id")
         col.fk = ("skills", "skill_id", "CASCADE")
-        self.assertTrue(any("CASCADE from catalog skills" in e for e in cdd.validate(tables)))
+        self.assertTrue(any("CASCADE from catalog skills" in e for e in cdd.validate(tables, REQ_IDS)))
 
-    def test_rejects_missing_feature_coverage(self):
+    @unittest.skipIf(REQ_IDS is None, "docs/requirements (T04) not in tree")
+    def test_rejects_missing_requirement_coverage(self):
         tables = cdd.parse(TEXT)
         for t in tables:
-            t.features.discard("F-023")
-        self.assertTrue(any("F-023" in e for e in cdd.validate(tables)))
+            t.features.discard("FR-AI-004")
+        self.assertTrue(any("FR-AI-004" in e for e in cdd.validate(tables, REQ_IDS)))
 
 if __name__ == "__main__":
     unittest.main()

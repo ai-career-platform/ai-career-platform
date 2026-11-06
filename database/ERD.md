@@ -1,7 +1,7 @@
 # AI Career Platform — 전체 ERD v0.2
 
 > **자동 생성 파일 — 직접 수정하지 마세요.** 원본: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) · 재생성: `python3 database/model/check_data_dictionary.py --write-erd`
-> 테이블 50개, FK 75개. 영역별 그림은 영역 안의 테이블과, 다른 영역 테이블로 향하는 FK를 함께 보여줍니다.
+> 테이블 51개, FK 76개. 영역별 그림은 영역 안의 테이블과, 다른 영역 테이블로 향하는 FK를 함께 보여줍니다.
 
 ## A. 계정·인증·권한
 
@@ -10,6 +10,7 @@ erDiagram
     USERS {
         uuid user_id PK
         varchar email
+        varchar email_canonical
         varchar display_name
         varchar status
         timestamptz last_login_at
@@ -73,6 +74,14 @@ erDiagram
         timestamptz scheduled_purge_at
         timestamptz completed_at
     }
+    PASSWORD_RESET_TOKENS {
+        uuid token_id PK
+        uuid user_id FK
+        char token_hash UK
+        timestamptz created_at
+        timestamptz expires_at
+        timestamptz used_at
+    }
     USERS ||--o| USER_PROFILES : user_id
     USERS ||--o{ AUTH_IDENTITIES : user_id
     USERS ||--o{ AUTH_SESSIONS : user_id
@@ -82,6 +91,7 @@ erDiagram
     ROLES ||--o{ USER_ROLES : role_id
     USERS o|--o{ USER_ROLES : granted_by_user_id
     USERS o|--o{ ACCOUNT_DELETION_REQUESTS : user_id
+    USERS ||--o{ PASSWORD_RESET_TOKENS : user_id
 ```
 
 ## B. 동의·경력·역량·직무
@@ -363,7 +373,7 @@ erDiagram
         varchar original_filename
         varchar mime_type
         bigint size_bytes
-        text storage_key
+        varchar storage_key
         char checksum_sha256
         varchar visibility
         varchar status

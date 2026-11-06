@@ -24,18 +24,20 @@ ROOT = Path(__file__).resolve().parents[2]
 DICTIONARY = ROOT / "database" / "DATA_DICTIONARY.md"
 ERD_FILE = ROOT / "database" / "ERD.md"
 
-# T04 FEATURE_BASELINE.md: F-027 is DROP for the first baseline; F-030 (health
-# check) stores no data. Every other feature must map to at least one table.
-DROPPED_FEATURES = {"F-027"}
-NO_DATA_FEATURES = {"F-030"}
-ALL_FEATURES = {f"F-{i:03d}" for i in range(1, 31)}
+REQUIREMENTS_DIR = ROOT / "docs" / "requirements"
+# Requirements that store no data of their own. Every other functional requirement
+# in docs/requirements must map to at least one table. Requirements change over time:
+# coverage is re-checked against whatever is in docs/requirements on each run.
+NO_DATA_REQUIREMENTS = {
+    "FR-CMN-004": "공통 상태 화면 (로딩·오류·권한 없음). 저장할 데이터 없음",
+}
 DELETE_ACTIONS = {"RESTRICT", "CASCADE", "SET NULL"}
 SOFT_DELETE_CATALOGS = {"skills", "job_roles", "model_versions"}
 GRADES = {"PUBLIC", "INTERNAL", "PERSONAL", "SENSITIVE"}
 
 HEADER_RE = re.compile(r"^### ([A-F]\d{2}) `([a-z_]+)`")
 FK_RE = re.compile(r"FK → ([a-z_]+)\.([a-z_]+) \((RESTRICT|CASCADE|SET NULL)\)")
-FEATURE_RE = re.compile(r"F-\d{3}")
+REQ_RE = re.compile(r"\bN?FR-[A-Z]+-\d{3}\b")
 
 
 @dataclass
@@ -80,8 +82,8 @@ def parse(text: str) -> list[Table]:
         if line.startswith("## "):
             current = None
             continue
-        if line.startswith("- 기능:"):
-            current.features = set(FEATURE_RE.findall(line.split("(")[0] if "(v0.1" in line else line))
+        if line.startswith("- 요구사항:"):
+            current.features = set(REQ_RE.findall(line))
         elif line.startswith("- 데이터 등급:"):
             current.grade = line.split(":", 1)[1].strip().split()[0]
         elif line in ("제약:", "인덱스:"):
@@ -101,7 +103,18 @@ def parse(text: str) -> list[Table]:
     return tables
 
 
-def validate(tables: list[Table]) -> list[str]:
+def load_requirement_ids(req_dir: Path = REQUIREMENTS_DIR) -> set[str] | None:
+    """All FR/NFR IDs defined in docs/requirements, or None if the folder is absent."""
+    files = sorted(req_dir.glob("*/*.md")) if req_dir.is_dir() else []
+    if not files:
+        return None
+    ids: set[str] = set()
+    for md in files:
+        ids |= set(re.findall(r"^### (N?FR-[A-Z]+-\d{3}) ", md.read_text(encoding="utf-8"), re.M))
+    return ids
+
+
+def validate(tables: list[Table], requirement_ids: set[str] | None = None) -> list[str]:
     errors: list[str] = []
     by_name = {t.name: t for t in tables}
     if len(by_name) != len(tables):
@@ -120,9 +133,9 @@ def validate(tables: list[Table]) -> list[str]:
         if t.grade not in GRADES:
             errors.append(f"{t.name}: unknown data grade {t.grade!r}")
         if not t.features:
-            errors.append(f"{t.name}: no feature mapping")
-        if t.features & DROPPED_FEATURES:
-            errors.append(f"{t.name}: maps to dropped feature {t.features & DROPPED_FEATURES}")
+            errors.append(f"{t.name}: no requirement mapping")
+        if requirement_ids is not None and t.features - requirement_ids:
+            errors.append(f"{t.name}: unknown requirement {sorted(t.features - requirement_ids)}")
         for c in t.columns:
             if c.name in t.pk and c.nullable:
                 errors.append(f"{t.name}.{c.name}: PK column is nullable")
@@ -145,11 +158,15 @@ def validate(tables: list[Table]) -> list[str]:
                 if action == "CASCADE" and ref_t in SOFT_DELETE_CATALOGS and t.grade in {"PERSONAL", "SENSITIVE"}:
                     # catalogs are retired with is_active=false; a hard delete must not wipe user history
                     errors.append(f"{t.name}.{c.name}: CASCADE from catalog {ref_t} into personal data")
-    mapped = set().union(*(t.features for t in tables))
-    required = ALL_FEATURES - DROPPED_FEATURES - NO_DATA_FEATURES
-    missing = sorted(required - mapped)
-    if missing:
-        errors.append(f"features without any table: {missing}")
+    if requirement_ids is not None:
+        mapped = set().union(*(t.features for t in tables))
+        functional = {r for r in requirement_ids if r.startswith("FR-")}
+        missing = sorted(functional - mapped - set(NO_DATA_REQUIREMENTS))
+        if missing:
+            errors.append(f"requirements without any table: {missing}")
+        stale = sorted(set(NO_DATA_REQUIREMENTS) & mapped)
+        if stale:
+            errors.append(f"NO_DATA_REQUIREMENTS entry now has tables: {stale}")
     return errors
 
 
@@ -257,9 +274,13 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ddl", action="store_true")
     ap.add_argument("--write-erd", action="store_true")
+    ap.add_argument("--requirements-dir", type=Path, default=REQUIREMENTS_DIR)
     args = ap.parse_args()
     tables = parse(DICTIONARY.read_text(encoding="utf-8"))
-    errors = validate(tables)
+    requirement_ids = load_requirement_ids(args.requirements_dir)
+    if requirement_ids is None:
+        print(f"WARN {args.requirements_dir} not found: requirement coverage skipped", file=sys.stderr)
+    errors = validate(tables, requirement_ids)
     if errors:
         for e in errors:
             print(f"FAIL {e}", file=sys.stderr)

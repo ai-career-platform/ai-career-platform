@@ -16,9 +16,14 @@ INSERT INTO data_sources (source_id, code, name) VALUES
     ('00000000-0000-0000-0000-0000000000c5', 'synthetic_seed', 'Synthetic seed');
 INSERT INTO consent_policies VALUES
     ('terms', '2026-11', true, 'https://example.invalid/terms', now(), now());
-INSERT INTO users (user_id, email, display_name) VALUES
-    ('00000000-0000-0000-0000-0000000000a1', 'seeker@example.invalid', 'Seeker'),
-    ('00000000-0000-0000-0000-0000000000a2', 'admin@example.invalid', 'Admin');
+INSERT INTO users (user_id, email, email_canonical, display_name) VALUES
+    ('00000000-0000-0000-0000-0000000000a1', 'Seeker+box@example.invalid', 'seeker@example.invalid', 'Seeker'),
+    ('00000000-0000-0000-0000-0000000000a2', 'admin@example.invalid', 'admin@example.invalid', 'Admin');
+INSERT INTO user_documents (owner_user_id, kind, original_filename, mime_type, size_bytes, storage_key, checksum_sha256)
+    VALUES ('00000000-0000-0000-0000-0000000000a1', 'resume', '이력서.pdf', 'application/pdf', 1024,
+            '9f86d081884c7d659a2feaa0c55ad015', repeat('a', 64));
+INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+    VALUES ('00000000-0000-0000-0000-0000000000a1', repeat('b', 64), now() + interval '30 minutes');
 INSERT INTO user_profiles (user_id, headline) VALUES ('00000000-0000-0000-0000-0000000000a1', 'Backend');
 INSERT INTO user_consents (user_id, policy_code, policy_version, granted)
     VALUES ('00000000-0000-0000-0000-0000000000a1', 'terms', '2026-11', true);
@@ -61,14 +66,22 @@ INSERT INTO audit_events (actor_user_id, action_code, resource_type) VALUES
 DO $$ BEGIN RAISE NOTICE 'PASS normal fixtures inserted'; END $$;
 
 -- ---------- rejection cases ----------
-SELECT pg_temp.expect_error('email must be normalized',
-    $q$INSERT INTO users (email, display_name) VALUES ('Upper@Example.invalid', 'x')$q$);
-SELECT pg_temp.expect_error('duplicate email',
-    $q$INSERT INTO users (email, display_name) VALUES ('seeker@example.invalid', 'x')$q$);
+SELECT pg_temp.expect_error('canonical email must be lowercase',
+    $q$INSERT INTO users (email, email_canonical, display_name) VALUES ('Upper@Example.invalid', 'Upper@Example.invalid', 'x')$q$);
+SELECT pg_temp.expect_error('canonical email must not keep +tag',
+    $q$INSERT INTO users (email, email_canonical, display_name) VALUES ('a+b@example.invalid', 'a+b@example.invalid', 'x')$q$);
+SELECT pg_temp.expect_error('same mailbox with +tag is a duplicate',
+    $q$INSERT INTO users (email, email_canonical, display_name) VALUES ('seeker+other@example.invalid', 'seeker@example.invalid', 'x')$q$);
+SELECT pg_temp.expect_error('guessable storage name (original filename)',
+    $q$INSERT INTO user_documents (owner_user_id, kind, original_filename, mime_type, size_bytes, storage_key, checksum_sha256)
+       VALUES ('00000000-0000-0000-0000-0000000000a1', 'resume', 'cv.pdf', 'application/pdf', 1, 'cv.pdf', repeat('a', 64))$q$);
+SELECT pg_temp.expect_error('reset token valid longer than 30 minutes',
+    $q$INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ('00000000-0000-0000-0000-0000000000a1', repeat('c', 64), now() + interval '2 hours')$q$);
 SELECT pg_temp.expect_error('consent to unknown policy version',
     $q$INSERT INTO user_consents (user_id, policy_code, policy_version, granted)
        VALUES ('00000000-0000-0000-0000-0000000000a1', 'terms', '1999-01', true)$q$);
-SELECT pg_temp.expect_error('4th target role (max 3, F-009)',
+SELECT pg_temp.expect_error('4th target role (max 3, FR-PRF-002)',
     $q$INSERT INTO user_target_roles (user_id, job_role_id, priority)
        VALUES ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b8', 4)$q$);
 SELECT pg_temp.expect_error('duplicate target priority',
@@ -106,7 +119,8 @@ BEGIN
     SELECT (SELECT count(*) FROM user_profiles) + (SELECT count(*) FROM user_skills)
          + (SELECT count(*) FROM user_target_roles) + (SELECT count(*) FROM user_consents)
          + (SELECT count(*) FROM user_job_bookmarks) + (SELECT count(*) FROM skill_gap_items)
-         + (SELECT count(*) FROM match_evaluations) INTO leftover;
+         + (SELECT count(*) FROM match_evaluations) + (SELECT count(*) FROM user_documents)
+         + (SELECT count(*) FROM password_reset_tokens) INTO leftover;
     IF leftover <> 0 THEN RAISE EXCEPTION 'FAIL purge left % personal rows', leftover; END IF;
     IF EXISTS (SELECT 1 FROM audit_events WHERE actor_user_id IS NOT NULL) THEN
         RAISE EXCEPTION 'FAIL audit actor not anonymized'; END IF;

@@ -1,7 +1,7 @@
 # AI Career Platform — 데이터 사전 v0.2
 
 > **상태:** `DRAFT / PM·DB 리뷰 대기 / DDL 미적용` · 작성일 2026-11-06 · T05 (Redmine #1521) · 작성 이상재(`sangjae-lee97`)
-> **입력:** [T04 기능 기준선](../docs/requirements/FEATURE_BASELINE.md) (PR #13) · [S03 v0.1](FULL_DATABASE_MODEL.md) · [S04 API 계약](../docs/API_CONTRACT.md) · [DRAFT_0001](migrations/DRAFT_0001_initial_schema.sql)
+> **입력:** [요구사항 정의서](../docs/requirements/README.md) (T04 기준선) · [S03 v0.1](FULL_DATABASE_MODEL.md) · [S04 API 계약](../docs/API_CONTRACT.md) · [DRAFT_0001](migrations/DRAFT_0001_initial_schema.sql)
 > **이 문서가 기준(source of truth)입니다.** [ERD](ERD.md)와 검증용 DDL은 `python3 database/model/check_data_dictionary.py`가 이 문서를 읽어 만듭니다. 표 형식을 바꾸면 스크립트가 실패합니다.
 > **주의:** 이 사전으로 Staging에 DDL을 적용하지 않습니다. 실제 Migration SQL은 T08·T09에서 작성합니다.
 
@@ -16,7 +16,7 @@
   - `INTERNAL` 운영·모델 메타데이터 (외부 비공개, 개인 식별 없음)
   - `PERSONAL` 특정 사용자에 연결된 데이터 (본인·권한자만)
   - `SENSITIVE` 인증 비밀값 해시, 문서·질의 원문 참조 등 노출 시 피해가 큰 데이터
-- **보존:** 회원 탈퇴는 `account_deletion_requests` 처리로 진행합니다. 가안(T04 D-06): 요청 즉시 `users.status='disabled'`, 30일 후 `users` 행 삭제 → `CASCADE` 대상 개인 데이터 함께 삭제, 감사·비용 기록은 `SET NULL`로 익명화. **D-06 승인 전까지 가안입니다.**
+- **보존:** 회원 탈퇴는 `account_deletion_requests` 처리로 진행합니다. 제안값(요구사항 D-06, NFR-PRV-002): 요청 즉시 `users.status='disabled'`, 30일 후 `users` 행 삭제 → `CASCADE` 대상 개인 데이터 함께 삭제, 감사·비용 기록은 `SET NULL`로 익명화. **D-06 승인 전까지 가안입니다.**
 - **공통 컬럼:** 변경 가능한 행은 `created_at`, `updated_at`(`timestamptz NOT NULL DEFAULT now()`), 추가만 하는 기록 행은 `created_at` 또는 발생 시각 하나만 둡니다. `updated_at` 갱신은 애플리케이션 책임(트리거 미사용, T09에서 재검토).
 - **PK:** 엔터티는 `uuid DEFAULT gen_random_uuid()`, 연결 테이블은 복합 PK.
 - **상태 코드:** `varchar` + `CHECK (... IN (...))`. PostgreSQL ENUM 타입은 값 추가 시 Migration 부담 때문에 쓰지 않습니다.
@@ -26,13 +26,15 @@
 ## A. 계정·인증·권한
 
 ### A01 `users`
-- 기능: F-001, F-002, F-003, F-004, F-005
-- 데이터 등급: PERSONAL · 보존: 탈퇴 처리 완료 시 행 삭제 · DRAFT_0001: 있음 (변경 없음)
+- 요구사항: FR-ACC-001, FR-ACC-002, FR-ACC-003, FR-ACC-005, FR-ACC-007, FR-CMN-002
+- 데이터 등급: PERSONAL · 보존: 탈퇴 처리 완료 시 행 삭제 · DRAFT_0001: 있음 (**`email_canonical` 추가, 유일성 기준 변경**)
+- 결정 반영: FR-ACC-001 수용 기준 2~4 — 중복 검사·로그인은 **비교용 이메일**(`email_canonical`)로 한다. 만드는 규칙(애플리케이션): 앞뒤 공백 제거 → 소문자 → `@` 앞부분의 `+` 이후 제거 → `gmail.com`·`googlemail.com`이면 `@` 앞부분의 `.` 제거 후 도메인을 `gmail.com`으로. 사용자가 입력한 `email`은 연락용으로 그대로 둔다.
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
 | user_id | uuid | N | gen_random_uuid() | PK | 내부 식별자. 토큰·권한 검사를 대체하지 않음 |
-| email | varchar(254) | N | | | 로그인·연락 이메일. 저장 전 소문자·공백 제거 정규화 |
+| email | varchar(254) | N | | | 사용자가 입력한 이메일 (앞뒤 공백만 제거). 연락·표시용 |
+| email_canonical | varchar(254) | N | | | 비교용 이메일. 중복 검사·로그인 조회 기준. 예: `crasnec+box@gmail.com` → `crasnec@gmail.com` |
 | display_name | varchar(100) | N | | | 화면 표시 이름 |
 | status | varchar(20) | N | 'active' | | `active` / `disabled`(탈퇴 요청·관리자 정지) |
 | last_login_at | timestamptz | Y | | | 마지막 로그인 시각 |
@@ -41,14 +43,14 @@
 
 제약:
 - `CHECK (status IN ('active', 'disabled'))`
-- `CHECK (length(btrim(email)) > 0)`
-- `CHECK (email = lower(btrim(email)))`
+- `CHECK (length(btrim(email)) > 0 AND email = btrim(email))`
+- `CHECK (email_canonical = lower(email_canonical) AND position('+' in split_part(email_canonical, '@', 1)) = 0)`
 
 인덱스:
-- `UNIQUE (email)`
+- `UNIQUE (email_canonical)`
 
 ### A02 `user_profiles`
-- 기능: F-003
+- 요구사항: FR-ACC-005, FR-CMN-001, FR-CMN-002
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 있음 (FK 삭제 동작 RESTRICT → CASCADE)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -64,16 +66,16 @@
 - `CHECK (bio IS NULL OR length(bio) <= 5000)`
 
 ### A03 `auth_identities`
-- 기능: F-001
+- 요구사항: FR-ACC-001, FR-ACC-002, NFR-SEC-001
 - 데이터 등급: SENSITIVE · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음 (신규)
-- 조건: **T04 D-01**에서 외부 IdP를 고르면 필수, 자체 인증만 쓰면 `provider='local'` 한 행으로 사용
+- 결정 반영: 자체 로그인(요구사항 D-01). 1차는 `provider='local'` 한 행. 외부 로그인을 붙이면 공급자 행을 추가
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
 | identity_id | uuid | N | gen_random_uuid() | PK | |
 | user_id | uuid | N | | FK → users.user_id (CASCADE) | |
 | provider | varchar(40) | N | | | `local`, `google` 등 |
-| subject | varchar(255) | N | | | 공급자 측 사용자 ID (local이면 정규화 이메일) |
+| subject | varchar(255) | N | | | 공급자 측 사용자 ID. `local`이면 `users.email_canonical`과 같은 값 |
 | password_hash | text | Y | | | `provider='local'`일 때만. 원문 비밀번호 저장 금지 |
 | created_at | timestamptz | N | now() | | |
 | updated_at | timestamptz | N | now() | | |
@@ -86,7 +88,7 @@
 - `(user_id)`
 
 ### A04 `auth_sessions`
-- 기능: F-002
+- 요구사항: FR-ACC-002, FR-ACC-003, FR-ACC-007, NFR-SEC-001
 - 데이터 등급: SENSITIVE · 보존: 만료·폐기 후 30일 뒤 삭제 (배치) · DRAFT_0001: 없음 (신규)
 - 조건: 자체 세션·refresh 토큰을 쓸 때만 필요 (D-01)
 
@@ -108,18 +110,18 @@
 - `(user_id) WHERE revoked_at IS NULL`
 
 ### A05 `roles`
-- 기능: F-004
+- 요구사항: FR-ADM-001, FR-ADM-002, FR-CMN-003
 - 데이터 등급: INTERNAL · 보존: 영구 (Seed 관리) · DRAFT_0001: 없음 (신규)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
 | role_id | uuid | N | gen_random_uuid() | PK | |
-| code | varchar(64) | N | | UQ | `job_seeker`, `admin` (T04 §2). 기업 담당자는 D-02 이후 |
+| code | varchar(64) | N | | UQ | `job_seeker`, `admin` (요구사항 개요 §5). 기업 담당자는 1차 제외 |
 | name | varchar(120) | N | | | |
 | created_at | timestamptz | N | now() | | |
 
 ### A06 `permissions`
-- 기능: F-004
+- 요구사항: FR-ADM-001, FR-CMN-003
 - 데이터 등급: INTERNAL · 보존: 영구 (Seed 관리) · DRAFT_0001: 없음 (신규)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -130,7 +132,7 @@
 | created_at | timestamptz | N | now() | | |
 
 ### A07 `role_permissions`
-- 기능: F-004
+- 요구사항: FR-ADM-001, FR-CMN-003
 - 데이터 등급: INTERNAL · 보존: 영구 (Seed 관리) · DRAFT_0001: 없음 (신규)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -143,7 +145,7 @@
 - `(permission_id)`
 
 ### A08 `user_roles`
-- 기능: F-004
+- 요구사항: FR-ACC-001, FR-ADM-001, FR-ADM-002, FR-CMN-003
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제. 부여·회수 이력은 `audit_events`에 기록 · DRAFT_0001: 없음 (신규)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -156,8 +158,8 @@
 인덱스:
 - `(role_id)`
 
-### A09 `account_deletion_requests` — **신규 (T04 F-005 CHANGE, ISS-06)**
-- 기능: F-005
+### A09 `account_deletion_requests` — **신규 (FR-ACC-007)**
+- 요구사항: FR-ACC-007
 - 데이터 등급: PERSONAL · 보존: 처리 완료 후 `user_id`가 NULL로 바뀌고 요청 기록만 1년 보존 (D-06 가안) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -178,12 +180,33 @@
 - `UNIQUE (user_id) WHERE status = 'requested'`
 - `(status, scheduled_purge_at)`
 
+### A10 `password_reset_tokens` — **신규 (FR-ACC-004)**
+- 요구사항: FR-ACC-004, NFR-SEC-001
+- 데이터 등급: SENSITIVE · 보존: 사용·만료 후 7일 뒤 삭제 (배치) · DRAFT_0001: 없음
+- 규칙: 토큰 원문은 메일 링크에만 넣고 DB에는 SHA-256 해시만 저장. 30분 후 만료, 한 번만 사용 (FR-ACC-004 수용 기준 2)
+
+| 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
+|---|---|---|---|---|---|
+| token_id | uuid | N | gen_random_uuid() | PK | |
+| user_id | uuid | N | | FK → users.user_id (CASCADE) | |
+| token_hash | char(64) | N | | UQ | 재설정 토큰의 SHA-256 |
+| created_at | timestamptz | N | now() | | |
+| expires_at | timestamptz | N | | | 발급 + 30분 |
+| used_at | timestamptz | Y | | | 사용한 시각. NULL이면 미사용 |
+
+제약:
+- `CHECK (expires_at > created_at AND expires_at <= created_at + interval '30 minutes')`
+- `CHECK (used_at IS NULL OR used_at >= created_at)`
+
+인덱스:
+- `(user_id) WHERE used_at IS NULL`
+
 ---
 
 ## B. 동의·경력·역량·직무
 
-### B09 `consent_policies` — **신규 (T04 N-04 약관 화면, F-005 동의 대상 고정)**
-- 기능: F-005
+### B09 `consent_policies` — **신규 (FR-ACC-006, FR-CMN-003)**
+- 요구사항: FR-ACC-001, FR-ACC-006, FR-CMN-003
 - 데이터 등급: PUBLIC · 보존: 영구 (과거 버전도 동의 근거라 삭제 금지) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -196,9 +219,10 @@
 | created_at | timestamptz | N | now() | | |
 
 ### B01 `user_consents`
-- 기능: F-005, F-020, F-025
+- 요구사항: FR-ACC-001, FR-ACC-006, FR-AI-002
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 - 변경(v0.1 대비): 정책 코드·버전을 `consent_policies` FK로 고정. 행을 수정하지 않고 **추가만** 해서 이력을 남김
+- 결정 반영: FR-ACC-006 — 가입 후 동의·철회 기록은 `consent_policies.is_required = false`인 정책만 추가할 수 있다 (애플리케이션 검사, T31)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -216,7 +240,7 @@
 - `(user_id, policy_code, recorded_at DESC)`
 
 ### B02 `user_experiences`
-- 기능: F-010
+- 요구사항: FR-PRF-003
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -238,7 +262,7 @@
 - `(user_id)`
 
 ### B03 `user_projects`
-- 기능: F-010
+- 요구사항: FR-PRF-004
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -258,8 +282,8 @@
 인덱스:
 - `(user_id)`
 
-### B10 `user_project_skills` — **신규 (T04 F-010 "사용 기술")**
-- 기능: F-010, F-015
+### B10 `user_project_skills` — **신규 (FR-PRF-004 사용 기술)**
+- 요구사항: FR-ANL-001, FR-PRF-004
 - 데이터 등급: PERSONAL · 보존: 프로젝트 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -272,7 +296,7 @@
 - `(skill_id)`
 
 ### B04 `job_roles`
-- 기능: F-006, F-009, F-014, F-016, F-024
+- 요구사항: FR-ANL-002, FR-ANL-005, FR-CMN-002, FR-JOB-001, FR-JOB-002, FR-JOB-005, FR-PRF-002
 - 데이터 등급: PUBLIC · 보존: 영구. 폐기 시 `is_active=false` (참조 보존) · DRAFT_0001: 있음 (컬럼 추가)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -289,7 +313,7 @@
 - `CHECK (length(btrim(code)) > 0)`
 
 ### B05 `skills`
-- 기능: F-007, F-008, F-014, F-016
+- 요구사항: FR-ANL-002, FR-CMN-002, FR-JOB-002, FR-JOB-003, FR-JOB-006, FR-PRF-001, FR-PRF-004
 - 데이터 등급: PUBLIC · 보존: 영구. 폐기 시 `is_active=false` · DRAFT_0001: 있음 (컬럼 추가)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -308,9 +332,9 @@
 - `(lower(name))`
 
 ### B06 `job_role_skills`
-- 기능: F-014, F-016
+- 요구사항: FR-ANL-001, FR-ANL-002, FR-JOB-002, FR-JOB-006
 - 데이터 등급: PUBLIC · 보존: 영구 · DRAFT_0001: 있음 (**`importance` → `required_level` 이름·의미 변경**)
-- 변경 이유: T04 ISS-11 — Skill Gap은 `required_level - user_skills.proficiency`로 계산하므로 같은 1~5 척도여야 함
+- 변경 이유: FR-ANL-002 — Skill Gap은 `required_level - user_skills.proficiency`로 계산하므로 같은 1~5 척도여야 함
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -326,7 +350,7 @@
 - `(skill_id)`
 
 ### B07 `user_skills`
-- 기능: F-008, F-015, F-016
+- 요구사항: FR-AI-002, FR-ANL-001, FR-ANL-002, FR-ANL-003, FR-CMN-001, FR-CMN-002, FR-PRF-001
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 있음 (FK CASCADE, `updated_at` 추가)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -344,9 +368,9 @@
 - `(skill_id)`
 
 ### B08 `user_target_roles`
-- 기능: F-009, F-016, F-017
+- 요구사항: FR-ANL-002, FR-ANL-003, FR-CMN-001, FR-CMN-002, FR-PRF-002
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
-- 결정 반영: T04 F-009 "최대 3개" → `priority` 1~3 + 사용자별 유일
+- 결정 반영: FR-PRF-002 "최대 3개" → `priority` 1~3 + 사용자별 유일
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -368,9 +392,9 @@
 ## C. 기업·공고·데이터 출처
 
 ### C05 `data_sources`
-- 기능: F-011, F-012, F-024, F-029
+- 요구사항: FR-ANL-005, FR-JOB-004, FR-JOB-005, NFR-OPS-001
 - 데이터 등급: INTERNAL · 보존: 영구 (참조 데이터의 출처 근거) · DRAFT_0001: 없음
-- 결정 반영: T04 D-05 가안 — 1차는 `synthetic_seed`(가상 Seed) 한 개만 사용
+- 결정 반영: 요구사항 D-05 제안 — 1차는 `synthetic_seed`(가상 Seed) 한 개만 사용
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -388,7 +412,7 @@
 - `CHECK (code = 'synthetic_seed' OR license_ref IS NOT NULL)`
 
 ### C01 `companies`
-- 기능: F-011, F-012
+- 요구사항: FR-JOB-004, FR-JOB-005, FR-JOB-006, FR-JOB-007
 - 데이터 등급: PUBLIC · 보존: 영구. 공고가 남아 있으면 삭제 불가 · DRAFT_0001: 있음 (컬럼 추가)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -408,7 +432,7 @@
 - `(lower(name))`
 
 ### C02 `job_postings`
-- 기능: F-012, F-013, F-014, F-015, F-017
+- 요구사항: FR-ANL-003, FR-JOB-004, FR-JOB-005, FR-JOB-006, FR-JOB-007
 - 데이터 등급: PUBLIC (status='published'만) · 보존: 마감 후에도 추천·북마크 참조 때문에 행 유지, 출처 `retention_days` 경과 시 배치 삭제 검토 · DRAFT_0001: 있음 (컬럼 추가)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -441,7 +465,7 @@
 - `(status, published_at DESC)`
 
 ### C03 `job_posting_skills`
-- 기능: F-012, F-014, F-015
+- 요구사항: FR-ANL-001, FR-JOB-006
 - 데이터 등급: PUBLIC · 보존: 공고와 함께 · DRAFT_0001: 있음 (`required_level` 추가, FK CASCADE)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -459,7 +483,7 @@
 - `(skill_id)`
 
 ### C04 `user_job_bookmarks`
-- 기능: F-013 (T04 D-07: 포함 가안)
+- 요구사항: FR-JOB-006, FR-JOB-007
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 있음 (FK 동작 변경)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -473,7 +497,7 @@
 - `(user_id, created_at DESC)`
 
 ### C06 `job_posting_external_refs`
-- 기능: F-012, F-029
+- 요구사항: FR-JOB-005, NFR-OPS-001
 - 데이터 등급: INTERNAL · 보존: 공고와 함께 · DRAFT_0001: 없음
 - 조건: 외부 수집(T62) 전까지 비어 있음
 
@@ -489,7 +513,7 @@
 - `(job_posting_id)`
 
 ### C07 `ingestion_runs`
-- 기능: F-024, F-029
+- 요구사항: FR-ANL-005, NFR-OPS-001
 - 데이터 등급: INTERNAL · 보존: 180일 (가안) · DRAFT_0001: 없음
 - 조건: 외부 수집(T62~T64) 전까지 비어 있음
 
@@ -516,9 +540,9 @@
 ## D. 매칭·Skill Gap·추천·모델
 
 ### D01 `model_versions`
-- 기능: F-015, F-016, F-017, F-020, F-024, F-025, F-026, F-028
+- 요구사항: FR-ADM-003, FR-ADM-005, FR-ADM-006, FR-AI-002, FR-AI-003, FR-ANL-001, FR-ANL-002, FR-ANL-003, FR-ANL-005
 - 데이터 등급: INTERNAL · 보존: 영구 (결과 재현성. 참조 중이면 삭제 불가) · DRAFT_0001: 없음
-- 결정 반영: 1차 규칙 기반 계산(T26·T27)도 `kind='rule'` 버전으로 등록해 결과와 같은 ID 체계 사용 (T04 F-026)
+- 결정 반영: 1차 규칙 기반 계산(T26·T27)도 `kind='rule'` 버전으로 등록해 결과와 같은 ID 체계 사용 (FR-ADM-003 수용 기준 1)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -538,7 +562,7 @@
 - `UNIQUE (model_code, version)`
 
 ### D02 `match_evaluations`
-- 기능: F-015
+- 요구사항: FR-ANL-001
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -547,7 +571,7 @@
 | user_id | uuid | N | | FK → users.user_id (CASCADE) | |
 | job_posting_id | uuid | Y | | FK → job_postings.job_posting_id (CASCADE) | 공고 또는 직무 중 정확히 하나 |
 | job_role_id | uuid | Y | | FK → job_roles.job_role_id (RESTRICT) | |
-| model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | 계산 기준 (필수 — T04 F-015 수용 기준 ③) |
+| model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | 계산 기준 (필수 — FR-ANL-001 수용 기준 3) |
 | status | varchar(20) | N | 'completed' | | `pending` / `completed` / `failed` |
 | score | numeric(5,2) | Y | | | 0~100. **확률 아님** |
 | matched_skill_count | smallint | Y | | | |
@@ -568,7 +592,7 @@
 - `(model_version_id)`
 
 ### D03 `skill_gap_assessments`
-- 기능: F-016
+- 요구사항: FR-ANL-002, FR-CMN-001
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -577,7 +601,7 @@
 | user_id | uuid | N | | FK → users.user_id (CASCADE) | |
 | job_role_id | uuid | N | | FK → job_roles.job_role_id (RESTRICT) | 기준 목표 직무 |
 | model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | 계산 규칙 버전 |
-| evaluated_at | timestamptz | N | now() | | "이전 기준" 판단에 사용 (T04 F-009 ②) |
+| evaluated_at | timestamptz | N | now() | | "이전 기준" 판단에 사용 (FR-ANL-002 수용 기준 3) |
 
 인덱스:
 - `(user_id, evaluated_at DESC)`
@@ -585,7 +609,7 @@
 - `(model_version_id)`
 
 ### D04 `skill_gap_items`
-- 기능: F-016
+- 요구사항: FR-ANL-002
 - 데이터 등급: PERSONAL · 보존: 평가와 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -594,7 +618,7 @@
 | skill_id | uuid | N | | PK; FK → skills.skill_id (RESTRICT) | |
 | required_level | smallint | N | | | 계산 시점 값 복사 (이후 기준 변경과 무관하게 재현) |
 | observed_level | smallint | N | | | 계산 시점 사용자 숙련도 (미입력 0) |
-| gap | smallint | N | | | `max(required - observed, 0)` (T04 F-016 ①) |
+| gap | smallint | N | | | `max(required - observed, 0)` (FR-ANL-002 수용 기준 1) |
 
 제약:
 - `CHECK (required_level BETWEEN 1 AND 5)`
@@ -605,7 +629,7 @@
 - `(skill_id)`
 
 ### D05 `recommendation_runs`
-- 기능: F-017, F-018
+- 요구사항: FR-ANL-003, FR-ANL-004, FR-CMN-001
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -624,9 +648,9 @@
 - `(model_version_id)`
 
 ### D06 `recommendation_items`
-- 기능: F-017, F-018
+- 요구사항: FR-ANL-003, FR-ANL-004, FR-CMN-001
 - 데이터 등급: PERSONAL · 보존: 실행과 함께 · DRAFT_0001: 없음
-- 변경(v0.1 대비): `feedback` 단일 컬럼 **삭제** → `recommendation_feedback` 이력 테이블로 이동 (T04 F-018 CHANGE)
+- 변경(v0.1 대비): `feedback` 단일 컬럼 **삭제** → `recommendation_feedback` 이력 테이블로 이동 (FR-ANL-004)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -634,7 +658,7 @@
 | job_posting_id | uuid | N | | PK; FK → job_postings.job_posting_id (CASCADE) | |
 | rank | integer | N | | | 1부터 |
 | score | numeric(5,2) | Y | | | 0~100, 확률 아님 |
-| reason | text | N | | | 추천 이유 (1개 이상 필수 — T04 F-017 ②) |
+| reason | text | N | | | 추천 이유 (1개 이상 필수 — FR-ANL-003 수용 기준 2) |
 
 제약:
 - `CHECK (rank >= 1)`
@@ -645,10 +669,10 @@
 - `UNIQUE (recommendation_run_id, rank)`
 - `(job_posting_id)`
 
-### D07 `recommendation_feedback` — **신규 (T04 F-018 CHANGE, ISS-06)**
-- 기능: F-017, F-018
+### D07 `recommendation_feedback` — **신규 (FR-ANL-004)**
+- 요구사항: FR-ANL-003, FR-ANL-004
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
-- 규칙: 추가만 함. 공고별 최신 행이 현재 피드백. `not_interested` 최신 상태인 공고는 다음 추천에서 제외 (T04 F-018 ②)
+- 규칙: 추가만 함. 공고별 최신 행이 현재 피드백. `not_interested` 최신 상태인 공고는 다음 추천에서 제외 (FR-ANL-004 수용 기준 3)
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -668,7 +692,7 @@
 - `(job_posting_id)`
 
 ### F04 `model_evaluations`
-- 기능: F-026
+- 요구사항: FR-ADM-003
 - 데이터 등급: INTERNAL · 보존: 영구 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -689,9 +713,10 @@
 ## E. 문서·RAG
 
 ### E01 `user_documents`
-- 기능: F-019, F-020, F-021, F-022
-- 데이터 등급: SENSITIVE · 보존: users 삭제 시 함께 삭제. **객체 저장소 파일·검색 색인 삭제는 애플리케이션 책임** (T04 F-019 ②) · DRAFT_0001: 없음
-- 결정 반영: T04 D-08 가안 — `visibility='shared'`는 관리자가 올린 공용 커리어 자료(RAG 대상), 일반 사용자 문서는 `private`
+- 요구사항: FR-AI-001, FR-AI-002, FR-AI-003, NFR-SEC-003
+- 데이터 등급: SENSITIVE · 보존: users 삭제 시 함께 삭제. **객체 저장소 파일·검색 색인 삭제는 애플리케이션 책임** (FR-AI-001 수용 기준 3) · DRAFT_0001: 없음
+- 결정 반영: NFR-SEC-003 — 파일 본문은 DB·API 서버에 두지 않고 **분리된 파일 저장소**(별도 컨테이너 또는 객체 저장소, 실행 권한 없음)에 `storage_key` 이름으로 저장. 이 테이블은 메타데이터만 가진다.
+- 결정 반영: 요구사항 D-08 제안 — `visibility='shared'`는 관리자가 올린 공용 커리어 자료(RAG 대상), 일반 사용자 문서는 `private`
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -701,7 +726,7 @@
 | original_filename | varchar(255) | N | | | 화면 표시용. 저장 경로로 쓰지 않음 |
 | mime_type | varchar(100) | N | | | 실제 시그니처 검사 결과 |
 | size_bytes | bigint | N | | | |
-| storage_key | text | N | | | 객체 저장소 키. API 응답에 노출 금지 |
+| storage_key | varchar(64) | N | | | 파일 저장소의 저장 이름. 서버가 만든 128비트 이상 무작위 값(16진수). 원래 파일 이름·사용자 ID를 넣지 않음. API 응답에 노출 금지 |
 | checksum_sha256 | char(64) | N | | | |
 | visibility | varchar(24) | N | 'private' | | `private` / `shared` |
 | status | varchar(20) | N | 'uploaded' | | `uploaded` / `scanning` / `ready` / `rejected` / `deleting` |
@@ -713,6 +738,7 @@
 - `CHECK (visibility IN ('private', 'shared'))`
 - `CHECK (status IN ('uploaded', 'scanning', 'ready', 'rejected', 'deleting'))`
 - `CHECK (size_bytes > 0)`
+- `CHECK (storage_key ~ '^[0-9a-f]{32,64}$')`
 
 인덱스:
 - `UNIQUE (storage_key)`
@@ -720,17 +746,17 @@
 - `(visibility) WHERE visibility = 'shared'`
 
 ### E02 `document_analyses`
-- 기능: F-020
+- 요구사항: FR-AI-001, FR-AI-002
 - 데이터 등급: SENSITIVE · 보존: 문서와 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
 | analysis_id | uuid | N | gen_random_uuid() | PK | |
 | document_id | uuid | N | | FK → user_documents.document_id (CASCADE) | |
-| model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | 사용 모델 (T04 F-020 ②) |
+| model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | 사용 모델 (FR-AI-002 수용 기준 2) |
 | analysis_type | varchar(40) | N | | | `skill_extraction` / `summary` |
 | status | varchar(20) | N | 'queued' | | `queued` / `running` / `succeeded` / `failed` |
-| result | jsonb | Y | | | 추출 기술·경력 후보. 사용자 확인 전 프로필 자동 반영 금지 (T04 F-020 ①) |
+| result | jsonb | Y | | | 추출 기술·경력 후보. 사용자 확인 전 프로필 자동 반영 금지 (FR-AI-002 수용 기준 1) |
 | error_code | varchar(60) | Y | | | 원문 오류 메시지 저장 금지 |
 | requested_at | timestamptz | N | now() | | |
 | completed_at | timestamptz | Y | | | |
@@ -745,7 +771,7 @@
 - `(model_version_id)`
 
 ### E03 `document_chunks`
-- 기능: F-021, F-022
+- 요구사항: FR-AI-001, FR-AI-003
 - 데이터 등급: SENSITIVE · 보존: 문서와 함께 (벡터 색인도 동기 삭제) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -764,7 +790,7 @@
 - `UNIQUE (document_id, chunk_index)`
 
 ### E04 `retrieval_runs`
-- 기능: F-021, F-022
+- 요구사항: FR-AI-003
 - 데이터 등급: SENSITIVE · 보존: 90일 (가안) 후 삭제, users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 - 규칙: 질문 원문은 저장하지 않고 해시만 저장 (E8)
 
@@ -786,7 +812,7 @@
 - `(model_version_id)`
 
 ### E05 `retrieval_citations`
-- 기능: F-022
+- 요구사항: FR-AI-003
 - 데이터 등급: SENSITIVE · 보존: 검색 실행과 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -808,9 +834,9 @@
 ## F. Agent·시장·행동 분석·운영
 
 ### F01 `agent_runs`
-- 기능: F-023
+- 요구사항: FR-AI-004
 - 데이터 등급: PERSONAL · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
-- 조건: T04 ISS-14 — 1차 작업 종류가 정해지지 않으면 테이블 생성 보류
+- 조건: 요구사항 D-09 — 1차 작업 목록이 확정되지 않으면 테이블 생성 보류
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -830,7 +856,7 @@
 - `(user_id, started_at DESC)`
 
 ### F02 `agent_tool_approvals`
-- 기능: F-023
+- 요구사항: FR-AI-004
 - 데이터 등급: PERSONAL · 보존: 실행과 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -854,7 +880,7 @@
 - `(approver_user_id)`
 
 ### F03 `agent_tool_calls`
-- 기능: F-023
+- 요구사항: FR-AI-004
 - 데이터 등급: PERSONAL · 보존: 실행과 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -875,13 +901,13 @@
 - `(approval_id)`
 
 ### F05 `market_observations`
-- 기능: F-024
+- 요구사항: FR-ANL-005
 - 데이터 등급: INTERNAL (집계 결과는 화면 공개) · 보존: 출처 `retention_days` · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
 | observation_id | uuid | N | gen_random_uuid() | PK | |
-| source_id | uuid | N | | FK → data_sources.source_id (RESTRICT) | 출처 표시 (T04 F-024 ②) |
+| source_id | uuid | N | | FK → data_sources.source_id (RESTRICT) | 출처 표시 (FR-ANL-005 수용 기준 2) |
 | job_role_id | uuid | Y | | FK → job_roles.job_role_id (RESTRICT) | NULL = 전체 시장 |
 | observed_on | date | N | | | |
 | period | varchar(10) | N | | | `day` / `week` / `month` |
@@ -897,7 +923,7 @@
 - `(job_role_id, metric_code, observed_on)`
 
 ### F06 `market_forecasts`
-- 기능: F-024
+- 요구사항: FR-ANL-005
 - 데이터 등급: INTERNAL · 보존: 모델 버전과 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -908,7 +934,7 @@
 | forecast_for | date | N | | | |
 | metric_code | varchar(80) | N | | | |
 | predicted_value | numeric | N | | | |
-| lower_bound | numeric | Y | | | 불확실성 범위 (T04 F-024 ①) |
+| lower_bound | numeric | Y | | | 불확실성 범위 (FR-ANL-005 수용 기준 1) |
 | upper_bound | numeric | Y | | | |
 | created_at | timestamptz | N | now() | | |
 
@@ -920,7 +946,7 @@
 - `(job_role_id, metric_code, forecast_for)`
 
 ### F07 `behavior_events`
-- 기능: F-025
+- 요구사항: FR-ADM-006, NFR-PRV-001, NFR-PRV-002
 - 데이터 등급: PERSONAL · 보존: 180일 (가안) 후 삭제, users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 - 규칙: `behavior_tracking` 동의(`user_consents`)가 최신 true인 사용자만 기록 (애플리케이션 검사)
 
@@ -937,7 +963,7 @@
 - `(event_code, event_at)`
 
 ### F08 `user_segments`
-- 기능: F-025
+- 요구사항: FR-ADM-006
 - 데이터 등급: INTERNAL · 보존: 모델 버전과 함께 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -952,8 +978,8 @@
 - `UNIQUE (model_version_id, segment_code)`
 
 ### F09 `user_segment_assignments`
-- 기능: F-025
-- 데이터 등급: PERSONAL (관리자 화면은 집계만, T04 F-025 ①) · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
+- 요구사항: FR-ADM-006
+- 데이터 등급: PERSONAL (관리자 화면은 집계만, FR-ADM-006 수용 기준 1) · 보존: users 삭제 시 함께 삭제 · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
 |---|---|---|---|---|---|
@@ -965,7 +991,7 @@
 - `(segment_id)`
 
 ### F10 `anomaly_events`
-- 기능: F-025
+- 요구사항: FR-ADM-006
 - 데이터 등급: INTERNAL · 보존: 180일 (가안) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -986,7 +1012,7 @@
 - `(event_id)`
 
 ### F11 `audit_events`
-- 기능: F-004, F-005, F-028 (v0.1의 F-027 연결은 T04 DROP에 따라 제거)
+- 요구사항: FR-ACC-007, FR-ADM-002, FR-ADM-004, FR-AI-004
 - 데이터 등급: INTERNAL · 보존: 1년 (가안). **수정·삭제 금지** — `career_app`에 INSERT·SELECT만 부여 (T07·T09) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
@@ -1005,7 +1031,7 @@
 - `(action_code, occurred_at DESC)`
 
 ### F12 `ai_usage_records`
-- 기능: F-020, F-022, F-023, F-028
+- 요구사항: FR-ADM-005, FR-AI-002, FR-AI-003, FR-AI-004, NFR-PRV-003
 - 데이터 등급: INTERNAL · 보존: 1년 (가안). 원문 프롬프트·응답 저장 금지 (E2·E8) · DRAFT_0001: 없음
 
 | 컬럼 | 타입 | NULL | 기본값 | 키·참조 | 설명 |
