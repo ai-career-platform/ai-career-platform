@@ -1,0 +1,4 @@
+{
+  "valid": {"entity_id":"synthetic-user-001", "event_time":"2026-01-01T00:00:00Z", "available_at":"2026-01-02T00:00:00Z", "decision_time":"2026-01-03T00:00:00Z", "source_id":"synthetic-fixture", "feature_version":"draft-1", "dataset_version":"synthetic-1", "split":"train", "usage_basis":"synthetic-only"},
+  "future_available": {"entity_id":"synthetic-user-001", "event_time":"2026-01-01T00:00:00Z", "available_at":"2026-01-04T00:00:00Z", "decision_time":"2026-01-03T00:00:00Z", "source_id":"synthetic-fixture", "feature_version":"draft-1", "dataset_version":"synthetic-1", "split":"train", "usage_basis":"synthetic-only"}
+}
