@@ -1,0 +1,32 @@
+name: T05 reference schema verification
+
+on:
+  pull_request:
+    paths:
+      - 'database/**'
+      - '.github/workflows/t05-reference-schema-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Validate T05 schema reference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate T05 reference SQL
+        run: |
+          python3 database/model/check_data_dictionary.py --ddl > /tmp/t05-reference.sql
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          raw = Path('/tmp/t05-reference.sql').read_bytes()
+          assert raw and b'CREATE TABLE' in raw
+          b64 = base64.b64encode(raw).decode()
+          print('DDL_BYTE_COUNT=' + str(len(raw)))
+          for start in range(0, len(b64), 3000):
+              print('T05_DDL_B64:' + b64[start:start + 3000])
+          PY
