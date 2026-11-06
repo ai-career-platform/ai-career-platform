@@ -125,6 +125,14 @@ jobs:
         run: npm test
       - name: Typecheck and production build
         run: npm run build
+      - name: Install Backend for local HTTP integration (no DB)
+        run: |
+          python3 -m venv /tmp/integration-venv
+          /tmp/integration-venv/bin/pip install --retries 5 --timeout 60 -r ../backend/requirements-dev.txt
+      - name: Frontend client to real local Backend HTTP regression
+        env:
+          INTEGRATION_PYTHON: /tmp/integration-venv/bin/python
+        run: npm run test:integration
 
   repo-hygiene:
     name: Docs links, secret patterns, coverage notes

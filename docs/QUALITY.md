@@ -27,7 +27,7 @@
 | `Backend pytest` | `backend/requirements-dev.txt` 설치 후 `backend/` pytest, OpenAPI 3.1 계약·요구사항 매핑 검사, API 검사기 실패 주입 테스트, 데이터 사전 계약 테스트(로컬 파일 검사) | 실제 DB 연결, SQL 실행, 배포 환경 |
 | `PoC Staging pytest` | `staging-publish.yml`과 같은 고정 버전으로 `poc/staging/tests` pytest. 배포 직전에만 잡히던 실패를 PR에서 탐지 | 실제 Compose·Staging 상태 |
 | `Lint (ruff, compile, shell syntax)` | `ruff==0.16.9` + 루트 `ruff.toml`(E9 문법, F pyflakes만), `backend`·`scripts/ci` 포맷 검사, `compileall`, `*.sh`의 `bash -n` | 스타일 전반(E501 등), 타입 검사, shellcheck, actionlint |
-| `Frontend lint, test, build` | `frontend/.nvmrc`(Node 24)로 `npm ci`(lock 기준) → `npm run lint`(oxlint, 경고도 실패) → `npm test`(Vitest) → `npm run build`(tsc 타입 검사 + Vite 빌드) (T19 React 앱) | 실제 Backend 연동(E2E), 브라우저 호환·접근성, 화면 디자인 |
+| `Frontend lint, test, build` | `frontend/.nvmrc`(Node 24)로 `npm ci`(lock 기준) → `npm run lint`(oxlint, 경고도 실패) → `npm test`(Vitest) → `npm run build`(tsc 타입 검사 + Vite 빌드), `npm run test:integration`(정식 FE 클라이언트 → 실제 로컬 Backend HTTP, T29) | 업무 기능·React 화면 E2E, Nginx/CORS, DB, 브라우저 호환·접근성, 화면 디자인 |
 | `Docs links, secret patterns, coverage notes` | `scripts/ci` 단위 테스트, Markdown 상대 링크 검사, 정규식 Secret 패턴 검사, 테스트가 없는 영역 표기 | 앵커·외부 URL 유효성, 알려지지 않은 형식의 비밀정보, git 이력 속 비밀정보 |
 
 DB 격리 테스트는 별도 워크플로 `d1-postgres-sql-test.yml`(`database/**` 변경 PR)에서 일회용 PostgreSQL 컨테이너로 실행되며 위 게이트에는 포함되지 않습니다.

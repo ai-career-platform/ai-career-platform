@@ -14,7 +14,8 @@
     "typecheck": "tsc -b",
     "lint": "oxlint --deny-warnings",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "tsc -p tsconfig.integration.json && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "react": "^19.3.1",

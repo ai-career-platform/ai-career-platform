@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
     },
     preview: { host: '127.0.0.1', port: 4173, strictPort: true },
     test: {
+      include: ['src/**/*.test.{ts,tsx}'],
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       css: false,
