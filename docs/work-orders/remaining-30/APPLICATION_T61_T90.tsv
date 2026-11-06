@@ -1,0 +1,31 @@
+일감 ID	개발 영역	작업 제목	우선순위	선행 일감	GitHub 작업지시서	신청자 이름	GitHub ID	GitHub 이메일	진행 상태	시작일	완료예정일	PR URL	비고
+T61	데이터/기획	데이터 출처·라이선스·수집 범위 승인	P0	T04,T05,T25	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T61.md				신청 가능				
+T62	데이터/Backend	채용공고 수집 Adapter·정규화	P1	T18,T61	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T62.md				신청 가능				
+T63	데이터/DB	공고 중복·만료·출처 품질 검사	P1	T61,T62,T09	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T63.md				신청 가능				
+T64	데이터/DevOps	공고 수집 실행·장애 재처리 운영	P1	T62,T63,T28	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T64.md				신청 가능				
+T65	데이터/분석	채용시장 지표·관측 데이터 계약	P0	T04,T05,T61	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T65.md				신청 가능				
+T66	데이터/Backend	시장 관측 지표 집계 Pipeline	P1	T63,T65	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T66.md				신청 가능				
+T67	Backend	채용시장 추세 조회 API	P1	T14,T18,T65,T66	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T67.md				신청 가능				
+T68	Frontend	채용시장 추세 대시보드 UI	P1	T20,T67	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T68.md				신청 가능				
+T69	AI/분석	채용시장 추세 예측 Baseline	P2	T25,T65,T66	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T69.md				신청 가능				
+T70	Frontend/AI	시장 예측·불확실성 시각화	P2	T20,T68,T69	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T70.md				신청 가능				
+T71	기획/데이터/보안	서비스 행동 이벤트·동의 계약	P0	T04,T05,T31	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T71.md				신청 가능				
+T72	Backend/Frontend	동의 기반 행동 이벤트 수집 API/클라이언트	P2	T15,T21,T71	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T72.md				신청 가능				
+T73	데이터/QA	행동 데이터 품질·보존·삭제 검증	P1	T71,T72	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T73.md				신청 가능				
+T74	AI/ML	사용자 군집 Baseline·품질 평가	P2	T25,T71,T73	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T74.md				신청 가능				
+T75	Backend/AI	사용자 세그먼트 조회 API	P2	T15,T74	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T75.md				신청 가능				
+T76	Frontend/AI	세그먼트 관리자 대시보드	P2	T20,T75	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T76.md				신청 가능				
+T77	AI/ML	이상탐지 Baseline 및 오탐 평가	P2	T25,T73	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T77.md				신청 가능				
+T78	Backend/QA	이상 이벤트 조회·상태 관리 API	P2	T15,T77	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T78.md				신청 가능				
+T79	Frontend	이상탐지 관리자 모니터링 UI	P2	T20,T78	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T79.md				신청 가능				
+T80	기획/보안	운영 콘텐츠 검수 정책·상태 모델	P1	T04,T05,T06	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T80.md				신청 가능				
+T81	Backend/보안	관리자 검수 큐·조치 API	P1	T15,T18,T80	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T81.md				신청 가능				
+T82	Frontend	운영 관리자 검수 UI	P1	T20,T21,T81	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T82.md				신청 가능				
+T83	DB/보안	감사 이벤트·보존·변조 방지 계약	P0	T05,T06,T15	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T83.md				신청 가능				
+T84	Backend/보안	운영 감사·사용량 조회 API	P1	T15,T60,T83	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T84.md				신청 가능				
+T85	Frontend	운영 감사·AI 비용 대시보드	P1	T20,T60,T84	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T85.md				신청 가능				
+T86	QA/보안	권한·API 보안 회귀 테스트 확장	P0	T28,T31,T49,T58,T81,T84	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T86.md				신청 가능				
+T87	QA/개인정보	동의 철회·탈퇴·보존 E2E 검증	P0	T31,T49,T53,T71,T73,T83	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T87.md				신청 가능				
+T88	QA/성능	API/DB/AI 성능·부하 기준선	P1	T29,T30,T41,T43,T56	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T88.md				신청 가능				
+T89	Frontend/QA	웹 접근성·크로스브라우저 회귀 검사	P1	T20,T21,T24,T44,T57,T82	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T89.md				신청 가능				
+T90	QA/운영/PM	최종 릴리스·백업복원·운영 인수인계	P0	T30,T86,T87,T88,T89	https://github.com/ai-career-platform/ai-career-platform/blob/docs/remaining-30-work-orders-20261106/docs/work-orders/remaining-30/T90.md				신청 가능				
