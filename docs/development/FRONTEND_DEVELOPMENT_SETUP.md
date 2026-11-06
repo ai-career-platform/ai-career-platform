@@ -254,3 +254,19 @@ GitHub Pull requests → New pull request: base `main`, compare 본인 브랜치
 - [ ] Mock과 실제 Backend API 상태 명확히 구별
 - [ ] 빌드/Lint 미구현 사실 기록
 - [ ] 화면 캡처·PR·CI·Slack·Redmine, Staging 변경 NO
+
+
+## 부록 — 정식 React Frontend 테스트 기준 (현행 main 보완)
+
+현재 `frontend/package.json`과 `frontend/src/**/*.test.*` 테스트 파일이 이미 존재합니다. 기존 문서 중 'T19 이후에만 생성' 설명은 이전 스냅샷 기준입니다. **현행 `frontend/`에서** 다음 순서로 검증하세요.
+
+```powershell
+Set-Location "$HOME\projects\ai-career-platform\frontend"
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+테스트 가이드는 [VITEST_GUIDE.md](../testing/VITEST_GUIDE.md) 및 [PLAYWRIGHT_GUIDE.md](../testing/PLAYWRIGHT_GUIDE.md)를 참고하세요. **Playwright는 현재 미설치**이며 E2E 실행/CI 통과를 주장할 수 없습니다. [테스트 증빙·보고 정책](../testing/TEST_EVIDENCE_GUIDE.md)에 따라 결과를 첨부합니다.
