@@ -35,4 +35,4 @@
 - SECRET/개인정보 유출, 무단 DB Migration, 실패한 테스트, API 계약 불일치, 승인 없는 운영 설정 변경, 근거 없는 'PASS' 표기.
 
 ## 현재 CI에 관한 주의
-2026-11-05에 머지된 최초 `.github/workflows/ci.yml`은 README 파일 존재 여부를 확인하는 **Smoke CI**입니다. 실제 테스트·보안 스캔·배포 게이트는 후속 PR에서 강화해야 합니다.
+초기 `.github/workflows/ci.yml`은 제한된 Smoke CI입니다. 2026-11-06 현재 PR #5에 별도 PostgreSQL 격리 검증 CI가 추가되어 있으며, PR #3/4의 GHCR→Ubuntu Auto-CD E2E도 검증되었습니다. 전체 서비스 품질·보안을 자동 보증하지는 않습니다.
