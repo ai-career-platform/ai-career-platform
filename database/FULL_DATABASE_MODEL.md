@@ -1,5 +1,7 @@
-# S03 — AI Career Platform 전체 데이터 모델 v0.1
+# S03 — AI Career Platform 전체 데이터 모델 v0.2
 
+> **v0.2 (T05, Redmine #1521, 2026-11-06):** [T04 기능 기준선](../docs/requirements/FEATURE_BASELINE.md)을 반영해 테이블을 확정·추가하고, 모든 컬럼 계약을 [데이터 사전](DATA_DICTIONARY.md)으로, 전체 관계를 [ERD](ERD.md)로 분리했습니다. **컬럼·제약·삭제 정책은 데이터 사전이 기준이며 §3의 v0.1 표보다 우선합니다.** 변경 요약은 [§10](#10-v02-변경t05)을 보세요.
+>
 > **상태: FULL-SCOPE DESIGN DRAFT / NOT BASELINED / NOT DEPLOYED**  
 > 기준일: 2026-11-06 · 연계 문서: [전체 기능 매핑](../docs/FULL_SCOPE_TRACEABILITY.md) · [전체 설계 계획](../docs/FULL_SCOPE_DESIGN_PLAN.md)
 >
@@ -224,3 +226,143 @@ erDiagram
 - [ ] PM/JM 통합 설계 베이스라인 승인
 
 **판정:** `S03_FULL_DATABASE_MODEL=DRAFT_COMPLETE`, `FULL_SCHEMA_BASELINE=HOLD`, `STAGING_DB_UNCHANGED`. 다음은 S04 전체 API 계약 초안 작성과 S03 ↔ S04 간 정합성 검증.
+
+## 10. v0.2 변경(T05)
+
+> 입력: [T04 FEATURE_BASELINE](../docs/requirements/FEATURE_BASELINE.md) (PR #13 리뷰 중) · 산출물: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) (기준), [ERD.md](ERD.md) (자동 생성), [check_data_dictionary.py](model/check_data_dictionary.py), [t05_contract_cases.sql](tests/t05_contract_cases.sql)
+> T04가 아직 PM 승인 전(`HOLD`)이므로, T04 결정에 기대는 항목은 아래에 **가안**으로 표시했습니다.
+
+### 10.1 테이블 확정 결과 — 후보 50개
+
+| 구분 | 수 | 내용 |
+|---|---:|---|
+| v0.1 후보 유지 | 46 | 46개 모두 유지 (컬럼은 데이터 사전 기준으로 보강·수정) |
+| 추가 | 4 | `account_deletion_requests`(F-005 탈퇴), `recommendation_feedback`(F-018 피드백 이력), `consent_policies`(F-005·N-04 약관 버전), `user_project_skills`(F-010 사용 기술) |
+| 제외 | 0 | 관리자 검수 테이블은 처음부터 없었고, T04에서 F-027을 DROP해 **추가하지 않음** |
+| 조건부 | 5 | `auth_identities`·`auth_sessions`(D-01 인증 방식), `job_posting_external_refs`·`ingestion_runs`(외부 수집 T62 전까지 비어 있음), `agent_runs` 계열 3개(T04 ISS-14 작업 종류 확정 전 생성 보류 가능) |
+
+**50은 목표 숫자가 아닙니다**(작업지시서 §6). D-01·D-02·ISS-14 결정에 따라 줄거나 늘 수 있습니다.
+
+### 10.2 v0.1 대비 주요 변경
+
+| 대상 | 변경 | 이유 |
+|---|---|---|
+| `job_role_skills.importance` | → `required_level` (1~5, NOT NULL) | Skill Gap = 요구 수준 − 보유 수준. 같은 척도여야 함 (T04 ISS-11) |
+| `job_posting_skills` | `required_level` 추가 (NULL이면 직무 기본값) | 공고별 요구 수준 (F-014) |
+| `recommendation_items.feedback` | 삭제 → `recommendation_feedback` 이력 | 피드백 변경 이력 보존 (T04 F-018 CHANGE, S04 §4 누락) |
+| `user_consents` | 정책 코드·버전을 `consent_policies` 복합 FK로 | 존재하지 않는 약관 버전에 동의 기록 방지 |
+| `user_target_roles.priority` | 1~3 + `UNIQUE(user_id, priority)` | 목표 직무 최대 3개 (T04 F-009) |
+| `match_evaluations` | 공고·직무 중 정확히 하나, `model_version_id` 필수, 점수 0~100 | API `MatchEvaluateRequest` 정책, "확률 아님" 표기 근거 |
+| `skill_gap_items` | `gap` 컬럼 + 계산식 CHECK | 계산 시점 값을 고정해 재현 (T04 F-016 ①) |
+| `model_versions` | `kind`(`rule`/`ml`/`llm`) 추가 | 1차 규칙 기반(T26·T27) 결과도 같은 버전 ID 체계 |
+| `companies`, `job_postings` | `source_id` → `data_sources` FK | 모든 기업·공고 데이터의 출처 추적 (D-05: 1차는 `synthetic_seed`만) |
+| `job_postings` | `employment_type`, `location_text` 추가, `published` 상태면 `published_at` 필수 | 공고 상세 화면·정렬 |
+| `user_documents` | 파일 메타데이터·`status`·`visibility(private/shared)` | 업로드 검사 흐름, RAG 대상 범위 (D-08 가안) |
+| `audit_events` | F-027 연결 제거, `request_id` 추가 | T04 DROP, API 오류 응답과 연결 |
+| `users.email` | 소문자·공백 제거 CHECK | 중복 가입 방지 |
+
+### 10.3 삭제·보존 정책 (D-06 가안 기준)
+
+v0.1의 "전부 `RESTRICT` 우선"을 아래처럼 나눴습니다. **D-06 승인 전까지 가안**입니다.
+
+| 참조 방향 | 삭제 동작 | 예 |
+|---|---|---|
+| 사용자 → 본인 데이터 | `CASCADE` | 프로필, 기술, 목표 직무, 동의, 북마크, 매칭·Gap·추천, 문서, 행동 이벤트 |
+| 사용자 → 감사·비용·탈퇴 요청 기록 | `SET NULL` (익명화 후 보존) | `audit_events.actor_user_id`, `ai_usage_records.user_id`, `account_deletion_requests.user_id` |
+| 기준 데이터(직무·기술·모델 버전·출처) → 참조 | `RESTRICT` | 사용 중인 기술·모델 버전은 삭제 불가. 폐기는 `is_active=false` |
+| 공고 → 공고에 딸린 개인 기록 | `CASCADE` | 보존 기한이 지나 공고를 지우면 북마크·추천 항목도 정리 |
+
+검증 스크립트는 "기준 데이터에서 개인 데이터로 `CASCADE`"를 오류로 처리합니다.
+
+### 10.4 요구사항 → 테이블 매핑 (100%)
+
+| 기능 | 테이블 |
+|---|---|
+| F-001 | `users`, `auth_identities` |
+| F-002 | `users`, `auth_sessions` |
+| F-003 | `users`, `user_profiles` |
+| F-004 | `users`, `roles`, `permissions`, `role_permissions`, `user_roles`, `audit_events` |
+| F-005 | `users`, `account_deletion_requests`, `consent_policies`, `user_consents`, `audit_events` |
+| F-006 | `job_roles` |
+| F-007 | `skills` |
+| F-008 | `skills`, `user_skills` |
+| F-009 | `job_roles`, `user_target_roles` |
+| F-010 | `user_experiences`, `user_projects`, `user_project_skills` |
+| F-011 | `data_sources`, `companies` |
+| F-012 | `data_sources`, `companies`, `job_postings`, `job_posting_skills`, `job_posting_external_refs` |
+| F-013 | `job_postings`, `user_job_bookmarks` |
+| F-014 | `job_roles`, `skills`, `job_role_skills`, `job_postings`, `job_posting_skills` |
+| F-015 | `user_project_skills`, `user_skills`, `job_postings`, `job_posting_skills`, `model_versions`, `match_evaluations` |
+| F-016 | `job_roles`, `skills`, `job_role_skills`, `user_skills`, `user_target_roles`, `model_versions`, `skill_gap_assessments`, `skill_gap_items` |
+| F-017 | `user_target_roles`, `job_postings`, `model_versions`, `recommendation_runs`, `recommendation_items`, `recommendation_feedback` |
+| F-018 | `recommendation_runs`, `recommendation_items`, `recommendation_feedback` |
+| F-019 | `user_documents` |
+| F-020 | `user_consents`, `model_versions`, `user_documents`, `document_analyses`, `ai_usage_records` |
+| F-021 | `user_documents`, `document_chunks`, `retrieval_runs` |
+| F-022 | `user_documents`, `document_chunks`, `retrieval_runs`, `retrieval_citations`, `ai_usage_records` |
+| F-023 | `agent_runs`, `agent_tool_approvals`, `agent_tool_calls`, `ai_usage_records` |
+| F-024 | `job_roles`, `data_sources`, `ingestion_runs`, `model_versions`, `market_observations`, `market_forecasts` |
+| F-025 | `user_consents`, `model_versions`, `behavior_events`, `user_segments`, `user_segment_assignments`, `anomaly_events` |
+| F-026 | `model_versions`, `model_evaluations` |
+| F-027 | — (T04 DROP, 테이블 없음) |
+| F-028 | `model_versions`, `audit_events`, `ai_usage_records` |
+| F-029 | `data_sources`, `job_posting_external_refs`, `ingestion_runs` (+ T08 Migration 기록 테이블) |
+| F-030 | — (데이터 없음, `GET /api/health`) |
+
+T04 NEW 항목 중 데이터가 필요한 것: N-04 약관 → `consent_policies`. N-01 홈·N-02 온보딩은 기존 테이블 조회만 사용합니다. N-06~N-10은 1차 범위 밖이라 테이블을 만들지 않습니다.
+
+### 10.5 DRAFT_0001(10개 테이블) 호환성
+
+| 테이블 | 호환 | 차이 |
+|---|---|---|
+| `users` | 호환 + | `last_login_at` 추가, 이메일 정규화 CHECK |
+| `user_profiles` | 변경 | FK `RESTRICT` → `CASCADE`, `bio` 길이 CHECK |
+| `companies` | 변경 | `description`, `source_id NOT NULL` 추가 |
+| `job_roles` | 호환 + | `description`, `is_active` 추가 |
+| `skills` | 호환 + | `is_active` 추가 |
+| `job_role_skills` | **비호환** | `importance` → `required_level NOT NULL`, FK 동작 변경 |
+| `user_skills` | 변경 | FK `CASCADE`, `updated_at` 추가 |
+| `job_postings` | 변경 | `source_id NOT NULL`, `employment_type`, `location_text`, 게시 상태 CHECK 추가 |
+| `job_posting_skills` | 변경 | `required_level` 추가, FK `CASCADE` |
+| `user_job_bookmarks` | 변경 | FK `CASCADE` |
+
+DRAFT_0001은 Staging에 적용된 적이 없으므로(§1) 비호환 변경의 데이터 이전 부담은 없습니다. T09에서 데이터 사전 기준으로 새 Migration을 작성하고 DRAFT_0001은 기술 검증 기록으로만 남길 것을 제안합니다.
+
+### 10.6 검증 방법과 결과
+
+```bash
+# 1) 문서 형식·FK 대상·기능 매핑 검사 (DB 불필요)
+python3 database/model/check_data_dictionary.py
+python3 -B -m unittest discover -s database/tests -p "test_data_dictionary.py" -v
+# 2) 일회용 PostgreSQL에서 생성·제약 검사 (docker postgres:18.1, 또는 T05_PSQL로 로컬 일회용 서버)
+T05_TEST_ONLY=YES bash database/tests/test_data_dictionary_ddl.sh
+# 3) ERD 재생성
+python3 database/model/check_data_dictionary.py --write-erd
+```
+
+| 검사 | 결과 (2026-11-06, 로컬 일회용 PostgreSQL 16.15) |
+|---|---|
+| 문서 검사 | `PASS tables=50 columns=322 fks=75` |
+| 단위 테스트 | 8개 OK (정상 1 + 오류 탐지 7) |
+| DDL 생성 | 테이블 50 · FK 75 생성 |
+| 정상 케이스 | 가상 사용자·기술·목표 직무·공고·Gap·매칭·탈퇴 요청 삽입 PASS |
+| 거부 케이스 | 14건 모두 거부 PASS (이메일 정규화, 4번째 목표 직무, 점수 범위, Gap 계산 불일치, 라이선스 없는 외부 출처, 사용 중 기술·모델 삭제 등) |
+| 탈퇴 삭제 | 개인 데이터 삭제 · 기준 데이터 유지 · 감사 기록 익명화 PASS |
+
+**한계:** 운영 대상은 PostgreSQL 18.1이지만 로컬 검증은 16.15에서 했습니다(사용한 기능은 13 이상 공통). `test_data_dictionary_ddl.sh`의 docker 모드로 18.1 재검증이 필요하며, 현재 CI(`ci.yml`)는 이 검사를 실행하지 않으므로 `T05_STATUS=PARTIAL`입니다. 생성 DDL은 검증 전용이며 Migration이 아닙니다.
+
+### 10.7 남은 결정 (PM·DB 리뷰)
+
+| ID | 내용 | 영향 테이블 | 연결 |
+|---|---|---|---|
+| D-01 | 인증 방식 | `auth_identities`, `auth_sessions` 유지·삭제 | T04 §9 |
+| D-02 | 기업 담당자 1차 포함 | 포함 시 기업 소속·초대 테이블 추가 (T122) | T04 §9 |
+| D-05 | 외부 데이터 출처 | `data_sources` 라이선스, 수집 테이블 사용 시점 | T04 §9, T61 |
+| D-06 | 보존·삭제 기간 | §10.3의 CASCADE/SET NULL, 보존 일수 | T04 §9 |
+| D-08 | RAG 대상 문서 | `user_documents.visibility` 값 | T04 §9 |
+| T05-1 | `updated_at` 갱신 주체 (앱 vs 트리거) | 변경 가능한 모든 테이블 | T09 |
+| T05-2 | 벡터 색인 위치 (pgvector vs 외부) | `document_chunks.index_ref` | T53 |
+| T05-3 | 감사 기록 변조 방지 수준 (권한만 vs 해시 체인) | `audit_events` | T83 |
+| T05-4 | 오래된 기록 정리 배치 (세션 30일, 검색 90일, 행동 180일) | A04, E04, F07, F10 | T73 |
+
+**상태:** `T05_STATUS=PARTIAL` (PM 결정·리뷰 승인 대기, CI 미연결) · `STAGING_DB_UNCHANGED`
