@@ -1,7 +1,8 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from psycopg import Connection
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.db import get_db
@@ -17,8 +18,8 @@ def health() -> HealthResponse:
 
 
 @router.get("/health/db")
-def database_health(connection: Annotated[Connection, Depends(get_db)]) -> dict[str, str]:
-    connection.execute("SELECT 1")
+def database_health(session: Annotated[Session, Depends(get_db)]) -> dict[str, str]:
+    session.execute(text("SELECT 1"))
     return {"status": "ok"}
 
 

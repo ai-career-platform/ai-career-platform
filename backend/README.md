@@ -60,7 +60,7 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | `DB_POOL_SIZE` | `5` | 프로세스당 최대 연결 수 (1–100) |
 | `DB_TIMEOUT_SECONDS` | `5` | 풀 대기 및 접속 시간 제한(초, 1–60) |
 
-`.env` 파일은 자동으로 읽지 않습니다. 실행 환경에서 변수를 설정하세요. 앱에는 최소권한 계정을 사용하고 Migration에는 별도의 계정을 사용합니다. `get_db`는 요청별 연결을 빌려주며 남은 트랜잭션을 롤백한 뒤 반환합니다. 쓰기 호출자가 성공 시 명시적으로 커밋합니다.
+`.env` 파일은 자동으로 읽지 않습니다. 실행 환경에서 변수를 설정하세요. 앱에는 최소권한 계정을 사용하고 Migration에는 별도의 계정을 사용합니다. DB 접근은 SQLAlchemy 2.x(psycopg 3 드라이버)를 사용합니다. `app.db.get_db`는 요청마다 `Session` 하나를 제공하고, 요청이 끝나면 남은 트랜잭션을 롤백한 뒤 연결을 풀에 반환합니다. 쓰기 호출자가 성공 시 `session.commit()`을 명시적으로 호출합니다. ORM 모델은 `app.models.Base`를 상속하고, 응답 스키마는 `app.schemas.base.ORMModel`(`from_attributes=True`)을 상속합니다.
 
 ## 현재 API
 
