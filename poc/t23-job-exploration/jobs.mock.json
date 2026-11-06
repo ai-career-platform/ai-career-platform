@@ -1,0 +1,68 @@
+[
+  {
+    "id": "backend",
+    "name": "백엔드 개발자",
+    "category": "개발",
+    "description": "서비스의 데이터와 API를 설계하고 개발합니다.",
+    "skills": [
+      "Python",
+      "SQL",
+      "API"
+    ]
+  },
+  {
+    "id": "frontend",
+    "name": "프론트엔드 개발자",
+    "category": "개발",
+    "description": "사용자가 이용하는 웹 화면과 상호작용을 개발합니다.",
+    "skills": [
+      "JavaScript",
+      "HTML",
+      "CSS"
+    ]
+  },
+  {
+    "id": "data",
+    "name": "데이터 분석가",
+    "category": "데이터",
+    "description": "데이터를 정리하고 분석해 의사결정을 돕습니다.",
+    "skills": [
+      "Python",
+      "SQL",
+      "시각화"
+    ]
+  },
+  {
+    "id": "ml",
+    "name": "머신러닝 엔지니어",
+    "category": "AI",
+    "description": "데이터를 바탕으로 모델을 만들고 검증합니다.",
+    "skills": [
+      "Python",
+      "머신러닝",
+      "SQL"
+    ]
+  },
+  {
+    "id": "design",
+    "name": "UX 디자이너",
+    "category": "디자인",
+    "description": "사용자의 문제를 살피고 사용 경험을 설계합니다.",
+    "skills": [
+      "리서치",
+      "프로토타입",
+      "접근성"
+    ]
+  },
+  {
+    "id": "pm",
+    "name": "프로덕트 매니저",
+    "category": "기획",
+    "description": "사용자 요구와 제품 목표를 연결해 우선순위를 정합니다.",
+    "skills": [
+      "기획",
+      "분석",
+      "커뮤니케이션"
+    ]
+  }
+]
