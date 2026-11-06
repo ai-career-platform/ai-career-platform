@@ -4,12 +4,13 @@ info:
   version: 0.2.0-draft
   summary: T06 API·DTO 계약 초안 (구현 아님)
   description: |
-    **상태: DRAFT / NOT IMPLEMENTED / PM 승인 대기** — T06 (Redmine #1529).
+    **상태: DRAFT / NOT IMPLEMENTED / 리뷰 대기** — T06 (Redmine #1529). 기준: main의 T04 요구사항·T05 데이터 사전.
 
     - 근거: T04 `docs/requirements/` 요구사항 정의서, T05 `database/DATA_DICTIONARY.md`, S04 `docs/API_CONTRACT.md`.
     - 모든 operation에는 추적용 확장 필드가 있습니다: `x-requirements`(요구사항 ID), `x-screens`(화면 ID), `x-tables`(T05 테이블).
       `python3 docs/api/check_openapi.py`가 문법·참조·예시·추적 100%를 검사합니다.
-    - 인증: **자체 로그인**(이메일+비밀번호) 기준으로 작성했습니다. PM 승인 대기 (요구사항 D-01).
+    - 인증: **자체 로그인**(이메일+비밀번호) 기준 (요구사항 D-01).
+    - 경로: servers의 `/api/v1`은 외부 주소. Nginx가 `/api/`를 떼고 넘기므로 앱 안의 접두사는 배포 구성에 맞춰야 함 (API_CONTRACT.md §7 T06-4).
     - 공통 규칙(오류·페이징·비동기·소유권)은 `docs/API_CONTRACT.md` §1을 보세요.
 servers:
   - url: /api/v1

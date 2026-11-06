@@ -5,7 +5,7 @@
 - 작성일: 2026-11-06
 - 상태: 검토 중. 구현 전 계약이며 PM 승인 전입니다.
 - 기준 문서: [OpenAPI 3.1 명세](api/openapi.yaml) (이 문서의 표는 명세에서 만들었습니다)
-- 입력: [요구사항 정의서](requirements/README.md) (T04 기준선, PR #13 승인), [데이터 사전](../database/DATA_DICTIONARY.md) (T05)
+- 입력: [요구사항 정의서](requirements/README.md) (T04, main 반영), [데이터 사전](../database/DATA_DICTIONARY.md) (T05, main 반영), [Backend 골격](../backend/README.md) (T13)
 - 요구사항은 바뀔 수 있습니다. 모든 API에 요구사항 ID(`x-requirements`)를 적고, 검사 스크립트가 매번 `docs/requirements`와 대조합니다.
 
 ## 1. 공통 규칙
@@ -14,7 +14,7 @@
 
 | 항목 | 규칙 |
 |---|---|
-| 기준 경로 | 업무 API는 `/api/v1`. 상태 확인만 `/api/health`, `/api/version` (기존 Staging 경로 유지) |
+| 기준 경로 | 외부에서 부르는 주소 기준. 업무 API는 `/api/v1`, 상태 확인은 `/api/health`, `/api/version`. Nginx가 `/api/`를 떼고 FastAPI로 넘기므로 앱 안의 경로는 `/health`, `/version`(T13 구현과 일치) |
 | 형식 | JSON (UTF-8). 파일 업로드만 `multipart/form-data` |
 | 식별자 | UUID 문자열. 직무·기술은 사람이 읽는 `code`도 함께 제공 |
 | 시각 | ISO 8601, UTC로 저장·응답. 화면에서 한국 시간으로 변환 |
@@ -330,7 +330,7 @@
 
 ## 4. 추적 결과
 
-`python3 docs/api/check_openapi.py` 결과 (2026-11-06, T04 기준선):
+`python3 docs/api/check_openapi.py` 결과 (2026-11-06, main의 T04·T05 기준):
 
 | 대상 | 연결 | 연결하지 않은 항목과 이유 |
 |---|---|---|
@@ -385,3 +385,4 @@ python3 -B -m unittest docs/api/test_check_openapi.py -v   # 검사 스크립트
 | T06-1 | JWT 서명 방식 (HS256 / RS256) | T15 |
 | T06-2 | 요청 한도 수치 (로그인·AI) | T15, T110 |
 | T06-3 | 로그인 상태에서 공고 목록에 저장 여부 포함할지 | `JobPostingSummary` |
+| T06-4 | **경로 접두사 불일치**: T13 골격은 앱 안에서 `API_V1_PREFIX="/api/v1"`을 쓰지만, Staging Nginx는 `/api/`를 떼고 넘긴다. 그대로 배포하면 외부 `/api/v1/auth/login`이 앱에 `/v1/auth/login`으로 도착해 404 | T13·T30 담당과 결정: 앱 접두사를 `/v1`로 바꾸거나 Nginx가 `/api/v1`은 그대로 넘기도록 변경. 외부 주소(이 계약)는 바뀌지 않음 |
