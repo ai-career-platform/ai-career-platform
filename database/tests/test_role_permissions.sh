@@ -35,12 +35,38 @@ app_can_create="$(sql -Atc "SELECT has_schema_privilege('career_app','career','C
 }
 echo "PASS reader SELECT-only; app CRUD without schema CREATE"
 
-# Verify actual read-only behavior in a transaction as reader.
+expect_denied() {
+ local role="$1" operation="$2" statement="$3" output
+ if output="$(sql -v VERBOSITY=verbose -c "SET ROLE $role; $statement" 2>&1)" ||
+    [[ "$output" != *'ERROR:  42501:'* ]]; then
+  printf 'FAIL %s %s expected SQLSTATE 42501\n%s\n' "$role" "$operation" "$output"
+  exit 1
+ fi
+ echo "PASS $role $operation denied (42501)"
+}
+
 sql -c "SET ROLE career_reader; SELECT count(*) FROM career.users;" >/dev/null
-if sql -c "SET ROLE career_reader; INSERT INTO career.users(email,display_name) VALUES ('blocked@example.org','No');" >/dev/null 2>&1; then
- echo "FAIL reader insert allowed"; exit 1
-fi
-echo "PASS reader INSERT denied"
+echo "PASS career_reader SELECT"
+expect_denied career_reader INSERT "INSERT INTO career.users(email,display_name) VALUES ('blocked@example.org','No');"
+expect_denied career_reader UPDATE "UPDATE career.users SET display_name = 'No' WHERE false;"
+expect_denied career_reader DELETE "DELETE FROM career.users WHERE false;"
+expect_denied career_reader CREATE "CREATE TABLE career.reader_probe (id integer);"
+
+sql -c "BEGIN; SET ROLE career_app;
+ SELECT count(*) FROM career.users;
+ INSERT INTO career.users(email,display_name) VALUES ('app-probe@example.org','Probe');
+ UPDATE career.users SET display_name = 'Updated' WHERE email = 'app-probe@example.org';
+ DELETE FROM career.users WHERE email = 'app-probe@example.org';
+ ROLLBACK;" >/dev/null
+echo "PASS career_app CRUD"
+expect_denied career_app CREATE "CREATE TABLE career.app_probe (id integer);"
+expect_denied career_app ALTER "ALTER TABLE career.users ADD COLUMN app_probe integer;"
+
+sql -c "BEGIN; SET ROLE career_migrator;
+ CREATE TABLE career.migrator_probe (id integer);
+ ALTER TABLE career.users ADD COLUMN migrator_probe integer;
+ ROLLBACK;" >/dev/null
+echo "PASS career_migrator CREATE and ALTER"
 
 # Need reapply read-only bootstrap idempotently; do not recreate schema.
 sql -f /tmp/roles.sql >/dev/null
