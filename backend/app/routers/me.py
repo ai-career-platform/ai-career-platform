@@ -7,11 +7,14 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user_id
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
+from app.db import get_db
 from app.repositories.user_profile import UserProfileRepository
+from app.repositories.user_profile_postgres import PostgresUserProfileRepository
 from app.schemas.me import Me, MePatch
 from app.services import me as me_service
 
@@ -20,9 +23,12 @@ router = APIRouter(prefix="/me", tags=["me"], responses=error_responses(401, 404
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
 
 
-def get_user_profile_repository() -> UserProfileRepository:
-    """T14 병합 후 PostgreSQL 저장소로 교체한다. 그 전에는 저장소가 없음을 503으로 알린다."""
-    raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="user profile storage not configured (T14)")
+def get_user_profile_repository(session: Annotated[Session, Depends(get_db)]) -> UserProfileRepository:
+    """T14 `get_db`의 Session으로 PostgreSQL 저장소를 만든다.
+
+    DATABASE_URL이 없으면 `get_db`가 503 DEPENDENCY_UNAVAILABLE을 낸다.
+    """
+    return PostgresUserProfileRepository(session)
 
 
 Repository = Annotated[UserProfileRepository, Depends(get_user_profile_repository)]

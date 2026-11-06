@@ -69,11 +69,11 @@
 | T05 ERD | users·user_profiles 확정 | **병합됨** | PR #17, `database/DATA_DICTIONARY.md` |
 | T06 API 계약 | /me 계약·오류 규칙 | **병합됨, 단 PM 승인 전·`T06_STATUS=PARTIAL`** | PR #29, `docs/API_CONTRACT.md` 머리말 |
 | T13 Backend 골격 | `backend/app` 구조 | **병합됨**, smoke 7 passed (아래 6절) | PR #14 |
-| T14 DB 세션 | `get_db`, 연결 풀 | **미병합**: Draft PR #25 `[HOLD]` (T07·T08 대기). `get_db`는 psycopg `Connection`을 빌려주고 **커밋은 호출자 책임** | `gh pr view 25`, 브랜치 `task/t14-db-session-lifecycle`의 `backend/app/db.py` |
+| T14 DB 세션 | `get_db`, 연결 풀 | **병합됨** (#25, main `0874dcd`): SQLAlchemy 2.0 `Session`, 쓰기는 호출자가 `commit`. ORM 모델은 T09 확정 후 추가 예정 | `backend/app/db.py`, `backend/README.md` |
 | T15 인증 | 현재 사용자(`sub`) 추출 | **진행 중**: Redmine #1499 In Progress 10%, 2026-11-11~2026-11-17. PR·원격 브랜치는 아직 없음 | Redmine 조회 (2026-11-06) |
 | T06 공통 에러 | 오류 응답 형식 | **병합됨**: #41 `{code, status, message}`, `AppError(ErrorCode)` | T16 브랜치에 병합(`2dff633`) |
 
-판정: `T16_STATUS=PARTIAL`. 코드·mock 테스트·로컬 일회용 DB 검증 완료. T14 병합 후 `get_user_profile_repository` 연결, T15 병합 후 `get_token_verifier` 연결만 남음.
+판정: `T16_STATUS=PARTIAL`. 코드·테스트·로컬 일회용 DB 검증 완료, **DB 연동(T14) 완료**. T15 병합 후 `get_token_verifier` 연결만 남음.
 
 ## 6. 개발환경 (본인 Windows 11 PC)
 
@@ -84,7 +84,7 @@
 | 시스템 Python | 3.13.7 (기본, 유지) | `python --version` |
 | Python 3.12 | 3.12.13 (uv 설치). `py -0p`에 `Astral/CPython3.12.13`로 표시되어 `py -3.12`로는 선택되지 않음 | `py -0p` |
 | 가상환경 | `poc\staging\backend\.venv` (git 무시): fastapi 0.115.12 / uvicorn 0.34.2 / psycopg 3.2.9 / pytest 8.3.5 / httpx 0.28.1 | import 버전 출력 |
-| `backend\.venv` | Python 3.12.13, `requirements-dev.txt` 설치 (pytest, httpx, PyYAML, openapi-spec-validator, psycopg 3.3.4) | 2026-11-06 생성. 백엔드 테스트는 이 venv로 실행 |
+| `backend\.venv` | Python 3.12.13, `requirements-dev.txt` 설치 (SQLAlchemy 2.0.57, pydantic 2.14.3, psycopg 3.3.4, pytest, httpx, PyYAML, openapi-spec-validator) | 2026-11-06 생성, T14 병합 후 재설치. 백엔드 테스트는 이 venv로 실행 |
 | 일회용 테스트 DB | 로컬 PostgreSQL 18.4 바이너리로 `initdb`(trust, 포트 55416, 임시 폴더). 테스트 후 중지 | 기존 `postgresql-x64-18` 서비스와 별개 |
 | 공용 Staging DB 접속 정보 | 사용자가 교수님께 받음 (2026-11-06). **이 파일·채팅에 기록하지 않음** | T16은 공용 DB 쓰기 불필요 |
 | GitHub CLI | `kyrdufmal-summer` 로그인 | `gh auth status` |
@@ -105,6 +105,7 @@
 | 2026-11-06 | Swagger `/docs` | PASS: `me` 태그에 GET·PATCH `/api/v1/me`, Authorize(Bearer) 표시 |
 | 2026-11-06 | main 병합(공통 에러 계약) 후 `backend` `pytest -q` | PASS: 89 passed (DB 테스트 13 skipped) |
 | 2026-11-06 | 일회용 PostgreSQL 18.4 + 데이터 사전 DDL로 `tests/test_me_postgres.py` | PASS: 13 passed. 전체 102 passed |
+| 2026-11-06 | main(T14 #25) 병합 후, 저장소를 SQLAlchemy Session으로 바꾸고 `get_db` 연결 | DB 없이 98 passed, 15 skipped / 일회용 DB로 **113 passed** (실제 `get_db` 경로 API 테스트 4개 포함) |
 | — | 본인 PowerShell에서 직접 재확인 | **미확인** |
 
 재현 (Windows PowerShell):
@@ -123,6 +124,36 @@ $env:T16_TEST_ONLY = "YES"; $env:T16_TEST_DATABASE_URL = "postgresql://t16@local
 & "$pg\pg_ctl.exe" -D $data stop -m fast
 ```
 
+### 개발환경 설정 완료 증빙 (2026-11-06, 교수님 지시로 T16 개발 일시 중지 후 수행)
+
+기준: `docs/development/BACKEND_DEVELOPMENT_SETUP.md` (main, STEP 01~11). 모든 항목은 실제 명령 실행 결과다.
+
+| 가이드 단계 | 확인 내용 | 결과 | 증거 (실행 결과 요약) |
+|---|---|---|---|
+| STEP 01 도구 | Git / VS Code / Python 확장 / gh | PASS | `git version 2.55.0.windows.3`, `code 1.144.0`, ms-python.python·pylance, `gh 2.103.0` (`kyrdufmal-summer` 로그인) |
+| STEP 01 Python | Python 3.12 | PASS (명령 차이) | 3.12.13 (uv 설치, 런처 이름 `Astral/CPython3.12.13`). **`py -3.12`는 "No suitable Python runtime"** → `py -V:Astral/CPython3.12.13` 또는 venv의 python 사용. python.org판 중복 설치 안 함 |
+| STEP 02 Clone | 저장소·브랜치 | PASS | `C:\dev\ai-career-platform`, origin `ai-career-platform/ai-career-platform`, 브랜치 `task/t16-user-profile-api`, 작업 트리 깨끗 |
+| STEP 03 venv | 가상환경·의존성 | PASS | `poc\staging\backend\.venv`, `backend\.venv` 모두 3.12.13 + fastapi 0.115.12 + uvicorn 0.34.2. `.venv`는 git 무시됨 |
+| 로컬 PostgreSQL | 로그인 | PASS | 사용자가 직접 `psql -h localhost -p 5432 -U postgres` 실행: `postgres \| PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit (1개 행)`. 서비스 `postgresql-x64-18` Running/Automatic |
+| STEP 04 DB 환경변수 | 비밀값 처리 | PASS | 사용자가 `Read-Host -AsSecureString`으로 입력, 세션 환경변수로만 사용. 파일·채팅에 비밀번호 없음 |
+| STEP 05 서버 | `uvicorn main:app` 127.0.0.1:8000 | PASS | `Application startup complete.` / `Uvicorn running on http://127.0.0.1:8000` |
+| STEP 06 API | `/health`, `/version`, OpenAPI, Swagger | PASS | 17:44·17:49 `/health` 200 `{"status":"ok"}`, `/version` 200 `local-dev`, 경로 `/health`·`/version`·`/health/db`, `/docs` 200 (내장 브라우저에서 3개 API 확인. Servers `/api` 선택은 #18 설정, 로컬에서도 `/api/health` 200) |
+| STEP 07 공용 DB | `/health/db` (`ai_career_poc` DB, `career_reader` 계정, 10.2.10.104:15432) | **PASS** | 17:49:44 `200 {"status":"ok","service":"ai-career-database"}` (0.04초). 서버 로그에도 `GET /health`·`/version`·`/health/db` 각각 `200 OK` (사용자 화면 캡처). `SELECT 1`만 수행, 쓰기 없음 |
+| STEP 09 pytest | PoC / backend | PASS | PoC 6 passed, backend 102 passed (일회용 DB 포함) — 6절 위 표 |
+| DBeaver (DB 가이드) | 설치 여부 | 설치됨 | 26.1.4, `%LOCALAPPDATA%\DBeaver` (처음 진단에서 Program Files만 보고 "없음"으로 잘못 판단 → 정정) |
+
+#### 환경설정 미해결 항목
+
+| 항목 | 상태 | 영향 / 조치 |
+|---|---|---|
+| `py -3.12` 명령 | 가이드 명령 그대로는 실패 | 실사용 영향 없음(venv 사용). 필요하면 가이드 명령만 `py -V:Astral/CPython3.12.13`으로 바꿔 실행 |
+| psql PATH 미등록 | 전체 경로로 실행 | `C:\Program Files\PostgreSQL\18\bin\psql.exe` |
+| DBeaver 연결 `postgres 2` (10.2.16.91:5432) | 이 PC에서 TCP 접속 불가 | 가이드의 공용 DB(10.2.10.104:15432)와 다른 주소. 용도 확인 필요 |
+| 로컬 PostgreSQL이 모든 주소(0.0.0.0:5432)에서 대기 | 확인됨 | 같은 네트워크에서 접근 가능. 필요하면 `listen_addresses`를 localhost로 (설정 변경은 별도 판단) |
+| Docker Desktop | 엔진 시작 실패 (`docker-secrets-engine\engine.sock`) | Backend 가이드에는 불필요. 8절 참조 |
+| `career_reader` 권한 범위 | 읽기 전용 여부 미검증 | T07(#46) 병합으로 팀 차원 검증 진행. 개인은 쓰기 시도하지 않음 |
+| 브랜치가 main보다 뒤처짐 | main에 T14(#25)·T07·T10·SQLAlchemy 고정(#44) 병합 | PR #42에 `backend/tests/test_smoke.py` 1줄 충돌. **승인 전이라 병합 안 함** |
+
 ## 7. 작업 기록
 
 | 날짜 | 작업 | 결과 |
@@ -135,7 +166,9 @@ $env:T16_TEST_ONLY = "YES"; $env:T16_TEST_DATABASE_URL = "postgresql://t16@local
 | 2026-11-06 | mock 범위 구현 (담당자 승인 후). 아래 "구현 내용" | pytest 44 passed, 커밋 `a6cbd59` |
 | 2026-11-06 | PR #42 생성, Auto-fix 켬 | |
 | 2026-11-06 | main 충돌 해결: 공통 에러 계약(#41) 병합, T16 오류를 `AppError`로 변경 | 89 passed, 커밋 `2dff633` |
-| 2026-11-06 | PostgreSQL 저장소 `user_profile_postgres.py` + 일회용 DB 테스트 13개 | 102 passed |
+| 2026-11-06 | PostgreSQL 저장소 `user_profile_postgres.py` + 일회용 DB 테스트 13개 | 102 passed, 커밋 `73c1bf9` |
+| 2026-11-06 | 교수님 지시로 T16 개발 일시 중지, Backend 개발환경 전체 점검·검증 | 6절 "개발환경 설정 완료 증빙" — 공용 DB `/health/db` 200 포함 전 단계 PASS |
+| 2026-11-06 | T14(#25) main 병합 확인 → PR #42에 `test_smoke.py` 충돌 | 승인 전이라 미처리 |
 
 ### 구현 내용 (2026-11-06, 커밋 전)
 
@@ -160,11 +193,12 @@ $env:T16_TEST_ONLY = "YES"; $env:T16_TEST_DATABASE_URL = "postgresql://t16@local
 - `updated_at`은 앱 SQL에서 `now()`로 갱신 (8절 7번 — DB 트리거로 정해지면 제거)
 
 PostgreSQL 저장소 (`backend/app/repositories/user_profile_postgres.py`, 2026-11-06):
-- T14 `get_db`의 psycopg `Connection`을 받음. `update`는 자기 트랜잭션에서 커밋 (T14: 커밋은 호출자 책임)
+- T14 `get_db`의 SQLAlchemy `Session`을 받음 (처음엔 Draft의 psycopg `Connection` 기준으로 만들었다가 병합본에 맞춰 변경). `update` 성공 시 `commit`, 실패 시 `rollback` (T14: 커밋은 호출자 책임)
+- ORM 모델은 T09 확정 후 추가 예정이라 `text()` SQL로 쿼리. 모델이 생기면 이 파일만 교체
 - `users` 행을 `FOR UPDATE`로 잠근 뒤 `user_profiles`는 `INSERT ... ON CONFLICT DO UPDATE`로 보낸 컬럼만 반영
 - 컬럼 이름은 허용 목록만 `sql.Identifier`로. 값은 모두 바인딩
-- psycopg는 T14가 `requirements.txt`에 넣으므로 T16은 `requirements-dev.txt`에만 같은 버전(3.3.4) 추가 → 충돌 방지
-- **아직 앱에 연결 안 함**: `get_user_profile_repository`는 계속 503. T14 병합 후 `PostgresUserProfileRepository(conn)`을 돌려주게 바꾸면 끝
+- psycopg·SQLAlchemy는 T14/#44가 `requirements.txt`에 넣음 → T16이 `requirements-dev.txt`에 넣었던 중복 줄 제거
+- **앱 연결 완료**: `get_user_profile_repository`가 `get_db` Session으로 `PostgresUserProfileRepository`를 돌려줌. `DATABASE_URL`이 없으면 `get_db`가 503 `DEPENDENCY_UNAVAILABLE`
 
 ## 8. 미해결 문제
 
@@ -197,9 +231,9 @@ PostgreSQL 저장소 (`backend/app/repositories/user_profile_postgres.py`, 2026-
 
 ## 9. 다음 작업 (한 단계)
 
-**T14(PR #25)나 T15가 main에 병합되기를 기다린다.** 병합되면:
-- T14 → `app/routers/me.py`의 `get_user_profile_repository`가 `get_db` 연결로 `PostgresUserProfileRepository(conn)`을 돌려주게 바꾸고, `requirements-dev.txt`의 중복 psycopg 줄을 정리한다.
-- T15 → `app/core/auth.py`의 `get_token_verifier`를 T15의 JWT 검증으로 바꾼다.
+**T15(인증) 병합을 기다린다** (Redmine #1499, 2026-11-11~17). T14 연동과 PR #42 충돌 해결은 끝났다 (2026-11-06).
+
+T15가 병합되면 `app/core/auth.py`의 `get_token_verifier`를 T15의 JWT 검증(`sub` → user_id)으로 바꾸고, 토큰 발급부터 `/api/v1/me`까지 일회용 DB로 끝까지 검증한 뒤 `PARTIAL` → `PASS` 여부를 판단한다.
 그 사이 PR #42 리뷰 댓글·충돌은 Auto-fix로 처리한다.
 
 ## 10. 보안

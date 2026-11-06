@@ -136,11 +136,15 @@ def test_default_verifier_rejects_every_token_until_t15(repository):
     assert_error(response, ErrorCode.UNAUTHENTICATED)
 
 
-def test_default_repository_is_not_configured_until_t14():
+def test_without_database_url_returns_503(monkeypatch):
+    """저장소는 T14 get_db를 쓴다. DATABASE_URL이 없으면 get_db가 503."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_token_verifier] = lambda: fake_verifier
     with TestClient(app) as test_client:
         response = test_client.get("/api/v1/me", headers=auth("token-alice"))
+    get_settings.cache_clear()
     assert_error(response, ErrorCode.DEPENDENCY_UNAVAILABLE)
 
 
