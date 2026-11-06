@@ -80,7 +80,7 @@ docker compose --env-file .env up --build -d
 docker compose --env-file .env ps
 ~~~
 
-**기대 결과:** 로컬 `frontend`, `backend`, `db` 모두 healthy. Frontend만 Windows `127.0.0.1:18080:80` 바인딩. Backend `8000`과 PostgreSQL `5432`는 Docker 내부 포트이고 외부 공개하지 않음. DB는 로컬 named volume이며 Staging DB와 무관. `poc/staging/automation/compose.release.yaml`은 GHCR Digest 기반 **배포 전용 overlay**라서 로컬 개발에 적용하지 않음.
+**기대 결과:** 로컬 `frontend`, `backend`, `db` 모두 healthy. 첫 실행 직후 `frontend`가 20~30초간 `health: starting`으로 보일 수 있으므로 잠시 후 `ps`를 다시 확인합니다. Frontend만 Windows `127.0.0.1:18080:80` 바인딩. Backend `8000`과 PostgreSQL `5432`는 Docker 내부 포트이고 외부 공개하지 않음. DB는 로컬 named volume이며 Staging DB와 무관. `poc/staging/automation/compose.release.yaml`은 GHCR Digest 기반 **배포 전용 overlay**라서 로컬 개발에 적용하지 않음.
 
 **실패 시:** Docker Desktop, `docker compose --env-file .env ps`, `Get-NetTCPConnection -LocalPort 18080` 확인. 다른 Docker 프로젝트·컨테이너·볼륨 삭제 금지. `docker compose down -v` 금지.
 
@@ -95,6 +95,21 @@ Invoke-RestMethod http://127.0.0.1:18080/api/health/db
 ~~~
 
 브라우저 F12 → Network → 새로고침 → 3개의 API 요청/HTTP 상태/응답 JSON을 확인하고 Console 오류를 기록합니다. **기대 결과:** `Backend connection: Connected`, `PoC status: Operational` (API 3개가 모두 정상일 때). **실패 시:** `Unavailable/Degraded`라면 Network에서 502/503을 구별하고 필요한 경우 **자기 로컬 Compose 프로젝트** 로그만 확인. Staging 로그/비밀번호를 공유하지 않음.
+
+**예외(거부) 케이스 재현 — 개인 로컬 Compose 프로젝트에서만:**
+
+~~~powershell
+Set-Location "$HOME\projects\ai-career-platform\poc\staging"
+# 1) 미구현 기능 API → 404가 정상
+try { Invoke-WebRequest http://127.0.0.1:18080/api/v1/jobs -UseBasicParsing } catch { $_.Exception.Response.StatusCode.value__ }
+# 2) 로컬 DB만 일시 중지 → /api/health/db 503, 화면 PoC status: Degraded
+docker compose --env-file .env stop db
+try { Invoke-WebRequest http://127.0.0.1:18080/api/health/db -UseBasicParsing } catch { $_.Exception.Response.StatusCode.value__ }
+# 3) 복구
+docker compose --env-file .env start db
+~~~
+
+DB 중지 상태에서는 Backend의 DB 연결 타임아웃(`connect_timeout=3`) 때문에 화면이 수 초간 `Checking...`으로 표시된 뒤 `Degraded`로 바뀝니다. DB 재시작 후 healthy가 될 때까지 10~15초 기다린 뒤 다시 확인합니다.
 
 ## 7. 공용 Staging 시스템 연동
 ### STEP 07 — API Base URL·CORS·프록시
@@ -160,6 +175,17 @@ git status --short
 
 **기대 결과:** 원인 분류. **실패 시:** URL/Network 오류와 설정 값을 민감정보 제외 후 팀에 공유.
 
+### STEP 11-1 — 로컬 PoC 중지
+**목적:** 작업 종료 시 자기 로컬 컨테이너만 정리.
+
+~~~powershell
+Set-Location "$HOME\projects\ai-career-platform\poc\staging"
+docker compose --env-file .env stop      # 컨테이너 중지(데이터 유지), 재개는 start
+docker compose --env-file .env down      # 컨테이너/네트워크 제거, 볼륨은 유지
+~~~
+
+**주의:** `-v` 옵션(볼륨 삭제)과 글로벌 `docker system prune`은 사용하지 않습니다. 다른 Docker 프로젝트에는 영향을 주지 않도록 반드시 `poc/staging` 폴더에서 실행합니다.
+
 ## 10. 개발·테스트·PR 제출 절차
 ### STEP 12 — Git 브랜치·Commit·PR
 **목적:** 승인 후 제품에 반영.
@@ -168,7 +194,7 @@ git status --short
 Set-Location "$HOME\projects\ai-career-platform"
 git switch main
 git pull --ff-only origin main
-git switch -c feature/REPLACE-REDMINE-ID-frontend
+git switch -c task/t##-short-name   # 작업지시서 규칙, 예: task/t20-common-layout
 # index.html 등 담당 파일 수정 및 검증
 git status --short
 git diff --check
