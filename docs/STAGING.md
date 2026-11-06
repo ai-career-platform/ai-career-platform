@@ -11,7 +11,7 @@
 - Backend: Docker 내부 `8000/tcp`; DB: 내부 `5432/tcp`.
 - PoC는 `frontend`, `backend`, `db`로 구성; DB Named Volume `ai-career-staging-poc_postgres_data`.
 
-## 2026-11-05 검증 증빙
+## 2026-11-05 ~ 2026-11-06 검증 증빙
 - `docker compose config --quiet` → PASS.
 - Backend/Frontend 이미지 빌드 PASS.
 - `docker compose ps db` → healthy.
@@ -19,7 +19,9 @@
 - Backend `/health/db` → HTTP 200; Nginx `/api/health/db` → HTTP 200.
 - Frontend `http://127.0.0.1:18080/` → HTTP 200, text/html.
 - 브라우저 렌더링 및 ngrok 외부 HTTPS는 아직 검증되지 않았음.
-- 당시 기존 운영 컨테이너 18개가 실행 중이었으며 이 프로젝트와 분리하여 보호해야 함.
+- 당시 다른 운영 컨테이너 18개가 존재했으며 현재 수량은 변할 수 있습니다. 프로젝트 외 리소스 보호가 우선입니다.
+- 2026-11-06 PR #4 자동 배포 후 Frontend/Backend/DB Healthy, `/api/version` = `b1ce5e671bac271bc16a0692ab70d88a754c939c`. DB Container ID와 Named Volume 보존 확인.
+- 2026-11-06 DB 초기화 전 백업 아카이브 검증 및 일회용 PostgreSQL 독립 복원 PASS. 사용자 정의 테이블 0개 확인; 실제 DB DDL/Seed 미적용.
 
 ## 읽기 전용 확인 명령
 ```bash
@@ -42,7 +44,7 @@ free -h
 - 문제 발생 시 변경한 **PoC 서비스만** 범위를 특정하여 조치하고 운영 서비스는 변경하지 않음.
 
 ## 수동 배포와 복구
-- 현재 수동 PoC는 실행 확인됨. 자동 배포와 별개의 상태.
-- 자동 배포 활성화 전 배포 대상 SHA·이미지 Digest·이전 정상 버전·헬스체크·복구 절차 검증.
+- 수동 배포와 자동 배포 E2E 검증 완료(2026-11-06). 현재 배포 SHA는 `/api/version`, systemd journal 및 GitHub Actions에서 다시 확인.
+- 자동 배포 기준은 CI 성공·이미지 Digest·허용 승인자·헬스체크. DB Migration은 별도 승인 절차로 실행.
 - 장애 시 먼저 `docker compose ps`, 로그에서 비밀정보 배제한 상태로 확인. 승인 없는 광범위 정리/다운 금지.
 - ngrok 외부 공개는 별도 검토; Pull형 CD에는 ngrok 불필요.
