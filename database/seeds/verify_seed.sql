@@ -28,18 +28,22 @@ WITH checks AS (
            (SELECT count(*) FROM career.user_profiles p JOIN career.users u USING (user_id)
               WHERE u.email LIKE 'seed-user-__@example.com') = 18
     UNION ALL SELECT 'count job_role_skills = 150',
-           (SELECT count(*) FROM career.job_role_skills) = 150
+           (SELECT count(*) FROM career.job_role_skills x JOIN career.job_roles jr USING (job_role_id)
+             WHERE jr.job_role_id = md5('seed:job_role:' || jr.code)::uuid) = 150
     UNION ALL SELECT 'count job_postings = 100 (80/10/10)',
            (SELECT count(*) FILTER (WHERE status = 'published') = 80
                AND count(*) FILTER (WHERE status = 'draft') = 10
                AND count(*) FILTER (WHERE status = 'closed') = 10
               FROM career.job_postings WHERE title LIKE '[Seed] %')
     UNION ALL SELECT 'count job_posting_skills = 400',
-           (SELECT count(*) FROM career.job_posting_skills) = 400
+           (SELECT count(*) FROM career.job_posting_skills x JOIN career.job_postings jp USING (job_posting_id)
+             WHERE jp.title LIKE '[Seed] %') = 400
     UNION ALL SELECT 'count user_skills = 60',
-           (SELECT count(*) FROM career.user_skills) = 60
+           (SELECT count(*) FROM career.user_skills x JOIN career.users u USING (user_id)
+             WHERE u.email LIKE 'seed-user-__@example.com') = 60
     UNION ALL SELECT 'count user_job_bookmarks = 32',
-           (SELECT count(*) FROM career.user_job_bookmarks) = 32
+           (SELECT count(*) FROM career.user_job_bookmarks x JOIN career.users u USING (user_id)
+             WHERE u.email LIKE 'seed-user-__@example.com') = 32
 
     -- duplicates by natural key (UNIQUE makes these impossible; kept as explicit evidence)
     UNION ALL SELECT 'duplicate job_role code = 0',
@@ -104,10 +108,10 @@ WITH checks AS (
                        WHERE u.status = 'disabled'
                          AND (EXISTS (SELECT 1 FROM career.user_profiles p WHERE p.user_id = u.user_id)
                            OR EXISTS (SELECT 1 FROM career.user_job_bookmarks b WHERE b.user_id = u.user_id)))
-    UNION ALL SELECT 'only reserved example.com domains are used',
-           NOT EXISTS (SELECT 1 FROM career.users WHERE email NOT LIKE '%@example.com')
-       AND NOT EXISTS (SELECT 1 FROM career.companies WHERE website_url NOT LIKE 'https://%.example.com')
-       AND NOT EXISTS (SELECT 1 FROM career.job_postings WHERE source_url IS NOT NULL)
+    UNION ALL SELECT 'only reserved example domains are used (any synthetic tool)',
+           NOT EXISTS (SELECT 1 FROM career.users WHERE email !~ '@example\.(com|test|invalid)$')
+       AND NOT EXISTS (SELECT 1 FROM career.companies WHERE website_url !~ '^https://[a-z0-9.-]+\.example\.(com|test)$')
+       AND NOT EXISTS (SELECT 1 FROM career.job_postings WHERE title LIKE '[Seed] %' AND source_url IS NOT NULL)
 
     -- sample lookups the APIs (T17/T18) will rely on
     UNION ALL SELECT 'lookup role BACKEND_ENGINEER -> top skill PYTHON',
@@ -120,7 +124,7 @@ WITH checks AS (
     UNION ALL SELECT 'lookup published postings with company and role = 80',
            (SELECT count(*) FROM career.job_postings jp
               JOIN career.companies c USING (company_id) JOIN career.job_roles r USING (job_role_id)
-             WHERE jp.status = 'published') = 80
+             WHERE jp.status = 'published' AND jp.title LIKE '[Seed] %') = 80
 )
 SELECT check_name, ok
 FROM (

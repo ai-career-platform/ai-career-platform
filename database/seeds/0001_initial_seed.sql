@@ -33,6 +33,7 @@ BEGIN;
 
 -- ---------------------------------------------------------------- 0. data source
 -- T05 C05: companies / job_postings must reference a data source. 1st phase = synthetic_seed only.
+-- Rows refer to it BY CODE, so a source created first by another tool (e.g. T147 factory) is reused.
 INSERT INTO career.data_sources (source_id, code, name, license_ref, retention_days, is_active, created_at, updated_at)
 VALUES (md5('seed:data_source:synthetic_seed')::uuid, 'synthetic_seed', '합성 Seed 데이터 (T10)', NULL, NULL, true,
         timestamptz '2026-11-06 00:00:00+00', timestamptz '2026-11-06 00:00:00+00')
@@ -134,7 +135,7 @@ SELECT md5('seed:company:' || lpad(g::text, 2, '0'))::uuid,
        '가상기업 ' || lpad(g::text, 2, '0') || ' (Seed)',
        'https://company-' || lpad(g::text, 2, '0') || '.example.com',
        '합성 기업 데이터입니다. 실제 기업과 무관합니다.',
-       md5('seed:data_source:synthetic_seed')::uuid,
+       (SELECT source_id FROM career.data_sources WHERE code = 'synthetic_seed'),
        timestamptz '2026-11-06 00:00:00+00', timestamptz '2026-11-06 00:00:00+00'
 FROM generate_series(1, 20) AS g
 ON CONFLICT (company_id) DO UPDATE
@@ -242,7 +243,7 @@ WITH seed_roles AS (
 INSERT INTO career.job_postings (job_posting_id, company_id, job_role_id, source_id, title, description,
                                  employment_type, location_text,
                                  source_url, published_at, expires_at, status, created_at, updated_at)
-SELECT p.job_posting_id, p.company_id, r.job_role_id, md5('seed:data_source:synthetic_seed')::uuid,
+SELECT p.job_posting_id, p.company_id, r.job_role_id, (SELECT source_id FROM career.data_sources WHERE code = 'synthetic_seed'),
        '[Seed] ' || r.name || ' 채용 #' || lpad(p.n::text, 3, '0'),
        '합성 채용공고입니다. 실제 기업·공고와 무관합니다.',
        (ARRAY['full_time','full_time','full_time','contract','intern'])[1 + (p.n - 1) % 5],
