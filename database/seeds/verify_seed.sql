@@ -3,8 +3,20 @@
 SET client_encoding = 'UTF8';
 WITH checks AS (
     -- expected row counts (seed rows only, identified by deterministic keys / naming)
-    SELECT 'count job_roles = 30' AS check_name,
-           (SELECT count(*) FROM career.job_roles WHERE job_role_id = md5('seed:job_role:' || code)::uuid) = 30 AS ok
+    SELECT 'count data_sources synthetic_seed = 1' AS check_name,
+           (SELECT count(*) FROM career.data_sources WHERE code = 'synthetic_seed') = 1 AS ok
+    UNION ALL SELECT 'count roles = 2, permissions = 2, admin has both',
+           (SELECT count(*) FROM career.roles WHERE code IN ('job_seeker','admin')) = 2
+       AND (SELECT count(*) FROM career.permissions WHERE code IN ('admin.models.read','admin.audit.read')) = 2
+       AND (SELECT count(*) FROM career.role_permissions rp JOIN career.roles r USING (role_id) WHERE r.code = 'admin') = 2
+    UNION ALL SELECT 'user_roles: 20 job_seeker + 1 admin (seed-user-18)',
+           (SELECT count(*) FILTER (WHERE r.code = 'job_seeker') = 20
+               AND count(*) FILTER (WHERE r.code = 'admin') = 1
+               AND bool_and(r.code <> 'admin' OR u.email = 'seed-user-18@example.com')
+              FROM career.user_roles ur JOIN career.roles r USING (role_id) JOIN career.users u USING (user_id)
+             WHERE u.email LIKE 'seed-user-__@example.com')
+    UNION ALL SELECT 'count job_roles = 30',
+           (SELECT count(*) FROM career.job_roles WHERE job_role_id = md5('seed:job_role:' || code)::uuid) = 30
     UNION ALL SELECT 'count skills = 100',
            (SELECT count(*) FROM career.skills WHERE skill_id = md5('seed:skill:' || code)::uuid) = 100
     UNION ALL SELECT 'count companies = 20',
@@ -34,8 +46,11 @@ WITH checks AS (
            NOT EXISTS (SELECT 1 FROM career.job_roles GROUP BY code HAVING count(*) > 1)
     UNION ALL SELECT 'duplicate skill code = 0',
            NOT EXISTS (SELECT 1 FROM career.skills GROUP BY code HAVING count(*) > 1)
-    UNION ALL SELECT 'duplicate user email (case-insensitive) = 0',
-           NOT EXISTS (SELECT 1 FROM career.users GROUP BY lower(email) HAVING count(*) > 1)
+    UNION ALL SELECT 'duplicate user email_canonical = 0',
+           NOT EXISTS (SELECT 1 FROM career.users GROUP BY email_canonical HAVING count(*) > 1)
+    UNION ALL SELECT 'seed email_canonical follows T05 rule (lowercase, no +tag)',
+           NOT EXISTS (SELECT 1 FROM career.users WHERE email LIKE 'seed-user-%'
+                       AND (email_canonical <> lower(email) OR split_part(email_canonical, '@', 1) LIKE '%+%'))
     UNION ALL SELECT 'duplicate company name = 0',
            NOT EXISTS (SELECT 1 FROM career.companies GROUP BY name HAVING count(*) > 1)
 
@@ -54,11 +69,29 @@ WITH checks AS (
                        WHERE u.user_id IS NULL OR s.skill_id IS NULL)
 
     -- data rules
-    UNION ALL SELECT 'every role has 5 skills with importance 1..5',
+    UNION ALL SELECT 'every role has 5 skills with required_level 1..5',
            NOT EXISTS (SELECT 1 FROM career.job_roles r
                        LEFT JOIN career.job_role_skills x USING (job_role_id)
                        GROUP BY r.job_role_id
-                       HAVING count(x.skill_id) <> 5 OR count(DISTINCT x.importance) <> 5)
+                       HAVING count(x.skill_id) <> 5 OR count(DISTINCT x.required_level) <> 5)
+    UNION ALL SELECT 'companies and postings reference synthetic_seed source',
+           NOT EXISTS (SELECT 1 FROM career.companies c JOIN career.data_sources d USING (source_id)
+                       WHERE c.website_url LIKE 'https://company-__.example.com' AND d.code <> 'synthetic_seed')
+       AND NOT EXISTS (SELECT 1 FROM career.job_postings jp JOIN career.data_sources d USING (source_id)
+                       WHERE jp.title LIKE '[Seed] %' AND d.code <> 'synthetic_seed')
+    UNION ALL SELECT 'posting skill required_level matches role default',
+           NOT EXISTS (SELECT 1 FROM career.job_posting_skills ps
+                       JOIN career.job_postings jp USING (job_posting_id)
+                       JOIN career.job_role_skills rs ON rs.job_role_id = jp.job_role_id AND rs.skill_id = ps.skill_id
+                       WHERE ps.required_level IS DISTINCT FROM rs.required_level)
+    UNION ALL SELECT 'skill gap is positive for seeded user skills (required - proficiency = 1)',
+           NOT EXISTS (SELECT 1 FROM career.user_skills us
+                       JOIN career.job_role_skills rs USING (skill_id)
+                       JOIN career.users u USING (user_id)
+                       JOIN career.job_roles r ON r.job_role_id = rs.job_role_id
+                       WHERE u.email LIKE 'seed-user-%' AND rs.required_level - us.proficiency <> 1
+                         AND r.code = (SELECT code FROM career.job_roles ORDER BY code
+                                       OFFSET (substring(u.email from 'seed-user-(\d+)')::int - 1) % 30 LIMIT 1))
     UNION ALL SELECT 'draft postings have no dates; others have both',
            NOT EXISTS (SELECT 1 FROM career.job_postings
                        WHERE (status = 'draft' AND (published_at IS NOT NULL OR expires_at IS NOT NULL))
@@ -80,7 +113,7 @@ WITH checks AS (
     UNION ALL SELECT 'lookup role BACKEND_ENGINEER -> top skill PYTHON',
            (SELECT s.code FROM career.job_roles r
               JOIN career.job_role_skills x USING (job_role_id) JOIN career.skills s USING (skill_id)
-             WHERE r.code = 'BACKEND_ENGINEER' ORDER BY x.importance DESC LIMIT 1) = 'PYTHON'
+             WHERE r.code = 'BACKEND_ENGINEER' ORDER BY x.required_level DESC LIMIT 1) = 'PYTHON'
     UNION ALL SELECT 'lookup skill POSTGRESQL is used by >= 1 role',
            (SELECT count(*) FROM career.job_role_skills x JOIN career.skills s USING (skill_id)
              WHERE s.code = 'POSTGRESQL') >= 1

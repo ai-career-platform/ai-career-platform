@@ -1,7 +1,8 @@
 -- AI Career Platform / T10 initial Seed·Fixture
 -- SEED_REVISION: 0001 (2026-11-06)
 -- STATUS: DRAFT. Disposable/local DB only. NOT approved for Staging (T12 gate).
--- TARGET SCHEMA: database/migrations/DRAFT_0001_initial_schema.sql (career.*, 10 tables)
+-- TARGET SCHEMA: T05 data dictionary (database/DATA_DICTIONARY.md v0.2), validation DDL from
+--                `python3 database/model/check_data_dictionary.py --ddl` (career.*). Seed fills 15 tables.
 --
 -- Data policy
 --   * 100% synthetic. No real person, company, posting or confidential data.
@@ -9,17 +10,19 @@
 --   * Timestamps are fixed literals (no now()) so re-runs produce identical rows.
 --
 -- Idempotency (upsert keys)
---   job_roles  -> code              skills -> code
---   users      -> email             companies / job_postings -> deterministic uuid
+--   data_sources -> code            job_roles -> code        skills -> code
+--   users      -> email_canonical   companies / job_postings -> deterministic uuid
 --   link tables -> composite primary key
 --   Deterministic uuid = md5('<seed namespace>:<natural key>')::uuid
 --   Rows are only rewritten (and updated_at bumped) when the seed values change.
 --
 -- Insert order (parent -> child)
+--   0 data_sources (synthetic_seed, T05 D-05)
 --   1 job_roles, skills, companies, users
 --   2 job_role_skills, user_profiles
 --   3 job_postings
 --   4 job_posting_skills, user_skills, user_job_bookmarks
+--   5 roles, permissions -> role_permissions, user_roles
 --
 -- Run: psql -X -v ON_ERROR_STOP=1 -f database/seeds/0001_initial_seed.sql
 
@@ -27,6 +30,15 @@
 SET client_encoding = 'UTF8';
 
 BEGIN;
+
+-- ---------------------------------------------------------------- 0. data source
+-- T05 C05: companies / job_postings must reference a data source. 1st phase = synthetic_seed only.
+INSERT INTO career.data_sources (source_id, code, name, license_ref, retention_days, is_active, created_at, updated_at)
+VALUES (md5('seed:data_source:synthetic_seed')::uuid, 'synthetic_seed', '합성 Seed 데이터 (T10)', NULL, NULL, true,
+        timestamptz '2026-11-06 00:00:00+00', timestamptz '2026-11-06 00:00:00+00')
+ON CONFLICT (code) DO UPDATE
+SET name = EXCLUDED.name, updated_at = timestamptz '2026-11-06 00:00:00+00'
+WHERE career.data_sources.name IS DISTINCT FROM EXCLUDED.name;
 
 -- ---------------------------------------------------------------- 1. parents
 -- 1-1 job_roles (30)
@@ -117,35 +129,39 @@ SET name = EXCLUDED.name, updated_at = timestamptz '2026-11-06 00:00:00+00'
 WHERE career.skills.name IS DISTINCT FROM EXCLUDED.name;
 
 -- 1-3 companies (20, fictional)
-INSERT INTO career.companies (company_id, name, website_url, created_at, updated_at)
+INSERT INTO career.companies (company_id, name, website_url, description, source_id, created_at, updated_at)
 SELECT md5('seed:company:' || lpad(g::text, 2, '0'))::uuid,
        '가상기업 ' || lpad(g::text, 2, '0') || ' (Seed)',
        'https://company-' || lpad(g::text, 2, '0') || '.example.com',
+       '합성 기업 데이터입니다. 실제 기업과 무관합니다.',
+       md5('seed:data_source:synthetic_seed')::uuid,
        timestamptz '2026-11-06 00:00:00+00', timestamptz '2026-11-06 00:00:00+00'
 FROM generate_series(1, 20) AS g
 ON CONFLICT (company_id) DO UPDATE
-SET name = EXCLUDED.name, website_url = EXCLUDED.website_url,
-    updated_at = timestamptz '2026-11-06 00:00:00+00'
-WHERE (career.companies.name, career.companies.website_url)
-      IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.website_url);
+SET name = EXCLUDED.name, website_url = EXCLUDED.website_url, description = EXCLUDED.description,
+    source_id = EXCLUDED.source_id, updated_at = timestamptz '2026-11-06 00:00:00+00'
+WHERE (career.companies.name, career.companies.website_url, career.companies.description, career.companies.source_id)
+      IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.website_url, EXCLUDED.description, EXCLUDED.source_id);
 
 -- 1-4 users (20 synthetic; 19, 20 are 'disabled' for negative-path tests)
-INSERT INTO career.users (user_id, email, display_name, status, created_at, updated_at)
+-- T05 A01: email_canonical is the unique key (lowercase, no '+tag'); seed emails are already canonical.
+INSERT INTO career.users (user_id, email, email_canonical, display_name, status, created_at, updated_at)
 SELECT md5('seed:user:' || lpad(g::text, 2, '0'))::uuid,
+       'seed-user-' || lpad(g::text, 2, '0') || '@example.com',
        'seed-user-' || lpad(g::text, 2, '0') || '@example.com',
        '테스트사용자' || lpad(g::text, 2, '0'),
        CASE WHEN g >= 19 THEN 'disabled' ELSE 'active' END,
        timestamptz '2026-11-06 00:00:00+00', timestamptz '2026-11-06 00:00:00+00'
 FROM generate_series(1, 20) AS g
-ON CONFLICT (email) DO UPDATE
+ON CONFLICT (email_canonical) DO UPDATE
 SET display_name = EXCLUDED.display_name, status = EXCLUDED.status,
     updated_at = timestamptz '2026-11-06 00:00:00+00'
 WHERE (career.users.display_name, career.users.status)
       IS DISTINCT FROM (EXCLUDED.display_name, EXCLUDED.status);
 
 -- ---------------------------------------------------------------- 2. children of parents
--- 2-1 job_role_skills: array order = importance 5,4,3,2,1
-INSERT INTO career.job_role_skills (job_role_id, skill_id, importance, created_at)
+-- 2-1 job_role_skills: array order = required_level 5,4,3,2,1 (T05 B06: same 1~5 scale as proficiency)
+INSERT INTO career.job_role_skills (job_role_id, skill_id, required_level, created_at)
 SELECT r.job_role_id, s.skill_id, (6 - m.ord)::smallint, timestamptz '2026-11-06 00:00:00+00'
 FROM (VALUES
     ('BACKEND_ENGINEER',        ARRAY['PYTHON','FASTAPI','POSTGRESQL','REST_API','DOCKER']),
@@ -183,8 +199,8 @@ CROSS JOIN LATERAL unnest(v.skill_codes) WITH ORDINALITY AS m(skill_code, ord)
 JOIN career.job_roles r ON r.code = v.role_code
 JOIN career.skills s ON s.code = m.skill_code
 ON CONFLICT (job_role_id, skill_id) DO UPDATE
-SET importance = EXCLUDED.importance
-WHERE career.job_role_skills.importance IS DISTINCT FROM EXCLUDED.importance;
+SET required_level = EXCLUDED.required_level
+WHERE career.job_role_skills.required_level IS DISTINCT FROM EXCLUDED.required_level;
 
 -- 2-2 user_profiles (active users 1..18 only; disabled users have none)
 --     user g aims at the g-th seed role by code order ((g-1)%30), same rule as user_skills
@@ -223,11 +239,14 @@ WITH seed_roles AS (
            timestamptz '2026-10-01 00:00:00+00' + make_interval(days => (n - 1) % 30) AS base_at
     FROM generate_series(1, 100) AS n
 )
-INSERT INTO career.job_postings (job_posting_id, company_id, job_role_id, title, description,
+INSERT INTO career.job_postings (job_posting_id, company_id, job_role_id, source_id, title, description,
+                                 employment_type, location_text,
                                  source_url, published_at, expires_at, status, created_at, updated_at)
-SELECT p.job_posting_id, p.company_id, r.job_role_id,
+SELECT p.job_posting_id, p.company_id, r.job_role_id, md5('seed:data_source:synthetic_seed')::uuid,
        '[Seed] ' || r.name || ' 채용 #' || lpad(p.n::text, 3, '0'),
        '합성 채용공고입니다. 실제 기업·공고와 무관합니다.',
+       (ARRAY['full_time','full_time','full_time','contract','intern'])[1 + (p.n - 1) % 5],
+       (ARRAY['서울','경기','부산','대전','원격'])[1 + (p.n - 1) % 5],
        NULL,
        CASE WHEN p.status = 'draft' THEN NULL ELSE p.base_at END,
        CASE WHEN p.status = 'draft' THEN NULL ELSE p.base_at + interval '45 days' END,
@@ -236,30 +255,35 @@ SELECT p.job_posting_id, p.company_id, r.job_role_id,
 FROM p
 JOIN seed_roles r ON r.idx = (p.n - 1) % 30
 ON CONFLICT (job_posting_id) DO UPDATE
-SET company_id = EXCLUDED.company_id, job_role_id = EXCLUDED.job_role_id, title = EXCLUDED.title,
+SET company_id = EXCLUDED.company_id, job_role_id = EXCLUDED.job_role_id, source_id = EXCLUDED.source_id,
+    employment_type = EXCLUDED.employment_type, location_text = EXCLUDED.location_text, title = EXCLUDED.title,
     description = EXCLUDED.description, source_url = EXCLUDED.source_url,
     published_at = EXCLUDED.published_at, expires_at = EXCLUDED.expires_at, status = EXCLUDED.status,
     updated_at = timestamptz '2026-11-06 00:00:00+00'
-WHERE (career.job_postings.company_id, career.job_postings.job_role_id, career.job_postings.title,
+WHERE (career.job_postings.company_id, career.job_postings.job_role_id, career.job_postings.source_id,
+       career.job_postings.employment_type, career.job_postings.location_text, career.job_postings.title,
        career.job_postings.description, career.job_postings.source_url, career.job_postings.published_at,
        career.job_postings.expires_at, career.job_postings.status)
       IS DISTINCT FROM
-      (EXCLUDED.company_id, EXCLUDED.job_role_id, EXCLUDED.title, EXCLUDED.description,
+      (EXCLUDED.company_id, EXCLUDED.job_role_id, EXCLUDED.source_id,
+       EXCLUDED.employment_type, EXCLUDED.location_text, EXCLUDED.title, EXCLUDED.description,
        EXCLUDED.source_url, EXCLUDED.published_at, EXCLUDED.expires_at, EXCLUDED.status);
 
 -- ---------------------------------------------------------------- 4. link tables
--- 4-1 job_posting_skills: role's top-4 skills; importance >= 4 required, else preferred
-INSERT INTO career.job_posting_skills (job_posting_id, skill_id, is_required, created_at)
-SELECT jp.job_posting_id, jrs.skill_id, (jrs.importance >= 4), timestamptz '2026-11-06 00:00:00+00'
+-- 4-1 job_posting_skills: role's top-4 skills; required_level >= 4 required, else preferred.
+--     required_level copies the role default (T05 C03 allows NULL = role default; explicit here for tests)
+INSERT INTO career.job_posting_skills (job_posting_id, skill_id, is_required, required_level, created_at)
+SELECT jp.job_posting_id, jrs.skill_id, (jrs.required_level >= 4), jrs.required_level, timestamptz '2026-11-06 00:00:00+00'
 FROM career.job_postings jp
-JOIN career.job_role_skills jrs ON jrs.job_role_id = jp.job_role_id AND jrs.importance >= 2
+JOIN career.job_role_skills jrs ON jrs.job_role_id = jp.job_role_id AND jrs.required_level >= 2
 WHERE jp.job_posting_id IN (
     SELECT md5('seed:job_posting:' || lpad(n::text, 3, '0'))::uuid FROM generate_series(1, 100) AS n)
 ON CONFLICT (job_posting_id, skill_id) DO UPDATE
-SET is_required = EXCLUDED.is_required
-WHERE career.job_posting_skills.is_required IS DISTINCT FROM EXCLUDED.is_required;
+SET is_required = EXCLUDED.is_required, required_level = EXCLUDED.required_level
+WHERE (career.job_posting_skills.is_required, career.job_posting_skills.required_level)
+      IS DISTINCT FROM (EXCLUDED.is_required, EXCLUDED.required_level);
 
--- 4-2 user_skills: user g owns the top-3 skills of role ((g-1)%30), proficiency 4,3,2
+-- 4-2 user_skills: user g owns the top-3 skills of role ((g-1)%30), proficiency 4,3,2 (one below required)
 WITH seed_roles AS (
     SELECT job_role_id, row_number() OVER (ORDER BY code) - 1 AS idx
     FROM career.job_roles
@@ -267,10 +291,10 @@ WITH seed_roles AS (
 )
 INSERT INTO career.user_skills (user_id, skill_id, proficiency, created_at)
 SELECT md5('seed:user:' || lpad(g::text, 2, '0'))::uuid, jrs.skill_id,
-       (jrs.importance - 1)::smallint, timestamptz '2026-11-06 00:00:00+00'
+       (jrs.required_level - 1)::smallint, timestamptz '2026-11-06 00:00:00+00'
 FROM generate_series(1, 20) AS g
 JOIN seed_roles r ON r.idx = (g - 1) % 30
-JOIN career.job_role_skills jrs ON jrs.job_role_id = r.job_role_id AND jrs.importance >= 3
+JOIN career.job_role_skills jrs ON jrs.job_role_id = r.job_role_id AND jrs.required_level >= 3
 ON CONFLICT (user_id, skill_id) DO UPDATE
 SET proficiency = EXCLUDED.proficiency
 WHERE career.user_skills.proficiency IS DISTINCT FROM EXCLUDED.proficiency;
@@ -284,5 +308,35 @@ FROM generate_series(1, 18) AS g
 CROSS JOIN LATERAL (VALUES (g), (g + 20)) AS b(pn)
 WHERE pn % 10 NOT IN (0, 9)
 ON CONFLICT (user_id, job_posting_id) DO NOTHING;
+
+-- ---------------------------------------------------------------- 5. service roles (T05 A05~A08, "Seed 관리")
+-- roles: requirement overview §5 (job_seeker, admin). permissions: only the examples named in
+-- DATA_DICTIONARY A06; the full permission list is not decided yet (see README).
+INSERT INTO career.roles (role_id, code, name, created_at)
+SELECT md5('seed:role:' || v.code)::uuid, v.code, v.name, timestamptz '2026-11-06 00:00:00+00'
+FROM (VALUES ('job_seeker', '구직자'), ('admin', '운영 관리자')) AS v(code, name)
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+WHERE career.roles.name IS DISTINCT FROM EXCLUDED.name;
+
+INSERT INTO career.permissions (permission_id, code, description, created_at)
+SELECT md5('seed:permission:' || v.code)::uuid, v.code, v.description, timestamptz '2026-11-06 00:00:00+00'
+FROM (VALUES ('admin.models.read', '모델 버전·평가 조회'), ('admin.audit.read', '감사 기록 조회')) AS v(code, description)
+ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description
+WHERE career.permissions.description IS DISTINCT FROM EXCLUDED.description;
+
+INSERT INTO career.role_permissions (role_id, permission_id, created_at)
+SELECT r.role_id, p.permission_id, timestamptz '2026-11-06 00:00:00+00'
+FROM career.roles r CROSS JOIN career.permissions p
+WHERE r.code = 'admin' AND p.code IN ('admin.models.read', 'admin.audit.read')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- every seed user is a job_seeker (default role, granted_by NULL); seed-user-18 is also admin
+INSERT INTO career.user_roles (user_id, role_id, granted_by_user_id, granted_at)
+SELECT u.user_id, r.role_id, NULL, timestamptz '2026-11-06 00:00:00+00'
+FROM career.users u
+JOIN career.roles r ON r.code = 'job_seeker'
+                    OR (r.code = 'admin' AND u.email = 'seed-user-18@example.com')
+WHERE u.email LIKE 'seed-user-__@example.com'
+ON CONFLICT (user_id, role_id) DO NOTHING;
 
 COMMIT;

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # T10: disposable test database only; NEVER execute against staging.
-# Applies DRAFT_0001 schema, then the seed twice, and proves:
+# Applies the T05 validation DDL (generated from database/DATA_DICTIONARY.md), then the seed
+# twice, and proves:
 #   - second run changes nothing (row content fingerprint identical, updated_at untouched)
 #   - verify_seed.sql checks all PASS (counts, duplicates 0, orphans 0, lookups)
 #   - negative cases: seed without schema fails atomically; invalid fixture rejected by constraints
@@ -33,7 +34,10 @@ done
 
 psql_test() { docker exec -i "$container" psql -X -v ON_ERROR_STOP=1 -U t10test -d t10test "$@"; }
 
-docker cp database/migrations/DRAFT_0001_initial_schema.sql "$container:/tmp/schema.sql"
+ddl_file="$(mktemp)"
+python3 database/model/check_data_dictionary.py --ddl > "$ddl_file"
+docker cp "$ddl_file" "$container:/tmp/schema.sql"
+rm -f "$ddl_file"
 docker cp database/seeds/0001_initial_seed.sql "$container:/tmp/seed.sql"
 docker cp database/seeds/verify_seed.sql "$container:/tmp/verify.sql"
 
@@ -52,7 +56,8 @@ psql_test -f /tmp/schema.sql >/dev/null
 fingerprint() {
   psql_test -Atc "
     SELECT md5(string_agg(t || ':' || h, ',' ORDER BY t)) FROM (
-      SELECT 'job_roles' t, md5(string_agg(x::text, '|' ORDER BY x::text)) h FROM career.job_roles x
+      SELECT 'data_sources' t, md5(string_agg(x::text, '|' ORDER BY x::text)) h FROM career.data_sources x
+      UNION ALL SELECT 'job_roles', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.job_roles x
       UNION ALL SELECT 'skills', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.skills x
       UNION ALL SELECT 'companies', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.companies x
       UNION ALL SELECT 'users', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.users x
@@ -62,6 +67,10 @@ fingerprint() {
       UNION ALL SELECT 'job_posting_skills', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.job_posting_skills x
       UNION ALL SELECT 'user_skills', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.user_skills x
       UNION ALL SELECT 'user_job_bookmarks', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.user_job_bookmarks x
+      UNION ALL SELECT 'roles', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.roles x
+      UNION ALL SELECT 'permissions', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.permissions x
+      UNION ALL SELECT 'role_permissions', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.role_permissions x
+      UNION ALL SELECT 'user_roles', md5(string_agg(x::text, '|' ORDER BY x::text)) FROM career.user_roles x
     ) s"
 }
 counts() {
@@ -103,14 +112,22 @@ expect_rejected() {
   fi
   echo "PASS expected rejected: $label"
 }
-expect_rejected "duplicate seed email" \
-  "INSERT INTO career.users(email,display_name) VALUES('seed-user-01@example.com','Dup');"
+expect_rejected "duplicate canonical email (+tag variant)" \
+  "INSERT INTO career.users(email,email_canonical,display_name) VALUES('Seed-User-01+qa@example.com','seed-user-01@example.com','Dup');"
+expect_rejected "non-canonical email_canonical" \
+  "INSERT INTO career.users(email,email_canonical,display_name) VALUES('x@example.com','X+tag@example.com','Bad');"
 expect_rejected "duplicate skill code" \
   "INSERT INTO career.skills(code,name) VALUES('PYTHON','Python again');"
-expect_rejected "importance out of range" \
-  "UPDATE career.job_role_skills SET importance = 9 WHERE importance = 5;"
+expect_rejected "required_level out of range" \
+  "UPDATE career.job_role_skills SET required_level = 9 WHERE required_level = 5;"
+expect_rejected "company without data source" \
+  "INSERT INTO career.companies(name) VALUES('No source');"
+expect_rejected "published posting without published_at" \
+  "UPDATE career.job_postings SET published_at = NULL, expires_at = NULL WHERE status = 'published';"
 expect_rejected "posting expires before published" \
   "UPDATE career.job_postings SET expires_at = published_at - interval '1 day' WHERE status = 'published';"
+expect_rejected "delete role in use (user_roles RESTRICT)" \
+  "DELETE FROM career.roles WHERE code = 'job_seeker';"
 expect_rejected "delete skill referenced by seed" \
   "DELETE FROM career.skills WHERE code = 'PYTHON';"
 
