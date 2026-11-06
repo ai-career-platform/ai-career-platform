@@ -9,8 +9,10 @@ from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.errors import AppError, ErrorCode
 
 TokenVerifier = Callable[[str], UUID]
 
@@ -30,21 +32,13 @@ def get_token_verifier() -> TokenVerifier:
     return _reject_all_tokens
 
 
-def _unauthorized() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 def get_current_user_id(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     verify: Annotated[TokenVerifier, Depends(get_token_verifier)],
 ) -> UUID:
     if credentials is None:
-        raise _unauthorized()
+        raise AppError(ErrorCode.UNAUTHENTICATED, log_detail="missing bearer token")
     try:
         return verify(credentials.credentials)
-    except InvalidTokenError:
-        raise _unauthorized() from None
+    except InvalidTokenError as exc:
+        raise AppError(ErrorCode.UNAUTHENTICATED, log_detail=str(exc)) from None

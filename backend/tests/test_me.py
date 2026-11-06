@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.core.auth import InvalidTokenError, get_token_verifier
 from app.core.config import get_settings
+from app.core.errors import ERROR_CATALOG, ErrorCode
 from app.main import create_app
 from app.repositories.user_profile import InMemoryUserProfileRepository, UserProfileRecord
 from app.routers.me import get_user_profile_repository
@@ -33,6 +34,13 @@ def fake_verifier(token: str) -> UUID:
 
 def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def assert_error(response, code: ErrorCode) -> None:
+    """공통 에러 계약 {code, status, message} (T06 #41)."""
+    spec = ERROR_CATALOG[code]
+    assert response.status_code == spec.status
+    assert response.json() == {"code": code, "status": spec.status, "message": spec.message}
 
 
 @pytest.fixture
@@ -98,7 +106,7 @@ def test_get_me_without_profile_row_returns_null_profile_fields(client):
 
 def test_get_me_unknown_user_returns_404(client):
     response = client.get("/api/v1/me", headers=auth("token-ghost"))
-    assert response.status_code == 404
+    assert_error(response, ErrorCode.NOT_FOUND)
 
 
 # ---- 인증 -------------------------------------------------------------------
@@ -116,7 +124,7 @@ def test_get_me_unknown_user_returns_404(client):
 @pytest.mark.parametrize("method", ["get", "patch"])
 def test_missing_or_invalid_token_returns_401(client, method, headers):
     response = client.request(method, "/api/v1/me", headers=headers, json={"headline": "x"})
-    assert response.status_code == 401
+    assert_error(response, ErrorCode.UNAUTHENTICATED)
     assert response.headers["www-authenticate"] == "Bearer"
 
 
@@ -125,7 +133,7 @@ def test_default_verifier_rejects_every_token_until_t15(repository):
     app.dependency_overrides[get_user_profile_repository] = lambda: repository
     with TestClient(app) as test_client:
         response = test_client.get("/api/v1/me", headers=auth("token-alice"))
-    assert response.status_code == 401
+    assert_error(response, ErrorCode.UNAUTHENTICATED)
 
 
 def test_default_repository_is_not_configured_until_t14():
@@ -133,7 +141,7 @@ def test_default_repository_is_not_configured_until_t14():
     app.dependency_overrides[get_token_verifier] = lambda: fake_verifier
     with TestClient(app) as test_client:
         response = test_client.get("/api/v1/me", headers=auth("token-alice"))
-    assert response.status_code == 503
+    assert_error(response, ErrorCode.DEPENDENCY_UNAVAILABLE)
 
 
 # ---- 소유권 -----------------------------------------------------------------
@@ -151,7 +159,7 @@ def test_user_id_in_patch_body_is_rejected_and_nothing_changes(client, repositor
         headers=auth("token-alice"),
         json={"user_id": str(BOB_ID), "display_name": "해킹"},
     )
-    assert response.status_code == 422
+    assert_error(response, ErrorCode.VALIDATION_FAILED)
     assert repository.get(BOB_ID).display_name == "밥"
     assert repository.get(ALICE_ID).display_name == "앨리스"
 
@@ -166,6 +174,7 @@ def test_patch_changes_only_the_token_owner(client, repository):
 def test_no_path_for_other_users_profile(client):
     response = client.get(f"/api/v1/me/{BOB_ID}", headers=auth("token-alice"))
     assert response.status_code in (404, 405)
+    assert response.json()["code"] in ("NOT_FOUND", "METHOD_NOT_ALLOWED")
 
 
 # ---- 부분 수정 ----------------------------------------------------------------
@@ -216,7 +225,7 @@ def test_patch_accepts_max_lengths(client):
 
 def test_patch_unknown_user_returns_404(client):
     response = client.patch("/api/v1/me", headers=auth("token-ghost"), json={"headline": "x"})
-    assert response.status_code == 404
+    assert_error(response, ErrorCode.NOT_FOUND)
 
 
 # ---- 422 -------------------------------------------------------------------
@@ -242,13 +251,13 @@ def test_patch_unknown_user_returns_404(client):
 def test_patch_invalid_payload_returns_422_and_changes_nothing(client, repository, payload):
     before = repository.get(ALICE_ID)
     response = client.patch("/api/v1/me", headers=auth("token-alice"), json=payload)
-    assert response.status_code == 422
+    assert_error(response, ErrorCode.VALIDATION_FAILED)
     assert repository.get(ALICE_ID) == before
 
 
 def test_patch_non_object_body_returns_422(client):
     response = client.patch("/api/v1/me", headers=auth("token-alice"), json=["headline"])
-    assert response.status_code == 422
+    assert_error(response, ErrorCode.VALIDATION_FAILED)
 
 
 # ---- OpenAPI -----------------------------------------------------------------
@@ -260,3 +269,8 @@ def test_openapi_lists_me_operations(client):
     patch_schema = spec["components"]["schemas"]["MePatch"]
     assert patch_schema["additionalProperties"] is False
     assert "user_id" not in patch_schema["properties"]
+    get_responses = spec["paths"]["/api/v1/me"]["get"]["responses"]
+    for status in ("401", "404", "422", "500", "503"):
+        assert get_responses[status]["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorResponse"
+        }
