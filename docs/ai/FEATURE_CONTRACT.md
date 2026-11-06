@@ -1,6 +1,6 @@
 # AI·ML 공통 데이터·Feature 계약 초안 (T25)
 
-상태: **DRAFT / NOT APPROVED / PARTIAL**. 기준 `main` 0f34dd6. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17과 T06 최종 계약은 미확정이다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
+상태: **DRAFT / NOT APPROVED / PARTIAL**. 기준 `main` 0f34dd6. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17은 main에 병합됐고 데이터 사전은 DRAFT이며, T06 PR #29는 검토 중이다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
 
 ## 1. 목적과 용어
 
@@ -43,7 +43,7 @@ Feature(피처)는 계산이나 모델에 넣는 정보다. 예를 들어 `Pytho
 
 ## 4. Skill Gap 예시와 결정 필요 항목
 
-직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. T05 PR #17 데이터 사전에도 동일한 안이 있지만 PR은 미병합이고 T04 요구사항 역시 PM 승인 전이다. 원본 `미입력`과 실제 입력값을 구분해 보존하는 방법과 계산 시 변환은 별도로 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
+직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. 병합된 T05 데이터 사전은 `user_skills.proficiency`의 NULL을 보존하고, `skill_gap_items.observed_level`에는 계산용 0을 기록하는 안이다. 데이터 사전에는 DRAFT·PM/DB 리뷰 대기 상태가 표시되어 있다. 원본 `미입력`과 실제 입력값을 구분해 보존하는 방법과 계산 시 변환은 별도로 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
 
 ## 5. 시점·분할·출처·개인정보
 
@@ -55,8 +55,8 @@ Feature(피처)는 계산이나 모델에 넣는 정보다. 예를 들어 `Pytho
 
 DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, 데이터 버전, 평가 시점·지표·결과를 연결하는 방안을 검토한다. 규칙 기반 버전 표현, 해시, 보존·삭제 및 DB/API 매핑은 T05/T06 담당자 확인 전 미확정이다.
 
-1. T04/T05의 승인된 최종본과 T06 API 계약의 정확한 버전은 무엇인가?
-2. 1~5의 의미와 요구 수준의 출처는? 미입력 수준은 0과 구분할 것인가?
+1. T05 데이터 사전의 미결 정책 및 T06 API 계약의 최종 승인 버전은 무엇인가?
+2. 1~5의 의미와 요구 수준의 출처는? 원본 NULL과 계산 결과 0을 화면·이력에서 어떻게 구분할 것인가?
 3. 일곱 후보의 실제 범위, 입력별 필수 여부와 권한·동의 근거는?
 4. 각 모델의 기준 시각, 라벨 정의·확보 시점, 분할 기준과 평가 지표는?
 5. 삭제·동의 철회 시 파생 피처, 학습 데이터, 모델 및 결과의 처리 책임은?
@@ -69,8 +69,8 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 
 ## 8. 선행 상태 재확인 (2026-11-06)
 
-- T04 PR #13은 0f34dd6에 병합되었다. 다만 `docs/requirements/README.md`는 요구사항이 PM 승인 전이라고 명시한다. T05 PR #17은 확인 시 미병합이다.
-- T06 Redmine #1529는 확인 시 In Progress/10%였고, T04·T05를 리뷰 중인 선행으로 명시한다. T06 API/DTO 계약 확정과 PM 결정은 아직 기다린다.
+- T04 PR #13과 T05 PR #17은 병합됐다. T05 데이터 사전은 DRAFT / PM·DB 리뷰 대기 / DDL 미적용 상태를 명시한다. PR 설명에는 PostgreSQL 대상 버전 재검증 및 CI 연결이 남아 있다.
+- T06 PR #29는 OpenAPI 3.1 초안으로 검토 중이며 완료나 실제 API 구현을 뜻하지 않는다.
 - 기준 `origin/main` 0f34dd6. 선행 문서 내용과 상태는 변할 수 있으므로 실제 확정·구현·통합 전 최신 버전을 재확인한다.
 
 ## 9. T04 요구사항과 T25 입력 후보 연결 (검토용)
@@ -89,3 +89,17 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 `select_available_example`은 합성 관측값 가운데 기준 시각까지 이용 가능했던 가장 최근 항목을 고르는 예시다. 늦게 들어온 값은 제외하고, 가장 최근 시각이 같은 항목이 둘 이상이면 임의로 고르지 않고 오류를 낸다. 입력 순서를 바꿔도 결과가 같으며, 이용 가능한 항목이 없으면 `None`이다. 동일 대상·동일 피처의 후보를 이미 모았다고 가정하며, 실제 저장소 조회·권한·수정 이력·시간대 정책을 구현하지 않는다. 이 규칙은 팀 합의 전 제안이다.
 
 평가 재현성 검토 시 DB 초안의 `model_versions.model_version_id`와 `model_evaluations.model_version_id` 연결, `dataset_ref`, 지표 및 평가 시각을 확인한다. 데이터셋/피처 버전, 분할 방법, 기준 시각, 코드 버전 및 출처/사용 권한은 별도 기록 후보이며 기존 DB 컬럼에 이미 있다고 가정하지 않는다. 실제 스키마·저장 위치와 보존 기간은 T05/T06 및 담당자와 협의한다. 삭제·동의 철회 시 데이터와 파생 산출물 처리도 미결이다.
+
+## 11. 병합된 T05 사전과 대응 (2026-11-06 확인)
+
+근거: [T05 데이터 사전 v0.2](../../database/DATA_DICTIONARY.md), main 병합 `a004efb`. 이 링크는 PR 기준 main 병합 후 확인 가능하다. 사전은 DRAFT이며 실제 DDL 적용이나 개인정보 처리 검증을 의미하지 않는다.
+
+| 대상 | T05 사전의 후보 | T25/후속 작업에서의 주의 |
+|---|---|---|
+| 입력 | `user_skills.proficiency`: NULL 또는 1~5; `job_role_skills.required_level`: 1~5 | 원본 NULL은 미입력으로 유지하고 계산에만 0 사용 |
+| 결과 | `skill_gap_items.observed_level`: 0~5, `gap = greatest(required_level - observed_level, 0)` | 계산 시점 복사값이다. 미입력임을 결과에 어떻게 표시할지 DTO·화면에서 확인 |
+| 모델 | `model_versions`: `kind`는 rule/ml/llm, `approved_at` NULL은 서비스 사용 금지 | T26/T27도 rule 버전 후보. 초안 버전을 승인된 서비스 모델로 간주하지 않음 |
+| 평가 | `model_evaluations`: 필수 `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | boolean 하나로 누수 부재를 증명할 수 없다. 데이터/피처 버전, 분할·검사 방법·증빙 저장 위치는 별도 협의 |
+| 삭제 | 사용자 원본·관련 행의 삭제 규칙과 문서 원본·인덱스 정리는 별도 책임 | 데이터셋·파생 feature·학습된 모델의 삭제/재학습 정책은 미확정 |
+
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 리뷰 대기 초안이다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. 현재 PR #26의 CI는 `5cbff34`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다.
