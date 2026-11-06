@@ -1,9 +1,9 @@
 # Frontend 개발자 로컬 개발환경 — Windows 11
 
-> 기준 2026-11-06, main SHA `2338031c2dfdcf14c2a7ddba01800cffba10be41`. 현행 **정적 HTML/CSS/Vanilla JavaScript + Nginx**입니다. Node.js/React/Vite/npm 개발 서버는 현재 프로젝트에 없습니다. 전체 기능 30개 및 UI/DB/API 매핑은 **후보 설계**이며 화면/API 구현 완료로 취급하지 않습니다.
+> 기준 2026-11-06, main SHA `2338031c2dfdcf14c2a7ddba01800cffba10be41`. **프런트엔드는 React로 개발합니다(확정).** 정적 HTML은 개발 방식이 아니며, 아래의 현행 PoC에만 해당합니다. 현재 `poc/staging/frontend`의 PoC는 정적 HTML/CSS/Vanilla JavaScript + Nginx이며, React 프로젝트(`package.json`, 빌드 설정)는 아직 저장소에 없습니다. React 골격 구축은 별도 승인 PR로 진행하며, 그 전까지 Node/npm 명령은 `package.json`이 생긴 뒤에만 사용합니다. 전체 기능 30개 및 UI/DB/API 매핑은 **후보 설계**이며 화면/API 구현 완료로 취급하지 않습니다.
 
 ## 1. 가이드 목적 및 대상 개발자
-프런트엔드 담당자가 Windows PC에서 현행 PoC를 실행하고 DevTools로 Nginx→FastAPI 헬스 API를 검증한 뒤, 미구현 제품 화면을 Mock 데이터로 병렬 개발할 수 있도록 안내합니다.
+React로 프런트엔드를 개발하는 담당자가 Windows PC에서 현행 PoC(배포 검증용 정적 페이지)를 실행하고 DevTools로 Nginx→FastAPI 헬스 API를 검증한 뒤, 미구현 제품 화면을 Mock 데이터로 병렬 개발할 수 있도록 안내합니다.
 
 ## 2. 사전 준비사항
 Windows 11, GitHub 접근, Git, VS Code, Edge/Chrome, 선택적으로 Docker Desktop(WSL2 Linux containers; 현행 프록시 통합 실행에 필요). Staging 서버 Ubuntu 26.04의 `/home/kant/ai-career-staging-poc`에는 **이 가이드의 실행 명령을 사용하지 않습니다**. 개인 PC와 Staging은 별개의 환경입니다.
@@ -24,7 +24,7 @@ docker info --format '{{.OSType}}'
 
 **기대 결과:** 버전 출력, Docker linux. **실패 시:** PATH, Docker Desktop 실행, WSL2 확인. Docker가 없는 개발자는 HTML 편집/Mock 설계까지만 진행하고 **현행 Nginx 통합 실행은 HOLD**.
 
-**Node.js 정책:** 현행 소스에 `package.json`과 패키지 매니저 설정이 없으므로 **설치 불필요**. 프레임워크를 확정한 별도 승인 PR 이후 https://nodejs.org/ 에서 승인 버전을 설치하고 `node --version` / `npm --version`, `npm ci` / `npm run dev`를 **실제 package.json이 존재할 때만** 사용합니다.
+**Node.js 정책:** 프런트엔드는 React로 개발하므로 Node.js(LTS)가 필요합니다. https://nodejs.org/ 에서 설치하고 `node --version` / `npm --version`을 확인합니다. 단, 현행 소스에는 아직 `package.json`이 없으므로 `npm ci` / `npm run dev` 등은 **React 골격 PR이 병합되어 `package.json`이 존재할 때만** 사용합니다. 빌드 도구·패키지 매니저·Node 버전은 해당 골격 PR에서 확정하고 이 가이드를 갱신합니다.
 
 ## 4. GitHub 프로젝트 내려받기
 ### STEP 02 — 최신 main Clone
@@ -45,7 +45,7 @@ Get-ChildItem .\poc\staging\frontend
 
 ## 5. 환경 설정
 ### STEP 03 — 실제 폴더 및 API 경로 확인
-**목적:** 존재하지 않는 스택을 가정하지 않음.
+**목적:** 현행 PoC(정적 HTML)의 실제 구조와 API 경로 확인. React 소스는 아직 없으므로 존재하지 않는 폴더를 가정하지 않음.
 
 ~~~powershell
 Set-Location "$HOME\projects\ai-career-platform"
@@ -54,7 +54,7 @@ Get-Content .\poc\staging\frontend\Dockerfile
 Select-String -Path .\poc\staging\frontend\index.html -Pattern 'fetch','getJson','/api/'
 ~~~
 
-**기대 결과:** JS가 상대경로 `/api/health`, `/api/version`, `/api/health/db` 호출. Nginx의 `proxy_pass http://backend:8000/;`가 `/api/` 접두어를 제거해 Backend `/health` 등으로 전달. `frontend/.env`, Node 패키지 설치, 프레임워크 전용 dev server 없음. **실패 시:** 메인 브랜치 및 폴더 확인. 브라우저에서 `file://`로 열면 상대경로 API 프록시가 없으므로 E2E 검증 불가능.
+**기대 결과:** JS가 상대경로 `/api/health`, `/api/version`, `/api/health/db` 호출. Nginx의 `proxy_pass http://backend:8000/;`가 `/api/` 접두어를 제거해 Backend `/health` 등으로 전달. 현행 PoC에는 `frontend/.env`, Node 패키지 설치, dev server가 없음(React 도입 후 변경 예정). **실패 시:** 메인 브랜치 및 폴더 확인. 브라우저에서 `file://`로 열면 상대경로 API 프록시가 없으므로 E2E 검증 불가능.
 
 ### STEP 04 — 로컬 전용 Compose 환경파일
 **목적:** 개인 Docker DB로 Staging과 분리.
@@ -70,7 +70,7 @@ notepad .\.env
 **기대 결과:** 로컬 env 파일만 생성. **실패 시:** 저장 권한/경로 확인. 비밀번호 노출 금지.
 
 ## 6. 로컬 실행
-### STEP 05 — 개인 PC에서 정적 Nginx+FastAPI+Postgres PoC 구동
+### STEP 05 — 개인 PC에서 현행 Nginx+FastAPI+Postgres PoC 구동
 **목적:** 현행 저장소 설정 재현.
 
 ~~~powershell
@@ -117,7 +117,7 @@ Windows 브라우저의 `127.0.0.1`은 자신의 PC이며 **Ubuntu의** `127.0.0
 ### STEP 08 — 미완성 API에 Mock 연결
 **목적:** Backend 미완성 상태에서 UI 병렬 개발.
 
-**실행:** [기능 F-001~F-030/화면 후보](../FULL_SCOPE_TRACEABILITY.md)에서 담당 ID를 선택하고 [API 계약 초안](../API_CONTRACT.md)의 Request/Response, 상태코드, 권한을 대조합니다. 고정 **가상 데이터** JSON을 별도 JS 모듈 또는 테스트 fixture(추가 구조는 PR 승인 후)로 작성합니다. 성공·로딩·빈 데이터·오류(401/403/404/500) 상태를 모두 시연하고 실제 API로 교체할 시점을 기록합니다. `/api/v1/*`는 아직 구현되지 않았으므로 404가 정상; Mock 성공을 실제 서비스 PASS로 표시하지 않습니다.
+**실행:** [기능 F-001~F-030/화면 후보](../FULL_SCOPE_TRACEABILITY.md)에서 담당 ID를 선택하고 [API 계약 초안](../API_CONTRACT.md)의 Request/Response, 상태코드, 권한을 대조합니다. 고정 **가상 데이터** JSON을 React 프로젝트의 별도 Mock 모듈 또는 테스트 fixture(디렉터리 구조는 React 골격 PR에서 확정)로 작성합니다. 성공·로딩·빈 데이터·오류(401/403/404/500) 상태를 모두 시연하고 실제 API로 교체할 시점을 기록합니다. `/api/v1/*`는 아직 구현되지 않았으므로 404가 정상; Mock 성공을 실제 서비스 PASS로 표시하지 않습니다.
 
 **기대 결과:** 화면 디자인/흐름 테스트 가능, E2E는 HOLD. **실패 시:** API 스키마 확정 전 임의 엔드포인트를 실서비스라고 주장하지 않음.
 
@@ -125,12 +125,12 @@ Windows 브라우저의 `127.0.0.1`은 자신의 PC이며 **Ubuntu의** `127.0.0
 ### STEP 09 — UI·빌드·Lint·테스트
 **목적:** 있는 도구만 사용해 증빙 수집.
 
-**실행:** DevTools Console/Network, 모바일 반응형, 키보드 접근성/label, 성공/빈/실패 UI를 확인. `git diff --check`로 공백 오류 검사. 현행 `package.json`이 없으므로 `npm ci`, `npm run build`, `npm run lint`, `npm test`는 **사용 불가/미구현**입니다. 프레임워크·Lint·테스트 도구 채택은 승인된 별도 PR에서 정하고 다시 가이드를 갱신합니다.
+**실행:** DevTools Console/Network, 모바일 반응형, 키보드 접근성/label, 성공/빈/실패 UI를 확인. `git diff --check`로 공백 오류 검사. 현재 `package.json`이 없으므로 `npm ci`, `npm run build`, `npm run lint`, `npm test`는 **아직 사용 불가**입니다. React 골격 PR 병합 후 해당 스크립트가 실제 존재하는 것만 사용하며, Lint·테스트 도구 선택도 그 PR에서 정하고 가이드를 갱신합니다.
 
 **기대 결과:** 화면 캡처·Network·Console 및 수동 검증 기록. **실패 시:** 실제 검증하지 않은 항목은 HOLD 표시.
 
-### STEP 10 — HTML 변경 Preview
-**목적:** 로컬 UI 변경 검증.
+### STEP 10 — 현행 PoC HTML 변경 Preview
+**목적:** 현행 PoC UI 변경 검증. React 도입 후에는 `npm run dev` 등 dev server 기반 Preview로 대체합니다.
 
 ~~~powershell
 Set-Location "$HOME\projects\ai-career-platform\poc\staging"
@@ -149,7 +149,7 @@ git status --short
 
 | 오류 | 해결 |
 |---|---|
-| package.json not found | Node 프로젝트 아님, 현행 정적 HTML 정상 |
+| package.json not found | React 골격 PR 병합 전이면 정상(현행 PoC는 정적 HTML). 병합 후라면 프로젝트 루트 경로 확인 |
 | 18080 already in use | 로컬 점유 확인, 기존 프로세스/컨테이너 임의 종료 금지 |
 | Nginx /api/ 502 | Docker Backend healthy/컨테이너 네트워크 |
 | DB health 503, 화면 Degraded | 로컬 PostgreSQL healthy와 env 확인 |
@@ -169,7 +169,7 @@ Set-Location "$HOME\projects\ai-career-platform"
 git switch main
 git pull --ff-only origin main
 git switch -c feature/REPLACE-REDMINE-ID-frontend
-# index.html 등 담당 파일 수정 및 검증
+# 담당 파일 수정 및 검증 (React 도입 전: index.html 등 / 도입 후: React 소스)
 git status --short
 git diff --check
 git add poc/staging/frontend
@@ -182,12 +182,12 @@ GitHub Pull requests → New pull request: base `main`, compare 본인 브랜치
 **기대 결과:** PR 리뷰 대기. **실패 시:** Git 권한·브랜치 보호·CI 로그 확인.
 
 ## 11. 최종 완료 체크리스트
-- [ ] Git/VS Code/브라우저/Docker 설치(통합 실습 시)
-- [ ] 최신 main Clone, 정적 HTML+Nginx 구조 이해
-- [ ] Node/Vite/React 등을 현행 구현으로 오인하지 않음
+- [ ] Git/VS Code/브라우저/Node.js LTS 설치, Docker 설치(통합 실습 시)
+- [ ] 최신 main Clone, 현행 PoC(배포 검증용 정적 HTML+Nginx)와 React 개발 방식의 차이 이해
+- [ ] React 골격이 병합되기 전에는 React 프로젝트/npm 스크립트가 존재한다고 가정하지 않음
 - [ ] 로컬 전용 .env 비밀번호 준비/비공개
 - [ ] 로컬 18080 화면 및 3개 API/DevTools 결과
 - [ ] CORS/Proxy/API 경로 이해
 - [ ] Mock과 실제 Backend API 상태 명확히 구별
-- [ ] 빌드/Lint 미구현 사실 기록
+- [ ] 빌드/Lint 도입 여부(React 골격 PR 기준) 기록
 - [ ] 화면 캡처·PR·CI·Slack·Redmine, Staging 변경 NO
