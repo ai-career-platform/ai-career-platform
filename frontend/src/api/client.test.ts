@@ -9,11 +9,11 @@ const jsonResponse = (status: number, body: unknown) =>
 
 describe('apiGet', () => {
   it('calls the same-origin /api base path and returns JSON', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { status: 'ok' }));
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, { status: 'ok' }));
 
     const result = await apiGet<{ status: string }>('/health', {
       baseUrl: '/api',
-      useMock: false,
+      mockEnabled: false,
       fetchImpl,
     });
 
@@ -22,17 +22,17 @@ describe('apiGet', () => {
   });
 
   it('throws ApiError with HTTP status on 4xx/5xx', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(503, { detail: 'down' }));
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(503, { detail: 'down' }));
 
     await expect(
-      apiGet('/health/db', { baseUrl: '/api', useMock: false, fetchImpl }),
+      apiGet('/health/db', { baseUrl: '/api', mockEnabled: false, fetchImpl }),
     ).rejects.toMatchObject({ name: 'ApiError', status: 503, path: '/health/db' });
   });
 
   it('throws ApiError with status 0 on network failure', async () => {
-    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const error: unknown = await apiGet('/health', { baseUrl: '/api', useMock: false, fetchImpl }).catch(
+    const error: unknown = await apiGet('/health', { baseUrl: '/api', mockEnabled: false, fetchImpl }).catch(
       (e: unknown) => e,
     );
 
@@ -41,7 +41,7 @@ describe('apiGet', () => {
   });
 
   it('returns fixture data in mock mode and 404 for unknown mock path', async () => {
-    await expect(apiGet('/health', { useMock: true })).resolves.toMatchObject({ status: 'ok' });
-    await expect(apiGet('/v1/jobs', { useMock: true })).rejects.toMatchObject({ status: 404 });
+    await expect(apiGet('/health', { mockEnabled: true })).resolves.toMatchObject({ status: 'ok' });
+    await expect(apiGet('/v1/jobs', { mockEnabled: true })).rejects.toMatchObject({ status: 404 });
   });
 });

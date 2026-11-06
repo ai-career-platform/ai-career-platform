@@ -6,7 +6,7 @@
 |---|---|---|
 | DB | [DB_DEVELOPMENT_SETUP.md](DB_DEVELOPMENT_SETUP.md) | DBeaver / PostgreSQL 18.1, 개인 로컬 격리 DB |
 | Backend | [BACKEND_DEVELOPMENT_SETUP.md](BACKEND_DEVELOPMENT_SETUP.md) | Python + FastAPI 0.115.12 / Uvicorn 0.34.2 / psycopg 3.2.9 |
-| Frontend | [FRONTEND_DEVELOPMENT_SETUP.md](FRONTEND_DEVELOPMENT_SETUP.md) | 정적 HTML/CSS/JavaScript + Nginx (**Node 프레임워크 미도입**) |
+| Frontend | [FRONTEND_DEVELOPMENT_SETUP.md](FRONTEND_DEVELOPMENT_SETUP.md) | **React** + Node.js LTS/npm (React 구조는 T19에서 생성) · 현행 PoC: 정적 HTML/CSS/JavaScript + Nginx |
 
 **실제로 구현된 API:** FastAPI `/health`, `/version`, `/health/db` (Nginx 경유 `/api/health`, `/api/version`, `/api/health/db`).
 

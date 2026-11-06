@@ -25,8 +25,12 @@ export function AppLayout() {
         {!isHome && (
           <aside className="app-sidebar">
             <nav aria-label="주 메뉴" className="app-nav">
-              <NavLink to="/" end>홈</NavLink>
-              <NavLink to="/ui-preview">공통 UI 미리보기</NavLink>
+              <NavLink to="/" end>
+                홈
+              </NavLink>
+              <NavLink to="/ui-preview">
+                공통 UI 미리보기
+              </NavLink>
             </nav>
           </aside>
         )}

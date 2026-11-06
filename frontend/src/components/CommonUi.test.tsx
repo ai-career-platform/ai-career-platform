@@ -7,7 +7,7 @@ import { FormPreview } from '../pages/FormPreview';
 
 describe('T20 공통 UI', () => {
   it('오류 상태에서 다시 시도 동작을 실행한다', () => {
-    const onRetry = vi.fn();
+    const onRetry = vi.fn<() => void>();
 
     render(
       <StatePanel
