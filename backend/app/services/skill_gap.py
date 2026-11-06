@@ -72,3 +72,18 @@ def calculate_skill_gap(requirements: Sequence[Requirement],
         items.append(GapItem(code, required, level, max(required - (level or 0), 0), req.mandatory, missing))
     items.sort(key=lambda item: (-item.gap, item.code))
     return GapResult(tuple(items))
+
+
+def to_snapshot_example(item: GapItem) -> dict:
+    """Map one draft result to a synthetic T05-shaped calculation snapshot.
+
+    No persistence or DB identifier mapping; the source value remains untouched.
+    """
+    if not isinstance(item, GapItem):
+        raise ValueError("GapItem이 필요합니다")
+    return {
+        'skill_code': item.code,
+        'required_level': item.required_level,
+        'observed_level': 0 if item.observed_level is None else item.observed_level,
+        'gap': item.gap,
+    }

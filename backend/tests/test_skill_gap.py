@@ -1,5 +1,5 @@
 import pytest
-from app.services.skill_gap import Requirement, calculate_skill_gap, RULE_VERSION
+from app.services.skill_gap import Requirement, calculate_skill_gap, to_snapshot_example, RULE_VERSION
 
 
 def test_golden_gap_missing_and_deterministic_order():
@@ -30,3 +30,13 @@ def test_reject_duplicate_codes_and_invalid_requirement():
         calculate_skill_gap([Requirement('a', 6)], {})
     with pytest.raises(ValueError):
         calculate_skill_gap([Requirement(' a', 1)], {})
+
+
+def test_snapshot_converts_missing_to_zero_without_mutating_input():
+    observed = {'python': None, 'sql': 2}
+    result = calculate_skill_gap([Requirement('python', 3), Requirement('sql', 3)], observed)
+    snapshots = {item.code: to_snapshot_example(item) for item in result.items}
+    assert snapshots['python'] == {'skill_code': 'python', 'required_level': 3, 'observed_level': 0, 'gap': 3}
+    assert snapshots['sql']['observed_level'] == 2
+    assert observed['python'] is None
+    assert next(item for item in result.items if item.code == 'python').missing_kind == 'not_reported'

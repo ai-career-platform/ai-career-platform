@@ -9,3 +9,5 @@ Redmine #1530. `app/services/skill_gap.py`는 외부 API·DB와 연결되지 않
 ## T05 병합본과 대조 (2026-11-06)
 
 T05 PR #17은 main `a004efb`에 병합됐다. 데이터 사전은 아직 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `user_skills.proficiency`는 NULL을 허용하고 계산 시 0으로 취급한다. `skill_gap_items.observed_level`은 NULL이 아닌 0~5 계산 스냅샷이다. 현재 함수는 원본 수준을 `None`으로 보존하므로 DB 저장용 0과 직접 동일시하면 안 된다. 저장 변환과 미등록/미입력 표시의 DTO 연결은 미구현·확인 필요다. `model_versions.kind='rule'`이며 `approved_at`이 NULL이면 서비스 사용 금지다. T06 PR #29 역시 리뷰 중인 초안이다.
+
+`to_snapshot_example`은 결과의 미입력 `None`을 계산 스냅샷의 0으로 바꾸는 가상 변환이며 원본은 변경하지 않는다. `skill_code`는 예제 식별자이고 실제 DB의 UUID·assessment_id 매핑, 저장 및 권한 검사는 포함하지 않는다.
