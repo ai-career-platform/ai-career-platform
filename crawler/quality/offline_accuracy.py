@@ -83,6 +83,7 @@ class AccuracyReport:
     unsupported: int
     exact_match_rate: float | None
     coverage_rate: float | None
+    mismatch_rate: float | None
 
     def snapshot(self) -> dict:
         """Safe JSON output; no source HTML or gold/prediction values."""
@@ -96,6 +97,7 @@ class AccuracyReport:
             },
             "exact_match_rate": self.exact_match_rate,
             "coverage_rate": self.coverage_rate,
+            "mismatch_rate": self.mismatch_rate,
             "fields": {item.field: item.verdict.value for item in self.fields},
             "real_site_accuracy_verified": False,
         }
@@ -146,6 +148,7 @@ def evaluate_extraction(case: GoldCase, extracted: HtmlExtraction | None) -> Acc
         unsupported=count(FieldVerdict.NOT_SUPPORTED),
         exact_match_rate=(matches / compared if compared else None),
         coverage_rate=((matches + mismatches) / compared if compared else None),
+        mismatch_rate=(mismatches / compared if compared else None),
     )
 
 
@@ -184,5 +187,6 @@ def aggregate(reports: tuple[AccuracyReport, ...]) -> dict:
         "missing": sum(x.missing for x in reports),
         "exact_match_rate": matches / compared if compared else None,
         "coverage_rate": nonmissing / compared if compared else None,
+        "mismatch_rate": sum(x.mismatches for x in reports) / compared if compared else None,
         "real_site_accuracy_verified": False,
     }
