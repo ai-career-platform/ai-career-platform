@@ -103,7 +103,7 @@ class TestOfflineAccuracy(unittest.TestCase):
             provenance="real_authorized", evidence_ref="approval-ref-in-test-only",
         )
         report = evaluate_html(case=case, html=None)
-        self.assertEqual(report.status, AccuracyStatus.REAL_PARTIAL)
+        self.assertEqual(report.status, AccuracyStatus.REAL_NOT_VERIFIED)
         self.assertEqual(report.matches, 0)
         self.assertFalse(report.snapshot()["real_site_accuracy_verified"])
 
