@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Sequence
 
 from crawler.adapters.jobkorea_fixture import FixtureInputError, JobKoreaFixtureAdapter
 from crawler.normalizer import InvalidPosting, normalize
 from crawler.storage.memory import MemoryPostingStore, PostingStore
+from crawler.storage.postgres import PostgresPostingStore, UnsafeDatabaseTarget, connect_local_training_db
 
 DEFAULT_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "jobkorea_synthetic.json"
 
@@ -61,9 +63,9 @@ def run(*, source_id: str, run_id: str, fixture: Path, store: PostingStore | Non
         "inserted": inserted,
         "updated": updated,
         "unchanged": unchanged,
-        "store": "in_memory_only",
+        "store": "local_postgres" if isinstance(repository, PostgresPostingStore) else "in_memory_only",
         "invalid": invalid,
-        "db_writes": 0,
+        "db_writes": inserted + updated if isinstance(repository, PostgresPostingStore) else 0,
         "external_requests": 0,
         "status": "SUCCEEDED" if invalid == 0 and len(keys) == len(unique) else "PARTIAL",
     }
@@ -74,10 +76,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--source-id", required=True, choices=["jobkorea"])
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
+    parser.add_argument("--store", choices=["memory", "postgres"], default="memory")
     args = parser.parse_args(argv)
     try:
-        summary = run(source_id=args.source_id, run_id=args.run_id, fixture=args.fixture)
-    except (FixtureInputError, ValueError) as exc:
+        if args.store == "postgres":
+            dsn = os.environ.get("CRAWLER_LOCAL_DATABASE_URL", "")
+            with connect_local_training_db(dsn) as connection:
+                repository = PostgresPostingStore(connection)
+                summary = run(
+                    source_id=args.source_id, run_id=args.run_id,
+                    fixture=args.fixture, store=repository,
+                )
+        else:
+            summary = run(source_id=args.source_id, run_id=args.run_id, fixture=args.fixture)
+    except (FixtureInputError, ValueError, UnsafeDatabaseTarget) as exc:
         parser.exit(2, f"Fixture validation failed: {exc}\n")
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
     return 0 if summary["status"] == "SUCCEEDED" else 1

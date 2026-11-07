@@ -64,3 +64,60 @@ py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
 기존 STEP 01~02 테스트 15개 + 신규 저장 계약 테스트 7개 = **총 22개 테스트 예상**. 새 CLI 출력에는 `store: "in_memory_only"`, `inserted: 2`, `updated: 0`, `unchanged: 0`가 추가됩니다. 이는 기대값이며 실제 로컬 실행 결과는 별도 검증해야 합니다.
 
 **후속 단계:** 격리된 로컬 DB에 대한 실제 Persistence Adapter 구현·테스트는 별도 PR/승인 범위로 분리합니다. 실제 잡코리아 페이지 접근, 운영 DB, Ubuntu Staging, 자동 수집·스케줄은 이번 PR에 포함하지 않습니다.
+
+## STEP 04 — 격리된 로컬 PostgreSQL 저장소 (OPT-IN)
+
+**목표:** 기존 합성 Fixture 2건을 로컬 학습 DB에 INSERT하고 동일 데이터 재실행은 `unchanged`, 변경된 합성 공고는 `updated`로 검증한다. **실제 잡코리아 웹페이지 요청은 여전히 0건**이다. 메모리 CLI 기본 동작과 기존 테스트는 유지된다.
+
+### 1. 안전 경계
+
+- Windows 11 PC의 **별도 로컬 데이터베이스 `ai_career_crawler_training`**만 연결 가능. 외부 호스트·기존 `ai_career_poc`·Staging/운영 DB를 지정하면 코드에서 거부한다.
+- **전용 비관리자 PostgreSQL 계정**을 사용하고, 해당 학습 DB의 `crawler_training.postings` 테이블에만 필요한 권한을 부여한다. `postgres` 및 `ai_career_poc` 사용자명은 연결 거부.
+- DB/계정/스키마를 프로그램에서 자동 생성하지 않는다. DB 관리자가 **로컬 DB임을 확인한 후** 별도 생성하고, 해당 DB에서만 [학습용 SQL](storage/local_training_schema.sql)을 적용한다.
+- 잡코리아 실데이터, API, 로컬 외부 사이트 요청, DDL Migration, 정식 `career` 스키마, Ubuntu Staging/운영 배포는 범위 외.
+- 비밀번호·DB 연결 URI를 Git에 커밋하거나 이슈·PR·채팅에 복사하지 않는다. 연결 설정은 실행 프로세스의 환경변수에서만 받는다.
+
+### 2. 환경 준비
+
+로컬 PostgreSQL의 전용 DB와 최소권한 역할 설정이 완료된 후, `crawler`가 사용할 패키지를 같은 로컬 가상환경에 설치한다.
+
+```powershell
+py -3.12 -m pip install "psycopg[binary]==3.3.4"
+```
+
+학습용 DDL은 `crawler/storage/local_training_schema.sql`에 있다. **다른 DB로 실행하지 말 것.** DDL을 적용하려면 로컬 DB 관리자에게 `ai_career_crawler_training` DB 및 계정 권한을 먼저 확인한다.
+
+### 3. 오프라인 기본 검증 (DB 불필요)
+
+```powershell
+py -3.12 -m unittest discover -s crawler/tests -v
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
+```
+
+STEP 03 22개 + STEP 04 신규 11개 = **총 33개 테스트 예상**. DB/네트워크가 없어도 실행 가능하다.
+
+### 4. 로컬 PostgreSQL 실제 검증 (별도 준비 후)
+
+**연결 문자열은 반드시 `CRAWLER_LOCAL_DATABASE_URL` 환경변수로만 입력.** 예시 주소는 구조 설명이며, 실제 비밀번호를 명령행이나 소스에 적지 않는다.
+
+```text
+postgresql://<dedicated-training-user>@127.0.0.1:5432/ai_career_crawler_training
+```
+
+로컬 PostgreSQL 인증은 별도의 안전한 자격증명 설정(예: 로컬 전용 `pgpass` 파일 또는 세션의 비밀 환경변수)을 사용한다. 설정 완료 후:
+
+```powershell
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id pg-training-001 --store postgres
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id pg-training-002 --store postgres
+```
+
+- 1회: `inserted=2, unchanged=0, db_writes=2` 예상
+- 2회: `inserted=0, unchanged=2, db_writes=0` 예상
+- **주의:** 위 숫자는 신규/빈 학습 테이블 기준 **예상값**이다. 이 PR에서 실제 Windows PostgreSQL 연결 또는 INSERT/UPDATE를 실행했다고 주장하지 않는다.
+
+### 5. 운영 및 구현 한계
+
+- 현재 구현은 **단일 프로세스·순차 실행 학습용**이며 다중 Worker 경쟁·장애 후 복구·배치 전체 트랜잭션·운영 마이그레이션을 다루지 않는다.
+- 테이블 `payload jsonb`는 독립 학습용 저장 형식이며 정식 `career.job_postings` 데이터 모델을 변경하지 않는다.
+- `PostgresPostingStore.upsert()`는 공고 1건당 트랜잭션을 수행한다. DB 연결/SQL 오류 시 CLI가 실패하며 성공 결과를 출력하지 않는다.
+- 단계 완료는 **테스트 33개 PASS + 실제 로컬 DB에 1회/2회 결과 확인** 후 판정. Staging 적용은 별도 결정.
