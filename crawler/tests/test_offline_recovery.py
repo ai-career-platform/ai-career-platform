@@ -29,7 +29,7 @@ class TestOfflineRecovery(unittest.TestCase):
 
     def test_at_exact_timeout_expires(self):
         result = self.monitor.inspect(run_id="a", at=self.at(11))
-        self.assertEqual(result, RecoveryDecision.RETRY_ELIGIBLE)
+        self.assertEqual(result, RecoveryDecision.EXPIRED)
         self.assertEqual(self.claims.get("a").status, RunStatus.FAILED)
         self.assertEqual(self.claims.get("a").error_code, "HEARTBEAT_TIMEOUT")
         self.assertIsNone(self.claims.active_run("jobkorea"))
@@ -37,7 +37,7 @@ class TestOfflineRecovery(unittest.TestCase):
     def test_heartbeat_extends_deadline(self):
         self.monitor.heartbeat(run_id="a", at=self.at(8))
         self.assertEqual(self.monitor.inspect(run_id="a", at=self.at(17)), RecoveryDecision.WAIT)
-        self.assertEqual(self.monitor.inspect(run_id="a", at=self.at(18)), RecoveryDecision.RETRY_ELIGIBLE)
+        self.assertEqual(self.monitor.inspect(run_id="a", at=self.at(18)), RecoveryDecision.EXPIRED)
 
     def test_inspection_does_not_change_running_before_timeout(self):
         self.monitor.inspect(run_id="a", at=self.at(10))
