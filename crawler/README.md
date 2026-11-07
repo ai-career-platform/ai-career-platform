@@ -94,7 +94,7 @@ py -3.12 -m unittest discover -s crawler/tests -v
 py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
 ```
 
-STEP 03 22개 + STEP 04 신규 10개 = **총 32개 테스트 예상**. DB/네트워크가 없어도 실행 가능하다.
+STEP 03 22개 + STEP 04 신규 11개 = **총 33개 테스트 예상**. DB/네트워크가 없어도 실행 가능하다.
 
 ### 4. 로컬 PostgreSQL 실제 검증 (별도 준비 후)
 
@@ -120,4 +120,4 @@ py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id pg-training-0
 - 현재 구현은 **단일 프로세스·순차 실행 학습용**이며 다중 Worker 경쟁·장애 후 복구·배치 전체 트랜잭션·운영 마이그레이션을 다루지 않는다.
 - 테이블 `payload jsonb`는 독립 학습용 저장 형식이며 정식 `career.job_postings` 데이터 모델을 변경하지 않는다.
 - `PostgresPostingStore.upsert()`는 공고 1건당 트랜잭션을 수행한다. DB 연결/SQL 오류 시 CLI가 실패하며 성공 결과를 출력하지 않는다.
-- 단계 완료는 **테스트 32개 PASS + 실제 로컬 DB에 1회/2회 결과 확인** 후 판정. Staging 적용은 별도 결정.
+- 단계 완료는 **테스트 33개 PASS + 실제 로컬 DB에 1회/2회 결과 확인** 후 판정. Staging 적용은 별도 결정.
