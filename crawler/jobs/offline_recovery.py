@@ -16,6 +16,7 @@ from crawler.jobs.run_state import RunStatus, _utc
 
 class RecoveryDecision(str, Enum):
     WAIT = "WAIT"
+    EXPIRED = "EXPIRED"
     RETRY_ELIGIBLE = "RETRY_ELIGIBLE"
     STOP_NONRETRYABLE = "STOP_NONRETRYABLE"
     STOP_LIMIT = "STOP_LIMIT"
@@ -101,4 +102,4 @@ class OfflineHeartbeatMonitor:
                 at=instant, error_code="HEARTBEAT_TIMEOUT",
             )
             self._last_seen.pop(run_id, None)
-            return RecoveryDecision.RETRY_ELIGIBLE
+            return RecoveryDecision.EXPIRED
