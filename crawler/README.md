@@ -45,3 +45,22 @@ py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
 - 필수 필드·날짜 오류는 `invalid`에 집계하고, 동일 `source_code+external_posting_id`는 `duplicates`에 집계합니다. **DB 멱등성은 아직 미구현**입니다.
 - 실패한 Fixture JSON 또는 잘못된 소스/실행 ID는 종료코드 2, 레코드 검증 오류·중복이 있으면 종료코드 1, 모두 정상이면 0을 반환합니다.
 - 이 단계는 HTTP 요청·재시도·rate limit·스케줄·실 DB 연동을 다루지 않습니다.
+
+## STEP 03 — 임시 저장 계약과 중복 방지 (in-memory)
+
+- `crawler/storage/memory.py`: `PostingStore.upsert()` Protocol과 `MemoryPostingStore` 구현.
+- 키: `(source_code, external_posting_id)`. 신규는 `inserted`, 동일 내용은 `unchanged`, 같은 키의 변경 데이터는 `updated` 반환.
+- **같은 배치 내 중복:** 첫 번째 유효 공고만 저장 후보로 인정하며 나중에 나타난 동일 키는 `duplicates`에 집계.
+- **반복 배치 테스트:** Python 코드에서 동일 `MemoryPostingStore` 객체를 전달하면 두 번째 실행에서 중복 DB 삽입 없이 `unchanged`로 계산.
+- **중요:** 이 저장소는 **Python 메모리 안에만 존재**하며, CLI를 종료하면 소멸합니다. PostgreSQL·SQLite·파일에 저장하지 않으며 `db_writes=0`, `external_requests=0`입니다. `inserted/updated`는 **메모리 작업 건수**이지 DB 적재 건수가 아닙니다.
+
+Windows 11 PowerShell에서 저장소 최상위:
+
+```powershell
+py -3.12 -m unittest discover -s crawler/tests -v
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
+```
+
+기존 STEP 01~02 테스트 15개 + 신규 저장 계약 테스트 7개 = **총 22개 테스트 예상**. 새 CLI 출력에는 `store: "in_memory_only"`, `inserted: 2`, `updated: 0`, `unchanged: 0`가 추가됩니다. 이는 기대값이며 실제 로컬 실행 결과는 별도 검증해야 합니다.
+
+**후속 단계:** 격리된 로컬 DB에 대한 실제 Persistence Adapter 구현·테스트는 별도 PR/승인 범위로 분리합니다. 실제 잡코리아 페이지 접근, 운영 DB, Ubuntu Staging, 자동 수집·스케줄은 이번 PR에 포함하지 않습니다.
