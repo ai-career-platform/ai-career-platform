@@ -13,6 +13,10 @@
     .eyebrow { color: #3563a7; font-size: 13px; font-weight: 750; letter-spacing: .05em; }
     h1 { margin: 10px 0 8px; font-size: clamp(25px, 5vw, 35px); }
     .intro { color: #596679; line-height: 1.7; margin-bottom: 25px; }
+    .filters { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 22px; }
+    .field { display: grid; gap: 7px; font-size: 13px; color: #425169; }
+    .field input, .field select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 11px; background: white; font: inherit; color: #192536; }
+    @media (max-width: 700px) { .filters { grid-template-columns: 1fr 1fr; } .filters .field:first-child { grid-column: 1 / -1; } }
     .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 25px 0 16px; }
     button { background: #2055a2; border: 0; border-radius: 9px; color: white; padding: 11px 17px; font-size: 14px; font-weight: 700; cursor: pointer; }
     button:disabled { opacity: .65; cursor: progress; }
@@ -35,6 +39,26 @@
   <h1>합성 채용공고 조회 실습</h1>
   <p class="intro">PostgreSQL → FastAPI → JavaScript → 카드 화면<br>
     실제 잡코리아 데이터가 아닌 <strong>가상 공고</strong>만 표시하는 로컬 학습용 페이지입니다.</p>
+  <form id="filters" class="filters">
+    <label class="field">제목 검색
+      <input id="title-search" type="search" maxlength="80" placeholder="예: Python 또는 데이터">
+    </label>
+    <label class="field">지역
+      <select id="location-filter">
+        <option value="">전체</option>
+        <option value="서울">서울</option>
+        <option value="경기">경기</option>
+      </select>
+    </label>
+    <label class="field">고용형태
+      <select id="employment-filter">
+        <option value="">전체</option>
+        <option value="full_time">정규직</option>
+        <option value="contract">계약직</option>
+      </select>
+    </label>
+    <button type="submit">검색</button>
+  </form>
   <div class="toolbar">
     <strong>채용공고 목록</strong>
     <button id="reload" type="button">다시 조회</button>
@@ -48,6 +72,7 @@
   const container = document.getElementById("jobs");
   const status = document.getElementById("status");
   const reload = document.getElementById("reload");
+  const filters = document.getElementById("filters");
   const employment = { full_time: "정규직", contract: "계약직" };
 
   function element(tag, className, value) {
@@ -78,7 +103,14 @@
     status.textContent = "합성 채용공고를 조회하고 있습니다…";
     container.replaceChildren();
     try {
-      const response = await fetch("/jobs?limit=20", { cache: "no-store" });
+      const params = new URLSearchParams({ limit: "20" });
+      const title = document.getElementById("title-search").value.trim();
+      const location = document.getElementById("location-filter").value;
+      const employmentType = document.getElementById("employment-filter").value;
+      if (title) params.set("title", title);
+      if (location) params.set("location", location);
+      if (employmentType) params.set("employment_type", employmentType);
+      const response = await fetch("/jobs?" + params.toString(), { cache: "no-store" });
       if (!response.ok) throw new Error("API " + response.status);
       const jobs = await response.json();
       if (!Array.isArray(jobs)) throw new Error("Unexpected response");
@@ -94,6 +126,7 @@
   }
 
   reload.addEventListener("click", load);
+  filters.addEventListener("submit", (event) => { event.preventDefault(); load(); });
   load();
 </script>
 </body>

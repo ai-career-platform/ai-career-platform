@@ -17,7 +17,12 @@ class TestTrainingFrontend(unittest.TestCase):
     def test_frontend_fetches_same_origin_readonly_endpoint(self):
         with TestClient(app) as client:
             page = client.get("/training").text
-        self.assertIn('fetch("/jobs?limit=20"', page)
+        self.assertIn('fetch("/jobs?" + params.toString()', page)
+        self.assertIn('new URLSearchParams({ limit: "20" })', page)
+        self.assertIn('params.set("title", title)', page)
+        self.assertIn('params.set("location", location)', page)
+        self.assertIn('params.set("employment_type", employmentType)', page)
+        self.assertIn('filters.addEventListener("submit"', page)
         self.assertIn('reload.addEventListener("click", load)', page)
         self.assertIn("document.createElement", page)
         self.assertIn("textContent =", page)

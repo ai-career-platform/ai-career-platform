@@ -28,26 +28,39 @@ class TrainingJob(BaseModel):
     employment_type: str | None = None
 
 
-def read_training_jobs(*, limit: int) -> list[dict]:
+def read_training_jobs(
+    *, limit: int, title: str | None = None, location: str | None = None,
+    employment_type: str | None = None,
+) -> list[dict]:
     """SELECT only; require the separately provisioned, isolated training DB."""
     dsn = os.environ.get("CRAWLER_LOCAL_DATABASE_URL", "")
     validate_local_dsn(dsn)
     # psycopg connection is closed even if SELECT or JSON decoding fails.
     with connect_local_training_db(dsn) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """SELECT payload->>'external_posting_id',
-                          payload->>'source_code',
-                          payload->>'title',
-                          payload->>'company_name',
-                          payload->>'location_text',
-                          payload->>'employment_type'
-                   FROM crawler_training.postings
-                   WHERE source_code = %s
-                     AND external_posting_id LIKE %s
-                   ORDER BY external_posting_id LIMIT %s""",
-                ("jobkorea", "SYNTH-%", limit),
+            # SQL parameters bind all user-provided filter values.
+            where = ["source_code = %s", "external_posting_id LIKE %s"]
+            params: list[str | int] = ["jobkorea", "SYNTH-%"]
+            if title:
+                where.append("strpos(lower(payload->>'title'), lower(%s)) > 0")
+                params.append(title)
+            if location:
+                where.append("payload->>'location_text' = %s")
+                params.append(location)
+            if employment_type:
+                where.append("payload->>'employment_type' = %s")
+                params.append(employment_type)
+            sql = (
+                "SELECT payload->>'external_posting_id', "
+                "payload->>'source_code', payload->>'title', "
+                "payload->>'company_name', payload->>'location_text', "
+                "payload->>'employment_type' "
+                "FROM crawler_training.postings WHERE "
+                + " AND ".join(where)
+                + " ORDER BY external_posting_id LIMIT %s"
             )
+            params.append(limit)
+            cursor.execute(sql, tuple(params))
             return [
                 {
                     "external_posting_id": row[0],
@@ -62,11 +75,22 @@ def read_training_jobs(*, limit: int) -> list[dict]:
 
 
 @app.get("/jobs", response_model=list[TrainingJob], tags=["training"])
-def get_jobs(limit: int = Query(default=20, ge=1, le=100)) -> list[dict]:
+def get_jobs(
+    limit: int = Query(default=20, ge=1, le=100),
+    title: str | None = Query(default=None, min_length=1, max_length=80),
+    location: str | None = Query(default=None, min_length=1, max_length=40),
+    employment_type: str | None = Query(default=None, pattern="^(full_time|contract)$"),
+) -> list[dict]:
     try:
-        return read_training_jobs(limit=limit)
+        filters = {}
+        if title is not None:
+            filters["title"] = title
+        if location is not None:
+            filters["location"] = location
+        if employment_type is not None:
+            filters["employment_type"] = employment_type
+        return read_training_jobs(limit=limit, **filters)
     except Exception:
-        # Avoid leaking DSN, DB/SQL details or environment secrets to clients.
         raise HTTPException(status_code=503, detail="Training database unavailable") from None
 
 
