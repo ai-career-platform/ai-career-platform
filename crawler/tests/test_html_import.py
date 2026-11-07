@@ -62,7 +62,8 @@ class HtmlImportTests(unittest.TestCase):
         with patch.object(importer, '_get', side_effect=['User-agent: *\nAllow: /', OSError('timeout'), sample()]):
             with patch.object(importer.time, 'sleep') as sleep:
                 result = list(importer.fetch_pages(urls))
-        self.assertEqual(result[0], (urls[0], ''))
+        self.assertEqual(result[0][0], urls[0])
+        self.assertEqual(result[0][1].reason, 'NETWORK_ERROR')
         self.assertEqual(result[1], (urls[1], sample()))
         self.assertEqual(sleep.call_count, 2)
 

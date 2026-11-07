@@ -30,7 +30,21 @@ robots 검사, 15초 timeout, 최소 2초 간격, 최대 10건, redirect/403/429
 py -3.12 -m crawler.jobs.import_jobkorea_html --list-html C:\path\jobkorea_list.html
 ```
 
-현재 단계는 **외부 네트워크 호출·DB 저장 없이** 합성 데이터로만 DTO/입력검사를 학습합니다. 잡코리아 공고 페이지를 실제 수집하거나 상용 연동한 구현이 아닙니다.
+라이브 목록 → 상세 → 학습 DB 실행(최대 10건, 예시는 5건):
+
+```powershell
+py -3.12 -m crawler.jobs.import_jobkorea_html --list-url "https://www.jobkorea.co.kr/Search/?stext=ax&tabType=recruit" --limit 5
+```
+
+HTTP 403/429·redirect·접근 challenge는 배치를 즉시 중단하고 `stopped`에 사유와
+HTTP 상태를 기록합니다. 404/500·timeout 등 개별 공고 실패는 `errors`에 기록하고
+다음 공고를 처리합니다. 실패해도 이미 저장된 공고는 보호합니다. HTML 목록과
+상세 요청은 robots 확인 및 요청 간격을 공유하며 재시도하지 않습니다.
+2026-11-07 제한 실행에서 라이브 목록과 상세 5건의 파싱·DB 저장·API 조회·화면
+표시를 확인했고, 같은 공고 1건 재수집은 `unchanged=1`이었습니다. 당시 소량 검증
+결과이며 모든 페이지/향후 접근 또는 재배포 권한을 보증하지 않습니다.
+
+아래 STEP 기록은 초기 합성 데이터 개발 이력입니다. STEP 01 당시에는 **외부 네트워크 호출·DB 저장 없이** DTO/입력검사만 검증했습니다. 현재 실행 방법과 라이브 검증 범위는 위 MVP 설명을 기준으로 합니다.
 
 ## 구성
 
