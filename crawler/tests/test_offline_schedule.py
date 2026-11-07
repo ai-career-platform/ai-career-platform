@@ -46,8 +46,8 @@ class TestOfflineSchedule(unittest.TestCase):
     def test_expired_after_window(self):
         self.assertEqual(self.decision(31), ScheduleDecision.WINDOW_EXPIRED)
 
-    def test_day_before_expired_not_replayed_next_day(self):
-        self.assertEqual(self.decision(24 * 60 + 1), ScheduleDecision.NOT_DUE)
+    def test_before_next_day_slot_does_not_replay_yesterday(self):
+        self.assertEqual(self.decision(23 * 60 + 40), ScheduleDecision.NOT_DUE)
 
     def test_same_slot_already_dispatched(self):
         self.assertEqual(
