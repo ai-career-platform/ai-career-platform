@@ -5,7 +5,7 @@ Pass an explicit evaluation date to make results deterministic.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 from crawler.normalizer import NormalizedPosting
@@ -28,7 +28,7 @@ def classify_posting(posting: NormalizedPosting, *, as_of: date) -> Lifecycle:
     """
     if not isinstance(posting, NormalizedPosting):
         raise TypeError("posting must be NormalizedPosting")
-    if not isinstance(as_of, date) or isinstance(as_of, __import__("datetime").datetime):
+    if not isinstance(as_of, date) or isinstance(as_of, datetime):
         raise TypeError("as_of must be a date, not a datetime")
     if posting.status == "closed":
         return Lifecycle.CLOSED
