@@ -28,6 +28,48 @@ class TrainingJob(BaseModel):
     employment_type: str | None = None
 
 
+class CollectedJob(TrainingJob):
+    source_url: str
+    collected_at: str
+    evidence: str
+
+
+def read_collected_jobs(*, limit, title=None, location=None, employment_type=None):
+    dsn = os.environ.get('CRAWLER_LOCAL_DATABASE_URL', '')
+    validate_local_dsn(dsn)
+    where = ['source_code IN (%s, %s)']
+    params = ['jobkorea_live', 'jobkorea_imported']
+    for value, expression in (
+        (title, "strpos(lower(payload->>'title'), lower(%s)) > 0"),
+        (location, "payload->>'location_text' = %s"),
+        (employment_type, "payload->>'employment_type' = %s"),
+    ):
+        if value:
+            where.append(expression)
+            params.append(value)
+    params.append(limit)
+    with connect_local_training_db(dsn) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT payload, updated_at::text FROM crawler_training.postings WHERE '
+                           + ' AND '.join(where) + ' ORDER BY updated_at DESC, external_posting_id LIMIT %s', tuple(params))
+            return [{**payload, 'collected_at': collected_at,
+                     'evidence': 'live_http' if payload['source_code'] == 'jobkorea_live' else 'imported_html'}
+                    for payload, collected_at in cursor.fetchall()]
+
+
+@app.get('/jobs/collected', response_model=list[CollectedJob], tags=['training'])
+def get_collected_jobs(
+    limit: int = Query(default=20, ge=1, le=100),
+    title: str | None = Query(default=None, min_length=1, max_length=80),
+    location: str | None = Query(default=None, min_length=1, max_length=40),
+    employment_type: str | None = Query(default=None, pattern='^(full_time|contract|intern|part_time)$'),
+):
+    try:
+        return read_collected_jobs(limit=limit, title=title, location=location, employment_type=employment_type)
+    except Exception:
+        raise HTTPException(status_code=503, detail='Training database unavailable') from None
+
+
 def read_training_jobs(
     *, limit: int, title: str | None = None, location: str | None = None,
     employment_type: str | None = None,

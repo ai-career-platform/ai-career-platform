@@ -1,5 +1,28 @@
 # T62 — 잡코리아 단일 출처 학습용 정규화 (STEP 01)
 
+## 수동 HTML / HTTP MVP
+
+기존 합성 실행과 별도로, 허용된 HTML 파일 1~10개를 기존 학습 DB에 가져올 수 있습니다.
+`CRAWLER_LOCAL_DATABASE_URL`은 기존 로컬 학습 DB/전용 계정을 지정합니다.
+
+```powershell
+py -3.12 -m crawler.jobs.import_jobkorea_html --url https://www.jobkorea.co.kr/Recruit/GI_Read/12345678 --html C:\path\permitted.html
+```
+
+`--url`과 `--html`을 같은 순서로 반복합니다. HTML 옵션을 생략하면 명시한 URL만
+HTTP 요청합니다. 라이브 실행은 제공자의 접근·저장·표시 허용 범위를 확인한 경우에만 사용합니다.
+robots 검사, 15초 timeout, 최소 2초 간격, 최대 10건, redirect/403/429/CAPTCHA 중단을 적용합니다.
+원본 HTML은 DB에 저장하지 않습니다. 새 스키마 없이 기존 upsert를 사용합니다.
+
+`/training`에서 출처를 선택하면 `/jobs/collected`의 HTTP 수집 또는 가져온 HTML을
+카드별로 구분해 표시합니다. 기존 `/jobs`는 합성 공고 전용입니다.
+가져온 HTML은 실제 데이터라는 증명이 아닙니다.
+
+**검증 범위:** 기존 JSON-LD 파서를 재사용합니다. 허용된 실제 HTML 샘플이 없어
+잡코리아 현행 DOM/JSON-LD 호환성과 라이브 수집은 아직 검증하지 못했습니다.
+테스트 HTML은 직접 구성한 예제이며 실제 잡코리아 응답이 아닙니다.
+실제 HTML에 JobPosting JSON-LD가 없으면 오류로 기록하며 필드를 추측하지 않습니다.
+
 현재 단계는 **외부 네트워크 호출·DB 저장 없이** 합성 데이터로만 DTO/입력검사를 학습합니다. 잡코리아 공고 페이지를 실제 수집하거나 상용 연동한 구현이 아닙니다.
 
 ## 구성
