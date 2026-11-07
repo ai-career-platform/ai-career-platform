@@ -17,6 +17,7 @@ class CollectedJobsTests(unittest.TestCase):
         self.assertEqual(params, ('jobkorea_live', 'jobkorea_imported', "' OR 1=1 --", 'Seoul', 'intern', 10))
         self.assertNotIn('OR 1=1', sql)
         self.assertTrue(sql.startswith('SELECT'))
+        self.assertIn("strpos(payload->>'location_text', %s) = 1", sql)
         self.assertEqual(rows[0]['evidence'], 'imported_html')
 
     def test_collected_endpoint_is_separate(self):

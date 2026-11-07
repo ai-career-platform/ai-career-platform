@@ -18,10 +18,17 @@ robots 검사, 15초 timeout, 최소 2초 간격, 최대 10건, redirect/403/429
 카드별로 구분해 표시합니다. 기존 `/jobs`는 합성 공고 전용입니다.
 가져온 HTML은 실제 데이터라는 증명이 아닙니다.
 
-**검증 범위:** 기존 JSON-LD 파서를 재사용합니다. 허용된 실제 HTML 샘플이 없어
-잡코리아 현행 DOM/JSON-LD 호환성과 라이브 수집은 아직 검증하지 못했습니다.
-테스트 HTML은 직접 구성한 예제이며 실제 잡코리아 응답이 아닙니다.
+**검증 범위:** 기존 JSON-LD 파서를 재사용합니다. 사용자가 제공한 상세 HTML의
+공고 `50242499`에서 제목·기업명·근무지·고용형태·날짜 추출을 검증했습니다.
+`jobkorea_user_detail_jsonld.html`은 해당 파일의 공개 JSON-LD 부분만 발췌한
+회귀용 샘플입니다. 나머지 합성 테스트와 구분하며 라이브 HTTP 취득 증거는 아닙니다.
 실제 HTML에 JobPosting JSON-LD가 없으면 오류로 기록하며 필드를 추측하지 않습니다.
+
+목록 HTML의 상세 링크를 최대 10개 추출하는 오프라인 명령(HTTP/DB 요청 없음):
+
+```powershell
+py -3.12 -m crawler.jobs.import_jobkorea_html --list-html C:\path\jobkorea_list.html
+```
 
 현재 단계는 **외부 네트워크 호출·DB 저장 없이** 합성 데이터로만 DTO/입력검사를 학습합니다. 잡코리아 공고 페이지를 실제 수집하거나 상용 연동한 구현이 아닙니다.
 

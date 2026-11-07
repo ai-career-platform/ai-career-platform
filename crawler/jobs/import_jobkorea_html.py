@@ -17,7 +17,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
-from crawler.adapters.jobkorea_html_offline import parse_jobkorea_html, _source_id
+from crawler.adapters.jobkorea_html_offline import parse_jobkorea_html, parse_jobkorea_list_html, _source_id
 from crawler.storage.postgres import connect_local_training_db, PostgresPostingStore
 
 USER_AGENT = 'AICareerPlatform-Learning/1.0'
@@ -98,10 +98,23 @@ def import_pages(pages, store, *, live=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--url', action='append', required=True, help='Explicit permitted JobKorea detail URL, maximum 10')
+    parser.add_argument('--url', action='append', help='Explicit permitted JobKorea detail URL, maximum 10')
+    parser.add_argument('--list-html', help='Extract up to ten canonical detail URLs from saved list HTML; no HTTP or DB')
     parser.add_argument('--html', action='append', help='Permitted UTF-8 HTML files, one per URL; omitted: live HTTP')
     args = parser.parse_args()
-    if not 1 <= len(args.url) <= 10 or args.html and len(args.html) != len(args.url):
+    if args.list_html:
+        if args.url or args.html:
+            parser.error('--list-html is an offline URL extraction mode; do not combine with --url/--html')
+        path = Path(args.list_html)
+        try:
+            if path.stat().st_size > MAX_BYTES:
+                raise ValueError('HTML exceeds size limit')
+            print(json.dumps({'mode': 'offline_list_html', 'urls': parse_jobkorea_list_html(path.read_text(encoding='utf-8'))}))
+            return 0
+        except (OSError, ValueError) as exc:
+            print(json.dumps({'status': 'STOPPED', 'reason': type(exc).__name__}))
+            return 2
+    if not args.url or not 1 <= len(args.url) <= 10 or args.html and len(args.html) != len(args.url):
         parser.error('Provide 1–10 URLs and matching HTML files')
     try:
         if args.html:

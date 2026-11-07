@@ -98,7 +98,7 @@
         element("div", "id", job.external_posting_id)
       );
       if (job.evidence) {
-        card.append(element("p", "", job.evidence === "live_http" ? "출처 · HTTP 수집" : "출처 · 가져온 HTML (실제 여부 미검증)"));
+        card.append(element("p", "", job.evidence === "live_http" ? "출처 · HTTP 수집" : "출처 · 가져온 HTML (라이브 Fetch 미검증)"));
         card.append(element("p", "", "DB 갱신 시각 · " + job.collected_at));
         try {
           const url = new URL(job.source_url);

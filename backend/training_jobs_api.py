@@ -41,7 +41,7 @@ def read_collected_jobs(*, limit, title=None, location=None, employment_type=Non
     params = ['jobkorea_live', 'jobkorea_imported']
     for value, expression in (
         (title, "strpos(lower(payload->>'title'), lower(%s)) > 0"),
-        (location, "payload->>'location_text' = %s"),
+        (location, "strpos(payload->>'location_text', %s) = 1"),
         (employment_type, "payload->>'employment_type' = %s"),
     ):
         if value:
