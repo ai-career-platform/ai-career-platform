@@ -8,8 +8,10 @@ Never mounted into production backend/app/main.py. Never performs crawling.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from crawler.storage.postgres import connect_local_training_db, validate_local_dsn
@@ -66,3 +68,16 @@ def get_jobs(limit: int = Query(default=20, ge=1, le=100)) -> list[dict]:
     except Exception:
         # Avoid leaking DSN, DB/SQL details or environment secrets to clients.
         raise HTTPException(status_code=503, detail="Training database unavailable") from None
+
+
+# Same-origin training page; no CORS changes or production frontend integration.
+_TRAINING_PAGE = Path(__file__).resolve().parent / "training_frontend" / "index.html"
+
+
+@app.get("/training", include_in_schema=False)
+def training_page() -> FileResponse:
+    return FileResponse(_TRAINING_PAGE, media_type="text/html", headers={
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    })
