@@ -1,0 +1,44 @@
+name: Crawler MVP
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: ai_career_crawler_training
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: pip install fastapi==0.115.12 httpx==0.28.1 'psycopg[binary]==3.3.4'
+      - run: python -m unittest discover -s crawler/tests
+      - run: python -m unittest discover -s backend/training_tests
+      - run: node backend/training_tests/frontend_collected_test.cjs
+      - name: Test constructed HTML through real isolated PostgreSQL and API
+        env:
+          CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_LOCAL_PG_TEST: '1'
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE ROLE crawler_student LOGIN NOSUPERUSER'
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'ALTER DATABASE ai_career_crawler_training OWNER TO crawler_student'
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -f crawler/storage/local_training_schema.sql
+          python -m unittest crawler.tests.local_html_pg_integration -v

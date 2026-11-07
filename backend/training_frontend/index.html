@@ -39,6 +39,7 @@
   <h1>합성 채용공고 조회 실습</h1>
   <p class="intro">PostgreSQL → FastAPI → JavaScript → 카드 화면<br>
     실제 잡코리아 데이터가 아닌 <strong>가상 공고</strong>만 표시하는 로컬 학습용 페이지입니다.</p>
+  <label class="field">데이터 출처<select id="dataset"><option value="synthetic">합성 공고</option><option value="collected">수집 / 가져온 HTML (라이브 검증과 구분)</option></select></label>
   <form id="filters" class="filters">
     <label class="field">제목 검색
       <input id="title-search" type="search" maxlength="80" placeholder="예: Python 또는 데이터">
@@ -73,7 +74,9 @@
   const status = document.getElementById("status");
   const reload = document.getElementById("reload");
   const filters = document.getElementById("filters");
-  const employment = { full_time: "정규직", contract: "계약직" };
+  const dataset = document.getElementById("dataset");
+  let requestSequence = 0;
+  const employment = { full_time: "정규직", contract: "계약직", intern: "인턴", part_time: "시간제" };
 
   function element(tag, className, value) {
     const item = document.createElement(tag);
@@ -94,13 +97,26 @@
         element("p", "", "지역 · " + (job.location_text || "정보 없음")),
         element("div", "id", job.external_posting_id)
       );
+      if (job.evidence) {
+        card.append(element("p", "", job.evidence === "live_http" ? "출처 · HTTP 수집" : "출처 · 가져온 HTML (라이브 Fetch 미검증)"));
+        card.append(element("p", "", "DB 갱신 시각 · " + job.collected_at));
+        try {
+          const url = new URL(job.source_url);
+          if (url.protocol === "https:" && ["www.jobkorea.co.kr", "jobkorea.co.kr"].includes(url.hostname) && /^\/Recruit\/GI_Read\/\d+$/i.test(url.pathname) && !url.username && !url.password && !url.port && !url.search && !url.hash) {
+            const link = element("a", "", "잡코리아 원본 공고");
+            link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+            card.append(link);
+          }
+        } catch (_) {}
+      }
       container.append(card);
     }
   }
 
   async function load() {
+    const requestId = ++requestSequence;
     reload.disabled = true;
-    status.textContent = "합성 채용공고를 조회하고 있습니다…";
+    status.textContent = "채용공고를 조회하고 있습니다…";
     container.replaceChildren();
     try {
       const params = new URLSearchParams({ limit: "20" });
@@ -110,21 +126,31 @@
       if (title) params.set("title", title);
       if (location) params.set("location", location);
       if (employmentType) params.set("employment_type", employmentType);
-      const response = await fetch("/jobs?" + params.toString(), { cache: "no-store" });
+      const response = dataset.value === "collected"
+        ? await fetch("/jobs/collected?" + params.toString(), { cache: "no-store" })
+        : await fetch("/jobs?" + params.toString(), { cache: "no-store" });
       if (!response.ok) throw new Error("API " + response.status);
       const jobs = await response.json();
+      if (requestId !== requestSequence) return;
       if (!Array.isArray(jobs)) throw new Error("Unexpected response");
       draw(jobs);
       status.textContent = jobs.length ? "조회 완료 · " + jobs.length + "건" : "조회 결과가 없습니다.";
-      if (!jobs.length) container.append(element("p", "notice", "표시할 합성 채용공고가 없습니다."));
+      if (!jobs.length) container.append(element("p", "notice", "선택한 출처의 공고가 없습니다."));
     } catch (_error) {
+      if (requestId !== requestSequence) return;
       status.textContent = "조회 실패";
       container.append(element("p", "notice error", "조회에 실패했습니다. 학습용 DB 연결 상태와 서버 로그를 확인하세요."));
     } finally {
-      reload.disabled = false;
+      if (requestId === requestSequence) reload.disabled = false;
     }
   }
 
+  dataset.addEventListener("change", () => {
+    document.querySelector("h1").textContent = dataset.value === "collected" ? "수집 / 가져온 채용공고" : "합성 채용공고 조회 실습";
+    document.querySelector(".intro").textContent = dataset.value === "collected" ? "HTTP 수집 결과와 가져온 HTML을 카드별로 구분합니다. 가져온 HTML은 실제 사이트 검증을 의미하지 않습니다." : "실제 잡코리아 데이터가 아닌 가상 공고를 표시합니다.";
+    container.setAttribute("aria-label", "채용공고 목록");
+    load();
+  });
   reload.addEventListener("click", load);
   filters.addEventListener("submit", (event) => { event.preventDefault(); load(); });
   load();
