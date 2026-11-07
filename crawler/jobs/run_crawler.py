@@ -14,6 +14,7 @@ from crawler.adapters.jobkorea_fixture import (
     JobKoreaFixtureAdapter,
 )
 from crawler.normalizer import InvalidPosting, normalize
+from crawler.quality.batch_gate import check_synthetic_batch
 from crawler.storage.memory import MemoryPostingStore, PostingStore
 from crawler.storage.postgres import (
     PostgresPostingStore,
@@ -42,41 +43,27 @@ def run(
         raise ValueError("run_id must not be blank")
 
     adapter = JobKoreaFixtureAdapter(fixture)
-
-    normalized = []
-    invalid = 0
-
     repository = store if store is not None else MemoryPostingStore()
+    rows = adapter.fetch()
 
-    for raw in adapter.fetch():
+    # Quality checks run before *any* insert/update. A changed source URL for
+    # an existing external ID must be reviewed, not silently overwritten.
+    previous = {}
+    for raw in rows:
         try:
-            normalized.append(normalize(raw))
+            candidate = normalize(raw)
         except InvalidPosting:
-            invalid += 1
-
-    keys = [
-        (item.source_code, item.external_posting_id)
-        for item in normalized
-    ]
-
-    unique = set(keys)
-
-    inserted = 0
-    updated = 0
-    unchanged = 0
-
-    seen_in_batch: set[tuple[str, str]] = set()
-
-    for item in normalized:
-        key = (item.source_code, item.external_posting_id)
-
-        if key in seen_in_batch:
             continue
+        key = (candidate.source_code, candidate.external_posting_id)
+        if key not in previous:
+            old = repository.get(*key)
+            if old is not None:
+                previous[key] = old
 
-        seen_in_batch.add(key)
-
+    quality = check_synthetic_batch(rows, previous=previous)
+    inserted = updated = unchanged = 0
+    for item in quality.accepted:
         outcome = repository.upsert(item)
-
         if outcome == "inserted":
             inserted += 1
         elif outcome == "updated":
@@ -86,25 +73,30 @@ def run(
         else:
             raise ValueError("Unsupported store result")
 
-    is_postgres = isinstance(repository, PostgresPostingStore)
+    reasons: dict[str, int] = {}
+    for issue in quality.issues:
+        reasons[issue.reason.value] = reasons.get(issue.reason.value, 0) + 1
 
+    is_postgres = isinstance(repository, PostgresPostingStore)
     return {
         "run_id": run_id,
         "source_id": adapter.source_code,
         "mode": "synthetic_fixture_only",
-        "fetched": len(keys) + invalid,
-        "normalized": len(unique),
-        "duplicates": len(keys) - len(unique),
+        "fetched": quality.fetched,
+        "normalized": len(quality.accepted),
+        "duplicates": quality.duplicate,
+        "review": quality.review,
+        "reason_counts": dict(sorted(reasons.items())),
         "inserted": inserted,
         "updated": updated,
         "unchanged": unchanged,
         "store": "local_postgres" if is_postgres else "in_memory_only",
-        "invalid": invalid,
+        "invalid": quality.invalid,
         "db_writes": inserted + updated if is_postgres else 0,
         "external_requests": 0,
         "status": (
             "SUCCEEDED"
-            if invalid == 0 and len(keys) == len(unique)
+            if quality.invalid == 0 and quality.duplicate == 0 and quality.review == 0
             else "PARTIAL"
         ),
     }
