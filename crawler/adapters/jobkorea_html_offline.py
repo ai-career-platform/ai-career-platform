@@ -3,8 +3,8 @@
 NO HTTP, browser automation, filesystem, DB or live JobKorea access.
 Only explicit JobPosting JSON-LD is trusted. Missing fields stay missing;
 HTML presentation text, employer address and SEO snippets are not guessed.
-This does not claim compatibility with a real JobKorea page until a licensed
-real HTML fixture is available for STEP 08 accuracy evaluation.
+The user-supplied 2026-11-07 detail-page JSON-LD is covered by a minimal
+regression fixture. This is not evidence of live HTTP collection or all pages.
 """
 from __future__ import annotations
 
@@ -13,13 +13,48 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from html.parser import HTMLParser
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
 
 from crawler.normalizer import InvalidPosting, normalize
 
 
 class HtmlPostingError(ValueError):
     """HTML metadata missing, contradictory or malformed (no raw HTML in error)."""
+
+
+class _PostingLinkCollector(HTMLParser):
+    def __init__(self, limit):
+        super().__init__(convert_charrefs=True)
+        self.limit = limit
+        self.urls = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != 'a' or len(self.urls) >= self.limit:
+            return
+        href = dict(attrs).get('href')
+        if not href:
+            return
+        try:
+            parts = urlsplit(urljoin('https://www.jobkorea.co.kr/', href))
+            # Tracking query/fragment are not part of posting identity.
+            candidate = parts._replace(query='', fragment='').geturl()
+            identifier = _source_id(candidate)
+        except (ValueError, HtmlPostingError):
+            return
+        url = 'https://www.jobkorea.co.kr/Recruit/GI_Read/' + identifier
+        if url not in self.urls:
+            self.urls.append(url)
+
+
+def parse_jobkorea_list_html(html: str, *, limit: int = 10) -> list[str]:
+    """Extract only explicit detail links, in document order; no HTTP requests."""
+    if type(limit) is not int or not 1 <= limit <= 10:
+        raise ValueError('limit must be between 1 and 10')
+    if not isinstance(html, str) or not html.strip() or len(html) > 2_000_000:
+        raise HtmlPostingError('Invalid offline list HTML input')
+    reader = _PostingLinkCollector(limit)
+    reader.feed(html)
+    return reader.urls
 
 
 class _JsonLdCollector(HTMLParser):
