@@ -23,3 +23,25 @@ py -3.12 -m unittest discover -s crawler/tests -v
 잡코리아 실제 HTML 구조의 검증, 실제 Adapter/Worker의 네트워크 fetch, DB 저장, 관리자 스케줄러는 **미구현**입니다. T61 범위·수집 조건을 구분해 검토한 후 작은 단계로 진행합니다.
 
 관련 정책: [JOBKOREA_FIELD_AND_RIGHTS_CONTRACT.md](../docs/data/JOBKOREA_FIELD_AND_RIGHTS_CONTRACT.md).
+
+## STEP 02 — Offline Adapter + CLI Batch Worker
+
+**추가 구현 범위:** `adapters/base.py`의 출처 인터페이스, `adapters/jobkorea_fixture.py`의 JSON Fixture Adapter, `jobs/run_crawler.py`의 CLI 실행·요약 통계. **실사이트 HTTP 요청·DB 저장 기능은 구현하지 않았습니다.**
+
+Repository 최상위에서:
+
+```powershell
+py -3.12 -m unittest discover -s crawler/tests -v
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id training-001
+```
+
+정상 Fixture 기준 예상 출력은 다음과 같으며, **실제 실행 결과가 아니라 기대값**입니다.
+
+```json
+{"db_writes":0,"duplicates":0,"external_requests":0,"fetched":2,"invalid":0,"mode":"synthetic_fixture_only","normalized":2,"run_id":"training-001","source_id":"jobkorea","status":"SUCCEEDED"}
+```
+
+- 소스는 `jobkorea` 한 가지만 허용합니다.
+- 필수 필드·날짜 오류는 `invalid`에 집계하고, 동일 `source_code+external_posting_id`는 `duplicates`에 집계합니다. **DB 멱등성은 아직 미구현**입니다.
+- 실패한 Fixture JSON 또는 잘못된 소스/실행 ID는 종료코드 2, 레코드 검증 오류·중복이 있으면 종료코드 1, 모두 정상이면 0을 반환합니다.
+- 이 단계는 HTTP 요청·재시도·rate limit·스케줄·실 DB 연동을 다루지 않습니다.
