@@ -1,0 +1,24 @@
+[
+  {
+    "external_posting_id": "SYNTH-AX-001",
+    "source_url": "https://www.jobkorea.co.kr/Recruit/GI_Read/123456",
+    "title": "AI 데이터 분석 실습 개발자",
+    "company_name": "가상기업 Alpha",
+    "location_text": "서울",
+    "employment_type": "full_time",
+    "published_on": "2026-11-01",
+    "expires_on": "2026-11-30",
+    "status": "published"
+  },
+  {
+    "external_posting_id": "SYNTH-AX-002",
+    "source_url": "https://www.jobkorea.co.kr/Recruit/GI_Read/123457",
+    "title": "Python 백엔드 개발 실습",
+    "company_name": "가상기업 Beta",
+    "location_text": "경기",
+    "employment_type": "contract",
+    "published_on": "2026-11-02",
+    "expires_on": null,
+    "status": "published"
+  }
+]
