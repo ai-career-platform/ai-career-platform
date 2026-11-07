@@ -5,8 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.concurrency import run_in_threadpool
 
+from app.core.auth_config import AuthSettings
 from app.core.config import APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
 from app.routers import api_v1, system
@@ -38,6 +40,8 @@ def create_app() -> FastAPI:
     app.state.ready = False
     app.state.settings = settings
     app.state.db_session_factory = None
+    app.state.auth_settings = AuthSettings.from_env(settings.app_env)
+    app.state.attempt_limiter = AttemptLimiter()
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)
     app.include_router(system.router)

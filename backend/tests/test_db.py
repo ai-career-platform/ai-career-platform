@@ -122,7 +122,8 @@ def test_session_rollback_and_orm_to_pydantic():
     engine = create_engine(
         "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
     )
-    Base.metadata.create_all(engine)
+    # 실제 모델(career 스키마)은 SQLite에 만들 수 없으므로 이 테스트용 테이블만 만든다.
+    Base.metadata.create_all(engine, tables=[Item.__table__])
     app = FastAPI()
     app.state.db_session_factory = create_session_factory(engine)
 
