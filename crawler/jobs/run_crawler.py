@@ -12,11 +12,12 @@ from typing import Sequence
 
 from crawler.adapters.jobkorea_fixture import FixtureInputError, JobKoreaFixtureAdapter
 from crawler.normalizer import InvalidPosting, normalize
+from crawler.storage.memory import MemoryPostingStore, PostingStore
 
 DEFAULT_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "jobkorea_synthetic.json"
 
 
-def run(*, source_id: str, run_id: str, fixture: Path) -> dict:
+def run(*, source_id: str, run_id: str, fixture: Path, store: PostingStore | None = None) -> dict:
     if source_id != "jobkorea":
         raise ValueError("Only jobkorea is supported")
     if not run_id or not run_id.strip():
@@ -24,6 +25,8 @@ def run(*, source_id: str, run_id: str, fixture: Path) -> dict:
     adapter = JobKoreaFixtureAdapter(fixture)
     normalized = []
     invalid = 0
+    # In-memory only; callers can reuse a store across training runs.
+    repository = store if store is not None else MemoryPostingStore()
     for raw in adapter.fetch():
         try:
             normalized.append(normalize(raw))
@@ -31,6 +34,23 @@ def run(*, source_id: str, run_id: str, fixture: Path) -> dict:
             invalid += 1
     keys = [(item.source_code, item.external_posting_id) for item in normalized]
     unique = set(keys)
+    inserted = updated = unchanged = 0
+    seen_in_batch: set[tuple[str, str]] = set()
+    for item in normalized:
+        key = (item.source_code, item.external_posting_id)
+        if key in seen_in_batch:
+            # Duplicate raw rows never overwrite the first accepted row in this batch.
+            continue
+        seen_in_batch.add(key)
+        outcome = repository.upsert(item)
+        if outcome == "inserted":
+            inserted += 1
+        elif outcome == "updated":
+            updated += 1
+        elif outcome == "unchanged":
+            unchanged += 1
+        else:
+            raise ValueError("Unsupported store result")
     return {
         "run_id": run_id,
         "source_id": adapter.source_code,
@@ -38,6 +58,10 @@ def run(*, source_id: str, run_id: str, fixture: Path) -> dict:
         "fetched": len(keys) + invalid,
         "normalized": len(unique),
         "duplicates": len(keys) - len(unique),
+        "inserted": inserted,
+        "updated": updated,
+        "unchanged": unchanged,
+        "store": "in_memory_only",
         "invalid": invalid,
         "db_writes": 0,
         "external_requests": 0,
