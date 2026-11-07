@@ -35,7 +35,12 @@ def run(
     run_id: str,
     fixture: Path,
     store: PostingStore | None = None,
+    collection_mode: str = "synthetic_fixture_only",
 ) -> dict:
+    # No live adapter exists; refuse before opening fixtures, stores or a DB.
+    # A caller-supplied APPROVED policy is not sufficient to enable live access.
+    if collection_mode != "synthetic_fixture_only":
+        raise ValueError("Live collection is disabled: T61 approval and integration HOLD")
     if source_id != "jobkorea":
         raise ValueError("Only jobkorea is supported")
 
@@ -124,7 +129,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="memory",
     )
 
+    parser.add_argument(
+        "--collection-mode",
+        default="synthetic_fixture_only",
+        choices=["synthetic_fixture_only", "live_jobkorea"],
+        help="Live mode is a deliberately blocked placeholder (T61 HOLD)",
+    )
+
     args = parser.parse_args(argv)
+
+    # Fail closed *before* optional psycopg import, DSN lookup, file or DB access.
+    # This is deliberately independent of any unverified approval policy input.
+    if args.collection_mode != "synthetic_fixture_only":
+        parser.exit(2, "Live collection disabled: T61 approval HOLD; no live adapter\n")
 
     try:
         if args.store == "postgres":
