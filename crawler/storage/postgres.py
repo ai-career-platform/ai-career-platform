@@ -43,6 +43,22 @@ class PostgresPostingStore:
     def __init__(self, connection) -> None:
         self.connection = connection
 
+    def get(self, source_code: str, external_posting_id: str) -> NormalizedPosting | None:
+        """Read a prior local training posting for identity review (no write)."""
+        with self.connection.cursor() as cur:
+            cur.execute(
+                """SELECT payload FROM crawler_training.postings
+                   WHERE source_code = %s AND external_posting_id = %s""",
+                (source_code, external_posting_id),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        payload = row[0]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return NormalizedPosting(**payload)
+
     def upsert(self, posting: NormalizedPosting) -> WriteResult:
         payload = json.dumps(posting.to_dict(), ensure_ascii=False, sort_keys=True)
         with self.connection.transaction():
