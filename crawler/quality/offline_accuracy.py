@@ -137,7 +137,7 @@ def evaluate_extraction(case: GoldCase, extracted: HtmlExtraction | None) -> Acc
     compared = matches + mismatches + missing
     status = (
         AccuracyStatus.SYNTHETIC_ONLY if case.provenance == "synthetic"
-        else AccuracyStatus.REAL_PARTIAL if compared else AccuracyStatus.REAL_NOT_VERIFIED
+        else AccuracyStatus.REAL_PARTIAL if extracted is not None and compared else AccuracyStatus.REAL_NOT_VERIFIED
     )
     return AccuracyReport(
         provenance=case.provenance, status=status, fields=tuple(fields),
