@@ -21,7 +21,9 @@ def validate_local_dsn(dsn: str) -> None:
     if not dsn:
         raise UnsafeDatabaseTarget("CRAWLER_LOCAL_DATABASE_URL is required")
     parts = urlsplit(dsn)
-    if parts.query or parts.fragment:\n        raise UnsafeDatabaseTarget("URL options and fragments are not permitted")\n    if parts.scheme not in {"postgresql", "postgres"}:
+    if parts.query or parts.fragment:
+        raise UnsafeDatabaseTarget("URL options and fragments are not permitted")
+    if parts.scheme not in {"postgresql", "postgres"}:
         raise UnsafeDatabaseTarget("Use a postgres:// or postgresql:// URL")
     if parts.hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise UnsafeDatabaseTarget("Only a local PostgreSQL host is permitted")
