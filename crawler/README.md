@@ -121,3 +121,22 @@ py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id pg-training-0
 - 테이블 `payload jsonb`는 독립 학습용 저장 형식이며 정식 `career.job_postings` 데이터 모델을 변경하지 않는다.
 - `PostgresPostingStore.upsert()`는 공고 1건당 트랜잭션을 수행한다. DB 연결/SQL 오류 시 CLI가 실패하며 성공 결과를 출력하지 않는다.
 - 단계 완료는 **테스트 33개 PASS + 실제 로컬 DB에 1회/2회 결과 확인** 후 판정. Staging 적용은 별도 결정.
+
+
+## STEP 06 — 오프라인 재시도·요청 간격·차단 정책 모의 실습
+
+- `adapters/offline_retry.py`는 **주입받은 가짜 요청 함수**만 실행하는 순수 Python 정책 실습이다. HTTP 라이브러리를 가져오지 않고, Worker CLI / 실제 사이트 수집 경로에도 연결하지 않는다.
+- `tests/test_offline_retry.py`: 성공, 5xx, 타임아웃, 연결 실패, 유한 재시도, 지수 백오프 상한, 재시도 간 최소 간격, 403·429 즉시 중지 등 **15개 시나리오**.
+- HTTP 429는 서버의 제한 신호로 간주하여 **재시도하지 않고 중지**한다. 403도 즉시 중지한다. 5xx/네트워크 일시 오류만 제한된 횟수(기본 최대 3회)로 재시도한다.
+- 모의 요청의 `sleep` 콜백은 대기 시간을 기록하는 가짜 함수다. 실제 시스템 대기·외부 호출·DB 저장은 없다.
+- 최소 간격 설정은 **하나의 요청 시퀀스 내부 재시도 사이**의 검증에만 적용된다. 다수 Worker 간 전역 속도제한 또는 실제 외부 요청 속도 제어 기능은 아직 구현되지 않았다.
+- 기본 CLI는 계속 `synthetic_fixture_only`로 동작하며 `external_requests=0`이다. T61 실사이트 수집 게이트는 여전히 HOLD.
+
+실습 검증:
+
+```powershell
+py -3.12 -m unittest discover -s crawler/tests -v
+py -3.12 -m crawler.jobs.run_crawler --source-id jobkorea --run-id step06-check
+```
+
+STEP 05까지 기존 33개와 STEP 06 추가 15개를 합해 **총 48개 테스트 예상**이며, 실제 실행 결과는 별도로 확인한다.
