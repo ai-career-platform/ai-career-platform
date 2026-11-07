@@ -21,7 +21,7 @@ def validate_local_dsn(dsn: str) -> None:
     if not dsn:
         raise UnsafeDatabaseTarget("CRAWLER_LOCAL_DATABASE_URL is required")
     parts = urlsplit(dsn)
-    if parts.scheme not in {"postgresql", "postgres"}:
+    if parts.query or parts.fragment:\n        raise UnsafeDatabaseTarget("URL options and fragments are not permitted")\n    if parts.scheme not in {"postgresql", "postgres"}:
         raise UnsafeDatabaseTarget("Use a postgres:// or postgresql:// URL")
     if parts.hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise UnsafeDatabaseTarget("Only a local PostgreSQL host is permitted")
@@ -84,4 +84,4 @@ def connect_local_training_db(dsn: str):
     import psycopg
 
     # No implicit schema creation. Local access only.
-    return psycopg.connect(dsn, connect_timeout=5)
+    return psycopg.connect(dsn, hostaddr="127.0.0.1", connect_timeout=5)
