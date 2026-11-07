@@ -6,7 +6,7 @@ psycopg is imported lazily so offline training and tests need no dependencies.
 from __future__ import annotations
 
 import json
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from crawler.normalizer import NormalizedPosting
 from crawler.storage.memory import WriteResult
@@ -27,7 +27,7 @@ def validate_local_dsn(dsn: str) -> None:
         raise UnsafeDatabaseTarget("Only a local PostgreSQL host is permitted")
     if parts.path != "/ai_career_crawler_training":
         raise UnsafeDatabaseTarget("DB must be ai_career_crawler_training")
-    if parts.username in {None, "", "postgres", "ai_career_poc"}:
+    if unquote(parts.username or "") in {"", "postgres", "ai_career_poc"}:
         raise UnsafeDatabaseTarget("Use a dedicated non-superuser training role")
 
 
@@ -83,5 +83,5 @@ def connect_local_training_db(dsn: str):
     validate_local_dsn(dsn)
     import psycopg
 
-    # No implicit schema creation. Local access only.
+    # No implicit schema creation. Force loopback even if PGHOSTADDR is set.
     return psycopg.connect(dsn, hostaddr="127.0.0.1", connect_timeout=5)
