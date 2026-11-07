@@ -24,6 +24,10 @@ class TestLocalDSN(unittest.TestCase):
         with self.assertRaises(UnsafeDatabaseTarget):
             validate_local_dsn("postgresql://postgres:secret@localhost/ai_career_crawler_training")
 
+    def test_denies_percent_encoded_postgres_user(self):
+        with self.assertRaises(UnsafeDatabaseTarget):
+            validate_local_dsn("postgresql://%70ostgres:secret@localhost/ai_career_crawler_training")
+
     def test_denies_missing_credentials(self):
         with self.assertRaises(UnsafeDatabaseTarget):
             validate_local_dsn("postgresql://localhost/ai_career_crawler_training")
