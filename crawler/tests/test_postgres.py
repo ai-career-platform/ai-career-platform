@@ -32,6 +32,12 @@ class TestLocalDSN(unittest.TestCase):
         with self.assertRaises(UnsafeDatabaseTarget):
             validate_local_dsn("postgresql://localhost/ai_career_crawler_training")
 
+    def test_denies_query_host_override(self):
+        with self.assertRaises(UnsafeDatabaseTarget):
+            validate_local_dsn(
+                "postgresql://crawler_student:secret@localhost/ai_career_crawler_training?host=remote.example.com"
+            )
+
     def test_denies_non_postgres(self):
         with self.assertRaises(UnsafeDatabaseTarget):
             validate_local_dsn("sqlite:///ai_career_crawler_training")
@@ -56,7 +62,7 @@ class _FakeCursor:
         self.fetch_counter += 1
         if self.fetch_counter == 1:
             return ("new-id",) if self.existing == "new" else None
-        return (self.existing,) if self.existing not in {"new", None} else None
+        return (self.existing,) if self.existing is not None and self.existing != "new" else None
 
 
 class _FakeTransaction:
