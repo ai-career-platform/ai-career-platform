@@ -137,6 +137,9 @@ class RawArtifactMetadata:
             raise RawArtifactError("Only successful fixture capture is supported")
         if content_type not in ALLOWED_CONTENT_TYPES:
             raise RawArtifactError("Invalid content type")
+        # The receipt names shared bytes, not a keyword-specific metadata row.
+        # Allocate a fresh DB primary key on every insert attempt; the composite
+        # uniqueness constraint preserves idempotency for the same keyword.
         with self.connection.transaction():
             with self.connection.cursor() as cur:
                 cur.execute("""INSERT INTO crawler_training.raw_artifacts
@@ -145,7 +148,7 @@ class RawArtifactMetadata:
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (keyword_id,kind,source_url,sha256) DO NOTHING
                     RETURNING artifact_id""",
-                    (receipt.artifact_id,keyword_id,job_id,receipt.kind,
+                    (uuid4(),keyword_id,job_id,receipt.kind,
                      receipt.source_url,http_status,content_type,
                      receipt.byte_size,receipt.sha256,receipt.storage_key))
                 row = cur.fetchone()
