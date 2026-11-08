@@ -46,7 +46,10 @@ def test_openapi_lists_system_routes(app):
     spec = response.json()
     assert spec["info"]["title"] == "ai-career-platform"
     assert spec["info"]["version"] == "9.9.9"
-    assert set(spec["paths"]) == {"/health", "/health/db", "/version"}
+    assert set(spec["paths"]) == {
+        "/health", "/health/db", "/version", "/api/v1/job-roles",
+        "/api/v1/job-roles/{job_role_id}", "/api/v1/skills",
+    }
 
 
 def test_docs_page_served(app):
