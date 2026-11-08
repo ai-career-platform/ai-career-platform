@@ -64,3 +64,16 @@
 - **T64** **Ubuntu systemd timer → DB 기반 dispatcher → 독립 Worker**. 기본 제안 매일 03:00 KST 1회, 실제 시각은 관리자 화면에서 변경. 관리자 API의 스케줄·수동 실행·로그·재처리 계약과 실행 이력·동시 실행 방지 필수.
 - 관리자 React UI는 기존 관리자 화면 작업과 연계하고 T64가 계약 및 Backend/DevOps 책임을 맡음. 구현 위치·API 경로·DB 신규 테이블은 기존 T05/T09/T15/관리자 일감의 승인된 계약과 대조 후 확정.
 - 문서 설계 반영만 완료되었으며 **코드 구현/시스템 배포/실수집은 NOT_STARTED**. Staging Timer 활성화는 PM 별도 승인 필요.
+
+## T번호 전체 일감의 강제 완료 조건 — 자동 배포 → 스테이징 QA → Redmine CLOSED
+
+**이 디렉터리의 T번호 개별 작업지시서 30건 모두에 [공통 종료 게이트](../../WORK_ITEM_CLOSURE_GATE.md)를 필수로 적용합니다.** 개별 T문서의 기존 `완료 기준(DoD)` 또는 담당자 체크리스트에 내용이 빠져 있더라도 아래 종료 조건을 **추가된 필수 요구사항으로 읽어야 합니다.**
+
+1. 로컬 테스트 PASS, PR 리뷰·필수 CI 통과, `main` Squash Merge SHA 확보.
+2. 병합 뒤 **기존 자동 CD**(GitHub Publish → Ubuntu 1분 주기 Pull)를 통해 변경한 기능이 **배포 이미지/서비스에 포함되었고 실제 적용 성공했는지** 확인. 수동 배포를 기본 단계로 요구하지 않음.
+3. 배포 Manifest/이미지 Digest·스테이징 `/api/version` 등 실제 실행 SHA를 대조. 이미지에 해당 기능이 없다면 `DEPLOY_SCOPE_GAP/HOLD`이며 자동 배포 성공을 기능 배포 성공으로 간주하지 않음.
+4. **실제 Staging API·DB·Frontend·핵심 시나리오**의 정상/오류 경로를 대상 일감에 맞게 검증하고 비밀정보 제거한 Evidence 기록. 로컬/Mock/CI만으로 Staging PASS 금지.
+5. PR/CI/배포/검증 URL·SHA·상태 및 PM/JM 검수자를 **Redmine 댓글에 기록한 다음**, 모든 필수 게이트 PASS 시에만 진척률 **100% / CLOSED**. 실패·미검증·서버 접근 불가 시 REVIEW/BLOCKED 유지.
+6. 설계·문서 등 **배포 대상 자체가 없는 일감**은 PM/JM이 Redmine에 `DEPLOY=N/A` 사유·대체 검증·승인자를 명시한 경우에만 종료 가능. 코드가 기존 배포 이미지에 포함되지 않는 상황은 N/A가 아님.
+
+**결론: `MERGED ≠ DEPLOYED ≠ STAGING_QA_PASS ≠ CLOSED`.**

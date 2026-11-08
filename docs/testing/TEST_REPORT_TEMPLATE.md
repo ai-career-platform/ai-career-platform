@@ -41,3 +41,21 @@
 - PR 리뷰 요청일/승인자: [...]
 - Merge SHA(병합 이후): [...]
 - Redmine 완료 처리 근거: [...]
+
+## 5. main 병합 후 필수 Auto-CD 및 Staging QA
+
+- `main` Squash Merge SHA: [40자리 SHA / NOT_MERGED]
+- 실제 기능의 배포 이미지 포함: [YES / NO / N/A, 경로·근거]
+- 자동 Publish Actions Run URL / 결과: [URL, SUCCESS/FAIL/HOLD]
+- Ubuntu Pull/Compose 배포 실행 로그 / 시각: [증빙 위치, KST]
+- Manifest source SHA / 이미지 Digest: [값/NOT_VERIFIED]
+- Staging 실제 실행 SHA / Version: [값/NOT_VERIFIED]
+- Staging 기능 URL 및 테스트 방법: [URL, 시나리오]
+- Staging API/DB/Frontend 정상·오류: [영역별 PASS/FAIL/NOT_VERIFIED/N/A, 증빙 링크]
+- 기존 서비스/DB 변경 영향: [없음/승인 근거/발견 문제]
+- `DEPLOY`: [PASS/HOLD/N/A]
+- `STAGING_QA`: [PASS/HOLD/N/A]
+- PM/JM 검수자·일시 및 Redmine Evidence 댓글 URL: [값]
+- `REDMINE`: [CLOSED / REVIEW / BLOCKED]
+
+**`PR MERGED`와 `CI SUCCESS`만으로 Redmine CLOSED 금지.** 실행된 기능의 스테이징 검증이 완료되어야 합니다. 상세 기준: [공통 종료 게이트](../WORK_ITEM_CLOSURE_GATE.md). 배포 대상 없는 문서 전용 작업의 N/A는 PM/JM 승인 및 대체 검증이 필요합니다.

@@ -69,3 +69,14 @@ Secret/PII 첨부: NO
 ```
 
 [보고 양식](TEST_REPORT_TEMPLATE.md)에서 복사하여 사용합니다.
+
+## 6. main 병합 이후: 필수 Auto-CD / Staging QA / Redmine 증빙
+
+모든 개발 작업은 **[종료 게이트](../WORK_ITEM_CLOSURE_GATE.md)**를 따라야 합니다. 다음 기록이 없으면 **완료/100%/Closed 선언 금지**입니다.
+
+- Squash Merge SHA 및 실제 자동 Publish 워크플로 URL·결과, 배포 Manifest의 SHA/Digest.
+- Ubuntu timer/service에서 실제 Pull/배포 성공한 시간과 실행 SHA·버전 (`/api/version` 등).
+- 해당 기능이 빌드 이미지/스테이징 서비스 **실제로 포함되는지** 확인 결과. PoC 기본 Health PASS만으로 Crawler 등 독립 모듈 배포 성공 처리 금지.
+- 변경 기능에 대응하는 Staging URL, API/Frontend/DB 검증 시나리오, 기대/실제 결과, 비밀값 제거한 로그/스크린샷.
+- `DEPLOY` 및 `STAGING_QA`의 `PASS/FAIL/NOT_VERIFIED/HOLD/N/A`, 담당 검수자와 Redmine 변경 결과.
+- 자동 배포 미반영·서버 접근 불가·이미지 범위 밖은 HOLD. 문서 등 배포 비대상은 PM/JM의 N/A 및 대체 검증 승인 근거가 있어야 합니다.

@@ -93,3 +93,16 @@
 - [DB 변경 정책](../../DATABASE.md)
 
 **판정:** `WORK_ORDERS_30=AUTHORED`, `ASSIGNEES=PENDING`, `SCHEDULE=PENDING`, `REDMINE_ISSUES=NOT_CREATED`. 문서 작성 완료는 기능 구현 완료를 뜻하지 않습니다.
+
+## T번호 전체 일감의 강제 완료 조건 — 자동 배포 → 스테이징 QA → Redmine CLOSED
+
+**이 디렉터리의 T번호 개별 작업지시서 30건 모두에 [공통 종료 게이트](../../WORK_ITEM_CLOSURE_GATE.md)를 필수로 적용합니다.** 개별 T문서의 기존 `완료 기준(DoD)` 또는 담당자 체크리스트에 내용이 빠져 있더라도 아래 종료 조건을 **추가된 필수 요구사항으로 읽어야 합니다.**
+
+1. 로컬 테스트 PASS, PR 리뷰·필수 CI 통과, `main` Squash Merge SHA 확보.
+2. 병합 뒤 **기존 자동 CD**(GitHub Publish → Ubuntu 1분 주기 Pull)를 통해 변경한 기능이 **배포 이미지/서비스에 포함되었고 실제 적용 성공했는지** 확인. 수동 배포를 기본 단계로 요구하지 않음.
+3. 배포 Manifest/이미지 Digest·스테이징 `/api/version` 등 실제 실행 SHA를 대조. 이미지에 해당 기능이 없다면 `DEPLOY_SCOPE_GAP/HOLD`이며 자동 배포 성공을 기능 배포 성공으로 간주하지 않음.
+4. **실제 Staging API·DB·Frontend·핵심 시나리오**의 정상/오류 경로를 대상 일감에 맞게 검증하고 비밀정보 제거한 Evidence 기록. 로컬/Mock/CI만으로 Staging PASS 금지.
+5. PR/CI/배포/검증 URL·SHA·상태 및 PM/JM 검수자를 **Redmine 댓글에 기록한 다음**, 모든 필수 게이트 PASS 시에만 진척률 **100% / CLOSED**. 실패·미검증·서버 접근 불가 시 REVIEW/BLOCKED 유지.
+6. 설계·문서 등 **배포 대상 자체가 없는 일감**은 PM/JM이 Redmine에 `DEPLOY=N/A` 사유·대체 검증·승인자를 명시한 경우에만 종료 가능. 코드가 기존 배포 이미지에 포함되지 않는 상황은 N/A가 아님.
+
+**결론: `MERGED ≠ DEPLOYED ≠ STAGING_QA_PASS ≠ CLOSED`.**

@@ -42,3 +42,7 @@
 - **SKIP**: 명시적으로 제외된 테스트. 개수와 제외 근거를 기록하며 임의로 PASS에 합산하지 않음.
 
 권한/데이터 변경 테스트는 반드시 별도 로컬·격리 DB에서 진행합니다. Staging은 명시적 승인 없이 조회·헬스체크로 제한합니다.
+
+## 종료 이전 필수 검증 (Auto-CD 및 Staging)
+
+[공통 종료 게이트](../WORK_ITEM_CLOSURE_GATE.md)를 개발 일감 T01~T150에 의무 적용합니다. PR Merge 후 **자동 Publish / Ubuntu Pull / 실제 배포 SHA·Digest / 해당 기능의 Staging 테스트**를 각각 검사하고 Evidence를 Redmine에 남깁니다. CI Smoke나 Mock PASS만으로 스테이징 PASS를 주장하지 않습니다. 기능이 배포 이미지 범위 밖이면 `DEPLOY_SCOPE_GAP/HOLD`; 배포 미확인, 환경 장애, 테스트 실패 시 미종료. 승인된 문서 전용 작업만 N/A 대체 검증을 사용할 수 있습니다.

@@ -44,3 +44,7 @@ PM/JM이 PR을 `main`에 Squash Merge → Actions CI 통과 → 검증된 불변
 - 마지막 Healthy 이미지 Digest를 기록하고, 복구는 검토된 절차로 수행.
 - CI 실패/미확인, 잘못된 Repo/SHA, 인증 불명확, DB Migration 요청 시 배포 **HOLD**.
 - 실패 시 `main`을 임의로 되돌리거나 호스트 Docker 리소스를 전역 정리하지 않음.
+
+## 자동 배포 이후 필수 종료 게이트
+
+`main` 병합 후 기존 자동 CD를 **수동 배포로 대체하지 말고**, Publish workflow의 성공/배포 신호, Ubuntu timer/service 실제 Pull 및 적용 로그, 스테이징 `/api/version`과 Manifest SHA/Digest를 **각각 확인**합니다. **CI 성공 ≠ 자동 게시 성공 ≠ Ubuntu 배포 성공 ≠ Staging 기능 QA 성공.** 현재 배포 이미지는 `poc/staging/backend`, `poc/staging/frontend` 컨텍스트만 빌드하므로 `crawler/` 및 별도 학습용 앱 코드가 이미지에 포함되었다고 단정할 수 없습니다. 기능이 미포함되면 `DEPLOY_SCOPE_GAP/HOLD`이고 Redmine Closed 불가입니다. 기능별 실제 Staging API/화면/DB 검증을 완료하고 증빙을 등록한 후에만 종료합니다. **[공통 종료 게이트](WORK_ITEM_CLOSURE_GATE.md)** 참조.
