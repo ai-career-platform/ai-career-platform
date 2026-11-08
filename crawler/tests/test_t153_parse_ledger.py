@@ -15,6 +15,41 @@ class LedgerContractTests(unittest.TestCase):
             with self.subTest(value=value),self.assertRaises(ValueError):
                 ledger.process("unused",parser_version=value)
 
+
+    def test_runtime_select_uses_advisory_lock_not_row_update(self):
+        from unittest.mock import Mock
+        from contextlib import nullcontext
+        from uuid import UUID
+
+        class Cursor:
+            def __init__(self):
+                self.sql = []
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def execute(self, query, params):
+                self.sql.append(query)
+            def fetchone(self):
+                return None
+
+        cursor = Cursor()
+        conn = Mock()
+        conn.transaction.return_value = nullcontext()
+        conn.cursor.return_value = cursor
+        ledger = RawParseLedger(conn,None)
+        with self.assertRaisesRegex(ValueError,"Unknown raw artifact"):
+            ledger.process("00000000-0000-4000-8000-000000000001")
+        self.assertIn("pg_advisory_xact_lock",cursor.sql[0])
+        self.assertIn("FROM crawler_training.raw_artifacts",cursor.sql[1])
+        self.assertTrue(all("FOR UPDATE" not in sql for sql in cursor.sql))
+        self.assertEqual(len(cursor.sql),2)
+
+    def test_invalid_artifact_uuid_rejected_before_db(self):
+        ledger = RawParseLedger(None,None)
+        with self.assertRaises(ValueError):
+            ledger.process("not-a-uuid")
+
     def test_isolated_migration_and_lineage_fk(self):
         sql=(Path(__file__).resolve().parents[1]/"storage"/"migrations"/"0006_raw_parse_results.sql").read_text(encoding="utf-8")
         self.assertIn("current_database() <> 'ai_career_crawler_training'",sql)
