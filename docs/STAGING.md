@@ -48,3 +48,7 @@ free -h
 - 자동 배포 기준은 CI 성공·이미지 Digest·허용 승인자·헬스체크. DB Migration은 별도 승인 절차로 실행.
 - 장애 시 먼저 `docker compose ps`, 로그에서 비밀정보 배제한 상태로 확인. 승인 없는 광범위 정리/다운 금지.
 - ngrok 외부 공개는 별도 검토; Pull형 CD에는 ngrok 불필요.
+
+## main 자동 배포 후 기능 검증 및 일감 종료
+
+개발 PR의 Merge SHA가 게시/Ubuntu Pull을 거쳐 **실제 이 서버에서 배포됐는지** 증명해야 합니다. 자동 배포 타이머 활성화와 CI SUCCESS만으로 완료 처리하지 않습니다. GitHub `staging-publish.yml` 실행/배포 신호 → `ai-career-staging-deploy.timer`·service 실제 반영 → 배포 Manifest/이미지 Digest → `/api/version`/실행 SHA → 해당 기능의 Staging API·DB·Frontend 확인 순서입니다. 현재 PoC 컨테이너가 일반 Health API 위주이므로 **별도 crawler/training 앱은 별도 확인 전 배포된 기능으로 간주 금지**. Redmine은 실제 기능 QA 증빙 확인 후 PM/JM만 100%/Closed. 미반영·미실행·실패는 HOLD. 공용 DB 변경은 별도 승인, 기존 볼륨/컨테이너 보호. [공통 종료 게이트](WORK_ITEM_CLOSURE_GATE.md)를 적용합니다.
