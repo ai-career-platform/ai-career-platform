@@ -35,9 +35,9 @@ def process_fixture_job(*, connection, files, job_id) -> FixtureExecution:
     job_id=UUID(str(job_id))
     with connection.transaction():
         with connection.cursor() as cur:
-            # Lock this T151 job, not raw_artifacts: runtime has UPDATE on job.
+            # Fail fast when another process already owns this job row. Runtime\n            # has UPDATE on keyword_jobs, unlike raw_artifacts.
             cur.execute("""SELECT keyword_id,status
-                FROM crawler_training.keyword_jobs WHERE job_id=%s FOR UPDATE""",
+                FROM crawler_training.keyword_jobs WHERE job_id=%s FOR UPDATE NOWAIT""",
                 (job_id,))
             job=cur.fetchone()
             if job is None:
