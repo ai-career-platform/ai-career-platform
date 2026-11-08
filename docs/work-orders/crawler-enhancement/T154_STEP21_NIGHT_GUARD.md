@@ -5,7 +5,7 @@ STEP20 결과: HOLD. T64 Dispatcher는 T154 Worker 호출하지 않으며, 21:00
 이번 변경은 T64 Scheduler에 우회 연결하지 않고 **독립적인 수동 one-shot 호출 경계**만 제공한다.
 - KST 21:00 포함, 다음날 08:00 제외.
 - 밤당 슬롯 0..21, 각 30분, 총 22 슬롯. 자정 넘는 슬롯도 밤 시작일에 귀속.
-- 신규 수동 Migration 0010 `fixture_night_slots`의 PK (night_date,slot_index) + UNIQUE (night_date,job_id)로 동일 슬롯 및 동일 작업 밤 중복 예약 차단.
+- 신규 수동 Migration 0010 `fixture_night_slots`의 PK (night_date,slot_index)로 동일 슬롯 중복 예약 차단. 동일 작업의 다른 슬롯 재예약은 STEP14 Attempt RETRYABLE 및 3회 한도로 제한하고, 완료 작업은 PENDING 조건에 걸려 재예약되지 않음.
 - `execute_night_fixture_once()`는 3개의 별도 DB 연결 사용: night-slot / durable attempt / worker. `NightSlotStore.reserve`를 commit한 뒤 STEP16 `execute_manual_fixture_attempt`를 **정확히 한 번** 호출한다.
 - 슬롯은 작업이 실패해도 소비 처리한다. 늦게 시작한 슬롯을 보충 실행하지 않는다.
 - 신규 Raw/Fixture Job 생성, 반복 스케줄, systemd Timer, T64 Dispatcher 연결, 외부 HTTP는 **포함하지 않는다**.

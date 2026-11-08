@@ -14,8 +14,7 @@ CREATE TABLE IF NOT EXISTS crawler_training.fixture_night_slots (
  slot_index smallint NOT NULL CHECK (slot_index BETWEEN 0 AND 21),
  job_id uuid NOT NULL REFERENCES crawler_training.keyword_jobs(job_id),
  reserved_at timestamptz NOT NULL DEFAULT now(),
- PRIMARY KEY (night_date,slot_index),
- UNIQUE (night_date,job_id)
+ PRIMARY KEY (night_date,slot_index)
 );
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='crawler_staging') THEN
