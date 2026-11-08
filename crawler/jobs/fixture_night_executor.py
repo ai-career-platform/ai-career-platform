@@ -49,7 +49,7 @@ class Supervision:
     interrupted: bool = False
 
 
-def supervise(command, *, deadline: float, grace: float = 2, stop_event=None) -> Supervision:
+def supervise(command, *, deadline: float, grace: float = 2, stop_event=None, process_group=False, env=None) -> Supervision:
     """Run a real direct child; TERM before deadline, KILL/reap if unresponsive.
 
     Child is the synchronous Worker, not a shell/launcher, and creates no children.
@@ -61,7 +61,14 @@ def supervise(command, *, deadline: float, grace: float = 2, stop_event=None) ->
     if deadline - started <= grace:
         return Supervision(False, None, False, False, 0)
     child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
+                             stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
+                             start_new_session=bool(process_group and os.name != "nt"), env=env)
+    def stop_child(force=False):
+        if process_group and os.name != "nt":
+            try:os.killpg(child.pid,signal.SIGKILL if force else signal.SIGTERM)
+            except ProcessLookupError:pass
+        elif child.poll() is None:
+            child.kill() if force else child.terminate()
     terminated = killed = interrupted = False
     output = ""
     try:
@@ -81,21 +88,24 @@ def supervise(command, *, deadline: float, grace: float = 2, stop_event=None) ->
         except subprocess.TimeoutExpired:
             interrupted = bool(stop_event and stop_event.is_set())
             terminated = True
-            child.terminate()
+            stop_child()
             try:
                 output, _ = child.communicate(timeout=max(.001, min(grace, deadline - time.monotonic())))
             except subprocess.TimeoutExpired:
                 killed = True
-                child.kill()
+                stop_child(True)
                 output, _ = child.communicate()
         except KeyboardInterrupt:
             interrupted = terminated = killed = True
-            child.kill()
+            stop_child(True)
             output, _ = child.communicate()
     finally:
         if child.poll() is None:
-            child.kill()
+            stop_child(True)
             child.wait()
+        if process_group:
+            # Reap any TERM-ignoring descendant even if its launcher exited first.
+            stop_child(True)
     return Supervision(True, child.returncode, terminated, killed,
                        time.monotonic() - started, output, interrupted)
 
@@ -131,7 +141,9 @@ def child_once(job_id, raw_root, *, connector=connect_configured_database, now=N
     with ExitStack() as stack:
         cs, pids = _connections(stack, connector)
         slot_db, attempt_db, worker_db = cs
-        application = "t154-night:" + uuid4().hex
+        token=os.environ.get("T154_GUARD_TOKEN", "")
+        prefix=(token+":") if len(token)==16 and all(x in "0123456789abcdef" for x in token) else ""
+        application = "t154-night:" + prefix + uuid4().hex[:16]
         for c in cs:
             c.execute("SELECT set_config('application_name',%s,false)", (application,))
         print(json.dumps({"event": "connected", "backend_pids": pids,

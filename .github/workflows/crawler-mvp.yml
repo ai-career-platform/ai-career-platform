@@ -66,6 +66,7 @@ jobs:
           for migration in crawler/storage/migrations/000{3,4,5,6,7,8,9}_*.sql crawler/storage/migrations/0010_*.sql; do
             psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
-          python -m unittest crawler.tests.local_t154_night_executor -v
+          python -m unittest crawler.tests.local_t154_night_executor crawler.tests.local_t154_night_caller -v
+          CRAWLER_NIGHT_CONTAINER_TEST=1 python -m unittest crawler.tests.local_t154_caller_container -v
       - name: Verify disabled crawler systemd unit files
-        run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer
+        run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer poc/staging/crawler/ai-career-t154-night-20261108.service poc/staging/crawler/ai-career-t154-night-20261108.timer
