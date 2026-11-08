@@ -7,6 +7,7 @@ keyword discovery, and parse status to prevent partial DB lineage.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from crawler.jobs.fixture_parse_pipeline import parse_stored_detail, PARSER_VERSION
 from crawler.jobs.keyword_management import KeywordStore
@@ -30,13 +31,18 @@ class RawParseLedger:
     def process(self, artifact_id, *, parser_version=PARSER_VERSION) -> ParseOutcome:
         if not isinstance(parser_version, str) or not 1 <= len(parser_version) <= 100:
             raise ValueError("parser_version must be 1..100 chars")
-        # One transaction covers metadata read, postings UPSERT, discovery and
-        # lineage INSERT. Locks raw row to serialize competing processors.
+        # Transaction-level advisory lock serializes all parser versions of a
+        # raw artifact without requiring UPDATE on raw_artifacts. PostgreSQL
+        # releases it automatically on commit or rollback.
+        artifact_id = UUID(str(artifact_id))
         with self.connection.transaction():
             with self.connection.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(%s::text, 0))",
+                    (str(artifact_id),))
                 cur.execute("""SELECT artifact_id,keyword_id,kind,source_url,storage_key,sha256
                     FROM crawler_training.raw_artifacts
-                    WHERE artifact_id=%s FOR UPDATE""", (artifact_id,))
+                    WHERE artifact_id=%s""", (artifact_id,))
                 row = cur.fetchone()
                 if row is None:
                     raise ValueError("Unknown raw artifact")
