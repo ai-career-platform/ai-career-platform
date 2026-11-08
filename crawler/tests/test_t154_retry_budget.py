@@ -24,8 +24,9 @@ class FakeCursor:
         if "UPDATE crawler_training.fixture_job_attempts" in self.sql:
             if self.db.count!=self.params[-1] or self.db.state!="IN_PROGRESS":
                 return None
-            state=self.params[0]
-            if state=="COMPLETED":
+            success="SET state='COMPLETED'" in self.sql
+            state="COMPLETED" if success else self.params[0]
+            if success:
                 if not self.db.completed:return None
             elif not self.db.pending:return None
             self.db.state=state
