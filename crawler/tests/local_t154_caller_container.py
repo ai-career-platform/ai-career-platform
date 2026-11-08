@@ -26,7 +26,7 @@ from pathlib import Path
 from crawler.jobs.fixture_night_window import KST
 from crawler.jobs.fixture_night_caller import guarded_once
 r=guarded_once(night_date=datetime(2050,1,1).date(),input_file='/tmp/no-input',raw_root='/tmp/raw',log_file='/tmp/caller.jsonl',now=datetime(2050,1,1,21,tzinfo=KST),command=[sys.executable,'-c',CHILD],maximum=4,cleanup_budget=1,grace=.2,invocation_id=TOKEN)
-""".replace('CHILD',repr(child)).replace('TOKEN',repr(token))
+""".replace('TOKEN',repr(token)).replace('CHILD',repr(child))
   host=None
   try:
    host=subprocess.Popen(['docker','exec',name,'python','-c',outer],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -35,6 +35,7 @@ r=guarded_once(night_date=datetime(2050,1,1).date(),input_file='/tmp/no-input',r
     if subprocess.run(['docker','exec',name,'test','-f','/tmp/ready'],capture_output=True).returncode==0:ready=True;break
     time.sleep(.05)
    self.assertTrue(ready)
+   self.assertIsNone(host.poll(),'Host exec client must still be running at interruption')
    host.terminate();host.wait(timeout=5)
    # Host finalizer uses the same known cancel/done identity before archival.
    subprocess.run(['docker','exec',name,'touch','/tmp/invocations/'+token+'.cancel'],capture_output=True,check=True)

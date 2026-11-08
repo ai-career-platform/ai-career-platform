@@ -41,7 +41,8 @@ class CallerContracts(unittest.TestCase):
   code="import subprocess,sys; p=subprocess.Popen([sys.executable,'-c','import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(30)'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);print(p.pid,flush=True)"
   r=supervise([sys.executable,'-c',code],deadline=time.monotonic()+3,grace=.2,process_group=True)
   pid=int(r.stdout.strip());until=time.monotonic()+2
-  while Path('/proc/'+str(pid)+'/stat').exists() and time.monotonic()<until:
-   if Path('/proc/'+str(pid)+'/stat').read_text().split()[2]=='Z':break
-   time.sleep(.02)
-  self.assertTrue(not Path('/proc/'+str(pid)+'/stat').exists() or Path('/proc/'+str(pid)+'/stat').read_text().split()[2]=='Z')
+  def alive():
+   try:return Path('/proc/'+str(pid)+'/stat').read_text().split()[2]!='Z'
+   except FileNotFoundError:return False
+  while alive() and time.monotonic()<until:time.sleep(.02)
+  self.assertFalse(alive())
