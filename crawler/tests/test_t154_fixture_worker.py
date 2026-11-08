@@ -103,6 +103,12 @@ class WorkerTests(unittest.TestCase):
                 process_fixture_job(connection=db,files=None,job_id=JOB)
         self.assertEqual(db.status,"PENDING")
 
+    def test_db_claim_does_not_wait_on_competing_worker(self):
+        from pathlib import Path
+        sql_source=(Path(__file__).resolve().parents[1]/"jobs"/"fixture_worker.py").read_text()
+        self.assertIn("FROM crawler_training.keyword_jobs WHERE job_id=%s FOR UPDATE NOWAIT",sql_source)
+        self.assertNotIn("raw_artifacts WHERE artifact_id=%s FOR UPDATE",sql_source)
+
     def test_no_http_or_dispatch_import(self):
         from pathlib import Path
         text=(Path(__file__).resolve().parents[1]/"jobs"/"fixture_worker.py").read_text()
