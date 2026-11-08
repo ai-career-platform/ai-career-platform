@@ -7,6 +7,13 @@ from fastapi import FastAPI, HTTPException
 app = FastAPI(root_path="/api")
 logger = logging.getLogger(__name__)
 
+# Integrated image only. The original standalone PoC image remains supported.
+if os.environ.get('ENABLE_CRAWLER_API') == '1':
+    from backend import training_jobs_api as training
+    app.add_api_route('/jobs', training.get_jobs, response_model=list[training.TrainingJob])
+    app.add_api_route('/jobs/collected', training.get_collected_jobs, response_model=list[training.CollectedJob])
+    app.add_api_route('/training', training.training_page, include_in_schema=False)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:

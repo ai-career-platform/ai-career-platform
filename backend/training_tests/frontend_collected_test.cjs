@@ -13,9 +13,11 @@ const ids = Object.fromEntries(['jobs', 'status', 'reload', 'filters', 'dataset'
 ids.dataset.value = 'synthetic';
 const headings = {h1: new Element(), '.intro': new Element()};
 const requests = [];
+const apiPrefix = process.argv.includes('--staging') ? '/api' : '';
 const context = vm.createContext({
   document: {getElementById: id => ids[id], createElement: tag => new Element(tag), querySelector: s => headings[s]},
   URL, URLSearchParams,
+  window: {location: {pathname: apiPrefix + '/training'}},
   fetch: url => new Promise(resolve => requests.push({url, resolve})),
 });
 const html = fs.readFileSync('backend/training_frontend/index.html', 'utf8');
@@ -23,10 +25,10 @@ vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function respond(index, jobs) { requests[index].resolve({ok: true, json: async () => jobs}); }
 (async () => {
-  assert.match(requests[0].url, /^\/jobs\?/);
+  assert.ok(requests[0].url.startsWith(apiPrefix + '/jobs?'));
   ids.dataset.value = 'collected';
   ids.dataset.listeners.change();
-  assert.match(requests[1].url, /^\/jobs\/collected\?/);
+  assert.ok(requests[1].url.startsWith(apiPrefix + '/jobs/collected?'));
   const job = {external_posting_id: '123', title: '<img onerror=bad()>', company_name: 'Example', location_text: 'Seoul', employment_type: 'intern', evidence: 'imported_html', collected_at: '2026-11-07', source_url: 'https://www.jobkorea.co.kr/Recruit/GI_Read/123'};
   respond(1, [job]); await tick();
   const card = ids.jobs.children[0];

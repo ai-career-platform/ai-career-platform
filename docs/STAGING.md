@@ -24,6 +24,35 @@
 - 2026-11-06 DB 초기화 전 백업 아카이브 검증 및 일회용 PostgreSQL 독립 복원 PASS. 사용자 정의 테이블 0개 확인; 실제 DB DDL/Seed 미적용.
 
 ## 읽기 전용 확인 명령
+
+### 크롤러 이미지 통합 및 승인 경계
+
+게시 워크플로는 저장소 루트에서 `poc/staging/backend/Dockerfile.integrated`를 빌드해
+기존 backend 이미지에 `crawler/`와 채용공고 조회 앱을 포함합니다. 원래 PoC
+Dockerfile과 기준 `compose.yaml`, 배포 timer는 유지합니다. 홈페이지의 공고 링크는
+`/api/training`, 조회 API는 `/api/jobs/collected`입니다. 수집은 HTTP 요청 처리와
+분리된 `python -m crawler.jobs.import_jobkorea_html --list-url URL --limit 5`입니다.
+
+서버 변경 전 PM/DB 담당 승인 대상:
+
+1. 기존 PostgreSQL 컨테이너에 별도 DB `ai_career_crawler_training`과 최소 권한
+   LOGIN 역할 `crawler_staging` 생성. 기존 앱 DB/스키마/데이터는 수정하지 않습니다.
+2. 승인된 별도 DB에만 `crawler_training.postings` 생성(기존 저장소 SQL 계약 재사용).
+   계정은 SUPERUSER/CREATEDB/CREATEROLE 권한을 갖지 않습니다.
+3. 서버의 release overlay에 새 환경변수 두 개를 추가하고 private `.env`에
+   `CRAWLER_DB_MODE=staging`, `CRAWLER_STAGING_DATABASE_URL`을 설정합니다.
+   URL은 전용 역할·위 DB·Docker 호스트 `db:5432`만 허용합니다. 비밀번호는
+   비공개 전달하며 Compose config/inspect 환경변수를 공개 출력하지 않습니다.
+4. 정상 main 리뷰·병합 → 기존 Auto-CD 게시/배포 후, 해당 backend 컨테이너에서
+   수동 최대 5건 수집·재실행·API·화면 QA. DB 컨테이너/볼륨 및 다른 프로젝트
+   컨테이너 ID를 전후 비교합니다. 승인 전에는 DB DDL/DML이나 서버 설정을 적용하지 않습니다.
+
+자동 배포는 서버 overlay 자체를 동기화하지 않으므로 3번은 승인된 일회성 설정
+작업입니다. 설정이 없으면 기존 Health 서비스는 유지되고 공고 조회는 503을 반환합니다.
+스테이징 수동 E2E가 통과하기 전에는 T64 스케줄러 구현·활성화로 넘어가지 않습니다.
+T64의 기존 DB schedule/run/event 계약을 재사용하는 별도 단계이며 단순 timer를
+병렬로 추가하거나 기존 배포 timer를 교체하지 않습니다.
+
 ```bash
 cd /home/kant/ai-career-staging-poc
 docker compose ps

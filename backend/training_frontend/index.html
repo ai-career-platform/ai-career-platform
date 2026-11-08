@@ -66,7 +66,7 @@
   </div>
   <p id="status" role="status" aria-live="polite">조회 준비 중</p>
   <section id="jobs" class="grid" aria-label="합성 채용공고 목록"></section>
-  <footer>조회 전용 · DB 변경 없음 · 실사이트 요청 없음 · <a href="/docs">Swagger API 문서</a></footer>
+  <footer>조회 전용 · DB 변경 없음 · 실사이트 요청 없음 · <a href="./docs">Swagger API 문서</a></footer>
 </main>
 <script>
   "use strict";
@@ -75,6 +75,7 @@
   const reload = document.getElementById("reload");
   const filters = document.getElementById("filters");
   const dataset = document.getElementById("dataset");
+  const apiPrefix = window.location.pathname.startsWith("/api/") ? "/api" : "";
   let requestSequence = 0;
   const employment = { full_time: "정규직", contract: "계약직", intern: "인턴", part_time: "시간제" };
 
@@ -127,8 +128,8 @@
       if (location) params.set("location", location);
       if (employmentType) params.set("employment_type", employmentType);
       const response = dataset.value === "collected"
-        ? await fetch("/jobs/collected?" + params.toString(), { cache: "no-store" })
-        : await fetch("/jobs?" + params.toString(), { cache: "no-store" });
+        ? await fetch(apiPrefix + "/jobs/collected?" + params.toString(), { cache: "no-store" })
+        : await fetch(apiPrefix + "/jobs?" + params.toString(), { cache: "no-store" });
       if (!response.ok) throw new Error("API " + response.status);
       const jobs = await response.json();
       if (requestId !== requestSequence) return;

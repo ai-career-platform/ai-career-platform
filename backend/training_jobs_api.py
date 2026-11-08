@@ -15,6 +15,15 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from crawler.storage.postgres import connect_local_training_db, validate_local_dsn
+from crawler.storage.staging import database_url, using_staging, validate_staging_dsn, connect_staging_db
+
+
+def _validate_database(dsn):
+    (validate_staging_dsn if using_staging() else validate_local_dsn)(dsn)
+
+
+def _connect_database(dsn):
+    return (connect_staging_db if using_staging() else connect_local_training_db)(dsn)
 
 app = FastAPI(title="Synthetic Crawler Training API", version="0.1.0")
 
@@ -35,8 +44,8 @@ class CollectedJob(TrainingJob):
 
 
 def read_collected_jobs(*, limit, title=None, location=None, employment_type=None):
-    dsn = os.environ.get('CRAWLER_LOCAL_DATABASE_URL', '')
-    validate_local_dsn(dsn)
+    dsn = database_url()
+    _validate_database(dsn)
     where = ['source_code IN (%s, %s)']
     params = ['jobkorea_live', 'jobkorea_imported']
     for value, expression in (
@@ -48,7 +57,7 @@ def read_collected_jobs(*, limit, title=None, location=None, employment_type=Non
             where.append(expression)
             params.append(value)
     params.append(limit)
-    with connect_local_training_db(dsn) as connection:
+    with _connect_database(dsn) as connection:
         with connection.cursor() as cursor:
             cursor.execute('SELECT payload, updated_at::text FROM crawler_training.postings WHERE '
                            + ' AND '.join(where) + ' ORDER BY updated_at DESC, external_posting_id LIMIT %s', tuple(params))
@@ -75,10 +84,10 @@ def read_training_jobs(
     employment_type: str | None = None,
 ) -> list[dict]:
     """SELECT only; require the separately provisioned, isolated training DB."""
-    dsn = os.environ.get("CRAWLER_LOCAL_DATABASE_URL", "")
-    validate_local_dsn(dsn)
+    dsn = database_url()
+    _validate_database(dsn)
     # psycopg connection is closed even if SELECT or JSON decoding fails.
-    with connect_local_training_db(dsn) as connection:
+    with _connect_database(dsn) as connection:
         with connection.cursor() as cursor:
             # SQL parameters bind all user-provided filter values.
             where = ["source_code = %s", "external_posting_id LIKE %s"]
