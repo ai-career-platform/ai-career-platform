@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 from crawler.adapters.jobkorea_html_offline import parse_jobkorea_html, parse_jobkorea_list_html, _source_id
 from crawler.storage.postgres import connect_local_training_db, PostgresPostingStore
+from crawler.storage.staging import connect_configured_database
 
 USER_AGENT = 'AICareerPlatform-Learning/1.0'
 MAX_BYTES = 2_000_000
@@ -183,7 +184,7 @@ def main():
                 pages.append((url, path.read_text(encoding='utf-8')))
         else:
             pages = fetch_pages(args.url, list_url=args.list_url, limit=args.limit)
-        with connect_local_training_db(os.environ.get('CRAWLER_LOCAL_DATABASE_URL', '')) as connection:
+        with connect_configured_database() as connection:
             report = import_pages(pages, PostgresPostingStore(connection), live=not args.html)
         print(json.dumps({'mode': 'imported_html' if args.html else 'live_http', **report}))
         return 2 if report.get('stopped') else 1 if report['invalid'] else 0

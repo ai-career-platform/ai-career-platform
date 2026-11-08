@@ -29,10 +29,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: pip install fastapi==0.115.12 httpx==0.28.1 'psycopg[binary]==3.3.4'
+      - run: pip install fastapi==0.115.12 httpx==0.28.1 'psycopg[binary]==3.3.4' pytest==8.3.5
       - run: python -m unittest discover -s crawler/tests
       - run: python -m unittest discover -s backend/training_tests
       - run: node backend/training_tests/frontend_collected_test.cjs
+      - run: node backend/training_tests/frontend_collected_test.cjs --staging
+      - run: python -m pytest poc/staging/tests -q
+      - name: Build and smoke-test integrated staging image
+        run: |
+          docker build -f poc/staging/backend/Dockerfile.integrated -t crawler-staging-test .
+          docker run --rm crawler-staging-test python -m crawler.jobs.import_jobkorea_html --help
+          docker run --rm crawler-staging-test python -c "import main; assert '/jobs/collected' in main.app.openapi()['paths']; assert '/health' in main.app.openapi()['paths']"
       - name: Test constructed HTML through real isolated PostgreSQL and API
         env:
           CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
@@ -42,3 +49,6 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -c 'ALTER DATABASE ai_career_crawler_training OWNER TO crawler_student'
           psql "$CRAWLER_LOCAL_DATABASE_URL" -f crawler/storage/local_training_schema.sql
           python -m unittest crawler.tests.local_html_pg_integration -v
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE ROLE crawler_staging LOGIN NOSUPERUSER'
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -c 'GRANT USAGE ON SCHEMA crawler_training TO crawler_staging; GRANT SELECT, INSERT, UPDATE ON crawler_training.postings TO crawler_staging'
+          CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_staging_pg_integration -v

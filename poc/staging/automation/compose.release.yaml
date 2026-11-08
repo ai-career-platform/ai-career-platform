@@ -6,3 +6,5 @@ services:
     image: ${BACKEND_IMAGE:?digest-pinned backend image required}
     environment:
       APP_VERSION: ${DEPLOY_SHA:?verified commit SHA required}
+      CRAWLER_DB_MODE: ${CRAWLER_DB_MODE:-local}
+      CRAWLER_STAGING_DATABASE_URL: ${CRAWLER_STAGING_DATABASE_URL:-}
