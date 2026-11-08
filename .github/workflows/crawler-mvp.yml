@@ -52,3 +52,8 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE ROLE crawler_staging LOGIN NOSUPERUSER'
           psql "$CRAWLER_LOCAL_DATABASE_URL" -c 'GRANT USAGE ON SCHEMA crawler_training TO crawler_staging; GRANT SELECT, INSERT, UPDATE ON crawler_training.postings TO crawler_staging'
           CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_staging_pg_integration -v
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f crawler/storage/migrations/0002_scheduler.sql
+          CRAWLER_T64_ISOLATED_TEST=1 python -m unittest crawler.tests.local_t64_integration -v
+          CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_t64_permissions -v
+      - name: Verify disabled crawler systemd unit files
+        run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer
