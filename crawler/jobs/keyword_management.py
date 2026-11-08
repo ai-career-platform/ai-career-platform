@@ -68,48 +68,110 @@ class KeywordStore:
             cur.execute(sql)
             return cur.fetchall()
 
-    def add_keyword(self, value: str, *, priority: int = 100):
+    @staticmethod
+    def _check_actor(actor: str) -> str:
+        # T155 must supply the authenticated principal, not a browser-provided name.
+        # Internal callers without T155 identity are explicitly tagged system:t151.
+        if not isinstance(actor, str) or not 1 <= len(actor) <= 128 or actor != actor.strip():
+            raise ValueError("actor must be 1..128 characters without outer spaces")
+        return actor
+
+    @staticmethod
+    def _snapshot(cur, keyword_id: int):
+        cur.execute("""SELECT keyword,normalized_keyword,enabled,priority,deleted_at
+                       FROM crawler_training.search_keywords
+                       WHERE keyword_id=%s FOR UPDATE""", (keyword_id,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return {"keyword": row[0], "normalized_keyword": row[1],
+                "enabled": row[2], "priority": row[3],
+                "deleted": row[4] is not None}
+
+    @staticmethod
+    def _write_audit(cur, keyword_id, actor, action, before, after):
+        import json
+        cur.execute("""INSERT INTO crawler_training.keyword_audit_events
+            (keyword_id,actor,action,before_state,after_state)
+            VALUES (%s,%s,%s,%s::jsonb,%s::jsonb)""",
+            (keyword_id,actor,action,
+             json.dumps(before, ensure_ascii=False) if before is not None else None,
+             json.dumps(after, ensure_ascii=False)))
+
+    def list_audit(self, keyword_id: int, *, limit: int = 50):
+        if type(limit) is not int or not 1 <= limit <= 200:
+            raise ValueError("limit must be 1..200")
+        from psycopg.rows import dict_row
+        with self.connection.cursor(row_factory=dict_row) as cur:
+            cur.execute("""SELECT audit_id,keyword_id,actor,action,before_state,after_state,occurred_at
+                FROM crawler_training.keyword_audit_events
+                WHERE keyword_id=%s ORDER BY audit_id DESC LIMIT %s""",
+                (keyword_id,limit))
+            return cur.fetchall()
+
+    def add_keyword(self, value: str, *, priority: int = 100, actor: str = "system:t151"):
         display, normalized = normalize_keyword(value)
         check_priority(priority)
+        actor = self._check_actor(actor)
         with self.connection.transaction():
             with self.connection.cursor() as cur:
                 cur.execute("""INSERT INTO crawler_training.search_keywords
                     (keyword,normalized_keyword,priority)
                     VALUES (%s,%s,%s) RETURNING keyword_id""",
                     (display, normalized, priority))
-                return cur.fetchone()[0]
+                keyword_id = cur.fetchone()[0]
+                after = self._snapshot(cur, keyword_id)
+                self._write_audit(cur, keyword_id, actor, "CREATE", None, after)
+                return keyword_id
 
-    def edit_keyword(self, keyword_id: int, value: str, *, priority: int):
+    def edit_keyword(self, keyword_id: int, value: str, *, priority: int,
+                     actor: str = "system:t151"):
         display, normalized = normalize_keyword(value)
         check_priority(priority)
+        actor = self._check_actor(actor)
         with self.connection.transaction():
             with self.connection.cursor() as cur:
+                before = self._snapshot(cur, keyword_id)
+                if before is None or before["deleted"]:
+                    return False
                 cur.execute("""UPDATE crawler_training.search_keywords
                     SET keyword=%s, normalized_keyword=%s, priority=%s,updated_at=now()
-                    WHERE keyword_id=%s AND deleted_at IS NULL
-                    RETURNING keyword_id""",
+                    WHERE keyword_id=%s AND deleted_at IS NULL""",
                     (display, normalized, priority, keyword_id))
-                return cur.fetchone() is not None
+                after = self._snapshot(cur, keyword_id)
+                self._write_audit(cur, keyword_id, actor, "EDIT", before, after)
+                return True
 
-    def set_enabled(self, keyword_id: int, enabled: bool):
+    def set_enabled(self, keyword_id: int, enabled: bool,
+                    *, actor: str = "system:t151"):
         if type(enabled) is not bool:
             raise ValueError("enabled must be bool")
+        actor = self._check_actor(actor)
         with self.connection.transaction():
             with self.connection.cursor() as cur:
+                before = self._snapshot(cur, keyword_id)
+                if before is None or before["deleted"]:
+                    return False
                 cur.execute("""UPDATE crawler_training.search_keywords
                     SET enabled=%s,updated_at=now()
-                    WHERE keyword_id=%s AND deleted_at IS NULL
-                    RETURNING keyword_id""", (enabled, keyword_id))
-                return cur.fetchone() is not None
+                    WHERE keyword_id=%s AND deleted_at IS NULL""", (enabled, keyword_id))
+                after = self._snapshot(cur, keyword_id)
+                self._write_audit(cur, keyword_id, actor, "SET_ENABLED", before, after)
+                return True
 
-    def soft_delete(self, keyword_id: int):
+    def soft_delete(self, keyword_id: int, *, actor: str = "system:t151"):
+        actor = self._check_actor(actor)
         with self.connection.transaction():
             with self.connection.cursor() as cur:
+                before = self._snapshot(cur, keyword_id)
+                if before is None or before["deleted"]:
+                    return False
                 cur.execute("""UPDATE crawler_training.search_keywords
                     SET enabled=false,deleted_at=now(),updated_at=now()
-                    WHERE keyword_id=%s AND deleted_at IS NULL
-                    RETURNING keyword_id""", (keyword_id,))
-                return cur.fetchone() is not None
+                    WHERE keyword_id=%s AND deleted_at IS NULL""", (keyword_id,))
+                after = self._snapshot(cur, keyword_id)
+                self._write_audit(cur, keyword_id, actor, "SOFT_DELETE", before, after)
+                return True
 
     def create_job(self, keyword_id: int, idempotency_key: str):
         """Create metadata-only job. Does NOT enqueue or dispatch a worker."""
