@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS crawler_training.raw_artifacts (
  content_type text NOT NULL CHECK (content_type IN ('text/html','application/xhtml+xml')),
  byte_size integer NOT NULL CHECK (byte_size BETWEEN 1 AND 2000000),
  sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
- storage_key text NOT NULL UNIQUE CHECK (length(storage_key) BETWEEN 1 AND 256),
+ storage_key text NOT NULL CHECK (length(storage_key) BETWEEN 1 AND 256),
  captured_at timestamptz NOT NULL DEFAULT now(),
  mode text NOT NULL DEFAULT 'synthetic_fixture_only'
    CHECK (mode = 'synthetic_fixture_only'),
