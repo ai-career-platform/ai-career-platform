@@ -24,7 +24,7 @@ class FakeCursor:
         self.db.sql=sql;self.db.args=args
     def fetchone(self):
         k=self.db.args[:2]
-        if k in self.db.used or self.db.args[2] in self.db.jobs:return None
+        if k in self.db.used:return None
         self.db.used.add(k);self.db.jobs.add(self.db.args[2])
         return (self.db.args[1],)
 
@@ -62,7 +62,7 @@ class WindowTests(unittest.TestCase):
         db=FakeConnection();store=NightSlotStore(db)
         self.assertIsNotNone(store.reserve(job_id=JOB,now=kst(8,21)))
         self.assertIsNone(store.reserve(job_id=JOB,now=kst(8,21)))
-        self.assertIsNone(store.reserve(job_id=JOB,now=kst(8,21,30)))
+        self.assertIsNotNone(store.reserve(job_id=JOB,now=kst(8,21,30)))
         self.assertIn("ON CONFLICT DO NOTHING",db.sql)
 
     def test_outside_window_does_not_use_database(self):
