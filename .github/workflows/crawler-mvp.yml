@@ -39,6 +39,8 @@ jobs:
         run: |
           docker build -f poc/staging/backend/Dockerfile.integrated -t crawler-staging-test .
           docker run --rm crawler-staging-test python -m crawler.jobs.import_jobkorea_html --help
+          docker run --rm crawler-staging-test python -m crawler.jobs.dispatcher --help
+          docker run --rm crawler-staging-test python -m crawler.jobs.scheduled_worker --help
           docker run --rm crawler-staging-test python -c "import main; assert '/jobs/collected' in main.app.openapi()['paths']; assert '/health' in main.app.openapi()['paths']"
       - name: Test constructed HTML through real isolated PostgreSQL and API
         env:
