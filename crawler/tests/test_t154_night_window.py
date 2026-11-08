@@ -23,6 +23,8 @@ class FakeCursor:
     def execute(self,sql,args):
         self.db.sql=sql;self.db.args=args
     def fetchone(self):
+        if "FOR UPDATE OF j" in self.db.sql:return (JOB,)
+        if "FROM crawler_training.fixture_job_attempts" in self.db.sql:return None
         k=self.db.args[:2]
         if k in self.db.used:return None
         self.db.used.add(k);self.db.jobs.add(self.db.args[2])
@@ -72,21 +74,22 @@ class WindowTests(unittest.TestCase):
 
     def test_explicit_worker_bridge_and_connection_separation(self):
         slot_db=FakeConnection();a=FakeConnection();w=FakeConnection()
-        with patch("crawler.jobs.fixture_night_window.execute_manual_fixture_attempt",
+        from crawler.jobs.fixture_retry_budget import AttemptReservation
+        with patch("crawler.jobs.fixture_night_window.NightSlotStore.reserve_execution",
+                   return_value=(night_slot(kst(8,21)),AttemptReservation(JOB,1))), patch(
+                   "crawler.jobs.fixture_night_window._execute_reserved_fixture_attempt",
                    return_value="OK") as fn:
-            result=execute_night_fixture_once(
-                slot_connection=slot_db,attempt_connection=a,
-                worker_connection=w,files=None,job_id=JOB,now=kst(8,21))
+            result=execute_night_fixture_once(slot_connection=slot_db,
+                attempt_connection=a,worker_connection=w,files=None,job_id=JOB,now=kst(8,21))
         self.assertEqual(result,"OK")
         self.assertIs(fn.call_args.kwargs["worker_connection"],w)
         with self.assertRaises(ValueError):
-            execute_night_fixture_once(
-                slot_connection=a,attempt_connection=a,worker_connection=w,
-                files=None,job_id=JOB,now=kst(8,21))
-        with self.assertRaises(NightSlotUnavailable):
-            execute_night_fixture_once(
-                slot_connection=slot_db,attempt_connection=a,worker_connection=w,
-                files=None,job_id=JOB,now=kst(8,21))
+            execute_night_fixture_once(slot_connection=a,attempt_connection=a,
+                worker_connection=w,files=None,job_id=JOB,now=kst(8,21))
+        with patch("crawler.jobs.fixture_night_window.NightSlotStore.reserve_execution",return_value=None):
+            with self.assertRaises(NightSlotUnavailable):
+                execute_night_fixture_once(slot_connection=slot_db,attempt_connection=a,
+                    worker_connection=w,files=None,job_id=JOB,now=kst(8,21))
 
     def test_no_automatic_activation(self):
         from pathlib import Path

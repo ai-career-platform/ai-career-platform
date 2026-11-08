@@ -34,6 +34,12 @@ class DurableFixtureAttemptStore:
         job_id = UUID(str(job_id))
         with self.connection.transaction():
             with self.connection.cursor() as cur:
+                # Share the job claim lock with night reservations and Workers.
+                # This also serializes the first-ever attempt (no attempt row yet).
+                cur.execute("""SELECT job_id FROM crawler_training.keyword_jobs
+                    WHERE job_id=%s AND status='PENDING' FOR UPDATE SKIP LOCKED""", (job_id,))
+                if cur.fetchone() is None:
+                    return None
                 cur.execute("""INSERT INTO crawler_training.fixture_job_attempts
                     (job_id,attempt_count,state)
                     SELECT j.job_id,1,'IN_PROGRESS'

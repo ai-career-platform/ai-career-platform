@@ -21,6 +21,7 @@ class FakeBudget:
     def reserve(self,job_id):
         self.conn.events.append("reserve")
         return self.reservation
+    def read(self,job_id):return (self.reservation.attempt,"IN_PROGRESS",None)
     def record_failure(self,**kwargs):
         self.conn.events.append(("failure",kwargs["error_code"]))
         if self.fail_record:raise RuntimeError("ledger error")
