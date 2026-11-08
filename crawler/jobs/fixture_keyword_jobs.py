@@ -69,6 +69,8 @@ def create_fixture_keyword_jobs(
         keyword_id=keyword_id, posting_ids=candidates, now=now,
         checkpoint=checkpoint, lookback_days=lookback_days, batch_size=batch_size
     )
+    if not batches:
+        return ()
     keyword_store = KeywordStore(connection)
     # Nested transactions in psycopg use savepoints. A failure creating
     # any batch rolls back earlier metadata jobs in this call as well.
