@@ -49,3 +49,7 @@
 - Staging DB 변경 여부(기본 NO), Schema/Seed/Migration 승인 링크(해당 시)
 
 [테스트 결과 보고서 양식](testing/TEST_REPORT_TEMPLATE.md)을 PR/Redmine에 붙여 주세요. Playwright는 2026-11-06 확인 시점에 설치되지 않았으며 도입·CI 작업은 별도 승인 PR이 필요합니다. 어떤 CI Smoke의 PASS도 전체 pytest/Vitest/Playwright PASS를 의미하지 않습니다.
+
+## PR 병합 후에도 필수: 자동 배포·Staging QA·Redmine 종료
+
+모든 개발 작업은 **[공통 종료 게이트](WORK_ITEM_CLOSURE_GATE.md)**를 적용합니다. `main` Squash Merge는 완료가 아니라 **스테이징 확인 시작 조건**입니다. 기존 GH Actions 자동 Publish → Ubuntu 1분 주기 Pull/배포의 실제 성공 기록, 대상 이미지에 변경 기능이 포함되었는지, 실행 SHA·Digest, **실제 Staging API/DB/Frontend 기능 테스트**를 확인하세요. 확인 결과를 Redmine에 기록하고 PM/JM이 승인해야 100%/Closed입니다. 자동 배포 미실행·범위 누락·서버 미접근·기능 FAIL은 HOLD/Blocked 유지. 배포 대상이 아닌 문서 전용 작업만 승인된 N/A 절차를 적용합니다.
