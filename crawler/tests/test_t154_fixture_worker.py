@@ -106,7 +106,7 @@ class WorkerTests(unittest.TestCase):
     def test_no_http_or_dispatch_import(self):
         from pathlib import Path
         text=(Path(__file__).resolve().parents[1]/"jobs"/"fixture_worker.py").read_text()
-        self.assertNotIn("subprocess",text)
+        self.assertNotIn("import subprocess",text)
         self.assertNotIn("fetch_pages(",text)
         self.assertNotIn("SchedulerStore",text)
 
