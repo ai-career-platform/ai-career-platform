@@ -10,7 +10,9 @@ from datetime import date,datetime,time,timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from crawler.jobs.fixture_manual_retry import execute_manual_fixture_attempt
+from crawler.jobs.fixture_manual_retry import _execute_reserved_fixture_attempt
+from crawler.jobs.fixture_retry_budget import DurableFixtureAttemptStore
+from crawler.jobs.offline_recovery import RETRYABLE_CODES, STOP_CODES
 
 KST=ZoneInfo("Asia/Seoul")
 START=time(21,0)
@@ -60,28 +62,58 @@ class NightSlotStore:
     def __init__(self,connection):
         self.connection=connection
 
-    def reserve(self,*,job_id,now:datetime) -> NightSlot | None:
-        """One committed reservation per slot, one job per night.
+    def reserve(self, *, job_id, now: datetime) -> NightSlot | None:
+        """Compatibility slot-only reservation, with atomic eligibility check."""
+        result = self._reserve(job_id=job_id, now=now, with_attempt=False)
+        return result[0] if result else None
 
-        Caller MUST use an independent connection with no enclosing
-        transaction. A slot remains spent even if its worker fails.
+    def reserve_execution(self, *, job_id, now: datetime):
+        """Commit Slot + Attempt together, or neither, before Worker starts.
+
+        Use an independent autocommit connection; never an enclosing transaction.
+        The job NOWAIT row lock serializes this with manual attempts and Workers.
         """
-        slot=night_slot(now)
-        if slot is None:return None
-        job_uuid=UUID(str(job_id))
+        return self._reserve(job_id=job_id, now=now, with_attempt=True)
+
+    def _reserve(self, *, job_id, now, with_attempt):
+        slot = night_slot(now)
+        if slot is None:
+            return None
+        job_uuid = UUID(str(job_id))
+        # Production psycopg connections must be idle/autocommit: nested outer
+        # transactions would hide the claimed slot/attempt from the Worker.
+        if hasattr(self.connection, "info"):
+            from psycopg.pq import TransactionStatus
+            if (not self.connection.autocommit or
+                    self.connection.info.transaction_status != TransactionStatus.IDLE):
+                raise ValueError("Independent idle autocommit slot connection required")
         with self.connection.transaction():
             with self.connection.cursor() as cur:
-                cur.execute("""INSERT INTO crawler_training.fixture_night_slots
-                    (night_date,slot_index,job_id)
-                    SELECT %s,%s,j.job_id
-                    FROM crawler_training.keyword_jobs j
-                    JOIN crawler_training.fixture_job_payloads p
-                      ON p.job_id=j.job_id
+                cur.execute("""SELECT j.job_id FROM crawler_training.keyword_jobs j
+                    JOIN crawler_training.fixture_job_payloads p ON p.job_id=j.job_id
                     WHERE j.job_id=%s AND j.status='PENDING'
+                    FOR UPDATE OF j NOWAIT""", (job_uuid,))
+                if cur.fetchone() is None:
+                    return None
+                cur.execute("""SELECT attempt_count,state
+                    FROM crawler_training.fixture_job_attempts
+                    WHERE job_id=%s FOR UPDATE""", (job_uuid,))
+                attempt = cur.fetchone()
+                if attempt and (attempt[1] != "RETRYABLE" or attempt[0] >= 3):
+                    return None
+                cur.execute("""INSERT INTO crawler_training.fixture_night_slots
+                    (night_date,slot_index,job_id) VALUES (%s,%s,%s)
                     ON CONFLICT DO NOTHING RETURNING slot_index""",
-                    (slot.night_date,slot.slot_index,job_uuid))
-                row=cur.fetchone()
-                return slot if row else None
+                    (slot.night_date, slot.slot_index, job_uuid))
+                if cur.fetchone() is None:
+                    return None
+                reservation = None
+                if with_attempt:
+                    reservation = DurableFixtureAttemptStore(self.connection).reserve(job_uuid)
+                    if reservation is None:
+                        # Roll back the slot too; never consume a rejected attempt.
+                        raise NightSlotUnavailable("Attempt changed during slot claim")
+                return slot, reservation
 
 
 def execute_night_fixture_once(
@@ -96,11 +128,13 @@ def execute_night_fixture_once(
     """
     if len({id(slot_connection),id(attempt_connection),id(worker_connection)})!=3:
         raise ValueError("Three distinct PostgreSQL connections required")
-    slot=NightSlotStore(slot_connection).reserve(job_id=job_id,now=now)
-    if slot is None:
+    if failure_error_code is not None and failure_error_code not in RETRYABLE_CODES | STOP_CODES:
+        raise ValueError("Unknown failure code")
+    claim=NightSlotStore(slot_connection).reserve_execution(job_id=job_id,now=now)
+    if claim is None:
         raise NightSlotUnavailable("Outside KST window or slot/job already used")
-    return execute_manual_fixture_attempt(
+    return _execute_reserved_fixture_attempt(
         attempt_connection=attempt_connection,
         worker_connection=worker_connection,
-        files=files,job_id=job_id,failure_error_code=failure_error_code,
+        files=files,job_id=job_id,reservation=claim[1],failure_error_code=failure_error_code,
     )

@@ -57,5 +57,15 @@ jobs:
           psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f crawler/storage/migrations/0002_scheduler.sql
           CRAWLER_T64_ISOLATED_TEST=1 python -m unittest crawler.tests.local_t64_integration -v
           CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_t64_permissions -v
+      - name: Test bounded fixture night executor in isolated PostgreSQL
+        env:
+          CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_NIGHT_TEST_DSN: postgresql://crawler_staging@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_NIGHT_PG_TEST: '1'
+        run: |
+          for migration in crawler/storage/migrations/000{3,4,5,6,7,8,9}_*.sql crawler/storage/migrations/0010_*.sql; do
+            psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          python -m unittest crawler.tests.local_t154_night_executor -v
       - name: Verify disabled crawler systemd unit files
         run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer

@@ -14,6 +14,7 @@ class FakeCursor:
     def __exit__(self,*args):return False
     def execute(self,sql,params):self.sql=sql;self.params=params;self.db.statements.append(sql)
     def fetchone(self):
+        if "FOR UPDATE SKIP LOCKED" in self.sql:return (JOB,) if self.db.pending else None
         if "INSERT INTO crawler_training.fixture_job_attempts" in self.sql:
             if not self.db.pending or not self.db.payload: return None
             if self.db.state is None:

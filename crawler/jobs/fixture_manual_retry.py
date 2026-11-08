@@ -57,6 +57,23 @@ def execute_manual_fixture_attempt(
     if reservation is None:
         raise AttemptUnavailable("No permitted manual fixture attempt")
 
+    return _execute_reserved_fixture_attempt(
+        attempt_connection=attempt_connection, worker_connection=worker_connection,
+        files=files, job_id=job_uuid, reservation=reservation,
+        failure_error_code=failure_error_code,
+    )
+
+
+def _execute_reserved_fixture_attempt(
+    *, attempt_connection, worker_connection, files, job_id, reservation,
+    failure_error_code=None,
+):
+    """Internal continuation after a durable atomic night/manual reservation."""
+    job_uuid = UUID(str(job_id))
+    budget = DurableFixtureAttemptStore(attempt_connection)
+    if (reservation.job_id != job_uuid or
+            budget.read(job_uuid) != (reservation.attempt, "IN_PROGRESS", None)):
+        raise AttemptUnavailable("Reserved attempt is no longer active")
     try:
         outcome = process_fixture_job(
             connection=worker_connection, files=files, job_id=job_uuid
