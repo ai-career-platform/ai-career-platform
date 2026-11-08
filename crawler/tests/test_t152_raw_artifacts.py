@@ -54,5 +54,64 @@ class RawArtifactsTests(unittest.TestCase):
         self.assertNotIn("ALTER TABLE",sql)
 
 
+class _FakeRawConnection:
+    """Minimal duplicate/PK checks to regress cross-keyword receipt reuse offline."""
+    def __init__(self):
+        self.by_id = {}
+        self.by_composite = {}
+        self.result = None
+
+    def transaction(self):
+        from contextlib import nullcontext
+        return nullcontext()
+
+    def cursor(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def execute(self, query, params):
+        if "INSERT INTO crawler_training.raw_artifacts" in query:
+            artifact_id, keyword_id, _, kind, url, _, _, _, digest, storage_key = params
+            composite = (keyword_id,kind,url,digest)
+            if artifact_id in self.by_id:
+                raise AssertionError("raw_artifacts_pkey UniqueViolation")
+            if composite in self.by_composite:
+                self.result = None
+            else:
+                self.by_id[artifact_id] = storage_key
+                self.by_composite[composite] = (artifact_id,storage_key)
+                self.result = (artifact_id,)
+        elif "SELECT artifact_id,storage_key" in query:
+            self.result = self.by_composite.get(tuple(params))
+        else:
+            raise AssertionError("Unexpected SQL")
+
+    def fetchone(self):
+        return self.result
+
+
+class MultiKeywordMetadataTests(unittest.TestCase):
+    def test_same_receipt_two_keywords_distinct_ids_repeat_idempotent(self):
+        from crawler.jobs.raw_artifact_store import RawArtifactMetadata, RawReceipt
+        conn = _FakeRawConnection()
+        metadata = RawArtifactMetadata(conn)
+        digest = "a" * 64
+        receipt = RawReceipt("00000000-0000-4000-8000-000000000001",
+                             "detail", DETAIL_URL, digest, 5, "aa/" + digest + ".html")
+        first = metadata.insert(receipt=receipt,keyword_id=1)
+        second = metadata.insert(receipt=receipt,keyword_id=2)
+        repeated = metadata.insert(receipt=receipt,keyword_id=1)
+        self.assertNotEqual(first, second)
+        self.assertEqual(first, repeated)
+        self.assertEqual(len(conn.by_id), 2)
+        self.assertEqual(len(conn.by_composite), 2)
+        self.assertEqual({key for key in conn.by_id.values()}, {receipt.storage_key})
+
+
 if __name__ == "__main__":
     unittest.main()
