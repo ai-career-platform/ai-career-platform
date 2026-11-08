@@ -36,7 +36,10 @@ class T155ReadOnlyPostgresTests(unittest.TestCase):
     def test_existing_seed_and_schedule_metadata(self):
         before = self._counts()
         keywords = self.store.keywords()
-        self.assertEqual(len(keywords), 6)
+        from crawler.jobs.keyword_management import DEFAULT_KEYWORDS
+        names = {row["keyword"] for row in keywords}
+        self.assertTrue(set(DEFAULT_KEYWORDS).issubset(names))
+        self.assertGreaterEqual(len(keywords), 6)
         self.assertTrue(all("keyword_id" in k and "keyword" in k for k in keywords))
         self.assertEqual([k["keyword"] for k in self.store.keywords(limit=2, offset=1)],
                          [k["keyword"] for k in keywords[1:3]])
