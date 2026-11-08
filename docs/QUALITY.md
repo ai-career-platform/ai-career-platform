@@ -29,3 +29,7 @@ PR #1 CI는 단순 Smoke 테스트이므로, PASS만으로 Python/Frontend/DB/AI
 
 ## 테스트 데이터
 Staging 공통 Seed/샘플 데이터는 유지하되 CI 자동화 테스트는 분리된 DB 또는 트랜잭션으로 격리합니다. 배포 시 DB 초기화 금지.
+
+## 배포 후 기능별 필수 QA 및 종료 게이트
+
+[공통 종료 게이트](WORK_ITEM_CLOSURE_GATE.md)를 모든 개발 작업 DoD에 추가 적용합니다. **`LOCAL QA PASS`와 `CI SUCCESS`, `main MERGED`는 `STAGING QA PASS`의 대체 근거가 아닙니다.** 기존 자동 Publish 및 Ubuntu Pull/Compose 적용을 확인한 뒤 Manifest·실제 실행 SHA·이미지 Digest를 대조하고, 실제 스테이징에서 변경 API/Frontend/DB의 정상·실패·빈 결과 등을 범위에 맞게 확인하세요. 현재 PoC 컨테이너에 포함되지 않은 모듈은 `DEPLOY_SCOPE_GAP/HOLD`입니다. 민감정보를 제거한 Evidence를 Redmine에 등록하고 PM/JM 확인 후에만 100%/Closed. 비배포 작업은 승인된 N/A 대체 기준을 따릅니다.
