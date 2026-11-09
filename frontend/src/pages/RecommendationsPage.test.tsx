@@ -65,6 +65,7 @@ describe('RecommendationsPage (UI-017)', () => {
     expect(within(info).getByText('정규직')).toBeInTheDocument();
     expect(within(first).queryByRole('list', { name: '관련 기술' })).not.toBeInTheDocument();
     expect(within(first).getByText(/합격 가능성\(확률\)이 아닙니다/)).toBeInTheDocument();
+    expect(within(first).getByText(/요구 기술과 얼마나 일치하는지/)).toBeInTheDocument();
     expect(within(first).getByText('요구 기술 4개 중 3개가 일치합니다. 목표 직무에 포함됩니다.')).toBeInTheDocument();
     expect(within(first).getByText('예시 테크', { selector: '.job-company' })).toBeInTheDocument();
 

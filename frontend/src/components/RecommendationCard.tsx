@@ -72,7 +72,7 @@ export function RecommendationCard({ item, personalized, actions }: Recommendati
           ? personalized
             ? '이 공고는 적합 점수를 계산하지 않았습니다.'
             : '기준 추천이라 개인 적합 점수를 계산하지 않았습니다.'
-          : '적합 점수는 목표 직무·보유 기술이 공고 요구와 얼마나 맞는지 나타낸 0~100 참고 값이며, 합격 가능성(확률)이 아닙니다.'}
+          : '적합 점수는 내 보유 기술이 공고의 요구 기술과 얼마나 일치하는지 나타낸 0~100 참고 값이며, 합격 가능성(확률)이 아닙니다. 목표 직무는 점수가 같을 때 순서에만 반영됩니다.'}
       </p>
 
       <JobCard job={toJobCard(item)} tagsLabel="공고 정보" />
