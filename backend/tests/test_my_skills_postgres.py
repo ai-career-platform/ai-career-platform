@@ -69,9 +69,15 @@ def test_replace_and_list_against_postgres(pg_client, engine):  # noqa: F811
                   headers=headers)
     assert stored(engine, user_id)[a].updated_at == second[a].updated_at
 
-    # 응답 정렬: 이름, skill_id
-    names = [s["skill"]["name"] for s in pg_client.get(URL, headers=headers).json()]
-    assert names == sorted(names)
+    # 응답 정렬: 이름, skill_id — Python sorted()가 아니라 같은 DB의 ORDER BY(DB Collation) 결과와 비교
+    api_ids = [uuid.UUID(s["skill"]["skill_id"]) for s in pg_client.get(URL, headers=headers).json()]
+    with Session(engine) as db:
+        db_ids = list(db.scalars(
+            select(skills.c.skill_id)
+            .where(skills.c.skill_id.in_(api_ids))
+            .order_by(skills.c.name, skills.c.skill_id)
+        ))
+    assert api_ids == db_ids
 
     # 빈 목록 → 전부 삭제
     assert pg_client.put(URL, json={"items": []}, headers=headers).json() == []
