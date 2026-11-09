@@ -2,11 +2,14 @@
 export class ApiError extends Error {
   readonly status: number;
   readonly path: string;
+  /** problem+json 의 code (예: INVALID_CREDENTIALS). 없으면 undefined */
+  readonly code?: string;
 
-  constructor(status: number, path: string, message?: string) {
+  constructor(status: number, path: string, message?: string, code?: string) {
     super(message ?? `API ${path} failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.path = path;
+    this.code = code;
   }
 }
