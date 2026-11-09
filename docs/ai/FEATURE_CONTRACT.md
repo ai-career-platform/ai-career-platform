@@ -108,3 +108,65 @@ T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)�
 ## 12. 병합된 T06 계약과 후속 확인 (2026-11-06)
 
 T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)는 `d1fae3a`에 병합됐지만 문서·검증 도구이며 실제 API 구현이 아니다. PR 작성자는 해당 검사의 CI 미연결로 PARTIAL을 보고했다. SkillGapItem의 observed_level 0은 미입력 표시를 위한 계산값이며 원본 user_skills.proficiency NULL과 구분한다. DTO에는 미등록/미기재 구분 필드가 없으므로 별도 구분이 필요한지 협의한다. model_version은 응답에 필요하지만 T25의 가상 문자열이 승인된 모델 ID를 대신하지 않는다. RecommendationRunRequest는 limit 1~50, 기본 20이며 항목별 reason이 필요하다.
+
+
+## 13. PR #26 리뷰 보완: 합성 Feature 입력 계약 표 (2026-11-09)
+
+> **DRAFT / HOLD for integration.** 아래는 `tests/t25/fixtures.json`의 합성 예제에 대한 검증 규칙이지, 실제 사용자 데이터의 승인된 스키마가 아니다. 실제 운영 필수성·소유권·보존·권한은 T05/T06·PM 결정이 우선한다.
+
+| 필드 | 합성 예제 필수 여부 | 형식·NULL | 입력·출력/버전·출처 규칙 | 미확정 사항 |
+|---|---|---|---|---|
+| `entity_id` | 필수 | 공백 아닌 문자열; NULL 불가 | 동일 가상 대상 식별 및 split 교차 확인; 원본 사용자 ID라고 보장하지 않음 | 운영 식별자/가명처리 및 접근 권한 |
+| `feature_id` | 필수 | 공백 아닌 문자열; NULL 불가 | Feature 종류를 식별. 입력별 버전과 함께 관리 후보 | 실제 코드 체계 및 변경이력 |
+| `event_time` | 필수 | 타임존 포함 ISO 8601 문자열 | 사건 발생 시각; 합성 예제에서 `available_at`보다 늦으면 거부 | 현실의 예약·예정 이벤트 예외 |
+| `available_at` | 필수 | 타임존 포함 ISO 8601 문자열 | 관측값이 사용 가능해진 시각; 판단시점 이후 값은 Feature로 금지 | 백필·수정 이력의 실제 보존 방법 |
+| `decision_time` | 필수 | 타임존 포함 ISO 8601 문자열 | 가상 판단 시점. 결과 계산에 쓰인 시점의 증빙 후보 | 사용자별/모델별 실제 기준시각 |
+| `source_id` | 필수 | 문자열; 합성 테스트는 `synthetic-fixture`만 허용 | 원본 출처·사용 범위를 참조하는 후보. 실데이터 권한 검사 아님 | T61/T05 `data_sources` 연계·사용 허가 |
+| `usage_basis` | 필수 | 문자열; 합성 테스트는 `synthetic-only`만 허용 | 예제에 실데이터가 섞이지 않게 제한 | 개인정보 동의·철회·권리 근거/범위 |
+| `feature_version` | 필수 | 공백 아닌 문자열; NULL 불가 | 같은 계산 규칙을 재현하기 위한 가상 버전 | 배포·마이그레이션·승인 버전 방식 |
+| `dataset_version` | 필수 | 공백 아닌 문자열; NULL 불가 | 합성 분할을 함께 재현하기 위한 식별자 | 평가 데이터 등록·보존·재학습 정책 |
+| `split` | 필수(합성 학습 예제만) | `train` / `validation` / `test`; NULL 불가 | 데이터 누수 방지 검증용 구분; 일반 추론 요청에는 요구하지 않음 | 그룹·시간 분할의 모델별 정책 |
+| `label_available_at` | 선택(추가 합성 감사 테스트) | 타임존 포함 ISO 8601 또는 NULL | 라벨이 생긴 시각. 라벨이 **정답(target)** 이면 판단시점 이후도 가능하지만, **Feature 입력**으로 사용하려면 당시 이용 가능해야 함 | 라벨 의미·예측 기간·라벨 수집 경로 |
+| `label_used_as_feature` | 선택(추가 합성 감사 테스트) | boolean, 기본 false | true일 때 미래 라벨·누락 라벨 사용을 거부하는 테스트용 표시 | 실제 입력 라인리지 자동 확인 방법 |
+| `group_id`, `content_fingerprint` | 선택(추가 합성 감사 테스트) | 공백 아닌 문자열 또는 NULL | 같은 그룹/표준화된 지문이 서로 다른 분할에 있으면 경고 | 유사문서 그룹화 알고리즘·검토 책임 |
+
+**도메인 입력 별도 규칙:** `job_role_skills.required_level`은 1~5 정수이며, `user_skills.proficiency`는 1~5 또는 NULL(미입력)이다. 이들은 위 공통 메타데이터에 곧바로 추가되는 필드가 아니다. 계산 스냅샷에서만 미입력 NULL을 0으로 바꾸는 안이며, 실제 입력된 0으로 원본을 덮어쓰지 않는다. `feature_id`, `dataset_version`, `available_at` 등을 실제 DB에 이미 저장하고 있다고 가정하면 안 된다.
+
+## 14. PR #26 리뷰 보완: 합성 데이터 누수 검사와 한계
+
+기존 `test_contract_example.py` 12건은 필수 메타데이터·시점·동일 entity 분할·기준시점 선택을 검증한다. 신규 `test_leakage_guard.py` 12건은 다음을 추가로 검토한다.
+
+1. 사건·사용 가능·판단 시각이 잘못됐거나 타임존이 없으면 오류를 기록한다.
+2. 미래에 이용 가능해진 관측값을 입력으로 사용하는 예제를 검출한다.
+3. 판단 당시 이용할 수 없던 라벨을 **입력 Feature**로 쓰면 검출한다. 단, 판단 후 확정되는 학습용 정답 라벨 자체를 금지하지는 않는다.
+4. 동일 가상 entity, 그룹 ID 또는 표준화 지문이 학습·검증·시험을 넘나들면 검출한다.
+5. 합성 분할의 결정시각 범위가 겹치거나 역전되면 검출한다(보수적 시간 분할 예제).
+6. 잘못된 split·플래그·날짜·입력 형식의 거부 사례를 검사한다.
+
+`content_fingerprint` 검사는 대소문자·공백 정규화 수준에 그치므로 의미가 유사한 문서/공고의 중복을 발견하지 못한다. `group_id`도 사전에 올바르게 배정됐다는 가정이 필요하다. 이 테스트는 **실제 데이터 누수 없음, 편향 없음, 개인정보 보호 완료를 증명하지 않는다.** 학습 데이터의 라벨링 시점, 전처리 학습 범위, 재수집·변경 시점, 모델별 그룹/시간 분할과 데이터 접근 권한은 별도 검토가 필요하다.
+
+로컬 추가 테스트: `python -B -m unittest discover -s tests/t25 -p 'test_leakage_guard.py' -v` → 신규 12건 PASS(합성 테스트 코드 자체 검증). 전체 테스트와 GitHub Actions는 새 커밋·실제 CI 실행 결과를 별도 확인한다. 이 PR에는 `.github/workflows/t25-feature-contract.yml`을 추가해 Python 3.12에서 **T25 전용 테스트**를 독립 실행하도록 했다. GitHub 워크플로 실행/승인 정책 때문에 실행되지 않았다면 CI PASS로 보고하지 않는다.
+
+## 15. T05·T06 필드 매핑 및 불일치 (재검토용)
+
+| 입력·산출 | T05 데이터 사전 | T06 OpenAPI | T25 판단/추가 협의 |
+|---|---|---|---|
+| 사용자 기술 | `user_skills.user_id`, `skill_id`, `proficiency`(NULL 또는 1~5) | Skill Gap은 사용자의 보유 기술을 기반으로 산출 | NULL 원본은 보존; 원본 부재와 미입력 NULL 구분 여부는 DB/Backend 담당자 확인 |
+| 직무 필요 기술 | `job_role_skills.job_role_id`, `skill_id`, `required_level`(1~5) | `SkillGapRequest.job_role_id`, SkillGapItem의 required_level | ID→코드 변환, 기준 시점의 요구 수준 이력 미확정 |
+| 계산 결과 | `skill_gap_items.required_level`, `observed_level`(0~5), `gap` | `SkillGapItem` 필수 `skill`, `required_level`, `observed_level`, `gap` | 원본 NULL은 계산용 0으로만 변환; DTO에 원본 미입력 여부 별도 필드 없음. 화면 표시 정책 결정 필요 |
+| 실행 버전 | `model_versions.model_version_id`, `model_code`, `version`, `kind`, `approved_at` | `SkillGap.model_version`은 ModelVersionRef | 규칙 `kind=rule`도 등록 대상. 승인 전의 합성 버전 문자열을 실제 승인 모델처럼 반환하지 않음 |
+| 평가 | `model_evaluations.model_version_id`, `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | 별도 관리자 평가 조회 DTO | 검사 범위·데이터셋/스플릿·라벨 시점 증빙이 `leakage_checked` 하나로 확보되지는 않음 |
+| 출처·기준 시각 | 합성 메타데이터의 `source_id`, `available_at`, `decision_time`과 직접 동일한 DB 컬럼 계약 미확인 | 모든 AI 응답에 이 메타데이터가 동일하게 실리는 계약 아님 | 별도 lineage/snapshot 저장 위치·출처 권리·동의/삭제 전파 책임 결정을 요구 |
+| RAG 접근·삭제 | 사용자 문서·청크·검색 결과의 실제 인가/정리 동작 미검증 | `askKnowledge` 설명은 검색을 Q&A 내부에서만 사용 | T54 지시서의 검색 API 표현과 공개 경계 불일치; T15/T49/T53/T54/API·PM 담당자 확인 전 HOLD |
+
+## 16. 리뷰 결정 대기 목록 및 작업 경계
+
+| 우선 | 결정 요청 | 결정 필요 역할 | 상태 |
+|---|---|---|---|
+| P0 | T25 필드별 운영 필수성, `available_at`/version/출처 저장 위치와 API 공개 여부 | PM·DB(T05)·API(T06)·AI 담당 | OPEN / DRAFT |
+| P0 | 모델별 라벨 가용 시각, 그룹·시간 분할, 중복/유사도 검사 기준 | AI/데이터 담당·PM | OPEN / DRAFT |
+| P0 | 실제 동의 철회·삭제 시 파생 feature·데이터셋·모델·색인 전파와 중단 조건 | 개인정보/보안·DB·AI·PM | OPEN / HOLD |
+| P1 | 미입력 원본 NULL과 계산값 0의 API/화면 표시·이력 의미 | DB·Backend(T26/T43)·Frontend(T44) | OPEN / DRAFT |
+| P1 | T53/T54 검색 공개 경계 및 권한 변경/삭제 시 fail-closed 검사 | T15/T49/T53/T54·API·PM | OPEN / HOLD |
+
+**현 상태:** `T25_STATUS=PARTIAL`, `PR #26=Draft/HOLD` 유지. 이 보완은 계약 문서와 합성 테스트·CI 정의에 한정하며, 운영 DB/Schema/Seed, 실제 API, 인증, 실제 사용자 데이터, Staging, 배포는 변경하지 않았다. CI가 실제 실행돼 PASS하고 미결 결정을 담당자가 승인하기 전에는 '완료'로 표시하지 않는다.
