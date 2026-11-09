@@ -33,14 +33,16 @@ describe('createHttpClient', () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse(200, {}));
     const http = createHttpClient({ baseUrl: '/api', fetch: fetchImpl });
 
+    await http.request('/v1/auth/refresh', { method: 'POST', token: null }); // 본문 없는 refresh
     await http.request('/v1/auth/login', { method: 'POST', body: {}, token: null });
     await http.request('/v1/me/skills', { method: 'PUT', body: { items: [] } });
+    await http.request('/v1/me', { method: 'PATCH', body: {} });
     await http.request('/v1/me/bookmarks/x', { method: 'DELETE' });
     await http.request('/v1/job-roles');
 
     const headers = fetchImpl.mock.calls.map(([, init]) => init?.headers as Record<string, string>);
-    expect(headers.slice(0, 3).map((h) => h['X-CSRF-TOKEN'])).toEqual(['1', '1', '1']);
-    expect(headers[3]).not.toHaveProperty('X-CSRF-TOKEN');
+    expect(headers.slice(0, 5).map((h) => h['X-CSRF-TOKEN'])).toEqual(['1', '1', '1', '1', '1']);
+    expect(headers[5]).not.toHaveProperty('X-CSRF-TOKEN');
   });
 
   it('lets a call override or drop the client token', async () => {

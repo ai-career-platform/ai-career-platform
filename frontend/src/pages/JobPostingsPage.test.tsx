@@ -137,6 +137,20 @@ describe('job postings (T18 API)', () => {
     expect(screen.queryByRole('link', { name: /원문/ })).not.toBeInTheDocument();
   });
 
+  it('renders untrusted posting and company HTML as text and rejects company script URLs', async () => {
+    const payload = '<img src=x onerror=alert(document.cookie)><script>alert(1)</script>';
+    serve({
+      list: () => ({ items: [posting('p1', payload)], next_cursor: null }),
+      detail: (path) => detailOf(path.split('/').pop() ?? '', { description: payload }),
+      company: () => companyDetail({ description: payload, website_url: 'data:text/html,<script>alert(1)</script>' }),
+    });
+    const { container } = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: `${payload} 상세 보기` }));
+    await waitFor(() => expect(screen.getAllByText(payload).length).toBeGreaterThanOrEqual(3));
+    expect(container.querySelector('img, script, [onerror]')).toBeNull();
+    expect(container.querySelector('a[href^="data:"], a[href^="javascript:"]')).toBeNull();
+  });
+
   it('does not invent dates or status when the API has none', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { published_at: null, expires_at: null, job_role: null, description: null, required_skills: [] }) });
     renderPage();

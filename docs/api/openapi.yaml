@@ -41,6 +41,8 @@ paths:
   /auth/signup:
     post:
       tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
       operationId: signup
       summary: 이메일 가입 + 필수 약관 동의
       description: |
@@ -64,6 +66,7 @@ paths:
                 - { policy_code: terms, policy_version: '2026-11', granted: true }
                 - { policy_code: privacy, policy_version: '2026-11', granted: true }
       responses:
+        '403': { $ref: '#/components/responses/Forbidden' }
         '201':
           description: 가입 완료. 바로 로그인 상태 (FR-ACC-001 수용 기준 1)
           headers:
@@ -86,6 +89,8 @@ paths:
   /auth/login:
     post:
       tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
       operationId: login
       summary: 이메일·비밀번호 로그인
       description: 입력한 이메일을 비교용 이메일로 바꿔 계정을 찾는다. `crasnec+box@gmail.com`으로 가입했어도 `crasnec@gmail.com`으로 로그인할 수 있다.
@@ -100,6 +105,7 @@ paths:
             schema: { $ref: '#/components/schemas/LoginRequest' }
             example: { email: seeker@example.com, password: correct-horse-battery-1 }
       responses:
+        '403': { $ref: '#/components/responses/Forbidden' }
         '200':
           description: 로그인 성공
           headers:
@@ -122,6 +128,8 @@ paths:
   /auth/refresh:
     post:
       tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
       operationId: refreshToken
       summary: refresh 쿠키로 access token 재발급 (refresh 회전)
       x-requirements: [FR-ACC-003, NFR-SEC-001]
@@ -130,6 +138,7 @@ paths:
       security:
         - refreshCookie: []
       responses:
+        '403': { $ref: '#/components/responses/Forbidden' }
         '200':
           description: 새 access token + 새 refresh 쿠키. 이전 refresh는 즉시 폐기
           headers:
@@ -141,6 +150,8 @@ paths:
   /auth/logout:
     post:
       tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
       operationId: logout
       summary: 현재 세션 폐기
       x-requirements: [FR-ACC-003]
@@ -149,6 +160,7 @@ paths:
       security:
         - refreshCookie: []
       responses:
+        '403': { $ref: '#/components/responses/Forbidden' }
         '204':
           description: 로그아웃. refresh 쿠키 삭제 (Max-Age=0)
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1810,6 +1822,12 @@ components:
       schema: { type: integer, minimum: 1, maximum: 60 }
 
   parameters:
+    CsrfProtection:
+      name: X-CSRF-TOKEN
+      in: header
+      required: true
+      description: 'same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN.'
+      schema: { type: string, const: '1' }
     Q:
       name: q
       in: query

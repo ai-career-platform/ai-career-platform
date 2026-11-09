@@ -1797,6 +1797,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+        CsrfProtection: "1";
         /** @description 이름 검색어 (부분 일치, 대소문자 무시) */
         Q: string;
         Limit: number;
@@ -1833,7 +1835,10 @@ export interface operations {
     signup: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1879,6 +1884,7 @@ export interface operations {
                     "application/json": components["schemas"]["TokenResponse"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             /** @description 비교용 이메일이 같은 계정이 이미 있음 (code=EMAIL_TAKEN). `+태그`만 다른 이메일도 포함 */
             409: {
                 headers: {
@@ -1902,7 +1908,10 @@ export interface operations {
     login: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1951,6 +1960,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
             429: components["responses"]["TooManyRequests"];
         };
@@ -1958,7 +1968,10 @@ export interface operations {
     refreshToken: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1975,12 +1988,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     logout: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1994,6 +2011,7 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     requestPasswordReset: {

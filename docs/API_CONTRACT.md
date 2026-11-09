@@ -30,6 +30,7 @@
 | 방식 | 이메일 + 비밀번호. 외부 로그인(IdP)은 1차에 쓰지 않는다 |
 | 접근 토큰 | JWT, 15분. `Authorization: Bearer <token>` 헤더로 보낸다. 내용: `sub`(user_id), `sid`(세션), `roles` |
 | 갱신 토큰 | 불투명 문자열, 14일. `refresh_token` 쿠키(`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`) |
+| CSRF | `POST /auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`에 `X-CSRF-TOKEN: 1` 필수. 누락·오류 또는 `Sec-Fetch-Site`가 존재하면서 `same-origin`이 아니면 403 `FORBIDDEN`. 브라우저는 같은 Origin `/api`로만 호출하며 인증 경로에 외부 Origin CORS를 허용하지 않는다. CLI도 이 헤더를 전송한다 |
 | 회전 | `POST /auth/refresh`를 부를 때마다 새 갱신 토큰을 주고 이전 것은 즉시 무효. DB에는 해시만 저장 |
 | 로그아웃 | 현재 세션 무효화 + 쿠키 삭제. 탈퇴 요청·비밀번호 변경 시 모든 세션 무효화 |
 | 이메일 비교 | 가입 중복 검사와 로그인은 **비교용 이메일**로 한다: 앞뒤 공백 제거 → 소문자 → `@` 앞 `+` 이후 제거 → gmail.com·googlemail.com은 `@` 앞 `.` 제거, 도메인 `gmail.com`. 예: `crasnec+box@gmail.com` → `crasnec@gmail.com`. 응답의 `email`은 사용자가 입력한 원래 값 (FR-ACC-001·002) |
