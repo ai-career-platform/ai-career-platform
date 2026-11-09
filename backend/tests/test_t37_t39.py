@@ -24,7 +24,9 @@ class HistoryRepo:
     def update_experience(self, user_id, item_id, data): return self.items.get(item_id)
     def delete_experience(self, user_id, item_id): return self.items.pop(item_id, None) is not None
     def list_projects(self, user_id): return []
-    def create_project(self, user_id, data): return None if data.skill_ids else object()
+    def create_project(self, user_id, data):
+        if data.skill_ids: raise ValueError("unknown skill")
+        return object()
     def update_project(self, user_id, item_id, data): return None
     def delete_project(self, user_id, item_id): return False
 
@@ -34,6 +36,12 @@ def test_t37_date_range_duplicate_skills_and_empty_patch_validation():
         ExperienceInput(organization="A", title="B", start_date=date(2026, 2, 1), end_date=date(2026, 1, 1))
     with pytest.raises(ValidationError): ExperiencePatch()
     with pytest.raises(ValidationError): ProjectPatch()
+    # 생략은 허용, NOT NULL 필드에 명시적 null은 422 (DB 오류 500이 되지 않게).
+    for patch in ({"organization": None}, {"title": None}):
+        with pytest.raises(ValidationError): ExperiencePatch(**patch)
+    for patch in ({"title": None}, {"skill_ids": None}):
+        with pytest.raises(ValidationError): ProjectPatch(**patch)
+    assert ExperiencePatch(description=None).description is None
     skill = uuid4()
     with pytest.raises(ValidationError): ProjectInput(title="P", skill_ids=[skill, skill])
 
@@ -46,7 +54,7 @@ def test_t37_crud_not_found_and_unknown_skill_boundaries():
     with pytest.raises(AppError) as error: service.delete_experience(USER, item.experience_id)
     assert error.value.code == ErrorCode.NOT_FOUND
     with pytest.raises(AppError) as error: service.create_project(USER, ProjectInput(title="P", skill_ids=[uuid4()]))
-    assert error.value.code == ErrorCode.NOT_FOUND
+    assert error.value.code == ErrorCode.VALIDATION_FAILED
 
 
 class BookmarkRepo:

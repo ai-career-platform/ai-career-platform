@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, String, Uuid, column, delete, insert, select, table, update
+from sqlalchemy import Date, DateTime, String, Uuid, column, delete, func, insert, select, table, update
 from sqlalchemy.orm import Session
 
 from app.schemas.career_history import Experience, ExperienceInput, ExperiencePatch, Project, ProjectInput, ProjectPatch
@@ -25,8 +25,10 @@ class CareerHistoryRepository(Protocol):
     def update_experience(self, user_id: UUID, item_id: UUID, data: ExperiencePatch) -> Experience | None: ...
     def delete_experience(self, user_id: UUID, item_id: UUID) -> bool: ...
     def list_projects(self, user_id: UUID) -> list[Project]: ...
-    def create_project(self, user_id: UUID, data: ProjectInput) -> Project | None: ...
-    def update_project(self, user_id: UUID, item_id: UUID, data: ProjectPatch) -> Project | None: ...
+    def create_project(self, user_id: UUID, data: ProjectInput) -> Project:
+        """모르는 skill_id가 있으면 ValueError."""
+    def update_project(self, user_id: UUID, item_id: UUID, data: ProjectPatch) -> Project | None:
+        """본인 프로젝트가 없으면 None, 모르는 skill_id·잘못된 기간이면 ValueError."""
     def delete_project(self, user_id: UUID, item_id: UUID) -> bool: ...
 
 
@@ -56,7 +58,8 @@ class SqlCareerHistoryRepository:
         values = data.model_dump(exclude_unset=True)
         start, end = values.get("start_date", current.start_date), values.get("end_date", current.end_date)
         if start and end and end < start: raise ValueError("invalid date range")
-        self.db.execute(update(experiences).where(experiences.c.experience_id == item_id).values(**values))
+        self.db.execute(update(experiences).where(experiences.c.experience_id == item_id)
+            .values(**values, updated_at=func.now()))
         self.db.commit()
         return self._experience(self.db.execute(select(experiences).where(experiences.c.experience_id == item_id)).one())
 
@@ -77,11 +80,12 @@ class SqlCareerHistoryRepository:
             .order_by(projects.c.start_date.desc().nullslast(), projects.c.project_id)).all()
         return [self._project(r) for r in rows]
 
-    def _valid_skills(self, ids):
-        return len(ids) == len(set(self.db.scalars(select(skills.c.skill_id).where(skills.c.skill_id.in_(ids)))))
+    def _check_skills(self, ids):
+        if ids and len(ids) != len(set(self.db.scalars(select(skills.c.skill_id).where(skills.c.skill_id.in_(ids))))):
+            raise ValueError("unknown skill")
 
     def create_project(self, user_id, data):
-        if not self._valid_skills(data.skill_ids): return None
+        self._check_skills(data.skill_ids)
         item_id, values = uuid4(), data.model_dump(exclude={"skill_ids"})
         self.db.execute(insert(projects).values(project_id=item_id, user_id=user_id, **values))
         if data.skill_ids: self.db.execute(insert(project_skills), [{"project_id": item_id, "skill_id": x} for x in data.skill_ids])
@@ -92,10 +96,12 @@ class SqlCareerHistoryRepository:
             projects.c.user_id == user_id)).one_or_none()
         if current is None: return None
         values = data.model_dump(exclude_unset=True); ids = values.pop("skill_ids", None)
-        if ids is not None and not self._valid_skills(ids): return None
+        if ids is not None: self._check_skills(ids)
         start, end = values.get("start_date", current.start_date), values.get("end_date", current.end_date)
         if start and end and end < start: raise ValueError("invalid date range")
-        if values: self.db.execute(update(projects).where(projects.c.project_id == item_id).values(**values))
+        # skill_ids만 바꿔도 수정 시각은 갱신한다.
+        self.db.execute(update(projects).where(projects.c.project_id == item_id)
+            .values(**values, updated_at=func.now()))
         if ids is not None:
             self.db.execute(delete(project_skills).where(project_skills.c.project_id == item_id))
             if ids: self.db.execute(insert(project_skills), [{"project_id": item_id, "skill_id": x} for x in ids])

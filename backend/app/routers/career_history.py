@@ -1,13 +1,14 @@
 from typing import Annotated
 from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status
+from app.core.exception_handlers import error_responses
 from app.dependencies.auth import CurrentUserDep
 from app.dependencies.career_history import get_career_history_repository
 from app.repositories.career_history import CareerHistoryRepository
 from app.schemas.career_history import Experience, ExperienceInput, ExperiencePatch, Project, ProjectInput, ProjectPatch
 from app.services.career_history import CareerHistoryService
 
-router = APIRouter(prefix="/me", tags=["me"])
+router = APIRouter(prefix="/me", tags=["me"], responses=error_responses(401, 503))
 Repo = Annotated[CareerHistoryRepository, Depends(get_career_history_repository)]
 
 @router.get("/experiences", response_model=list[Experience], operation_id="listMyExperiences")
@@ -19,11 +20,13 @@ def create_experience(payload: ExperienceInput, user: CurrentUserDep, repo: Repo
     response.headers["Location"] = f"/api/v1/me/experiences/{item.experience_id}"
     return item
 
-@router.patch("/experiences/{experience_id}", response_model=Experience, operation_id="updateMyExperience")
+@router.patch("/experiences/{experience_id}", response_model=Experience, operation_id="updateMyExperience",
+             responses=error_responses(404))
 def update_experience(experience_id: UUID, payload: ExperiencePatch, user: CurrentUserDep, repo: Repo):
     return CareerHistoryService(repo).update_experience(user.user_id, experience_id, payload)
 
-@router.delete("/experiences/{experience_id}", status_code=204, operation_id="deleteMyExperience")
+@router.delete("/experiences/{experience_id}", status_code=204, operation_id="deleteMyExperience",
+             responses=error_responses(404))
 def delete_experience(experience_id: UUID, user: CurrentUserDep, repo: Repo):
     CareerHistoryService(repo).delete_experience(user.user_id, experience_id)
 
@@ -36,10 +39,12 @@ def create_project(payload: ProjectInput, user: CurrentUserDep, repo: Repo, resp
     response.headers["Location"] = f"/api/v1/me/projects/{item.project_id}"
     return item
 
-@router.patch("/projects/{project_id}", response_model=Project, operation_id="updateMyProject")
+@router.patch("/projects/{project_id}", response_model=Project, operation_id="updateMyProject",
+             responses=error_responses(404))
 def update_project(project_id: UUID, payload: ProjectPatch, user: CurrentUserDep, repo: Repo):
     return CareerHistoryService(repo).update_project(user.user_id, project_id, payload)
 
-@router.delete("/projects/{project_id}", status_code=204, operation_id="deleteMyProject")
+@router.delete("/projects/{project_id}", status_code=204, operation_id="deleteMyProject",
+             responses=error_responses(404))
 def delete_project(project_id: UUID, user: CurrentUserDep, repo: Repo):
     CareerHistoryService(repo).delete_project(user.user_id, project_id)

@@ -15,7 +15,7 @@ from app.services.target_roles import TargetRoleService
 router = APIRouter(
     prefix="/me/target-roles",
     tags=["me"],
-    responses=error_responses(401, 404, 503),
+    responses=error_responses(401, 503),
 )
 
 

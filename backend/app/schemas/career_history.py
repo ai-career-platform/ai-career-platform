@@ -10,6 +10,15 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def _reject_explicit_null(model: BaseModel, fields: tuple[str, ...]) -> None:
+    """PATCH에서 보낸 필드가 null이면 거부한다. 생략은 허용(변경 없음), null은 계약 위반(DB NOT NULL)."""
+    if not model.model_fields_set:
+        raise ValueError("at least one field is required")
+    for name in fields:
+        if name in model.model_fields_set and getattr(model, name) is None:
+            raise ValueError(f"{name} must not be null")
+
+
 class DateRangeModel(StrictModel):
     start_date: date | None = None
     end_date: date | None = None
@@ -34,8 +43,7 @@ class ExperiencePatch(DateRangeModel):
 
     @model_validator(mode="after")
     def require_field(self):
-        if not self.model_fields_set:
-            raise ValueError("at least one field is required")
+        _reject_explicit_null(self, ("organization", "title"))
         return self
 
 
@@ -63,8 +71,7 @@ class ProjectPatch(DateRangeModel):
 
     @model_validator(mode="after")
     def validate_patch(self):
-        if not self.model_fields_set:
-            raise ValueError("at least one field is required")
+        _reject_explicit_null(self, ("title", "skill_ids"))
         if self.skill_ids is not None and len(set(self.skill_ids)) != len(self.skill_ids):
             raise ValueError("skill_ids must be unique")
         return self

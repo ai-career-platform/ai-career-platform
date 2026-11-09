@@ -17,5 +17,5 @@ class TargetRoleService:
     def replace(self, user_id: UUID, payload: TargetRolesReplace) -> list[TargetRole]:
         result = self.repository.replace(user_id, payload.items)
         if result is None:
-            raise AppError(ErrorCode.NOT_FOUND, log_detail="inactive or unknown job role")
+            raise AppError(ErrorCode.VALIDATION_FAILED, log_detail="inactive or unknown job role")
         return result

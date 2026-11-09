@@ -104,8 +104,8 @@ def test_unknown_job_role_is_not_saved(client, target_repo):
     headers = bearer(access_token(client))
     unknown = "99999999-9999-4999-8999-999999999999"
     response = client.put(PATH, headers=headers, json={"items": [item(unknown, 1)]})
-    assert response.status_code == 404
-    assert response.json()["code"] == "NOT_FOUND"
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_FAILED"
     assert client.get(PATH, headers=headers).json() == []
 
 

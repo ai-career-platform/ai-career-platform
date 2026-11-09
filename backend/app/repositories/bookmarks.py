@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.repositories.job_postings import PostingRow
 
 S = "career"
+VISIBLE_STATUSES = ("published", "closed")
 bookmarks = table("user_job_bookmarks", column("user_id", Uuid), column("job_posting_id", Uuid),
     column("created_at", DateTime(timezone=True)), schema=S)
 postings = table("job_postings", column("job_posting_id", Uuid), column("company_id", Uuid),
@@ -38,7 +39,9 @@ class SqlBookmarkRepository:
             c.name.label("company_name"), r.job_role_id, r.code.label("job_role_code"), r.name.label("job_role_name"),
             p.employment_type, p.location_text, p.published_at, p.expires_at, b.created_at).select_from(bookmarks)
         stmt = stmt.join(postings, p.job_posting_id == b.job_posting_id).join(companies, c.company_id == p.company_id)
-        stmt = stmt.outerjoin(roles, r.job_role_id == p.job_role_id).where(b.user_id == user_id)
+        # 저장 뒤 비공개로 바뀐 공고는 응답 스키마(published|closed)에 없고 노출해서도 안 되므로 뺀다.
+        stmt = stmt.outerjoin(roles, r.job_role_id == p.job_role_id).where(
+            b.user_id == user_id, p.status.in_(VISIBLE_STATUSES))
         if after: stmt = stmt.where(tuple_(b.created_at, b.job_posting_id) < tuple_(after[0], after[1]))
         rows = self.db.execute(stmt.order_by(b.created_at.desc(), b.job_posting_id.desc()).limit(limit)).all()
         return [BookmarkRow(PostingRow(job_posting_id=x.job_posting_id, title=x.title, status=x.display_status,
@@ -47,7 +50,7 @@ class SqlBookmarkRepository:
             location_text=x.location_text, published_at=x.published_at, expires_at=x.expires_at), x.created_at) for x in rows]
     def add(self, user_id, posting_id):
         exists = self.db.scalar(select(postings.c.job_posting_id).where(postings.c.job_posting_id == posting_id,
-            postings.c.status.in_(("published", "closed"))))
+            postings.c.status.in_(VISIBLE_STATUSES)))
         if exists is None: return False
         self.db.execute(insert(bookmarks).values(user_id=user_id, job_posting_id=posting_id).on_conflict_do_nothing())
         self.db.commit(); return True
