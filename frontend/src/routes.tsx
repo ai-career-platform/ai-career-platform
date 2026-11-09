@@ -10,6 +10,7 @@ import { JobPostingsPage } from './pages/JobPostingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
+import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
@@ -28,6 +29,9 @@ export const routes: RouteObject[] = [
       { path: 'system-status', element: <HomePage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'job-postings', element: <JobPostingsPage /> },
+      { path: 'me/target-roles', element: <TargetRolesPage /> },
+      { path: 'me/career-history', element: <CareerHistoryPage /> },
+      { path: 'me/bookmarks', element: <BookmarksPage /> },
       { path: 'login', element: <LoginPage /> },
       { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }, { path: 'account/privacy', element: <PrivacySettingsPage /> }] },
       { path: '*', element: <NotFoundPage /> },

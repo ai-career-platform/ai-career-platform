@@ -154,3 +154,15 @@ class MemoryAuthRepository:
 
     def rollback(self) -> None:
         self._state = copy.deepcopy(self._committed)
+
+
+def override_auth_repository(app, repo) -> None:
+    """인증 의존성(`get_auth_service`)이 저장소만 바꾼 AuthService를 쓰게 한다.
+
+    설정·시도 제한기는 앱 것을 그대로 써서 실제 요청과 같은 규칙으로 동작한다.
+    """
+    from app.dependencies.auth import get_auth_service
+    from app.services.auth import AuthService
+
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(
+        repo, app.state.auth_settings, app.state.attempt_limiter)
