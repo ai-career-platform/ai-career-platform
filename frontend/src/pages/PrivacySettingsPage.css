@@ -1,0 +1,12 @@
+.privacy-page { max-width: 960px; margin: 0 auto; padding: 1.5rem 0; }
+.privacy-mode { border-left: 3px solid var(--color-warning); padding: .75rem 1rem; background: var(--color-surface); }
+.privacy-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.privacy-card, .privacy-deletion { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem; overflow-wrap: anywhere; }
+.privacy-card h3 { margin-top: 0; }
+.privacy-card p { margin: .5rem 0; }
+.privacy-deletion { margin-top: 2rem; }
+.privacy-error { color: var(--color-danger); }
+.privacy-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #0008; padding: 1rem; }
+.privacy-dialog { width: min(100%, 480px); max-height: 90dvh; overflow: auto; border-radius: 12px; padding: 1.5rem; background: var(--color-surface); box-shadow: 0 12px 48px #0004; }
+.privacy-dialog .ui-button { margin: .5rem .5rem .25rem 0; }
+@media (max-width: 640px) { .privacy-cards { grid-template-columns: 1fr; } .privacy-page { padding: 1rem 0; } }
