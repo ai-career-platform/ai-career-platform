@@ -10,7 +10,7 @@
 DDL·Seed 파일 위치는 기본값이 저장소의 `database/schema/T05_VALIDATION_ONLY.sql`,
 `database/seeds/0001_initial_seed.sql`이며 `T15_SCHEMA_SQL`, `T15_SEED_SQL`로 바꿀 수 있다.
 T10 Seed에는 약관 정책(consent_policies)이 없어 테스트에서 2026-11 버전 3건을 넣는다.
-DB 준비·검증 조회는 모두 앱과 같은 SQLAlchemy 엔진·ORM 모델(app/models/auth.py)로 한다.
+DB 준비·검증 조회는 모두 앱과 같은 SQLAlchemy 엔진(app/db.py)·ORM 모델(app/models/auth.py)로 한다.
 """
 
 import os
@@ -21,11 +21,12 @@ from datetime import UTC, datetime
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, delete, func, select
-from sqlalchemy.engine import make_url
+from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import API_V1_PREFIX, get_settings
+from app.core.config import DatabaseSettings
+from app.db import create_db_engine
 from app.main import create_app
 from app.models.auth import (
     AuthIdentity,
@@ -65,8 +66,8 @@ CANONICAL = "crasnec@gmail.com"
 
 @pytest.fixture
 def engine() -> Engine:
-    # 앱(app/db.py)과 같은 SQLAlchemy + psycopg 드라이버 조합
-    test_engine = create_engine(make_url(DB_URL).set(drivername="postgresql+psycopg"))
+    # 앱과 같은 엔진(T14 app/db.py의 create_db_engine)을 그대로 쓴다
+    test_engine = create_db_engine(DatabaseSettings(url=DB_URL, pool_size=2, timeout=5))
     yield test_engine
     test_engine.dispose()
 
