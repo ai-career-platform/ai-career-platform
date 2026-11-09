@@ -5,12 +5,15 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from app.core.config import API_V1_PREFIX, get_settings
 from app.core.errors import AppError, ErrorCode
+from app.core.security import issue_access_token
 from app.main import create_app
 from app.repositories.job_postings import (
     CompanyDetailRow, CompanyRow, PostingFilter, PostingRow, PostingSkillRow, escape_like,
@@ -22,13 +25,14 @@ from tests.fakes import MemoryAuthRepository
 
 NOW = datetime(2026, 11, 9, tzinfo=UTC)
 KEY = derive_cursor_key(TEST_SECRET)
+_MIN = datetime.min.replace(tzinfo=UTC)
 
 
 class FakeRepo:
     """정렬·필터를 단순 구현한 메모리 저장소. SQL 의미는 Postgres 테스트에서 검증한다."""
 
     def __init__(self) -> None:
-        self.companies = [CompanyRow(uuid.UUID(int=i), f"기업 {i:02d}") for i in range(1, 8)]
+        self.companies = [CompanyRow(uuid.UUID(int=i), f"기업 {i:02d}", f"기업 {i:02d}") for i in range(1, 8)]
         role = uuid.uuid4()
         self.role = role
         self.postings = [
@@ -41,11 +45,9 @@ class FakeRepo:
 
     def list_companies(self, q, after, limit):
         rows = [c for c in self.companies if not q or q.lower() in c.name.lower()]
+        rows.sort(key=lambda c: (c.name.lower(), c.company_id))
         if after is not None:
-            ids = [c.company_id for c in rows]
-            if after not in ids:
-                return None
-            rows = rows[ids.index(after) + 1:]
+            rows = [c for c in rows if (c.name.lower(), c.company_id) > after]
         return rows[:limit]
 
     def get_company(self, company_id, now):
@@ -55,12 +57,31 @@ class FakeRepo:
         return None
 
     def list_postings(self, f: PostingFilter, after, limit, now):
-        rows = [p for p in self.postings if not f.q or f.q in p.title]
-        if after is not None:
-            ids = [p.job_posting_id for p in rows]
-            if after not in ids:
-                return None
-            rows = rows[ids.index(after) + 1:]
+        def is_open(p):
+            return p.status == "published" and (p.expires_at is None or p.expires_at > now)
+
+        rows = [
+            p for p in self.postings
+            if (f.include_closed or is_open(p))
+            and (not f.q or f.q.lower() in p.title.lower())
+            and (f.company_id is None or p.company_id == f.company_id)
+            and (f.job_role_id is None or p.job_role_id == f.job_role_id)
+        ]
+        # 날짜 없는 공고는 두 정렬 모두 맨 뒤. 위치 = (날짜 있음 여부, 날짜, id)
+        if f.sort == "expires_at":
+            def pos(p):  # 오름차순: 날짜 없음이 가장 큼
+                return p.expires_at is None, p.expires_at or _MIN, p.job_posting_id
+            rows.sort(key=pos)
+            if after is not None:
+                key, last_id = after
+                rows = [p for p in rows if pos(p) > (key is None, key or _MIN, last_id)]
+        else:
+            def pos(p):  # 내림차순: 날짜 없음이 가장 작다
+                return p.published_at is not None, p.published_at or _MIN, p.job_posting_id
+            rows.sort(key=pos, reverse=True)
+            if after is not None:
+                key, last_id = after
+                rows = [p for p in rows if pos(p) < (key is not None, key or _MIN, last_id)]
         return rows[:limit]
 
     def get_posting(self, job_posting_id, now):
@@ -105,9 +126,10 @@ def client(monkeypatch, fake):
 def test_cursor_round_trip_and_binding():
     cur = ListCursor(KEY)
     last = uuid.uuid4()
-    token = cur.encode("companies", {"q": "a"}, last)
+    token = cur.encode("companies", {"q": "a"}, last, "기업 01")
     assert len(token) < 500
-    assert cur.decode(token, "companies", {"q": "a"}) == last
+    assert cur.decode(token, "companies", {"q": "a"}) == (last, "기업 01")
+    assert cur.decode(cur.encode("job_postings", {}, last, None), "job_postings", {}) == (last, None)
     for kind, params in [("companies", {"q": "b"}), ("job_postings", {"q": "a"})]:
         with pytest.raises(AppError) as err:
             cur.decode(token, kind, params)
@@ -123,7 +145,7 @@ def test_cursor_garbage_rejected(token):
 
 def test_cursor_tamper_and_foreign_key_rejected():
     cur = ListCursor(KEY)
-    token = cur.encode("companies", {"q": None}, uuid.uuid4())
+    token = cur.encode("companies", {"q": None}, uuid.uuid4(), "a")
     flipped = token[:-2] + ("A" if token[-2] != "A" else "B") + token[-1]
     other = ListCursor(derive_cursor_key("another-secret-0123456789-abcdefghijkl"))
     for bad, decoder in [(flipped, cur), (token, other)]:
@@ -152,12 +174,79 @@ def test_last_page_has_null_cursor(service):
     assert service.list_companies("없는", 20, None).items == []
 
 
-def test_vanished_anchor_is_invalid_cursor(service, fake):
+def _walk_postings(service, f, limit):
+    seen, cursor = [], None
+    for _ in range(50):
+        page = service.list_postings(f, limit, cursor)
+        seen += [p.job_posting_id for p in page.items]
+        cursor = page.next_cursor
+        if cursor is None:
+            return seen
+    raise AssertionError("pagination did not end")
+
+
+def _filter(**kw) -> PostingFilter:
+    return PostingFilter(**{"q": None, "company_id": None, "job_role_id": None, "include_closed": False,
+                            "sort": "-published_at", **kw})
+
+
+def test_deleted_or_renamed_company_anchor_keeps_position(service, fake):
+    """기준 기업이 사라지거나 이름이 바뀌어도 다음 페이지는 같은 위치에서 이어진다 (빈 페이지·400 아님)."""
     page = service.list_companies(None, 2, None)
-    fake.companies = [c for c in fake.companies if c.company_id != page.items[-1].company_id]
-    with pytest.raises(AppError) as err:
-        service.list_companies(None, 2, page.next_cursor)
-    assert err.value.code == ErrorCode.INVALID_CURSOR
+    anchor = page.items[-1].company_id
+    fake.companies = [CompanyRow(c.company_id, "ZZZ", "zzz") if c.company_id == anchor else c
+                      for c in fake.companies]
+    rest = service.list_companies(None, 10, page.next_cursor)
+    assert [c.company_id for c in rest.items] == [uuid.UUID(int=i) for i in range(3, 8)]
+    fake.companies = [c for c in fake.companies if c.company_id != anchor]
+    assert len(service.list_companies(None, 10, page.next_cursor).items) == 5
+
+
+def test_anchor_posting_closing_between_pages_still_continues(service, fake):
+    first = service.list_postings(_filter(), 2, None)
+    anchor = first.items[-1].job_posting_id
+    fake.postings = [
+        PostingRow(**{**p.__dict__, "status": "closed", "expires_at": NOW - timedelta(days=1)})
+        if p.job_posting_id == anchor else p
+        for p in fake.postings
+    ]
+    rest = service.list_postings(_filter(), 10, first.next_cursor)
+    assert [p.job_posting_id for p in rest.items] == [uuid.UUID(int=100 + i) for i in (2, 3, 4)]
+
+
+def _with_undated(fake, field):
+    """날짜 없는 공고 3건을 섞는다 (id가 가장 큰 쪽이 뒤). field: expires_at | published_at"""
+    base = fake.postings[0]
+    extra = [PostingRow(**{**base.__dict__, "job_posting_id": uuid.UUID(int=200 + i), "title": f"날짜없음 {i}",
+                           field: None}) for i in range(3)]
+    fake.postings += extra
+    return [p.job_posting_id for p in extra]
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3, 4])
+def test_expires_at_sort_pages_through_null_deadlines(service, fake, limit):
+    """마감일 없는 공고가 페이지 마지막(기준)이 되어도 끝까지 이어진다 (이전엔 DB의 infinity 오류로 500)."""
+    undated = _with_undated(fake, "expires_at")
+    fake.postings[1] = PostingRow(**{**fake.postings[1].__dict__, "expires_at": NOW + timedelta(days=1)})
+    ids = _walk_postings(service, _filter(sort="expires_at"), limit)
+    assert len(ids) == len(set(ids)) == 8
+    assert ids[0] == fake.postings[1].job_posting_id  # 마감 가장 임박
+    assert ids[-3:] == undated  # 마감일 없는 공고는 맨 뒤, id 순
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3, 4])
+def test_published_at_sort_pages_through_null_published_when_closed_included(service, fake, limit):
+    undated = _with_undated(fake, "published_at")
+    ids = _walk_postings(service, _filter(include_closed=True), limit)
+    assert len(ids) == len(set(ids)) == 8
+    assert ids[-3:] == sorted(undated, reverse=True)
+
+
+def test_empty_cursor_is_rejected_not_first_page(service):
+    for call in (lambda: service.list_companies(None, 5, ""), lambda: service.list_postings(_filter(), 5, "")):
+        with pytest.raises(AppError) as err:
+            call()
+        assert err.value.code == ErrorCode.INVALID_CURSOR
 
 
 def test_posting_detail_anonymous_and_missing(service, fake):
@@ -228,10 +317,22 @@ def test_cursor_reused_with_other_filter_is_400(client):
     assert r.json()["code"] == "INVALID_CURSOR"
 
 
-def test_bad_token_is_401_not_silently_anonymous(client):
-    r = client.get(f"{API_V1_PREFIX}/companies", headers={"Authorization": "Bearer nope"})
-    assert r.status_code == 401
-    assert r.json()["code"] == "UNAUTHENTICATED"
+def test_empty_cursor_query_is_400(client):
+    r = client.get(f"{API_V1_PREFIX}/companies", params={"cursor": ""})
+    assert r.status_code == 400
+    assert r.json()["code"] == "INVALID_CURSOR"
+
+
+def test_bad_or_expired_token_is_treated_as_anonymous(client, fake):
+    """공개 API는 만료·잘못된 토큰이어도 막지 않고 비로그인으로 처리한다 (200, is_bookmarked=null)."""
+    expired = issue_access_token(TEST_SECRET, uuid.uuid4(), uuid.uuid4(), [], 60, now=NOW - timedelta(days=1))
+    detail = f"{API_V1_PREFIX}/job-postings/{fake.postings[0].job_posting_id}"
+    for header in ({"Authorization": "Bearer nope"}, {"Authorization": f"Bearer {expired}"},
+                   {"Authorization": "Basic abc"}):
+        for path in (f"{API_V1_PREFIX}/companies", f"{API_V1_PREFIX}/job-postings", detail):
+            r = client.get(path, headers=header)
+            assert r.status_code == 200, (header, path, r.text)
+        assert client.get(detail, headers=header).json()["is_bookmarked"] is None
 
 
 def test_logged_in_detail_shows_bookmark_flag(client, fake):
@@ -250,3 +351,13 @@ def test_openapi_lists_t18_paths(client):
         assert f"{API_V1_PREFIX}{p}" in paths
     params = {p["name"] for p in paths[f"{API_V1_PREFIX}/job-postings"]["get"]["parameters"]}
     assert {"q", "company_id", "job_role_id", "include_closed", "sort", "limit", "cursor"} <= params
+    for p in ["/companies", "/companies/{company_id}", "/job-postings", "/job-postings/{job_posting_id}"]:
+        responses = paths[f"{API_V1_PREFIX}{p}"]["get"]["responses"]
+        assert "503" in responses and "401" not in responses  # 공개 API: 인증 실패는 비로그인 처리
+
+
+def test_openapi_yaml_matches_public_catalog_contract():
+    spec = yaml.safe_load((Path(__file__).parents[2] / "docs/api/openapi.yaml").read_text(encoding="utf-8"))
+    for p in ["/companies", "/companies/{company_id}", "/job-postings", "/job-postings/{job_posting_id}"]:
+        responses = spec["paths"][p]["get"]["responses"]
+        assert "503" in responses and "401" not in responses

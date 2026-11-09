@@ -183,7 +183,7 @@ def test_posting_detail_skills_fallback_and_visibility(client, fx):
     assert r.status_code == 404 and r.json()["code"] == "NOT_FOUND"
 
 
-def test_cursor_anchor_hidden_after_close_is_400(client, engine, fx):
+def test_cursor_anchor_closed_between_pages_still_continues(client, engine, fx):
     first = client.get(f"{API}/job-postings", params={"company_id": str(fx["company"]), "limit": 1}).json()
     assert first["items"][0]["job_posting_id"] == str(fx["open_new"])
     with engine.begin() as db:
@@ -192,11 +192,56 @@ def test_cursor_anchor_hidden_after_close_is_400(client, engine, fx):
     try:
         r = client.get(f"{API}/job-postings", params={"company_id": str(fx["company"]), "limit": 1,
                                                       "cursor": first["next_cursor"]})
-        assert r.status_code == 400 and r.json()["code"] == "INVALID_CURSOR"
+        assert r.status_code == 200  # 기준 공고가 마감돼도 400이 아니라 같은 위치에서 이어진다
+        assert [i["job_posting_id"] for i in r.json()["items"]] == [str(fx["open_noexp"])]
     finally:
         with engine.begin() as db:
             db.execute(text("UPDATE career.job_postings SET status = 'published' WHERE job_posting_id = :p"),
                        {"p": fx["open_new"]})
+
+
+@pytest.fixture
+def extra_undated(engine, fx):
+    """마감일·게시일이 없는 마감 공고 2건을 더 넣는다 (NULL 기준 cursor 검증용). 끝나면 지운다."""
+    ids = [uuid.uuid4(), uuid.uuid4()]
+    with engine.begin() as db:
+        for pid in ids:
+            db.execute(text("""
+                INSERT INTO career.job_postings (job_posting_id, company_id, job_role_id, source_id, title,
+                       employment_type, location_text, status, published_at, expires_at)
+                SELECT :id, :c, :r, source_id, :t, 'full_time', '서울', 'closed', NULL, NULL
+                FROM career.data_sources WHERE code = 'synthetic_seed'"""),
+                {"id": pid, "c": fx["company"], "r": fx["role"], "t": f"T18IT {RUN} 날짜없음"})
+    yield ids
+    with engine.begin() as db:
+        db.execute(text("DELETE FROM career.job_postings WHERE job_posting_id = ANY(:ids)"), {"ids": ids})
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3])
+@pytest.mark.parametrize("sort", ["expires_at", "-published_at"])
+def test_pagination_survives_null_sort_keys_at_page_boundary(client, fx, extra_undated, sort, limit):
+    """NULL 키(infinity)가 페이지 경계가 되어도 500 없이 중복·누락 없이 끝까지 간다."""
+    params = {"company_id": str(fx["company"]), "include_closed": "true", "sort": sort, "limit": limit}
+    ids = [i["job_posting_id"] for i in _all_pages(client, "job-postings", params)]
+    expected = {str(fx[k]) for k in ("open_new", "open_noexp", "expired", "closed")} | {str(i) for i in extra_undated}
+    assert len(ids) == len(set(ids)) and set(ids) == expected
+
+
+def test_company_cursor_survives_rename_of_anchor(client, engine, fx):
+    first = client.get(f"{API}/companies", params={"limit": 2}).json()
+    anchor = first["items"][-1]["company_id"]
+    with engine.begin() as db:
+        old = db.execute(text("SELECT name FROM career.companies WHERE company_id = :c"), {"c": anchor}).scalar_one()
+        db.execute(text("UPDATE career.companies SET name = :n WHERE company_id = :c"),
+                   {"n": "ZZZ T18IT 개명", "c": anchor})
+    try:
+        rest = client.get(f"{API}/companies", params={"limit": 100, "cursor": first["next_cursor"]})
+        assert rest.status_code == 200
+        names = {c["name"] for c in rest.json()["items"]}
+        assert len(rest.json()["items"]) >= 19 and f"T18IT 테스트기업 {RUN}" in names
+    finally:
+        with engine.begin() as db:
+            db.execute(text("UPDATE career.companies SET name = :n WHERE company_id = :c"), {"n": old, "c": anchor})
 
 
 def test_default_list_can_use_status_published_index(engine):

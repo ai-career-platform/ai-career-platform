@@ -2,8 +2,9 @@
 
 페이지네이션 (API_CONTRACT §1.5)
 - 정렬키 + id로 keyset 페이지네이션. 같은 조건이면 항상 같은 순서라 다음 페이지에 중복·누락이 없다.
-- cursor = base64url(HMAC-SHA256 서명 32바이트 + JSON[버전, 목록 종류, 검색 조건 digest, 마지막 id]).
-  서명이 틀리거나(변조), 다른 검색 조건에 쓰였거나, 기준 항목이 사라졌으면 400 INVALID_CURSOR.
+- cursor = base64url(HMAC-SHA256 서명 32바이트 + JSON[버전, 목록 종류, 검색 조건 digest, 마지막 id, 마지막 정렬 키]).
+  서명이 틀리거나(변조), 다른 검색 조건에 쓰였으면 400 INVALID_CURSOR.
+  정렬 키를 cursor에 담으므로 기준 항목이 중간에 마감·삭제·개명돼도 같은 위치에서 이어진다.
 - 서명 키는 새 환경변수를 만들지 않고 T15의 `JWT_SECRET`에서 용도별로 파생한다
   (HMAC(JWT_SECRET, "t18-list-cursor-v1")). 키가 바뀌면 이전 cursor만 무효가 된다.
 """
@@ -23,7 +24,7 @@ from app.schemas.job_postings import (
     RequiredSkill, SkillRef,
 )
 
-CURSOR_VERSION = 1
+CURSOR_VERSION = 2
 _CURSOR_PURPOSE = b"t18-list-cursor-v1"
 _SIG_LEN = 32
 
@@ -43,22 +44,24 @@ class ListCursor:
         raw = json.dumps([kind, params], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
-    def encode(self, kind: str, params: dict, last_id: UUID) -> str:
-        payload = json.dumps([CURSOR_VERSION, kind, self._digest(kind, params), str(last_id)],
+    def encode(self, kind: str, params: dict, last_id: UUID, sort_key: str | None) -> str:
+        payload = json.dumps([CURSOR_VERSION, kind, self._digest(kind, params), str(last_id), sort_key],
                              separators=(",", ":")).encode()
         sig = hmac.digest(self._key, payload, "sha256")
         return base64.urlsafe_b64encode(sig + payload).decode().rstrip("=")
 
-    def decode(self, token: str, kind: str, params: dict) -> UUID:
+    def decode(self, token: str, kind: str, params: dict) -> tuple[UUID, str | None]:
         try:
             raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
             sig, payload = raw[:_SIG_LEN], raw[_SIG_LEN:]
             if not hmac.compare_digest(sig, hmac.digest(self._key, payload, "sha256")):
                 raise ValueError("bad signature")
-            version, saved_kind, digest, last_id = json.loads(payload)
+            version, saved_kind, digest, last_id, sort_key = json.loads(payload)
             if version != CURSOR_VERSION or saved_kind != kind or digest != self._digest(kind, params):
                 raise ValueError("cursor does not match this query")
-            return UUID(last_id)
+            if sort_key is not None and not isinstance(sort_key, str):
+                raise ValueError("bad sort key")
+            return UUID(last_id), sort_key
         except (ValueError, TypeError, binascii.Error, UnicodeDecodeError) as exc:
             raise AppError(ErrorCode.INVALID_CURSOR, log_detail=f"cursor rejected: {type(exc).__name__}") from None
 
@@ -87,15 +90,19 @@ class JobPostingService:
     # ---------------------------------------------------------------- companies
     def list_companies(self, q: str | None, limit: int, cursor: str | None) -> CompanyPage:
         params = {"q": q}
-        after = self._cursor.decode(cursor, "companies", params) if cursor else None
+        after = None
+        if cursor is not None:  # 빈 문자열도 cursor로 보고 400 처리한다
+            last_id, last_key = self._cursor.decode(cursor, "companies", params)
+            if last_key is None:
+                raise AppError(ErrorCode.INVALID_CURSOR, log_detail="company cursor without sort key")
+            after = (last_key, last_id)
         # limit+1개를 읽어 다음 페이지가 있는지 판단한다.
         rows = self._repo.list_companies(q, after, limit + 1)
-        if rows is None:
-            raise AppError(ErrorCode.INVALID_CURSOR, log_detail="company cursor anchor missing")
         page, more = rows[:limit], len(rows) > limit
         return CompanyPage(
             items=[CompanyRef(company_id=r.company_id, name=r.name) for r in page],
-            next_cursor=self._cursor.encode("companies", params, page[-1].company_id) if more else None,
+            next_cursor=self._cursor.encode("companies", params, page[-1].company_id, page[-1].sort_key)
+            if more else None,
         )
 
     def get_company(self, company_id: UUID) -> CompanyDetail:
@@ -114,15 +121,22 @@ class JobPostingService:
             "job_role_id": str(f.job_role_id) if f.job_role_id else None,
             "include_closed": f.include_closed, "sort": f.sort,
         }
-        after = self._cursor.decode(cursor, "job_postings", params) if cursor else None
+        after = None
+        if cursor is not None:
+            last_id, raw_key = self._cursor.decode(cursor, "job_postings", params)
+            try:
+                after = (None if raw_key is None else datetime.fromisoformat(raw_key), last_id)
+            except ValueError:
+                raise AppError(ErrorCode.INVALID_CURSOR, log_detail="posting cursor sort key unparsable") from None
         rows = self._repo.list_postings(f, after, limit + 1, self._clock())
-        if rows is None:
-            raise AppError(ErrorCode.INVALID_CURSOR, log_detail="posting cursor anchor missing or hidden")
         page, more = rows[:limit], len(rows) > limit
-        return JobPostingPage(
-            items=[JobPostingSummary(**_summary(r)) for r in page],
-            next_cursor=self._cursor.encode("job_postings", params, page[-1].job_posting_id) if more else None,
-        )
+        next_cursor = None
+        if more:
+            last = page[-1]
+            key = last.expires_at if f.sort == "expires_at" else last.published_at
+            next_cursor = self._cursor.encode(
+                "job_postings", params, last.job_posting_id, None if key is None else key.isoformat())
+        return JobPostingPage(items=[JobPostingSummary(**_summary(r)) for r in page], next_cursor=next_cursor)
 
     def get_posting(self, job_posting_id: UUID, user_id: UUID | None) -> JobPostingDetail:
         row = self._repo.get_posting(job_posting_id, self._clock())

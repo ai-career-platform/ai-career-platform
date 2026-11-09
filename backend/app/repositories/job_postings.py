@@ -25,6 +25,7 @@ VISIBLE_STATUSES = ("published", "closed")
 class CompanyRow:
     company_id: UUID
     name: str
+    sort_key: str  # 정렬에 쓴 값(lower(name)). cursor에 담아 다음 페이지 위치를 정한다.
 
 
 @dataclass(frozen=True)
@@ -73,16 +74,20 @@ class PostingFilter:
     sort: str  # "-published_at" | "expires_at"
 
 
+# cursor가 가리키는 위치 = (마지막 항목의 정렬 키, 마지막 항목 id). 기준 행이 사라지거나 바뀌어도 이어 간다.
+# 공고의 정렬 키가 None이면 "날짜 없음"(expires_at 정렬은 맨 뒤, 게시순은 맨 뒤)이다.
+CompanyPosition = tuple[str, UUID]
+PostingPosition = tuple[datetime | None, UUID]
+
+
 class JobPostingRepository(Protocol):
-    def list_companies(self, q: str | None, after: UUID | None, limit: int) -> list[CompanyRow] | None:
-        """after 기업이 없으면 None (cursor 무효)."""
+    def list_companies(self, q: str | None, after: CompanyPosition | None, limit: int) -> list[CompanyRow]: ...
 
     def get_company(self, company_id: UUID, now: datetime) -> CompanyDetailRow | None: ...
 
     def list_postings(
-        self, f: PostingFilter, after: UUID | None, limit: int, now: datetime
-    ) -> list[PostingRow] | None:
-        """after 공고가 없거나 현재 조건에 맞지 않으면 None (cursor 무효)."""
+        self, f: PostingFilter, after: PostingPosition | None, limit: int, now: datetime
+    ) -> list[PostingRow]: ...
 
     def get_posting(self, job_posting_id: UUID, now: datetime) -> PostingRow | None: ...
 
@@ -144,18 +149,16 @@ class SqlJobPostingRepository:
         self._db = session
 
     # ---------------------------------------------------------------- companies
-    def list_companies(self, q: str | None, after: UUID | None, limit: int) -> list[CompanyRow] | None:
+    def list_companies(self, q: str | None, after: CompanyPosition | None, limit: int) -> list[CompanyRow]:
         c = companies.c
         key = func.lower(c.name)  # ix_companies_1 (lower(name))
-        stmt = select(c.company_id, c.name).order_by(key, c.company_id).limit(limit)
+        stmt = select(c.company_id, c.name, key.label("sort_key")).order_by(key, c.company_id).limit(limit)
         if q:
             stmt = stmt.where(_contains(c.name, q))
         if after is not None:
-            anchor = self._db.execute(select(key).where(c.company_id == after)).scalar_one_or_none()
-            if anchor is None:
-                return None
-            stmt = stmt.where(tuple_(key, c.company_id) > tuple_(literal(anchor), literal(after, Uuid)))
-        return [CompanyRow(r.company_id, r.name) for r in self._db.execute(stmt)]
+            last_key, last_id = after
+            stmt = stmt.where(tuple_(key, c.company_id) > tuple_(literal(last_key, String), literal(last_id, Uuid)))
+        return [CompanyRow(r.company_id, r.name, r.sort_key) for r in self._db.execute(stmt)]
 
     def get_company(self, company_id: UUID, now: datetime) -> CompanyDetailRow | None:
         c, p = companies.c, job_postings.c
@@ -213,31 +216,29 @@ class SqlJobPostingRepository:
         return and_(*conds)
 
     def list_postings(
-        self, f: PostingFilter, after: UUID | None, limit: int, now: datetime
-    ) -> list[PostingRow] | None:
+        self, f: PostingFilter, after: PostingPosition | None, limit: int, now: datetime
+    ) -> list[PostingRow]:
         p = job_postings.c
-        visible = self._visibility(f, now)
         if f.sort == "expires_at":
-            # 마감 임박순. 마감일 없는 공고는 맨 뒤.
-            key = func.coalesce(p.expires_at, _POS_INF)
+            # 마감 임박순. 마감일 없는 공고는 맨 뒤(+infinity로 취급).
+            key, missing = func.coalesce(p.expires_at, _POS_INF), _POS_INF
             order = (key.asc(), p.job_posting_id.asc())
             cmp = tuple_(key, p.job_posting_id).__gt__
         else:
             # 최신 게시순. 게시 중 공고만 볼 때는 published_at이 항상 있으므로 컬럼 그대로 써서
             # ix_job_postings_3 (status, published_at DESC)를 탈 수 있게 한다.
             key = p.published_at if not f.include_closed else func.coalesce(p.published_at, _NEG_INF)
+            missing = _NEG_INF
             order = (key.desc(), p.job_posting_id.desc())
             cmp = tuple_(key, p.job_posting_id).__lt__
 
-        stmt = self._posting_select(now).where(visible).order_by(*order).limit(limit)
+        stmt = self._posting_select(now).where(self._visibility(f, now)).order_by(*order).limit(limit)
         if after is not None:
-            # anchor는 같은 조건에서 보이는 공고여야 한다 (사라졌거나 조건이 바뀌면 cursor 무효).
-            anchor = self._db.execute(
-                select(key.label("k")).where(p.job_posting_id == after, visible)
-            ).one_or_none()
-            if anchor is None:
-                return None
-            stmt = stmt.where(cmp(tuple_(literal(anchor.k, DateTime(timezone=True)), literal(after, Uuid))))
+            # 기준 행을 다시 읽지 않는다. cursor의 (키, id)만으로 위치를 정하므로 기준 공고가 마감·삭제돼도 이어진다.
+            # 무한대는 DB 쪽 리터럴로만 쓴다(파이썬 datetime으로는 표현할 수 없다).
+            last_key, last_id = after
+            anchor_key = missing if last_key is None else literal(last_key, DateTime(timezone=True))
+            stmt = stmt.where(cmp(tuple_(anchor_key, literal(last_id, Uuid))))
         return [self._row(r) for r in self._db.execute(stmt)]
 
     def get_posting(self, job_posting_id: UUID, now: datetime) -> PostingRow | None:

@@ -1,7 +1,8 @@
 """T18 `/companies`, `/job-postings` (openapi.yaml tag `catalog`, FR-JOB-004~006).
 
-- 로그인 없이 조회할 수 있다. `Authorization` 헤더가 있으면 T15 의존성으로 검증하고,
-  틀린 토큰은 401로 막는다(조용히 비로그인으로 바꾸지 않음). 로그인 여부는 공고 상세의 `is_bookmarked`에만 쓴다.
+- 로그인 없이 조회할 수 있다. `Authorization` 헤더가 있으면 T15와 같은 검증을 하되,
+  만료·잘못된 토큰은 오류로 막지 않고 비로그인으로 처리한다(공개 API라서 화면이 깨지지 않게).
+  openapi.yaml도 이 엔드포인트에 401을 선언하지 않는다. 로그인 여부는 공고 상세의 `is_bookmarked`에만 쓴다.
 - 허용하지 않는 sort 값은 계약(enum)대로 422. 화면에서 기본 정렬로 되돌리는 처리는 Frontend(T24) 몫.
 """
 
@@ -13,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.auth_config import AuthSettings
+from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import (
@@ -39,13 +41,19 @@ def _current_user_or_none(
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
     repo: Annotated[AuthRepository, Depends(get_auth_repository)],
 ) -> CurrentUser | None:
-    """헤더가 없으면 비로그인(None). 있으면 T15와 같은 검증(서명·만료·세션·사용자 상태)을 거친다.
+    """헤더가 없으면 비로그인(None). 있으면 T15와 같은 검증(서명·만료·세션·사용자 상태)을 거치고,
+    인증 실패(만료·변조·세션 종료)는 비로그인(None)으로 본다. 그 밖의 오류(DB 장애 등)는 그대로 낸다.
 
     get_auth_repository는 요청당 하나인 get_db 세션을 같이 쓰므로 DB 연결이 늘지 않는다.
     """
     if request.headers.get("Authorization") is None:
         return None
-    return get_current_user(get_access_claims(credentials, settings), repo)
+    try:
+        return get_current_user(get_access_claims(credentials, settings), repo)
+    except AppError as exc:
+        if exc.code in (ErrorCode.UNAUTHENTICATED, ErrorCode.TOKEN_EXPIRED):
+            return None
+        raise
 
 
 OptionalUser = Annotated[CurrentUser | None, Depends(_current_user_or_none)]
@@ -54,7 +62,7 @@ Q = Annotated[str | None, Query(min_length=1, max_length=100, description="이�
 Limit = Annotated[int, Query(ge=1, le=100)]
 Cursor = Annotated[str | None, Query(max_length=500, description="이전 응답의 next_cursor 그대로")]
 
-router = APIRouter(tags=["catalog"], responses=error_responses(401))
+router = APIRouter(tags=["catalog"], responses=error_responses(503))
 
 
 @router.get("/companies", response_model=CompanyPage, summary="기업 목록·검색", responses=error_responses(400))
