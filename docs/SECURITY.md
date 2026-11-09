@@ -1,5 +1,16 @@
 # 보안·권한·비밀정보 규정
 
+## 웹 요청과 화면 출력
+- 인증 쿠키를 발급·사용하는 가입/로그인/갱신/로그아웃 POST는 `X-CSRF-TOKEN: 1`을 요구한다. 값은 비밀 토큰이 아니라 브라우저의 cross-origin custom-header 제한을 이용한다. 외부 HTML form 요청과 헤더 없는 요청은 403으로 거부한다.
+- `Sec-Fetch-Site`가 있으면 `same-origin`만 허용한다. 특히 다른 서브도메인의 `same-site` 요청도 거부한다. 이 헤더가 없는 CLI 요청도 CSRF 보호 헤더가 필요하다.
+- 브라우저 API는 같은 Origin `/api` 프록시로만 호출한다. 인증 API에 외부 Origin을 허용하는 CORS 설정을 추가하면 custom-header 방식의 전제가 바뀌므로 별도 검토해야 한다. 나머지 사용자 변경 API는 쿠키 대신 명시적인 Bearer 토큰을 검증한다.
+- refresh 쿠키는 `HttpOnly; Secure; SameSite=Strict`, access token은 프런트 메모리에서만 관리한다. HTTPS 배포에서 `AUTH_COOKIE_SECURE`를 끄지 않는다.
+- 사용자 입력·수집 공고·기업 소개는 React의 텍스트 출력으로 표시한다. `dangerouslySetInnerHTML`, `innerHTML`에 전달하지 않는다. HTML 서식 기능을 추가할 때는 별도 HTML sanitizer 검토가 필요하다. 외부 링크는 `safeExternalUrl`로 http(s)와 자격정보 유무를 검증하고 `noopener noreferrer`를 사용한다.
+- 배포 Nginx는 정적 페이지에 CSP를 적용한다. 스크립트와 스타일은 같은 Origin의 파일만 허용하고 inline/eval, object, base URL 변경, iframe 삽입을 차단한다. CSP는 출력 이스케이프를 보완한다.
+- Nginx의 `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`는 API와 오류 응답에도 적용한다. `/api/training`은 자체 CSP를 유지한다. React 개발 서버에는 HMR 때문에 이 배포 CSP를 강제하지 않는다.
+- 회귀 검증: `backend/tests/test_csrf.py`, `frontend/src/api/client.test.ts`, `frontend/src/pages/JobPostingsPage.test.tsx`. 코드 변경이 실제 서비스에 반영되려면 배포가 필요하다.
+- 기준: [OWASP CSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [OWASP XSS Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
+
 ## GitHub
 - `main` 보호 Ruleset `protect-main`: PR 리뷰·승인(원칙 1명), CI, Squash Merge.
 - 예외 Bypass는 PM 필요 시 PR에서만 제한적으로 사용; 사용 이력·이유 기록 및 정기 재검토.
