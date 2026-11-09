@@ -36,6 +36,9 @@ export function AppLayout() {
               <NavLink to="/" end>
                 홈
               </NavLink>
+              <NavLink to="/recommendations">
+                맞춤 추천
+              </NavLink>
               <NavLink to="/job-roles">
                 직무·기술 탐색
               </NavLink>

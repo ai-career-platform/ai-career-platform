@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
+import { RecommendationFeedbackActions } from './components/RecommendationFeedbackActions';
 import { AppLayout } from './layouts/AppLayout';
 import { AccountPage } from './pages/AccountPage';
 import { PrivacySettingsPage } from './pages/PrivacySettingsPage';
@@ -11,6 +12,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -34,15 +36,30 @@ export const routes: RouteObject[] = [
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'job-postings', element: <JobPostingsPage /> },
       { path: 'login', element: <LoginPage /> },
-      { element: <RequireAuth />, children: [
-        { path: 'account', element: <AccountPage /> },
-        { path: 'account/privacy', element: <PrivacySettingsPage /> },
-        { path: 'me/target-roles', element: <TargetRolesPage /> },
-        { path: 'me/career-history', element: <CareerHistoryPage /> },
-        { path: 'me/bookmarks', element: <BookmarksPage /> },
-        { path: 'me/skills', element: <MySkillsPage /> },
-        { path: 'me/documents', element: <MyDocumentsPage /> },
-      ] },
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: 'account', element: <AccountPage /> },
+          { path: 'account/privacy', element: <PrivacySettingsPage /> },
+          { path: 'me/target-roles', element: <TargetRolesPage /> },
+          { path: 'me/career-history', element: <CareerHistoryPage /> },
+          { path: 'me/bookmarks', element: <BookmarksPage /> },
+          { path: 'me/skills', element: <MySkillsPage /> },
+          { path: 'me/documents', element: <MyDocumentsPage /> },
+          // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+          // 카드별 추천 설명 대화상자·피드백 버튼(F-018)은 T48 RecommendationFeedbackActions 로 연결합니다.
+          {
+            path: 'recommendations',
+            element: (
+              <RecommendationsPage
+                renderItemActions={(item, run, onRunChange) => (
+                  <RecommendationFeedbackActions item={item} run={run} onRunChange={onRunChange} />
+                )}
+              />
+            ),
+          },
+        ],
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

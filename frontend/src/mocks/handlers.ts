@@ -2,6 +2,7 @@ import { ApiError } from '../api/errors';
 import { resolveDocumentsMock } from './documents';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
+import { resolveRecommendationMock } from './recommendations';
 import { resolveSkillsMock } from './skills';
 
 /**
@@ -65,6 +66,14 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
   return null;
 }
 
+/** 로그인이 필요한 도메인 Mock. 경로가 맞으면 먼저 토큰을 확인합니다(없으면 401). */
+function resolveAuthed(path: string, { method, body, token }: MockRequest): unknown {
+  if (path.startsWith('/v1/recommendation-runs') || path === '/v1/recommendation-feedback') {
+    return resolveRecommendationMock(path, method, body, authedUser(token).email);
+  }
+  return null;
+}
+
 /** Backend 카탈로그(app/core/errors.py ERROR_CATALOG)와 같은 사용자 문구 — Mock에서도 화면 문구를 실제와 맞춘다 */
 const mockMessages: Record<string, string> = {
   UNAUTHENTICATED: '로그인이 필요합니다.',
@@ -105,6 +114,8 @@ export async function resolveMock<T>(
     }
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;
+    const authedResult = resolveAuthed(path, request);
+    if (authedResult !== null) return structuredClone(authedResult) as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw new ApiError(error.status, path, undefined, error.code, error.code ? mockMessages[error.code] : undefined);
