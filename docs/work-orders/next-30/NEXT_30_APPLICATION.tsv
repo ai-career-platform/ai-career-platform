@@ -17,7 +17,7 @@ T45	Backend/AI	개인화 직무·공고 추천 API	P1	T15,T17,T18,T25,T27,T33,T3
 T46	Frontend	개인화 추천 목록 UI	P1	T20,T23,T24,T45	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T46.md				신청 가능				
 T47	Backend/AI	추천 설명·피드백 API	P1	T15,T25,T45	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T47.md				신청 가능				
 T48	Frontend	추천 설명·피드백 UI	P1	T20,T46,T47	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T48.md				신청 가능				
-T49	Backend/보안	개인 문서 업로드·보관 API	P1	T05,T06,T15	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T49.md				신청 가능				
+T49	Backend/보안	개인 문서 업로드·보관 API	P1	T05,T06,T15	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T49.md				PARTIAL	2026-11-09			task/t49-document-api; 전용 디렉터리 보관(사용자 지정); docs/work-orders/next-30/T49_EVIDENCE.md; 실 HTTP/PostgreSQL 및 권한/경로/저장명 비노출 E2E; ClamAV 미사용; 외부 색인/보존 정책/PR 리뷰 대기
 T50	Frontend	개인 문서 관리 UI	P1	T20,T21,T49	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T50.md				신청 가능				
 T51	Backend/AI	LLM 기반 이력서 분석 Pipeline·API	P1	T25,T49	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T51.md				신청 가능				
 T52	Frontend	이력서 분석 결과 UI	P1	T20,T50,T51	https://github.com/ai-career-platform/ai-career-platform/blob/docs/next-30-work-orders-20261106/docs/work-orders/next-30/T52.md				신청 가능				
