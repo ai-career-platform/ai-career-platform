@@ -10,6 +10,7 @@ import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
+import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
 
 /**
@@ -29,6 +30,7 @@ export const routes: RouteObject[] = [
       { path: 'system-status', element: <HomePage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
+      { path: 'job-postings', element: <JobPostingsPage /> },
       { path: 'login', element: <LoginPage /> },
       { element: <RequireAuth />, children: [
         { path: 'account', element: <AccountPage /> },
