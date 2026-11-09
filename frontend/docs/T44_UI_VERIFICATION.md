@@ -6,7 +6,7 @@
 페이지·HTML·진입점·CSS를 제거했다. 합성 데이터는 테스트 파일에만 있다.
 
 SkillGapPage는 기존 Button/DataTable/StatePanel을 재사용하는 결과 화면이다.
-SkillGapResultPage는 T21 useAuth().request를 사용해 실제 API를 호출하는 컨테이너다.
+SkillGapResultPage는 `useApi().skillGaps`(로그인 토큰·401 처리는 AuthProvider 클라이언트)와 `useQuery`로 실제 API를 호출하는 컨테이너다.
 공통 라우터 파일은 수정하지 않았다. 기존 AuthProvider 내부에 등록해야 하며,
 선택한 jobRoleId 또는 assessmentId를 props로 전달할 수 있다.
 ID가 없으면 본인 최신 이력을 조회하고, 이력이 없으면 목표 직무 선택을 안내한다.

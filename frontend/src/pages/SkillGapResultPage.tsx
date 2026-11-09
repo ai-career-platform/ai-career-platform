@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useApi } from '../api/ApiContext';
 import { ApiError } from '../api/errors';
-import { createSkillGapApi } from '../api/skillGaps';
+import type { SkillGap } from '../api/skillGaps';
+import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { SkillGapPage, type SkillGapPageState } from './SkillGapPage';
 
 type SkillGapResultPageProps = { jobRoleId?: string; assessmentId?: string };
+
+const isUnauthorized = (error: unknown) => error instanceof ApiError && error.status === 401;
 
 /** Authenticated container; the host route supplies the selected role/result ID. */
 export function SkillGapResultPage(props: SkillGapResultPageProps) {
@@ -13,60 +17,48 @@ export function SkillGapResultPage(props: SkillGapResultPageProps) {
   if (state.status !== 'authenticated') {
     return <SkillGapPage status={{ state: state.status === 'loading' ? 'loading' : 'unauthorized' }} />;
   }
+  // 사용자·직무·결과가 바뀌거나 다시 시도하면 새로 마운트해 이전 분석 상태를 남기지 않습니다.
   return <SkillGapResultContent key={`${state.user.email}:${props.jobRoleId ?? ''}:${props.assessmentId ?? ''}:${retry}`} {...props} onRetry={() => setRetry((value) => value + 1)} />;
 }
 
 function SkillGapResultContent({ jobRoleId, assessmentId, onRetry }: SkillGapResultPageProps & { onRetry: () => void }) {
-  const { request } = useAuth();
-  const api = useMemo(() => createSkillGapApi(request), [request]);
-  const [status, setStatus] = useState<SkillGapPageState>({ state: 'loading' });
+  const api = useApi();
+  // 지정 결과가 없으면 이력의 최신 1건을 찾아 상세를 불러옵니다. 이력이 비면 null.
+  const latest = useQuery(['skill-gap', jobRoleId ?? null, assessmentId ?? null], async (signal) => {
+    let id = assessmentId;
+    if (!id) {
+      const page = await api.skillGaps.list({ job_role_id: jobRoleId, limit: 1 }, signal);
+      id = page.items[0]?.assessment_id;
+    }
+    return id ? await api.skillGaps.get(id, signal) : null;
+  });
+  const [analyzed, setAnalyzed] = useState<SkillGap | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisFailed, setAnalysisFailed] = useState(false);
+  const [unauthorized, setUnauthorized] = useState(false);
   const pending = useRef(false);
-  const generation = useRef(0);
-  const invalidate = useCallback(() => { generation.current++; }, []);
 
-  useEffect(() => {
-    const current = ++generation.current;
-    const load = async () => {
-      setStatus({ state: 'loading' });
-      setAnalysisFailed(false);
-      try {
-        let id = assessmentId;
-        if (!id) {
-          const page = await api.list({ job_role_id: jobRoleId, limit: 1 });
-          id = page.items[0]?.assessment_id;
-        }
-        const result = id ? await api.get(id) : null;
-        if (generation.current !== current) return;
-        setStatus(result ? { state: 'ready', result } : { state: 'empty' });
-      } catch (error) {
-        if (generation.current !== current) return;
+  const status: SkillGapPageState = unauthorized ? { state: 'unauthorized' }
+    : analyzed ? { state: 'ready', result: analyzed }
+      : latest.status === 'ready' ? (latest.data ? { state: 'ready', result: latest.data } : { state: 'empty' })
         // A missing specific result is an error, not an empty history.
-        setStatus({ state: error instanceof ApiError && error.status === 401 ? 'unauthorized' : 'error' });
-      }
-    };
-    void load();
-    return invalidate;
-  }, [api, jobRoleId, assessmentId, invalidate]);
+        : latest.status === 'error' ? { state: isUnauthorized(latest.error) ? 'unauthorized' : 'error' }
+          : { state: 'loading' };
 
   const roleId = jobRoleId ?? (status.state === 'ready' ? status.result.job_role.job_role_id : undefined);
   const analyze = async () => {
     if (!roleId || pending.current) return;
     pending.current = true;
-    const current = generation.current;
     setAnalyzing(true);
     setAnalysisFailed(false);
     try {
-      const result = await api.create(roleId);
-      if (generation.current === current) setStatus({ state: 'ready', result });
+      setAnalyzed(await api.skillGaps.create(roleId));
     } catch (error) {
-      if (generation.current !== current) return;
-      if (error instanceof ApiError && error.status === 401) setStatus({ state: 'unauthorized' });
+      if (isUnauthorized(error)) setUnauthorized(true);
       else setAnalysisFailed(true);
     } finally {
       pending.current = false;
-      if (generation.current === current) setAnalyzing(false);
+      setAnalyzing(false);
     }
   };
 

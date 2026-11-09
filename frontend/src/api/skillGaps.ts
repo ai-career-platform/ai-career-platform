@@ -1,57 +1,23 @@
-import type { AuthContextValue } from '../auth/useAuth';
+/**
+ * Skill Gap API (T43, FR-ANL-002). 경로와 타입은 이 파일에만 둡니다.
+ * 화면은 useApi().skillGaps 로 씁니다. 로그인 토큰과 401 처리는 AuthProvider 의 클라이언트가 맡습니다.
+ */
+import type { HttpClient } from './http';
+import type { QueryOf, ResponseOf, Schemas } from './schema';
 
-// T06 SkillGap schema. Runtime wiring waits for the T43 provider.
-export interface SkillGapItem {
-  skill: { skill_id: string; code: string; name: string };
-  required_level: number;
-  observed_level: number;
-  gap: number;
-}
+export type SkillGapItem = Schemas['SkillGapItem'];
+export type SkillGap = ResponseOf<'getSkillGap'>;
+export type SkillGapSummary = Schemas['SkillGapSummary'];
+export type SkillGapSummaryPage = ResponseOf<'listMySkillGaps'>;
+export type SkillGapHistoryQuery = QueryOf<'listMySkillGaps'>;
 
-export interface SkillGap {
-  assessment_id: string;
-  job_role: { job_role_id: string; code: string; name: string };
-  model_version: { model_code: string; version: string; kind: 'rule' };
-  is_stale: boolean;
-  evaluated_at: string;
-  items: SkillGapItem[];
-}
-
-export interface SkillGapSummary {
-  assessment_id: string;
-  job_role: SkillGap['job_role'];
-  missing_skill_count: number;
-  total_gap: number;
-  is_stale: boolean;
-  evaluated_at: string;
-}
-
-export interface SkillGapSummaryPage {
-  items: SkillGapSummary[];
-  next_cursor: string | null;
-}
-
-export interface SkillGapHistoryQuery {
-  job_role_id?: string;
-  limit?: number;
-  cursor?: string;
-}
-
-// Reuse T21's authenticated request, including its 401/session handling.
-// The application must inject useAuth().request; no separate token storage.
-export function createSkillGapApi(request: AuthContextValue['request']) {
-  return {
-    create: (job_role_id: string) => request<SkillGap>('/v1/skill-gaps', {
-      method: 'POST', body: { job_role_id },
-    }),
-    get: (assessment_id: string) => request<SkillGap>(`/v1/skill-gaps/${encodeURIComponent(assessment_id)}`),
-    list: (query: SkillGapHistoryQuery = {}) => {
-      const params = new URLSearchParams();
-      if (query.job_role_id !== undefined) params.set('job_role_id', query.job_role_id);
-      if (query.limit !== undefined) params.set('limit', String(query.limit));
-      if (query.cursor !== undefined) params.set('cursor', query.cursor);
-      const search = params.toString();
-      return request<SkillGapSummaryPage>(`/v1/skill-gaps${search ? `?${search}` : ''}`);
-    },
-  };
-}
+export const skillGapsApi = (http: HttpClient) => ({
+  /** 목표 직무 기준으로 새로 계산해 저장합니다. 본문에는 job_role_id 만 보냅니다. */
+  create: (job_role_id: string) =>
+    http.request<SkillGap>('/v1/skill-gaps', { method: 'POST', body: { job_role_id } }),
+  get: (assessmentId: string, signal?: AbortSignal) =>
+    http.request<SkillGap>(`/v1/skill-gaps/${encodeURIComponent(assessmentId)}`, { signal }),
+  /** 본인 이력(최신순). limit·cursor 를 주지 않으면 서버 기본값을 따릅니다. */
+  list: (query: SkillGapHistoryQuery = {}, signal?: AbortSignal) =>
+    http.request<SkillGapSummaryPage>('/v1/skill-gaps', { query, signal }),
+});

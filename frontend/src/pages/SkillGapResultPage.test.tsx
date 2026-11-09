@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/errors';
 import { AuthContext, type AuthContextValue, type AuthState } from '../auth/useAuth';
+import type { RequestFn } from '../test/api';
+import { WithApi } from '../test/WithApi';
 import { SkillGapResultPage } from './SkillGapResultPage';
 
 const result = {
@@ -14,12 +16,11 @@ const result = {
 const authenticated: AuthState = { status: 'authenticated', token: 'test-only', user: { email: 'test@example.test', displayName: '테스트', roles: [] } };
 
 function setup(jobRoleId?: string, assessmentId?: string) {
-  const request = vi.fn<AuthContextValue['request']>();
+  const request = vi.fn<RequestFn>();
   const value: AuthContextValue = {
     state: authenticated, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(),
-    request: async <T,>(path: string, options?: Parameters<AuthContextValue['request']>[1]) => await request(path, options) as T,
   };
-  const view = (state: AuthState = authenticated, role = jobRoleId) => <AuthContext.Provider value={{ ...value, state }}><SkillGapResultPage jobRoleId={role} assessmentId={assessmentId} /></AuthContext.Provider>;
+  const view = (state: AuthState = authenticated, role = jobRoleId) => <AuthContext.Provider value={{ ...value, state }}><WithApi request={request}><SkillGapResultPage jobRoleId={role} assessmentId={assessmentId} /></WithApi></AuthContext.Provider>;
   return { request, view };
 }
 
