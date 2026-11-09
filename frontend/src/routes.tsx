@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layouts/AppLayout';
 import { AccountPage } from './pages/AccountPage';
+import { PrivacySettingsPage } from './pages/PrivacySettingsPage';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
@@ -28,7 +29,7 @@ export const routes: RouteObject[] = [
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'login', element: <LoginPage /> },
-      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }] },
+      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }, { path: 'account/privacy', element: <PrivacySettingsPage /> }] },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
