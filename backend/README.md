@@ -95,6 +95,8 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | GET | `/api/v1/consent-policies` | 시행 중 약관 목록 (비로그인) |
 | GET | `/api/v1/me`, `/api/v1/me/permissions` | 내 계정·역할·권한 |
 | GET/DELETE | `/api/v1/me/sessions[/{session_id}]` | 로그인 기기 목록·다른 기기 로그아웃 |
+| GET | `/api/v1/me/target-roles` | 내 목표 직무를 우선순위 순으로 조회 |
+| PUT | `/api/v1/me/target-roles` | 목표 직무를 최대 3개까지 전체 교체 |
 
 ## 인증·인가 사용법 (T15)
 
