@@ -1,6 +1,6 @@
 # AI·ML 공통 데이터·Feature 계약 초안 (T25)
 
-상태: **DRAFT / NOT APPROVED / PARTIAL**. 기준 `main` 0f34dd6. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17은 main에 병합됐고 데이터 사전은 DRAFT이며, T06 PR #29는 병합됐으며 해당 API 구현·CI 검증은 별도다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
+상태: **설계·합성 테스트 기준선 ACCEPTED / 실제 연동 HOLD**. PR #26은 2026-11-09 병합됐다. T04 PR #13은 병합됐으나 요구사항 문서는 PM 승인 전이며, T05 PR #17은 main에 병합됐고 데이터 사전은 DRAFT이며, T06 PR #29는 병합됐으며 해당 API 구현·CI 검증은 별도다. 아래는 검토를 돕는 제안이며 운영 DB, API, 개인정보 처리 정책을 확정하지 않는다. 원본: [T25](../work-orders/initial-30/T25.md), [AI 구조](../AI_SYSTEM_ARCHITECTURE.md), [API 초안](../API_CONTRACT.md), [DB 초안](../../database/FULL_DATABASE_MODEL.md). 담당자 및 PM의 검토가 필요하다.
 
 ## 1. 목적과 용어
 
@@ -44,7 +44,7 @@ Feature(피처)는 계산이나 모델에 넣는 정보다. 예를 들어 `Pytho
 
 ## 4. Skill Gap 예시와 결정 필요 항목
 
-직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. 병합된 T05 데이터 사전은 `user_skills.proficiency`의 NULL을 보존하고, `skill_gap_items.observed_level`에는 계산용 0을 기록하는 안이다. 데이터 사전에는 DRAFT·PM/DB 리뷰 대기 상태가 표시되어 있다. 원본 `미입력`과 실제 입력값을 구분해 보존하는 방법과 계산 시 변환은 별도로 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
+직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. 병합된 T05 데이터 사전은 `user_skills.proficiency`의 NULL을 보존하고, `skill_gap_items.observed_level`에는 계산용 0을 기록하는 안이다. 데이터 사전에는 DRAFT·PM/DB 리뷰 대기 상태가 표시되어 있다. PM 결정에 따라 원본 `미입력` NULL과 계산 시 변환된 0은 구분해 보존한다. 실제 이력·화면 표시 방식은 별도 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
 
 ## 5. 시점·분할·출처·개인정보
 
@@ -64,7 +64,7 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 
 ## 7. 검증 및 한계
 
-`python -m unittest discover -s tests/t25 -v`는 합성 fixture에 대한 시간 순서, 필수 메타데이터, 출처 식별 및 결정적 검증 결과를 확인한다. 이것은 **예시 검증**이며 T25 전체 스키마·권한·실제 데이터 누수·모델 성능을 검증하지 않는다. PR #26은 Draft로 열려 있다. 승인·실연동 및 CI 결과는 별도로 확인해야 한다.
+`python -m unittest discover -s tests/t25 -v`는 합성 fixture에 대한 시간 순서, 필수 메타데이터, 출처 식별 및 결정적 검증 결과를 확인한다. 이것은 **예시 검증**이며 T25 전체 스키마·권한·실제 데이터 누수·모델 성능을 검증하지 않는다. PR #26은 설계·합성 테스트 기준선으로 병합됐다. 해당 HEAD `28f1c5a`의 전용 CI는 24건을 통과했다. 실제 연동 검증은 별도다.
 
 추가 합성 데이터 실험에서는 같은 가상 사용자 ID가 학습과 시험 양쪽에 등장하면 경고한다. 이는 중복으로 평가가 부풀려지는 상황을 이해하기 위한 **검토용 예시**다. 실제로 사용자·직무·공고 중 무엇을 분리할지와 시간 기준은 모델 및 데이터 특성에 따라 팀이 결정해야 한다. 단순 ID 비교는 유사 항목, 전체 기간 순서, 라벨 누수 또는 모든 형태의 중복을 찾아내지 못한다.
 
@@ -103,7 +103,7 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 | 평가 | `model_evaluations`: 필수 `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | boolean 하나로 누수 부재를 증명할 수 없다. 데이터/피처 버전, 분할·검사 방법·증빙 저장 위치는 별도 협의 |
 | 삭제 | 사용자 원본·관련 행의 삭제 규칙과 문서 원본·인덱스 정리는 별도 책임 | 데이터셋·파생 feature·학습된 모델의 삭제/재학습 정책은 미확정 |
 
-T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 병합된 계약 문서다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. PR #26 CI는 `d82a29d`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다. 이후 커밋의 CI는 별도 확인한다.
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 병합된 계약 문서다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. 과거 `d82a29d` CI는 job 없이 종료됐으나 이후 `28f1c5a`의 T25 전용 CI가 24건 통과했다. 각 후속 변경의 CI는 해당 커밋에서 별도 확인한다.
 
 ## 12. 병합된 T06 계약과 후속 확인 (2026-11-06)
 
@@ -157,7 +157,7 @@ T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)�
 | 실행 버전 | `model_versions.model_version_id`, `model_code`, `version`, `kind`, `approved_at` | `SkillGap.model_version`은 ModelVersionRef | 규칙 `kind=rule`도 등록 대상. 승인 전의 합성 버전 문자열을 실제 승인 모델처럼 반환하지 않음 |
 | 평가 | `model_evaluations.model_version_id`, `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | 별도 관리자 평가 조회 DTO | 검사 범위·데이터셋/스플릿·라벨 시점 증빙이 `leakage_checked` 하나로 확보되지는 않음 |
 | 출처·기준 시각 | 합성 메타데이터의 `source_id`, `available_at`, `decision_time`과 직접 동일한 DB 컬럼 계약 미확인 | 모든 AI 응답에 이 메타데이터가 동일하게 실리는 계약 아님 | 별도 lineage/snapshot 저장 위치·출처 권리·동의/삭제 전파 책임 결정을 요구 |
-| RAG 접근·삭제 | 사용자 문서·청크·검색 결과의 실제 인가/정리 동작 미검증 | `askKnowledge` 설명은 검색을 Q&A 내부에서만 사용 | T54 지시서의 검색 API 표현과 공개 경계 불일치; T15/T49/T53/T54/API·PM 담당자 확인 전 HOLD |
+| RAG 접근·삭제 | 사용자 문서·청크·검색 결과의 실제 인가/정리 동작 미검증 | `askKnowledge` 설명은 검색을 Q&A 내부에서만 사용 | PM 결정: 별도 외부 검색 API 없이 askKnowledge 내부 검색. T15 인증 재사용 및 조회 전·반환 전 검사. 인가 구현과 색인 정리 지연·재시도 검증은 HOLD |
 
 ## 16. 리뷰 결정 대기 목록 및 작업 경계
 
@@ -167,6 +167,17 @@ T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)�
 | P0 | 모델별 라벨 가용 시각, 그룹·시간 분할, 중복/유사도 검사 기준 | AI/데이터 담당·PM | OPEN / DRAFT |
 | P0 | 실제 동의 철회·삭제 시 파생 feature·데이터셋·모델·색인 전파와 중단 조건 | 개인정보/보안·DB·AI·PM | OPEN / HOLD |
 | P1 | 미입력 원본 NULL과 계산값 0의 API/화면 표시·이력 의미 | DB·Backend(T26/T43)·Frontend(T44) | OPEN / DRAFT |
-| P1 | T53/T54 검색 공개 경계 및 권한 변경/삭제 시 fail-closed 검사 | T15/T49/T53/T54·API·PM | OPEN / HOLD |
+| P1 | 내부 검색에서 권한 변경·삭제·동의 철회 시 fail-closed와 색인 정리 지연·재시도 검증 | T15/T49/T53/T54·Backend | 원칙 결정 / 구현·검증 HOLD |
 
-**현 상태:** `T25_STATUS=PARTIAL`, `PR #26=Draft/HOLD` 유지. 이 보완은 계약 문서와 합성 테스트·CI 정의에 한정하며, 운영 DB/Schema/Seed, 실제 API, 인증, 실제 사용자 데이터, Staging, 배포는 변경하지 않았다. CI가 실제 실행돼 PASS하고 미결 결정을 담당자가 승인하기 전에는 '완료'로 표시하지 않는다.
+**현 상태:** `T25_DOCUMENT_BASELINE=ACCEPTED`, `T25_REAL_INTEGRATION=HOLD`. 이 보완은 계약 문서와 합성 테스트·CI 정의에 한정하며, 운영 DB/Schema/Seed, 실제 API, 인증, 실제 사용자 데이터, Staging, 배포는 변경하지 않았다. CI가 실제 실행돼 PASS하고 미결 결정을 담당자가 승인하기 전에는 '완료'로 표시하지 않는다.
+
+
+## 17. PM 결정 반영 (2026-11-09)
+
+근거: [PR #26 PM 결정](https://github.com/ai-career-platform/ai-career-platform/pull/26#issuecomment-6730998767). 설계·합성 테스트 기준선은 수용됐으며 실제 PostgreSQL·API·권한·Staging 구현 승인을 의미하지 않는다.
+
+- 1차 구현 순서: **Skill Gap(ML03) 먼저**, 직무·공고 적합도(ML01) 다음. ML02/ML06 개인화·행동 추천은 후속 단계, ML04/ML05/ML07은 연구·확장 후보다.
+- T05/T06을 재사용하고 이번 범위에 새 테이블이나 별도 Feature Store를 만들지 않는다. 출처·버전과 event_time/available_at/decision_time을 검증 가능한 최소 메타데이터로 정의하되, 운영 DB의 필수 컬럼·저장 위치는 후속 단계에서 DB 담당과 확정한다.
+- 사용자 원본 `user_skills.proficiency=NULL`은 보존하고 계산 결과의 `observed_level=0`과 구분한다. 실제 데이터 기반 API의 완료 기준에는 PostgreSQL 연동 검증이 필요하다.
+- RAG 검색은 1차에서 별도 외부 API를 신설하지 않고 기존 `askKnowledge` 내부에서 사용한다. 기존 T15 인증을 재사용하며 조회 전과 결과 반환 전 문서 접근권을 확인한다. 권한 미확인·해제·삭제·동의 철회 문서는 제외한다(fail-closed).
+- 인덱스 정리의 이벤트·지연·재시도·검증 방법은 T53/T54 및 Backend 담당과 협의한다. 정리가 늦더라도 접근 차단이 우선이다. 실제 인가·삭제 전파·DB/API 구현은 여전히 HOLD다.
