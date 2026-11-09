@@ -105,6 +105,8 @@ FR-ANL-005의 사용자 질문은 "관심 직무의 공고가 **늘고 있는지
 
 **PostgreSQL은 UNIQUE에서 NULL끼리 다르다고 본다.** 그래서 전체 시장(`job_role_id IS NULL`) 행은 DB가 중복을 막지 못한다. PM 결정에 따라 인덱스는 그대로 두고, **T66은 다시 계산하는 구간의 기존 행을 (출처, 기간 종류, 구간 범위) 단위로 지운 뒤 한 트랜잭션에서 다시 넣는다.** `ON CONFLICT`에 기대지 않는다. 이 동작은 `test_null_role_duplicates_are_left_as_is`로 고정돼 있다.
 
+T66 구현: `backend/app/market_aggregation.py` (one-shot job), 검산 `database/market_metrics/verify_observations.sql`, 사용법 [database/market_metrics/README.md](../../database/market_metrics/README.md).
+
 ## 6. 경계 사례와 검증 fixture
 
 fixture: [`t65_fixture.sql`](../../database/market_metrics/t65_fixture.sql) (출처 `t65_fixture`) · 정답: [`t65_expected.json`](../../database/market_metrics/t65_expected.json)
