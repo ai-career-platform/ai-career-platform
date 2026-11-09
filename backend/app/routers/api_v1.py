@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from app.core.config import API_V1_PREFIX
 from app.core.exception_handlers import error_responses
 from app.routers import auth, crawler_admin, job_postings, me
-from app.routers import auth, me, crawler_admin, catalog
+from app.routers import auth, me, crawler_admin, catalog, my_skills
 
 # 모든 /api/v1 operation의 OpenAPI에 공통 오류(422 검증, 500 내부 오류) ErrorResponse를 표시.
 # 기능 라우터는 api_router.include_router(...)로 붙이면 이 설정을 물려받는다.
@@ -20,3 +20,4 @@ api_router.include_router(me.router)
 api_router.include_router(crawler_admin.router)
 api_router.include_router(job_postings.router)
 api_router.include_router(catalog.router)
+api_router.include_router(my_skills.router)
