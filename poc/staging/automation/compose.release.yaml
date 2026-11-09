@@ -5,6 +5,9 @@ services:
   backend:
     image: ${BACKEND_IMAGE:?digest-pinned backend image required}
     environment:
+      # Dedicated least-privilege service DB; never fall back to PoC POSTGRES_*.
+      DATABASE_URL: ${DATABASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:?private T15 JWT signing secret required}
       APP_VERSION: ${DEPLOY_SHA:?verified commit SHA required}
       CRAWLER_DB_MODE: ${CRAWLER_DB_MODE:-local}
       CRAWLER_STAGING_DATABASE_URL: ${CRAWLER_STAGING_DATABASE_URL:-}

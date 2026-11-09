@@ -45,8 +45,9 @@ jobs:
         run: python3 poc/staging/automation/publish.py
       - name: Test exact source before publishing
         run: |
+          export PYTHONPATH="$PWD/backend"
           python3 -m venv /tmp/staging-publish-tests
-          /tmp/staging-publish-tests/bin/pip install -r poc/staging/backend/requirements.txt pytest==8.3.5 httpx==0.28.1
+          /tmp/staging-publish-tests/bin/pip install -r backend/requirements-dev.txt
           /tmp/staging-publish-tests/bin/python -B -m pytest -p no:cacheprovider poc/staging/tests -q
           /tmp/staging-publish-tests/bin/python -B -m unittest discover -s crawler/tests
           /tmp/staging-publish-tests/bin/python -B -m unittest discover -s backend/training_tests

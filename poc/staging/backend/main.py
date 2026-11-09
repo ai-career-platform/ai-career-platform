@@ -4,7 +4,42 @@ import os
 import psycopg
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI(root_path="/api")
+if os.environ.get('ENABLE_SERVICE_API') == '1':
+    from app.main import create_app
+    from fastapi.openapi.docs import get_swagger_ui_html
+    from fastapi.exception_handlers import http_exception_handler
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    # One application/lifespan owns T14 sessions and T15 authentication.
+    app = create_app()
+    app.routes[:] = [r for r in app.routes if r.path not in {
+        '/health', '/version', '/health/db', '/docs', '/docs/oauth2-redirect', '/redoc'}]
+    service_http_error = app.exception_handlers[StarletteHTTPException]
+
+    @app.exception_handler(StarletteHTTPException)
+    async def staging_http_error(request, exc):
+        if request.url.path.startswith('/api/v1/'):
+            return await service_http_error(request, exc)
+        return await http_exception_handler(request, exc)
+
+    @app.get('/docs', include_in_schema=False)
+    def staging_docs():
+        return get_swagger_ui_html(openapi_url='/api/openapi.json', title=app.title + ' - Swagger UI')
+
+    original_openapi = app.openapi
+
+    def external_openapi():
+        spec = original_openapi()
+        # The proxy retains /api/v1 for service routes and strips /api for PoC.
+        # Document their actual external URLs with a single origin-relative server.
+        spec['paths'] = {path if path.startswith('/api/') else '/api' + path: value
+                         for path, value in spec['paths'].items()}
+        spec['servers'] = [{'url': '/'}]
+        return spec
+
+    app.openapi = external_openapi
+else:
+    app = FastAPI(root_path="/api")
 logger = logging.getLogger(__name__)
 
 # Integrated image only. The original standalone PoC image remains supported.
