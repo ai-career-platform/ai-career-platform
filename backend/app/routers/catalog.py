@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
+from app.dependencies.catalog_auth import get_optional_catalog_user
 from app.repositories.catalog_sqlalchemy import SQLAlchemyCatalogRepository
 from app.schemas.catalog import (
     JobRoleDetail, JobRolePage, JobRoleQuery, SkillQuery, SkillSearchResult,
@@ -31,13 +32,14 @@ def get_catalog_service(db: Annotated[Session, Depends(get_db)]) -> CatalogServi
     return CatalogService(SQLAlchemyCatalogRepository(db), cursor_key=cursor_key)
 
 
-router = APIRouter(tags=["catalog"])
+router = APIRouter(tags=["catalog"], dependencies=[Depends(get_optional_catalog_user)])
 CatalogDependency = Annotated[CatalogService, Depends(get_catalog_service)]
+OPTIONAL_SECURITY = {"security": [{}, {"HTTPBearer": []}]}
 
 
 @router.get(
     "/job-roles", response_model=JobRolePage, operation_id="listJobRoles",
-    responses=error_responses(400, 422, 503),
+    responses=error_responses(400, 401, 422, 503), openapi_extra=OPTIONAL_SECURITY,
 )
 def list_job_roles(
     service: CatalogDependency,
@@ -50,7 +52,8 @@ def list_job_roles(
 
 @router.get(
     "/job-roles/{job_role_id}", response_model=JobRoleDetail,
-    operation_id="getJobRole", responses=error_responses(404, 422, 503),
+    operation_id="getJobRole", responses=error_responses(401, 404, 422, 503),
+    openapi_extra=OPTIONAL_SECURITY,
 )
 def get_job_role(job_role_id: UUID, service: CatalogDependency) -> JobRoleDetail:
     return service.get_job_role(job_role_id)
@@ -58,7 +61,7 @@ def get_job_role(job_role_id: UUID, service: CatalogDependency) -> JobRoleDetail
 
 @router.get(
     "/skills", response_model=SkillSearchResult, operation_id="searchSkills",
-    responses=error_responses(422, 503),
+    responses=error_responses(401, 422, 503), openapi_extra=OPTIONAL_SECURITY,
 )
 def search_skills(
     service: CatalogDependency,

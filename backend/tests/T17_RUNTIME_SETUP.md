@@ -3,6 +3,17 @@
 T14 `get_db`와 T17 조회가 연결된 상태다. 공유 Staging 접속 정보는 사용하지 않는다.
 공통 `.env.example`·설정 파일은 수정하지 않았으며 `.env`는 자동으로 읽지 않는다.
 
+## 현재 main 인증과의 연결
+
+T17 조회는 T06 선택 인증 계약을 유지한다. Authorization 헤더가 없으면
+비로그인 조회, 헤더가 있으면 T15 토큰 서명/만료와 DB 세션·사용자 상태를
+검증한다. 잘못된 토큰을 비로그인으로 간주해 통과시키지 않는다.
+401 응답은 공통 UNAUTHENTICATED/TOKEN_EXPIRED와 WWW-Authenticate를 사용한다.
+main의 인증 코드와 메시지를 재사용하며 별도 JWT 구현은 두지 않는다.
+DB와 cursor 키는 비로그인 조회에도 필요하다. 인증한 요청에는 T15의
+정상 사용자·세션 DB 레코드가 추가로 필요하다.
+JWT_SECRET 등 인증 실행 설정은 main의 backend/README.md를 따른다.
+
 ## 준비
 
 - `backend/.venv`에 `requirements-dev.txt` 설치.

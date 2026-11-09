@@ -1,33 +1,46 @@
 from collections.abc import Iterator
 
-import psycopg
 from fastapi import Request
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.engine import URL, ExceptionContext, make_url
 from sqlalchemy.exc import OperationalError, TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import DatabaseSettings
 from app.core.errors import AppError, ErrorCode
 
+# SQLAlchemy 방언+드라이버 이름. 드라이버 라이브러리는 코드에서 직접 import하지 않고 SQLAlchemy가 불러온다.
+DB_DRIVERNAME = "postgresql+psycopg"
+
+
+def sqlalchemy_url(url: str) -> URL:
+    """`postgresql://…` 형식의 DATABASE_URL을 SQLAlchemy 엔진 URL로 바꾼다."""
+    return make_url(url).set(drivername=DB_DRIVERNAME)
+
+
+def _hide_connect_error(context: ExceptionContext) -> BaseException | None:
+    """접속 실패 메시지(사용자 이름·호스트 등)가 예외·로그에 남지 않도록 일반 메시지로 바꾼다.
+
+    `context.connection`이 없으면 풀이 새 연결을 여는 중에 난 오류(접속 실패)다.
+    """
+    if context.connection is None and isinstance(context.sqlalchemy_exception, OperationalError):
+        return OperationalError(None, None, ConnectionError("PostgreSQL connection failed"))
+    return None
+
 
 def create_db_engine(settings: DatabaseSettings) -> Engine:
     """앱 수명 동안 재사용하는 SQLAlchemy 엔진(연결 풀 포함). 첫 사용 시점에 접속합니다."""
-
-    def connect() -> psycopg.Connection:
-        # 접속 실패 메시지에 자격정보가 남지 않도록 드라이버 경계에서 정제합니다.
-        try:
-            return psycopg.connect(settings.url, connect_timeout=settings.timeout)
-        except psycopg.OperationalError:
-            raise psycopg.OperationalError("PostgreSQL connection failed") from None
-
-    return create_engine(
-        "postgresql+psycopg://",
-        creator=connect,
+    engine = create_engine(
+        sqlalchemy_url(settings.url),
+        connect_args={"connect_timeout": settings.timeout},
         pool_size=settings.pool_size,
         max_overflow=0,
         pool_timeout=settings.timeout,
         pool_pre_ping=True,
+        hide_parameters=True,
     )
+    event.listen(engine, "handle_error", _hide_connect_error)
+    return engine
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

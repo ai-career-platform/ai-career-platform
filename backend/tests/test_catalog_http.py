@@ -106,10 +106,10 @@ def test_unconfigured_provider_returns_503():
 def test_openapi_catalog_contract(client):
     spec = client.get("/openapi.json").json()
     validate(spec)
-    assert set(spec["paths"]) == {
+    assert {
         "/health", "/health/db", "/version",
         "/api/v1/job-roles", "/api/v1/job-roles/{job_role_id}", "/api/v1/skills"
-    }
+    } <= set(spec["paths"])
     operation = spec["paths"]["/api/v1/job-roles"]["get"]
     parameters = {p["name"]: p for p in operation["parameters"]}
     assert parameters["limit"]["schema"]["maximum"] == 100
