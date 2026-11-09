@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'docs/api/openapi.yaml'
       - '.github/workflows/frontend-ci.yml'
       - 'docs/QUALITY.md'
   push:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'docs/api/openapi.yaml'
       - '.github/workflows/frontend-ci.yml'
       - 'docs/QUALITY.md'
   workflow_dispatch:
@@ -36,6 +38,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: API types match docs/api/openapi.yaml
+        run: npm run check:api
       - name: Test
         run: npm test
       - name: Build (includes TypeScript check)

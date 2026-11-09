@@ -40,12 +40,14 @@ npm run dev:mock        # Backend 없이 Mock 데이터로 실행 → http://127
 | `npm run dev` | 개발 서버(실제 API, `/api` 프록시) |
 | `npm run dev:mock` | 개발 서버(Mock API, `.env.mock`) |
 | `npm run lint` | oxlint (경고 포함 실패) |
+| `npm run gen:api` | `docs/api/openapi.yaml` → `src/api/schema.gen.ts` 타입 생성 (계약이 바뀌면 실행 후 커밋) |
+| `npm run check:api` | 생성 타입이 계약과 같은지 검사 (CI에서 실행) |
 | `npm run typecheck` | TypeScript 타입 검사 |
 | `npm test` | Vitest 1회 실행 (`npm run test:watch`: 감시 모드) |
 | `npm run build` | 타입 검사 + 프로덕션 빌드(`dist/`) |
 | `npm run preview` | 빌드 결과 미리보기 |
 
-PR 전 확인 순서: `npm ci` → `npm run lint` → `npm test` → `npm run build`
+PR 전 확인 순서: `npm ci` → `npm run lint` → `npm run check:api` → `npm test` → `npm run build`
 
 ## 폴더 구조
 
@@ -58,7 +60,7 @@ frontend/
 └── src/
     ├── main.tsx          # 진입점, Router 생성
     ├── routes.tsx        # 라우트 목록 (새 화면은 여기에 등록)
-    ├── api/              # API client(apiGet, ApiError)와 도메인별 API 함수
+    ├── api/              # API 계층 (아래 "API 계층" 참고)
     ├── mocks/            # Mock 데이터 (docs/API_CONTRACT.md 기준)
     ├── config/env.ts     # 환경 변수 접근
     ├── layouts/          # 공통 레이아웃 (T20에서 디자인 구현)
@@ -67,6 +69,18 @@ frontend/
     ├── styles/           # 전역 CSS, 디자인 토큰 초안
     └── test/setup.ts     # 테스트 공통 설정
 ~~~
+
+## API 계층
+
+| 층 | 파일 | 역할 |
+|---|---|---|
+| 전송 | `api/http.ts` | `createHttpClient({ baseUrl, fetch, getToken, onUnauthorized })`. 모든 요청이 지나는 한 곳 (헤더·쿼리·오류·취소) |
+| 계약 타입 | `api/schema.gen.ts`, `api/schema.ts` | OpenAPI 생성 타입(직접 수정 금지)과 `ResponseOf<'operationId'>`·`BodyOf`·`QueryOf` 도우미 |
+| 엔드포인트 | `api/catalog.ts`, `api/me.ts`, `api/index.ts` | 경로와 타입은 여기에만. 화면은 `createApi(http).jobPostings.list(...)`처럼 호출 |
+| React 상태 | `api/useQuery.ts` | `useQuery(key, fn)` → `{ status, data, error, retry }`. key 변경 시 이전 요청 취소 |
+| Mock | `mocks/mockFetch.ts` | 가상 데이터를 fetch 구현체로 끼움. mock 모드에서도 실제와 같은 코드 경로 |
+
+계약(`openapi.yaml`)과 실제 Backend가 다른 필드는 엔드포인트 파일에서 보정하고 주석으로 이유를 남깁니다(예: `catalog.ts`의 `PostingRequiredSkill`).
 
 ## 개발 규칙
 

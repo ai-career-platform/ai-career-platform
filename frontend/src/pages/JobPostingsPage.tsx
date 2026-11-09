@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { publicHttp } from '../api/client';
+import { createApi } from '../api';
 import { useQuery } from '../api/useQuery';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -10,23 +11,7 @@ import { TextField } from '../components/TextField';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 import './JobPostingsPage.css';
 
-type Company = { company_id: string; name: string };
-type Role = { job_role_id: string; name: string };
-type Options<T> = { items: T[]; next_cursor: string | null };
-type Posting = {
-  job_posting_id: string; title: string; status: 'published' | 'closed';
-  company: Company; job_role: Role | null; employment_type: string | null;
-  location_text: string | null; published_at: string | null; expires_at: string | null;
-};
-type PostingPage = { items: Posting[]; next_cursor: string | null };
-type PostingDetail = Posting & {
-  description: string | null; source_url: string | null;
-  required_skills: { skill: { skill_id: string; name: string }; required_level: number | null; is_required: boolean }[];
-};
-type CompanyDetail = {
-  company_id: string; name: string; website_url: string | null; description: string | null;
-  open_posting_count: number; source: string;
-};
+const api = createApi(publicHttp);
 type Sort = '-published_at' | 'expires_at';
 
 const PAGE_SIZE = 20;
@@ -57,22 +42,22 @@ export function JobPostingsPage() {
   const [showAllCompanies, setShowAllCompanies] = useState(false);
 
   const list = useQuery(['job-postings', filterKey, cursor], (signal) =>
-    publicHttp.request<PostingPage>('/v1/job-postings', {
-      query: { limit: PAGE_SIZE, sort, include_closed: includeClosed, q: query, company_id: companyId, job_role_id: roleId, cursor },
+    api.jobPostings.list(
+      { limit: PAGE_SIZE, sort, include_closed: includeClosed, q: query, company_id: companyId, job_role_id: roleId, cursor },
       signal,
-    }));
+    ));
 
   const companies = useQuery(['company-options'], (signal) =>
-    publicHttp.request<Options<Company>>('/v1/companies', { query: { limit: OPTION_LIMIT }, signal }));
+    api.companies.list({ limit: OPTION_LIMIT }, signal));
   const roles = useQuery(['role-options'], (signal) =>
-    publicHttp.request<Options<Role>>('/v1/job-roles', { query: { limit: OPTION_LIMIT }, signal }));
+    api.jobRoles.list({ limit: OPTION_LIMIT }, signal));
 
   const detail = useQuery(selected !== null && ['job-posting', selected], (signal) =>
-    publicHttp.request<PostingDetail>(`/v1/job-postings/${encodeURIComponent(selected ?? '')}`, { signal }));
+    api.jobPostings.get(selected ?? '', signal));
 
   const detailCompanyId = detail.status === 'ready' ? detail.data.company.company_id : null;
   const companyDetail = useQuery(detailCompanyId !== null && ['company', detailCompanyId], (signal) =>
-    publicHttp.request<CompanyDetail>(`/v1/companies/${encodeURIComponent(detailCompanyId ?? '')}`, { signal }));
+    api.companies.get(detailCompanyId ?? '', signal));
 
   function change(patch: Record<string, string>) {
     const next = new URLSearchParams(params);

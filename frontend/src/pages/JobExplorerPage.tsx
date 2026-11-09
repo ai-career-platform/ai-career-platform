@@ -2,18 +2,17 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { publicHttp } from '../api/client';
+import { createApi } from '../api';
 import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
 import { compareSkills, levelText } from './skillComparison';
-import type { ComparisonStatus, RequiredSkillItem, UserSkillItem } from './skillComparison';
+import type { ComparisonStatus, UserSkillItem } from './skillComparison';
 import './JobExplorerPage.css';
 
-type Role = { job_role_id: string; name: string; code: string };
-type RolePage = { items: Role[]; next_cursor: string | null };
-type RoleDetail = Role & { description: string | null; required_skills: RequiredSkillItem[] };
+const api = createApi(publicHttp);
 
 const PAGE_SIZE = 20;
 const STATUS_LABEL: Record<ComparisonStatus, string> = {
@@ -34,10 +33,10 @@ export function JobExplorerPage() {
   const auth = useAuth();
 
   const list = useQuery(['job-roles', query, cursor], (signal) =>
-    publicHttp.request<RolePage>('/v1/job-roles', { query: { limit: PAGE_SIZE, q: query, cursor }, signal }));
+    api.jobRoles.list({ limit: PAGE_SIZE, q: query, cursor }, signal));
 
   const detail = useQuery(selected !== null && ['job-role', selected], (signal) =>
-    publicHttp.request<RoleDetail>(`/v1/job-roles/${encodeURIComponent(selected ?? '')}`, { signal }));
+    api.jobRoles.get(selected ?? '', signal));
 
   // 내 보유 기술은 로그인했을 때만 불러옵니다(T33 `GET /me/skills`, 인증 필요).
   const member = auth.state.status === 'authenticated' ? auth.state.user.email : null;
