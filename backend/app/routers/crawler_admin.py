@@ -36,16 +36,27 @@ def get_crawler_admin_store() -> Iterator[object]:
     try:
         from crawler.admin.read_models import CrawlerAdminReadStore
         from crawler.storage.staging import connect_configured_database
-
-        with connect_configured_database() as connection:
-            with connection.transaction():
-                connection.execute("SET TRANSACTION READ ONLY")
-                yield CrawlerAdminReadStore(connection)
+        connection = connect_configured_database()
     except Exception:
         raise AppError(
             ErrorCode.DEPENDENCY_UNAVAILABLE,
-            log_detail="crawler admin metadata unavailable",
+            log_detail="crawler admin metadata connection unavailable",
         ) from None
+
+    try:
+        with connection.transaction():
+            try:
+                connection.execute("SET TRANSACTION READ ONLY")
+            except Exception:
+                raise AppError(
+                    ErrorCode.DEPENDENCY_UNAVAILABLE,
+                    log_detail="crawler admin read-only transaction unavailable",
+                ) from None
+            # Errors from the handler must never be converted into a spurious
+            # 503 by the yield dependency. Rollback/close occur on exit.
+            yield CrawlerAdminReadStore(connection)
+    finally:
+        connection.close()
 
 
 Store = Annotated[object, Depends(get_crawler_admin_store)]
