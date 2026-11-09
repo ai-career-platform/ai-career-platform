@@ -94,7 +94,7 @@ def pg_client(monkeypatch, engine):
     monkeypatch.setenv("DATABASE_URL", DB_URL)
     get_settings.cache_clear()
     try:
-        with TestClient(create_app(), base_url="https://testserver") as client:
+        with TestClient(create_app(), base_url="https://testserver", headers={"X-CSRF-TOKEN": "1"}) as client:
             yield client
     finally:
         get_settings.cache_clear()
