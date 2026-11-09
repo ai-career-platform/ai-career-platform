@@ -64,13 +64,13 @@ covered AS (
           )
       )
 ),
--- §3.3 범위: 전체 시장(NULL) + 대상 구간에 공고가 한 건이라도 있는 직무
+-- §3.3 범위: 전체 시장(NULL) + as_of까지 이 출처에 공고가 한 건이라도 있었던 직무.
+-- 조회 구간과 무관하게 정해야 일부 구간만 다시 계산해도(T66) 전체 재계산과 같은 결과가 나온다.
 scopes AS (
     SELECT NULL::uuid AS job_role_id
     UNION
     SELECT e.job_role_id
     FROM eligible e
-    JOIN covered c ON c.bucket = e.bucket
     WHERE e.job_role_id IS NOT NULL
 ),
 counts AS (

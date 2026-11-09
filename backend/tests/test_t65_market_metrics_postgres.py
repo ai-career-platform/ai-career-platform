@@ -100,6 +100,14 @@ def test_late_posting_changes_only_its_own_week(engine):
     assert {k[0] for k in after.keys() - before.keys()} == {"2026-10-26", "2026-11-02"}
 
 
+def test_partial_range_equals_full_range_for_same_buckets(engine):
+    """§3.3: 직무 목록이 조회 구간에 따라 바뀌지 않으므로, 최근 구간만 계산해도 전체 계산과 같다 (T66 재계산 창 전제)."""
+    full = EXPECTED["scenarios"][1]
+    partial = {**full, "range_start": "2026-10-26"}
+    full_rows = [r for r in _compute(engine, full) if r[0] >= "2026-10-26"]
+    assert sorted(_compute(engine, partial), key=_key) == sorted(full_rows, key=_key)
+
+
 def test_other_sources_are_not_mixed_in(engine):
     """Seed의 synthetic_seed 공고 100건은 t65_fixture 결과에 섞이지 않는다 (§3.5 출처별 집계)."""
     scenario = {**EXPECTED["scenarios"][2], "range_start": "2026-01-01", "range_end": "2026-12-01",
