@@ -1,6 +1,7 @@
 import { env } from '../config/env';
 import { resolveMock } from '../mocks/handlers';
 import { ApiError } from './errors';
+import type { FieldError } from './errors';
 
 export { ApiError };
 
@@ -11,7 +12,7 @@ export interface ApiClientOptions {
 }
 
 export interface ApiRequestOptions extends ApiClientOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH';
   body?: unknown;
   /** access token. 메모리에만 두고 Authorization 헤더로만 보냅니다. */
   token?: string | null;
@@ -50,8 +51,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    const problem = (await response.json().catch(() => null)) as { code?: string } | null;
-    throw new ApiError(response.status, path, undefined, problem?.code);
+    const problem = (await response.json().catch(() => null)) as { code?: string; errors?: FieldError[] } | null;
+    throw new ApiError(response.status, path, undefined, problem?.code, problem?.errors);
   }
   // 204 No Content 등 본문이 없는 성공 응답
   return (await response.json().catch(() => undefined)) as T;

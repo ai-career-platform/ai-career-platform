@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 
 /**
@@ -26,7 +27,11 @@ export const routes: RouteObject[] = [
       { path: 'system-status', element: <HomePage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'login', element: <LoginPage /> },
-      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }] },
+      { element: <RequireAuth />, children: [
+          { path: 'account', element: <AccountPage /> },
+          { path: 'account/profile', element: <ProfilePage /> },
+        ],
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

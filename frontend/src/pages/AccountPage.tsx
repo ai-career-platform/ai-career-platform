@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 
@@ -12,6 +13,9 @@ export function AccountPage() {
         {state.user.displayName} ({state.user.email})
       </p>
       <p>역할: {state.user.roles.join(', ')}</p>
+      <p>
+        <Link to="/account/profile">프로필 보기·수정</Link>
+      </p>
       <Button variant="outline" onClick={() => void logout()}>
         로그아웃
       </Button>
