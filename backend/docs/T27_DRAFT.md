@@ -13,3 +13,8 @@ T05 PR #17이 main `a004efb`에 병합됐으나 데이터 사전은 DRAFT/PM·DB
 ## T06 병합 계약 반영 (2026-11-06)
 
 T06 PR #29가 main `d1fae3a`에 병합됐다. RecommendationRunRequest의 limit 기본 20, 범위 1~50과 RecommendationItem의 빈 값이 아닌 reason에 맞춰 가상 계산 결과를 제한하고 기술 일치 개수로 이유를 만든다. 정렬 후 제한하며 limit도 가상 입력 해시에 포함한다. API 응답의 rank, feedback, job_posting과 model_version 등은 실제 DTO 조립·조회가 없어 미구현이다. 설명은 단순 기술 일치이며 개인화 품질을 증명하지 않는다. T06 PR 작성자는 CI 미연결로 PARTIAL을 보고했고 구현이 병합된 것은 아니다.
+
+
+## PM 검토 범위 (2026-11-09)
+
+이번 작업은 독립 추천 계산 함수와 단위 테스트에 한정한다. `Posting.expires_on`은 현재 필수 날짜이고 요구 기술이 빈 공고는 제외한다. T18 실제 공고의 마감일 NULL(상시채용) 처리 방식은 정식 연동 시 결정한다. 일치하는 기술이 없어 점수가 0인 공고도 결과에 포함될 수 있다. 점수는 채용 성공 확률이 아니며 `input_hash`는 익명화·비식별화 수단이 아니다. T06 rank, job_posting, feedback, model_version 조립과 DB·API 통합은 FOLLOW_UP이다.
