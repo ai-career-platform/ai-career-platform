@@ -20,6 +20,8 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core.errors import AppError, ErrorCode
 from app.repositories.recommendation_feedback import (
     AuditRecord,
@@ -75,6 +77,10 @@ class RecommendationFeedbackService:
             ))
             self._repo.commit()
             return _dto(record)
+        except SQLAlchemyError as exc:
+            # DB 장애는 다른 저장소(T45 등)와 같이 503 DEPENDENCY_UNAVAILABLE (계약: 401/404/422/503).
+            self._repo.rollback()
+            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail=type(exc).__name__) from None
         except Exception:
             self._repo.rollback()
             raise

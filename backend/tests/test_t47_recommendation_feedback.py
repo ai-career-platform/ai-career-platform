@@ -322,6 +322,37 @@ def test_failure_after_insert_rolls_back(repo):
     assert repo.feedback_rows() == [] and repo.commits == 0 and repo.rollbacks >= 1
 
 
+@pytest.mark.parametrize("stage", ["lock_feedback", "insert_feedback", "commit"])
+def test_database_error_rolls_back_and_maps_to_503(repo, stage):
+    from sqlalchemy.exc import OperationalError
+    user = uuid.uuid4()
+    repo.add_run(user, [POST_A])
+
+    def broken(*args, **kwargs):
+        raise OperationalError("SELECT 1", {}, Exception("synthetic db outage"))
+
+    setattr(repo, stage, broken)
+    service = RecommendationFeedbackService(repo, clock=ticking_clock())
+    with pytest.raises(AppError) as err:
+        service.create(user, RecommendationFeedbackInput(job_posting_id=POST_A, feedback="liked"), None)
+    assert err.value.code == ErrorCode.DEPENDENCY_UNAVAILABLE and err.value.status == 503
+    assert "synthetic" not in str(err.value)
+    assert repo.feedback_rows() == [] and repo.audit_rows() == [] and repo.rollbacks >= 1
+
+
+def test_database_outage_is_503_over_http(client, repo, alice):
+    from sqlalchemy.exc import OperationalError
+    _, headers, run_id = alice
+
+    def broken(*args, **kwargs):
+        raise OperationalError("SELECT 1", {}, Exception("synthetic db outage"))
+
+    repo.insert_feedback = broken
+    r = client.post(URL, json=body(run=run_id), headers=headers)
+    assert r.status_code == 503 and r.json()["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert "synthetic" not in r.text and repo.feedback_rows() == []
+
+
 def test_not_found_rolls_back_and_raises_app_error(repo, service):
     with pytest.raises(AppError) as err:
         service.create(uuid.uuid4(), RecommendationFeedbackInput(job_posting_id=POST_A, feedback="liked"), None)

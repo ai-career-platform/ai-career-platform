@@ -115,3 +115,56 @@ def test_feedback_on_real_t45_runs_drives_item_feedback_and_next_run(pg_client, 
     run_ref = _count(engine, """SELECT count(*) FROM career.recommendation_feedback
         WHERE user_id = :u AND recommendation_run_id = :r""", u=alice_id, r=UUID(run_id))
     assert run_ref == 2  # run_id를 보낸 두 건만 실행을 가리킨다
+
+
+def test_concurrent_same_feedback_on_real_t45_run_creates_one_row(pg_client, engine):  # noqa: F811
+    """advisory lock: 같은 사용자·공고에 동시에 같은 값을 보내도 이력·감사 행은 1건 (나머지는 멱등 응답).
+
+    경쟁을 실제로 만들기 위해 스레드 수만큼 연결을 가진 별도 엔진을 쓰고, 최신 값 조회 직후 잠깐 멈춘다.
+    (잠금이 없으면 여러 요청이 "기록 없음"을 보고 각각 INSERT 하게 되어 이 테스트가 실패한다.)
+    """
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from app.core.config import DatabaseSettings
+    from app.db import create_db_engine
+    from app.repositories.recommendation_feedback import SqlRecommendationFeedbackRepository
+    from app.schemas.recommendation_feedback import RecommendationFeedbackInput
+    from app.services.recommendation_feedback import RecommendationFeedbackService
+    from tests.test_auth_postgres import DB_URL
+
+    class SlowReadRepository(SqlRecommendationFeedbackRepository):
+        def latest_feedback(self, user_id, job_posting_ids):
+            result = super().latest_feedback(user_id, job_posting_ids)
+            time.sleep(0.2)  # widen the read-then-insert window
+            return result
+
+    skill_id, (posting,) = _seed_postings(engine, 1)
+    alice = _user(pg_client, "t47-t45-race@example.com", skill_id)
+    alice_id = UUID(pg_client.get(API + "/me", headers=alice).json()["user_id"])
+    run_id = UUID(pg_client.post(API + "/recommendation-runs", headers=alice, json={"limit": 50})
+                  .json()["recommendation_run_id"])
+    workers = 6
+    race_engine = create_db_engine(DatabaseSettings(url=DB_URL, pool_size=workers, timeout=10))
+    gate = Barrier(workers)
+
+    def submit(_):
+        with Session(race_engine) as db:
+            db.execute(text("SELECT 1"))  # hold a connection before the barrier
+            service = RecommendationFeedbackService(SlowReadRepository(db))
+            gate.wait()
+            return service.create(alice_id, RecommendationFeedbackInput(
+                recommendation_run_id=run_id, job_posting_id=posting, feedback="not_interested"), None).feedback_id
+
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            ids = set(pool.map(submit, range(workers)))
+    finally:
+        race_engine.dispose()
+    assert len(ids) == 1
+    assert _count(engine, "SELECT count(*) FROM career.recommendation_feedback WHERE user_id = :u", u=alice_id) == 1
+    assert _count(engine, "SELECT count(*) FROM career.audit_events WHERE actor_user_id = :u AND action_code = :a",
+                  u=alice_id, a=AUDIT_ACTION) == 1
+    nxt = _feedback_map(pg_client.post(API + "/recommendation-runs", headers=alice, json={"limit": 50}).json())
+    assert str(posting) not in nxt
