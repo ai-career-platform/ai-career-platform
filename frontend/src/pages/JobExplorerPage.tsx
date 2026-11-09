@@ -20,7 +20,8 @@ export function JobExplorerPage({ loadRoles = loadMockJobRoles }: Props) {
 
   useEffect(() => {
     let active = true;
-    Promise.resolve().then(loadRoles).then(
+    // Use the attempt number as the explicit reload trigger.
+    Promise.resolve(reload).then(() => loadRoles()).then(
       (data) => {
         if (!active) return;
         if (!Array.isArray(data)) { setState('error'); return; }

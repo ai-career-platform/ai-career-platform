@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { JobExplorerPage } from './JobExplorerPage';
-import { demoJobRoles, filterJobRoles, pageJobRoles } from './jobExplorerData';
+import { demoJobRoles, filterJobRoles, pageJobRoles, type JobRole } from './jobExplorerData';
 
 describe('T23 synthetic job role explorer', () => {
   it('displays explicit mock notice, search, role and skill detail', async () => {
@@ -51,7 +51,8 @@ describe('T23 synthetic job role explorer', () => {
   });
 
   it('renders an error state and retries without contacting backend', async () => {
-    const loader = vi.fn().mockRejectedValueOnce(new Error('synthetic'))
+    const loader = vi.fn<() => Promise<readonly JobRole[]>>()
+      .mockRejectedValueOnce(new Error('synthetic'))
       .mockResolvedValueOnce(demoJobRoles);
     render(<JobExplorerPage loadRoles={loader} />);
     expect(screen.getByText('예시 직무를 불러오는 중입니다')).toBeInTheDocument();
@@ -67,6 +68,6 @@ describe('T23 synthetic job role explorer', () => {
     expect(demoJobRoles.map((job) => job.id)).toEqual(snapshot);
     expect(pageJobRoles(demoJobRoles, 100).current).toBe(2);
     expect(pageJobRoles([], 1).items).toEqual([]);
-    expect(() => pageJobRoles(demoJobRoles, 0)).toThrow();
+    expect(() => pageJobRoles(demoJobRoles, 0)).toThrow('Invalid page');
   });
 });
