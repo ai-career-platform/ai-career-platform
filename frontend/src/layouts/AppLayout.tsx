@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import './AppLayout.css';
@@ -12,6 +13,13 @@ const homeLinks = [
 export function AppLayout() {
   const { pathname } = useLocation();
   const isHome = pathname === '/';
+  const { state } = useAuth();
+  const authLink =
+    state.status === 'authenticated' ? (
+      <NavLink to="/account">{state.user.displayName}</NavLink>
+    ) : (
+      state.status === 'anonymous' && <NavLink to="/login">로그인</NavLink>
+    );
 
   return (
     <div className={`app-shell${isHome ? ' app-shell--landing' : ''}`}>
@@ -19,7 +27,7 @@ export function AppLayout() {
         본문으로 바로가기
       </a>
 
-      <Header links={isHome ? homeLinks : undefined} wide={isHome} />
+      <Header links={isHome ? homeLinks : undefined} wide={isHome} actions={authLink} />
 
       <div className="app-body">
         {!isHome && (

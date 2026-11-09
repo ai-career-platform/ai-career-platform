@@ -38,6 +38,18 @@
 .landing-header-nav a:hover {
   color: #3454d1;
 }
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+.app-header-actions a {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
 .app-header a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
 @media (max-width: 767px) {
   .app-header, .app-header--wide { padding: 16px; }
