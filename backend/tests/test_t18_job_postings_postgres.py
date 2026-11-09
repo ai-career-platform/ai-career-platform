@@ -228,8 +228,10 @@ def test_pagination_survives_null_sort_keys_at_page_boundary(client, fx, extra_u
 
 
 def test_company_cursor_survives_rename_of_anchor(client, engine, fx):
+    full = [c["company_id"] for c in _all_pages(client, "companies", {"limit": 100})]
     first = client.get(f"{API}/companies", params={"limit": 2}).json()
     anchor = first["items"][-1]["company_id"]
+    assert full[:2] == [c["company_id"] for c in first["items"]]
     with engine.begin() as db:
         old = db.execute(text("SELECT name FROM career.companies WHERE company_id = :c"), {"c": anchor}).scalar_one()
         db.execute(text("UPDATE career.companies SET name = :n WHERE company_id = :c"),
@@ -237,8 +239,11 @@ def test_company_cursor_survives_rename_of_anchor(client, engine, fx):
     try:
         rest = client.get(f"{API}/companies", params={"limit": 100, "cursor": first["next_cursor"]})
         assert rest.status_code == 200
-        names = {c["name"] for c in rest.json()["items"]}
-        assert len(rest.json()["items"]) >= 19 and f"T18IT 테스트기업 {RUN}" in names
+        got = [c["company_id"] for c in rest.json()["items"]]
+        # 개명한 기준 기업이 정렬 위치를 바꿔도(콜레이션과 무관하게) 나머지는 하나도 빠지지 않고 중복도 없다
+        assert len(got) == len(set(got))
+        assert set(full[2:]) - {anchor} <= set(got)
+        assert full[0] not in got
     finally:
         with engine.begin() as db:
             db.execute(text("UPDATE career.companies SET name = :n WHERE company_id = :c"), {"n": old, "c": anchor})
