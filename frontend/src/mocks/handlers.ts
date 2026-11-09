@@ -1,5 +1,6 @@
 import { ApiError } from '../api/errors';
 import { resolvePrivacyMock } from './privacy';
+import { resolveCareerWorkspaceMock } from './careerWorkspace';
 
 /**
  * 개발용 가상 데이터. 실제 개인정보·운영 데이터를 넣지 않습니다.
@@ -73,6 +74,11 @@ export async function resolveMock<T>(
     if (['/v1/me/consents', '/v1/me/deletion-request', '/v1/consent-policies'].includes(path)) {
       const userKey = path === '/v1/consent-policies' ? null : authedUser(request.token).email;
       return structuredClone(resolvePrivacyMock(path, request, userKey)) as T;
+    }
+    if (path.startsWith('/v1/me/') || path.startsWith('/v1/job-roles')) {
+      authedUser(request.token);
+      const workspaceResult = resolveCareerWorkspaceMock(path, request);
+      if (workspaceResult !== null) return structuredClone(workspaceResult) as T;
     }
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;

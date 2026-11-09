@@ -11,7 +11,7 @@ export interface ApiClientOptions {
 }
 
 export interface ApiRequestOptions extends ApiClientOptions {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** access token. 메모리에만 두고 Authorization 헤더로만 보냅니다. */
   token?: string | null;
