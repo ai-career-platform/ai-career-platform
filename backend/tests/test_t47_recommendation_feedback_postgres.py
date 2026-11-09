@@ -8,7 +8,8 @@
     export T47_TEST_DATABASE_URL=postgresql://USER@127.0.0.1:5432/career_dev
     python -m pytest tests/test_t47_recommendation_feedback_postgres.py -v
 
-작성 시점(T47)에는 로컬 PostgreSQL을 띄울 수 없어 **미실행**이다. 실제 DB 검증은 T45 머지 후 이 파일로 한다.
+T47 리뷰 반영 시 로컬 일회용 PostgreSQL 16(Migration 0001 + Seed 0001)에서 4건 PASS.
+T45가 만든 실제 추천 데이터와의 연동 검증은 T45 머지 후 이 파일로 다시 한다(HOLD).
 """
 
 import os
@@ -74,8 +75,10 @@ def db(engine):
 
 
 def _create(service, user, post, value, run=None):
-    return service.create(user, RecommendationFeedbackInput(recommendation_run_id=run, job_posting_id=post,
-                                                            feedback=value), "req-t47-pg-00001")
+    fields = {"job_posting_id": post, "feedback": value}
+    if run is not None:  # 계약상 null은 422이므로 생략한다
+        fields["recommendation_run_id"] = run
+    return service.create(user, RecommendationFeedbackInput(**fields), "req-t47-pg-00001")
 
 
 def _rows(session, user, post):
@@ -120,3 +123,19 @@ def test_per_user_isolation_and_not_interested_exclusion(db):
     _create(service, ids["bob"], ids["post_a"], "liked", ids["run_b"])
     assert service.not_interested_ids(ids["alice"], [ids["post_a"]]) == {ids["post_a"]}
     assert service.not_interested_ids(ids["bob"], [ids["post_a"]]) == set()
+
+
+def test_user_deletion_cascades_feedback_and_detaches_audit(db):
+    """동의/삭제 정책: D07은 PERSONAL · users 삭제 시 함께 삭제(CASCADE). 감사 행은 남고 actor_user_id만 NULL."""
+    session, ids = db
+    service = RecommendationFeedbackService(SqlRecommendationFeedbackRepository(session))
+    created = _create(service, ids["alice"], ids["post_a"], "liked", ids["run_a"])
+    _create(service, ids["bob"], ids["post_a"], "liked", ids["run_b"])
+    session.execute(text("DELETE FROM career.users WHERE user_id = :u"), {"u": ids["alice"]})
+    remaining = session.execute(text("SELECT count(*) FROM career.recommendation_feedback WHERE user_id = :u"),
+                                {"u": ids["alice"]}).scalar_one()
+    assert remaining == 0
+    actors = session.execute(text("""SELECT actor_user_id FROM career.audit_events
+        WHERE action_code = :a AND resource_id = :r"""), {"a": AUDIT_ACTION, "r": created.feedback_id}).scalars().all()
+    assert actors == [None]
+    assert _rows(session, ids["bob"], ids["post_a"]) == ["liked"]  # 다른 사용자의 이력은 그대로

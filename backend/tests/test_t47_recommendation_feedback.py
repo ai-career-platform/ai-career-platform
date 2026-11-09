@@ -159,6 +159,26 @@ def test_correction_appends_row_and_latest_wins(client, repo, service, alice):
     assert service.current_feedback(user_id, [POST_A]) == {POST_A: "liked"}
 
 
+def test_correction_wins_even_when_clock_goes_backwards(repo):
+    """앱 시계가 뒤로 가도(인스턴스 간 어긋남·시계 조정) 정정이 현재 값이 된다 (FR-ANL-004 수용 기준 2)."""
+    times = iter([T0, T0 - timedelta(minutes=5), T0 - timedelta(minutes=5), T0 - timedelta(hours=1)])
+    run = repo.add_run(ALICE, [POST_A])
+    service = RecommendationFeedbackService(repo, clock=lambda: next(times))
+    first = service.create(ALICE, RecommendationFeedbackInput(recommendation_run_id=run, job_posting_id=POST_A,
+                                                              feedback="liked"), None)
+    second = service.create(ALICE, RecommendationFeedbackInput(job_posting_id=POST_A, feedback="not_interested"),
+                            None)
+    third = service.create(ALICE, RecommendationFeedbackInput(job_posting_id=POST_A, feedback="cleared"), None)
+    assert first.created_at < second.created_at < third.created_at
+    assert second.created_at == T0 + timedelta(microseconds=1)
+    assert [r.feedback for r in repo.feedback_rows()] == ["liked", "not_interested", "cleared"]
+    assert [a.occurred_at for a in repo.audit_rows()] == [first.created_at, second.created_at, third.created_at]
+    assert service.current_feedback(ALICE, [POST_A]) == {POST_A: None}
+    # 중복 판정도 최신 행(cleared)과 비교한다 → liked는 새 행
+    assert service.create(ALICE, RecommendationFeedbackInput(job_posting_id=POST_A, feedback="liked"), None) \
+        .feedback_id != first.feedback_id
+
+
 def test_cleared_appends_row_and_current_becomes_null(client, repo, service, alice):
     user_id, headers, run = alice
     client.post(URL, json=body(run=run, feedback="not_interested"), headers=headers)

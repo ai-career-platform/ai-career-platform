@@ -8,6 +8,7 @@
 - 중복: 보낸 값이 현재(최신) 값과 같으면 새 행을 만들지 않고 최신 행을 그대로 돌려준다(멱등, 201).
   다른 추천 실행에서 같은 값을 다시 눌러도 같다(현재 상태가 바뀌지 않으므로).
 - 정정: 값을 바꾸거나 `cleared`(취소)를 보내면 새 행을 추가한다. 이후 최신 값이 이긴다.
+  새 행의 created_at은 직전 행보다 항상 뒤다(시계가 뒤로 가도 `max(시계, 직전 + 1µs)`, 잠금 안에서 계산).
   기록이 없는 상태의 `cleared`도 행 1개를 남긴다(응답에 feedback_id가 필요하고, "취소함" 의사도 이력이다).
 - 감사: 새 행을 추가할 때만 같은 트랜잭션에서 `audit_events`에 `user.recommendation_feedback.create`를 남긴다.
   멱등 처리(새 행 없음)는 데이터가 바뀌지 않았으므로 남기지 않는다. 피드백 값·공고 정보는 감사 행에 넣지 않는다.
@@ -16,7 +17,7 @@
 
 import uuid
 from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.core.errors import AppError, ErrorCode
@@ -25,6 +26,7 @@ from app.schemas.recommendation_feedback import CurrentFeedback, RecommendationF
 
 AUDIT_ACTION = "user.recommendation_feedback.create"
 AUDIT_RESOURCE = "recommendation_feedback"
+_TICK = timedelta(microseconds=1)  # timestamptz 해상도
 
 
 def _dto(record: FeedbackRecord) -> RecommendationFeedback:
@@ -52,7 +54,11 @@ class RecommendationFeedbackService:
             if latest is not None and latest.feedback == body.feedback:
                 self._repo.rollback()  # 잠금만 풀고 아무것도 쓰지 않는다
                 return _dto(latest)
+            # 현재 값은 created_at DESC로 정한다. 앱 서버 시계가 뒤로 가거나 인스턴스끼리 어긋나도
+            # 정정이 항상 최신 행이 되도록, 잠금 안에서 직전 행보다 최소 1µs 뒤로 맞춘다.
             now = self._clock()
+            if latest is not None and now <= latest.created_at:
+                now = latest.created_at + _TICK
             record = FeedbackRecord(
                 feedback_id=self._new_id(), user_id=user_id, recommendation_run_id=body.recommendation_run_id,
                 job_posting_id=body.job_posting_id, feedback=body.feedback, created_at=now,
