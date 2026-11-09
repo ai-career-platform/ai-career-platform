@@ -5,15 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- E2E deployment probe 2026-11-06: no visual or functional change. -->
   <title>AI Career Platform - Staging PoC</title>
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; background: #f3f6fa; color: #17233a; }
-    main { max-width: 42rem; margin: 8vh auto; padding: 2rem; background: white; border-radius: 0.8rem; }
-    h1 { font-size: clamp(1.7rem, 5vw, 2.5rem); }
-    dl { display: grid; grid-template-columns: minmax(9rem, 1fr) 2fr; gap: 0.75rem; }
-    dt { font-weight: 600; }
-    dd { margin: 0; overflow-wrap: anywhere; }
-    @media (max-width: 30rem) { main { margin: 1rem; padding: 1.25rem; } dl { grid-template-columns: 1fr; } }
-  </style>
+  <link rel="stylesheet" href="/status.css">
 </head>
 <body>
   <main>
@@ -27,28 +19,6 @@
       <dt>PoC status</dt><dd id="status">Checking...</dd>
     </dl>
   </main>
-  <script>
-    async function getJson(path) {
-      const response = await fetch(path, { cache: "no-store" });
-      if (!response.ok) throw new Error("Health request failed");
-      return response.json();
-    }
-
-    async function updateStatus() {
-      const [health, version, database] = await Promise.allSettled([
-        getJson("/api/health"),
-        getJson("/api/version"),
-        getJson("/api/health/db")
-      ]);
-      const backendOk = health.status === "fulfilled" && health.value.status === "ok";
-      const databaseOk = database.status === "fulfilled" && database.value.status === "ok";
-      document.getElementById("backend").textContent = backendOk ? "Connected" : "Unavailable";
-      document.getElementById("version").textContent =
-        version.status === "fulfilled" ? version.value.version : "Unavailable";
-      document.getElementById("status").textContent =
-        backendOk && databaseOk ? "Operational" : "Degraded";
-    }
-    updateStatus();
-  </script>
+  <script src="/status.js" defer></script>
 </body>
 </html>

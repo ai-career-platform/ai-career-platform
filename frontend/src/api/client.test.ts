@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet } from './client';
+import { ApiError, apiGet, apiRequest } from './client';
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -8,6 +8,16 @@ const jsonResponse = (status: number, body: unknown) =>
   });
 
 describe('apiGet', () => {
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)('sends CSRF protection on %s, including bodyless refresh', async (method) => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, {}));
+    await apiRequest('/v1/auth/refresh', { method, mockEnabled: false, fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/auth/refresh', expect.objectContaining({
+      method,
+      credentials: 'same-origin',
+      headers: expect.objectContaining({ 'X-CSRF-TOKEN': '1' }),
+    }));
+  });
+
   it('calls the same-origin /api base path and returns JSON', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, { status: 'ok' }));
 

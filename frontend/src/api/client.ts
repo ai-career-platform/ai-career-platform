@@ -33,6 +33,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${baseUrl.replace(/\/$/, '')}${path}`;
   const headers: Record<string, string> = { Accept: 'application/json' };
+  // Custom-header CSRF protection: cross-origin HTML forms cannot set this.
+  if (method !== 'GET') headers['X-CSRF-TOKEN'] = '1';
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
 
