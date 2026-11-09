@@ -27,6 +27,7 @@ backend/
 ├── tests/test_smoke.py    # 기동·종료·OpenAPI smoke 테스트
 ├── tests/test_errors.py   # 공통 에러 계약 테스트
 ├── tests/test_auth*.py, test_authz.py, test_security.py  # T15 인증·인가 (test_auth_postgres.py는 실DB 선택 실행)
+├── tests/test_my_skills*.py  # T33 보유 기술 (test_my_skills_postgres.py는 실DB 선택 실행)
 ├── requirements.txt       # 실행 의존성 (PoC와 동일 버전 pin)
 ├── requirements-dev.txt   # + pytest, httpx
 └── pytest.ini
@@ -82,6 +83,9 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 
 ## 현재 API
 
+T49 문서 API와 전용 디렉터리 설정·워커 실행 방법은
+[문서 보관 가이드](DOCUMENT_STORAGE.md)를 참고하세요.
+
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/health` | 앱 상태 `{"status":"ok","service":"ai-career-backend"}` |
@@ -95,6 +99,10 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | GET | `/api/v1/consent-policies` | 시행 중 약관 목록 (비로그인) |
 | GET | `/api/v1/me`, `/api/v1/me/permissions` | 내 계정·역할·권한 |
 | GET/DELETE | `/api/v1/me/sessions[/{session_id}]` | 로그인 기기 목록·다른 기기 로그아웃 |
+| GET | `/api/v1/me/skills` | 내 보유 기술 (이름순, T33) |
+| PUT | `/api/v1/me/skills` | 보유 기술 전체 교체 (최대 100개, 숙련도 1~5·null, 중복 422 `DUPLICATE_SKILL`, 없는·폐기 기술 422) |
+| GET | `/api/v1/me/target-roles` | 내 목표 직무를 우선순위 순으로 조회 |
+| PUT | `/api/v1/me/target-roles` | 목표 직무를 최대 3개까지 전체 교체 |
 
 ## 인증·인가 사용법 (T15)
 

@@ -1,4 +1,7 @@
 import { ApiError } from '../api/errors';
+import { resolvePrivacyMock } from './privacy';
+import { resolveCareerWorkspaceMock } from './careerWorkspace';
+import { resolveSkillsMock } from './skills';
 
 /**
  * 개발용 가상 데이터. 실제 개인정보·운영 데이터를 넣지 않습니다.
@@ -61,6 +64,13 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
   return null;
 }
 
+/** Backend 카탈로그(app/core/errors.py ERROR_CATALOG)와 같은 사용자 문구 — Mock에서도 화면 문구를 실제와 맞춘다 */
+const mockMessages: Record<string, string> = {
+  UNAUTHENTICATED: '로그인이 필요합니다.',
+  VALIDATION_FAILED: '입력값을 확인해 주세요.',
+  DUPLICATE_SKILL: '같은 기술이 중복으로 들어 있습니다.',
+};
+
 const MOCK_DELAY_MS = 150;
 
 export async function resolveMock<T>(
@@ -69,10 +79,26 @@ export async function resolveMock<T>(
 ): Promise<T> {
   await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
   try {
+    if (['/v1/me/consents', '/v1/me/deletion-request', '/v1/consent-policies'].includes(path)) {
+      const userKey = path === '/v1/consent-policies' ? null : authedUser(request.token).email;
+      return structuredClone(resolvePrivacyMock(path, request, userKey)) as T;
+    }
+    if (path.startsWith('/v1/skills') || path === '/v1/me/skills') {
+      const userKey = path === '/v1/me/skills' ? authedUser(request.token).email : null;
+      const result = resolveSkillsMock(path, request, userKey);
+      if (result !== null) return structuredClone(result) as T;
+    }
+    if (path.startsWith('/v1/me/') || path.startsWith('/v1/job-roles')) {
+      authedUser(request.token);
+      const workspaceResult = resolveCareerWorkspaceMock(path, request);
+      if (workspaceResult !== null) return structuredClone(workspaceResult) as T;
+    }
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;
   } catch (error) {
-    if (error instanceof ApiError) throw new ApiError(error.status, path, undefined, error.code);
+    if (error instanceof ApiError) {
+      throw new ApiError(error.status, path, undefined, error.code, error.code ? mockMessages[error.code] : undefined);
+    }
     throw error;
   }
   const entry = request.method === 'GET' ? mockRoutes[path] : undefined;

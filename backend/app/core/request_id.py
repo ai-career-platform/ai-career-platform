@@ -37,7 +37,8 @@ class RequestIdMiddleware:
             if message["type"] == "http.response.start":
                 headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-request-id"]
                 headers.append((REQUEST_ID_HEADER.lower().encode(), request_id.encode()))
-                if scope.get("path", "").rstrip("/") == "/api/v1/me":
+                if (scope.get("path", "").rstrip("/") == "/api/v1/me"
+                    or scope.get("path", "").startswith("/api/v1/me/")):
                     headers = [(k, v) for k, v in headers if k.lower() != b"cache-control"]
                     headers.append((b"cache-control", b"no-store"))
                 message["headers"] = headers

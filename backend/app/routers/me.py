@@ -11,13 +11,14 @@ from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
-from app.dependencies.auth import CurrentUserDep, get_auth_repository, get_auth_service
-from app.repositories.auth import AuthRepository
+from sqlalchemy.orm import Session as DbSession
+
+from app.db import get_db
+from app.dependencies.auth import CurrentUserDep, get_auth_service
+from app.repositories.profile import PostgresProfileRepository
 from app.schemas.auth import Me, Permissions, Profile, Session
-from app.services.auth import AuthService
-from app.dependencies.profile import get_profile_repository
-from app.repositories.profile import ProfileRepository
 from app.schemas.profile import MePatch
+from app.services.auth import AuthService
 from app.services.profile import ProfileService
 
 
@@ -26,13 +27,18 @@ def private_request(request: Request) -> None:
         raise AppError(ErrorCode.VALIDATION_FAILED)
 
 
+def get_profile_service(session: Annotated[DbSession, Depends(get_db)]) -> ProfileService:
+    return ProfileService(PostgresProfileRepository(session))
+
+
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 router = APIRouter(prefix="/me", tags=["me"], responses=error_responses(401, 404, 503))
 
 
 @router.get("", response_model=Me)
-def get_me(request: Request, user: CurrentUserDep, repo: Annotated[AuthRepository, Depends(get_auth_repository)]) -> Me:
+def get_me(request: Request, user: CurrentUserDep, service: AuthServiceDep) -> Me:
     private_request(request)
-    record = repo.get_user(user.user_id)
+    record = service.get_user(user.user_id)
     if record is None or record.status != "active":
         raise AppError(ErrorCode.NOT_FOUND, log_detail="profile missing")
     return Me(
@@ -48,7 +54,7 @@ def get_my_permissions(user: CurrentUserDep) -> Permissions:
 
 
 @router.get("/sessions", response_model=list[Session])
-def list_my_sessions(user: CurrentUserDep, service: Annotated[AuthService, Depends(get_auth_service)]) -> list[Session]:
+def list_my_sessions(user: CurrentUserDep, service: AuthServiceDep) -> list[Session]:
     return [
         Session(
             session_id=s.session_id, user_agent=s.user_agent, created_at=s.created_at,
@@ -60,7 +66,7 @@ def list_my_sessions(user: CurrentUserDep, service: Annotated[AuthService, Depen
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT, responses=error_responses(404))
 def revoke_my_session(
-    session_id: uuid.UUID, user: CurrentUserDep, service: Annotated[AuthService, Depends(get_auth_service)],
+    session_id: uuid.UUID, user: CurrentUserDep, service: AuthServiceDep,
 ) -> Response:
     service.revoke_my_session(user.user_id, session_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -69,7 +75,7 @@ def revoke_my_session(
 @router.patch("", response_model=Me, operation_id="updateMe")
 def patch_me(
     request: Request, patch: MePatch, user: CurrentUserDep,
-    repository: Annotated[ProfileRepository, Depends(get_profile_repository)],
+    service: Annotated[ProfileService, Depends(get_profile_service)],
 ) -> Me:
     private_request(request)
-    return ProfileService(repository).patch(user.user_id, patch)
+    return service.patch(user.user_id, patch)

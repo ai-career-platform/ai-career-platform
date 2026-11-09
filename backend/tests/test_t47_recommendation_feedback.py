@@ -17,14 +17,13 @@ from sqlalchemy.dialects import postgresql
 from app.core.config import API_V1_PREFIX, get_settings
 from app.core.errors import AppError, ErrorCode
 from app.core.security import issue_access_token
-from app.dependencies.auth import get_auth_repository
 from app.main import create_app
 from app.repositories.recommendation_feedback import AuditRecord, FeedbackRecord, SqlRecommendationFeedbackRepository
 from app.routers.recommendation_feedback import get_recommendation_feedback_service
 from app.schemas.recommendation_feedback import RecommendationFeedbackInput
 from app.services.recommendation_feedback import AUDIT_ACTION, AUDIT_RESOURCE, RecommendationFeedbackService
 from tests.conftest import TEST_SECRET, bearer, signup
-from tests.fakes import MemoryAuthRepository, MemoryRecommendationFeedbackRepository
+from tests.fakes import MemoryAuthRepository, MemoryRecommendationFeedbackRepository, override_auth_repository
 
 URL = f"{API_V1_PREFIX}/recommendation-feedback"
 T0 = datetime(2026, 11, 9, 3, 0, tzinfo=UTC)
@@ -60,7 +59,7 @@ def client(monkeypatch, repo):
     app = create_app()
     auth_repo = MemoryAuthRepository()
     clock = ticking_clock()
-    app.dependency_overrides[get_auth_repository] = lambda: auth_repo
+    override_auth_repository(app, auth_repo)
     app.dependency_overrides[get_recommendation_feedback_service] = (
         lambda: RecommendationFeedbackService(repo, clock=clock))
     with TestClient(app, base_url="https://testserver") as c:
