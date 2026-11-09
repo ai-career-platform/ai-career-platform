@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '../api/client';
 import './JobPostingsPage.css';
+import { CollectedJobsPreview } from './CollectedJobsPreview';
 
 type Posting = { job_posting_id: string; title: string; status: 'published' | 'closed'; company: { name: string }; job_role: { name: string } | null; location_text: string | null; published_at: string | null; expires_at: string | null };
 type Page = { items: Posting[]; next_cursor: string | null };
@@ -112,5 +113,6 @@ export function JobPostingsPage() {
         {source && <a href={source} target="_blank" rel="noopener noreferrer">원본 공고 보기</a>}
       </>}
     </section></div>
+    {import.meta.env.DEV && import.meta.env.VITE_T24_COLLECTED_PREVIEW === 'true' && <CollectedJobsPreview />}
   </div>;
 }
