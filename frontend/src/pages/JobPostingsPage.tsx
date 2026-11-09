@@ -89,6 +89,7 @@ export function JobPostingsPage() {
 
   return <div className="t24-page">
     <header className="t24-hero"><div><h1>채용공고 탐색</h1><p>등록된 채용공고와 요구 기술을 살펴보세요.</p></div><div className="t24-hero-symbol" aria-hidden="true">↗</div></header>
+    {import.meta.env.DEV && import.meta.env.VITE_T24_COLLECTED_PREVIEW === 'true' && <CollectedJobsPreview />}
     <form className="t24-controls" onSubmit={search}>
       <label htmlFor="posting-query">공고 검색</label>{' '}<input id="posting-query" type="search" maxLength={100} value={input} onChange={e => setInput(e.target.value)} />{' '}<button type="submit">검색</button>{' '}
       <label htmlFor="company-search">기업 이름 찾기</label><input id="company-search" type="search" maxLength={100} value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); setCompanyId(''); resetPage(); }} />
@@ -100,7 +101,7 @@ export function JobPostingsPage() {
       <label><input type="checkbox" checked={includeClosed} onChange={e => { resetPage(); setIncludeClosed(e.target.checked); }} /> 마감 공고 포함</label>{' '}
       <label>정렬 <select value={sort} onChange={e => { resetPage(); setSort(e.target.value as '-published_at' | 'expires_at'); }}><option value="-published_at">최신순</option><option value="expires_at">마감순</option></select></label>
     </form>
-    <div className="t24-grid"><section className="t24-panel" aria-labelledby="posting-list-title"><h2 id="posting-list-title">공고 목록</h2>
+    <div className="t24-grid"><section className="t24-panel" aria-labelledby="posting-list-title"><h2 id="posting-list-title">정식 API 공고 목록</h2>
       {error ? <p role="alert">공고를 불러오지 못했습니다. <button onClick={() => { setError(false); setAttempt(n => n + 1); }}>다시 시도</button></p> : !page ? <p role="status">불러오는 중...</p> : <>
         {page.items.length === 0 ? <p>검색 결과가 없습니다.</p> : <ul className="t24-posting-list">{page.items.map(item => <li key={item.job_posting_id}><button className="t24-posting" aria-pressed={selected === item.job_posting_id} onClick={() => { if (selected === item.job_posting_id) return; setDetail(null); setDetailError(false); setSelected(item.job_posting_id); }}><strong>{item.title} · {item.company.name}</strong><span className="t24-status">{item.status === 'closed' ? '마감' : '모집 중'}</span></button></li>)}</ul>}
         <button disabled={cursors.length === 1} onClick={() => changePage(cursors.slice(0, -1))}>이전</button>{' '}<span>{cursors.length} 페이지</span>{' '}<button disabled={!page.next_cursor} onClick={() => page.next_cursor && changePage([...cursors, page.next_cursor])}>다음</button>
@@ -113,6 +114,5 @@ export function JobPostingsPage() {
         {source && <a href={source} target="_blank" rel="noopener noreferrer">원본 공고 보기</a>}
       </>}
     </section></div>
-    {import.meta.env.DEV && import.meta.env.VITE_T24_COLLECTED_PREVIEW === 'true' && <CollectedJobsPreview />}
   </div>;
 }

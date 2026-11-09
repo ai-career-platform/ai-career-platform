@@ -39,10 +39,11 @@ export function CollectedJobsPreview() {
     item.source_code === (source === 'live_http' ? 'jobkorea_live' : 'jobkorea_imported')) ?? [];
   return <section className="t24-panel" aria-labelledby="collected-preview-title">
     <h2 id="collected-preview-title">수집 공고 개발 미리보기</h2>
-    <p>수집 API의 최근 최대 100건 중 선택한 출처만 표시합니다. 실제 모집 상태와 서비스 표시 권한은 별도 확인이 필요합니다.</p>
+    <p>수집 API의 최근 최대 100건 중 선택한 출처만 표시합니다. 아래 정식 API 검색 조건은 여기에 적용되지 않습니다. 모집 상태와 서비스 표시 권한은 별도 확인이 필요합니다.</p>
     <label>수집 구분 <select value={source} onChange={e => setSource(e.target.value as 'live_http' | 'imported_html')}>
       <option value="live_http">HTTP 수집 기록</option><option value="imported_html">HTML 가져오기 기록</option>
     </select></label>
+    {items && <p role="status">선택한 수집 기록 {shown.length}건</p>}
     {error ? <p role="alert">수집 공고를 불러오지 못했습니다. <button type="button" onClick={() => { setItems(null); setError(false); setRetry(n => n + 1); }}>다시 시도</button></p>
       : !items ? <p role="status">불러오는 중...</p> : shown.length === 0 ? <p>해당 수집 기록이 없습니다.</p> : <ul className="t24-posting-list">
         {shown.map(item => {
