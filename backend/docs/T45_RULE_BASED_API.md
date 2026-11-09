@@ -12,7 +12,7 @@ T06 `docs/api/openapi.yaml` 기준. 새 `GET /recommendations/jobs`는 만들지
 
 - T27 `recommendation_baseline.recommend()` 재사용. 기술 코드 일치율 0~100이며 확률 아님.
 - T18 공개/미만료 공고 필터를 DB에 적용한다. `expires_at IS NULL` 상시 공고 포함. 최신 공개 공고 500건 상한 내 후보만 살핀다.
-- 순위: T27 기술 일치 점수 내림차순, 동점 시 사용자 목표 직무 우선순위, 그다음 공고 ID 오름차순. 단, T27 baseline은 상위 50건을 먼저 선택하므로 **51번째 이후 동점 공고의 목표 직무 우선순위까지 보장하지 않는다**.
+- 순위: T27 기술 일치 점수 내림차순, 동점 시 사용자 목표 직무 우선순위, 그다음 공고 ID 오름차순. T27 함수는 후보를 50건씩 나눠 적용하고, 전체 후보를 합쳐 한 번 더 정렬하므로 500건 범위의 동점도 일관되게 처리한다.
 - 중복 공고 ID는 T18 목록 쿼리에서 발생하지 않으며, 최신 `not_interested` 피드백 공고 제외. 실제 데이터의 원본 품질/중복 출처 통합은 범위 밖.
 - 보유 기술이 없거나 기술 비교 가능한 공고가 없으면 `fallback` + 최신 공개 공고 (점수 null). 공개 공고 자체가 없으면 `fallback` + 빈 items.
 - 기존 `career.model_versions`에 규칙 버전 (`skill_overlap_baseline` / `skill-overlap-draft-v2`, `kind=rule`)을 upsert한 후 기존 `recommendation_runs/items`에 기록. **미승인 학습용 규칙**임을 description에 명시. 새로운 DDL/Migration 없음.
