@@ -1,8 +1,8 @@
-# AI Career Platform — Backend (T13 골격)
+# AI Career Platform — Backend
 
 정식 FastAPI Backend 애플리케이션입니다. `poc/staging/backend/main.py`(Staging PoC)와는 **별개**이며 PoC와 자동 배포 설정은 변경하지 않습니다.
 
-> 상태: 골격만 구현. `/api/v1` 서비스 API는 [API 계약 초안](../docs/API_CONTRACT.md) 확정(T06) 후 기능별 일감에서 추가합니다.
+> 상태: T13 골격 + T14 DB 세션 + T15 인증·인가. 나머지 `/api/v1` 서비스 API는 [API 계약](../docs/API_CONTRACT.md)·[OpenAPI](../docs/api/openapi.yaml)에 따라 기능별 일감에서 추가합니다.
 
 ## 구조
 
@@ -12,7 +12,11 @@ backend/
 │   ├── main.py            # create_app() 팩토리, lifespan(시작/종료), 라우터 등록
 │   ├── core/config.py     # 환경변수 기반 Settings(DatabaseSettings 포함)
 │   ├── db.py              # SQLAlchemy 엔진·Session 팩토리·get_db 의존성
-│   ├── models/            # SQLAlchemy ORM 모델(Base)
+│   ├── models/            # SQLAlchemy ORM 모델(Base, auth.py: users·auth_sessions·roles 등 계정 테이블)
+│   ├── core/auth_config.py # 인증 설정 (JWT 키·토큰 수명·시도 제한)
+│   ├── core/security.py   # 비밀번호 해시(Argon2id)·비교용 이메일·JWT(HS256)
+│   ├── core/rate_limit.py # 로그인·가입 시도 제한 (프로세스 메모리)
+│   ├── dependencies/auth.py # get_current_user · require_roles · require_permissions · ensure_owner
 │   ├── core/errors.py     # 에러 코드·메시지 카탈로그(ERROR_CATALOG)와 AppError
 │   ├── core/exception_handlers.py  # 글로벌 예외 핸들러 → {code, status, message} 응답
 │   ├── core/request_id.py # X-Request-ID 미들웨어
@@ -22,6 +26,7 @@ backend/
 │   └── schemas/           # Pydantic DTO (base.py: ORMModel, error.py: ErrorResponse)
 ├── tests/test_smoke.py    # 기동·종료·OpenAPI smoke 테스트
 ├── tests/test_errors.py   # 공통 에러 계약 테스트
+├── tests/test_auth*.py, test_authz.py, test_security.py  # T15 인증·인가 (test_auth_postgres.py는 실DB 선택 실행)
 ├── requirements.txt       # 실행 의존성 (PoC와 동일 버전 pin)
 ├── requirements-dev.txt   # + pytest, httpx
 └── pytest.ini
@@ -65,6 +70,13 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | `DATABASE_URL` | 미설정 | PostgreSQL 앱 계정 URL. 미설정 시 DB 경로는 503을 반환합니다. |
 | `DB_POOL_SIZE` | `5` | 프로세스당 최대 연결 수 (1–100) |
 | `DB_TIMEOUT_SECONDS` | `5` | 풀 대기 및 접속 시간 제한(초, 1–60) |
+| `JWT_SECRET` | 미설정 | access token(HS256) 서명 키, 32자 이상. local-dev/test에서 없으면 프로세스마다 임의 키(재시작 시 로그인 풀림), 그 외 환경은 기동 실패 |
+| `ACCESS_TOKEN_TTL_SECONDS` | `900` | access token 수명 (60–3600) |
+| `REFRESH_TOKEN_TTL_SECONDS` | `1209600` | refresh token·세션 수명, 14일 |
+| `AUTH_COOKIE_SECURE` | `true` | refresh 쿠키 `Secure`. http 로컬 확인 때만 `false` |
+| `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_SECONDS` | `5` / `900` | 같은 계정 연속 실패 5회 → 15분 잠금 (429 + `Retry-After`) |
+| `LOGIN_IP_MAX_ATTEMPTS` | `30` | 같은 IP 로그인 시도 한도 / `AUTH_RATE_WINDOW_SECONDS`(900초) |
+| `SIGNUP_IP_MAX_ATTEMPTS` | `10` | 같은 IP 가입 시도 한도 / 1시간 |
 
 `.env` 파일은 자동으로 읽지 않습니다. 실행 환경에서 변수를 설정하세요. 앱에는 최소권한 계정을 사용하고 Migration에는 별도의 계정을 사용합니다. DB 접근은 SQLAlchemy 2.x(psycopg 3 드라이버)를 사용합니다. `app.db.get_db`는 요청마다 `Session` 하나를 제공하고, 요청이 끝나면 남은 트랜잭션을 롤백한 뒤 연결을 풀에 반환합니다. 쓰기 호출자가 성공 시 `session.commit()`을 명시적으로 호출합니다. ORM 모델은 `app.models.Base`를 상속하고, 응답 스키마는 `app.schemas.base.ORMModel`(`from_attributes=True`)을 상속합니다.
 
@@ -76,6 +88,37 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | GET | `/health/db` | PostgreSQL에서 `SELECT 1` 실행. 접속 실패 시 503 `DEPENDENCY_UNAVAILABLE` |
 | GET | `/version` | 애플리케이션·환경·버전 |
 | GET | `/openapi.json`, `/docs` | OpenAPI / Swagger UI |
+| POST | `/api/v1/auth/signup` | 가입 + 필수 약관 동의 → 201 access token + refresh 쿠키 |
+| POST | `/api/v1/auth/login` | 로그인(비교용 이메일) → 200, 실패 401, 반복 실패 429 |
+| POST | `/api/v1/auth/refresh` | refresh 쿠키 회전 → 새 access token. 이전 refresh 즉시 무효 |
+| POST | `/api/v1/auth/logout` | 현재 세션 폐기 + 쿠키 삭제 → 204 |
+| GET | `/api/v1/consent-policies` | 시행 중 약관 목록 (비로그인) |
+| GET | `/api/v1/me`, `/api/v1/me/permissions` | 내 계정·역할·권한 |
+| GET/DELETE | `/api/v1/me/sessions[/{session_id}]` | 로그인 기기 목록·다른 기기 로그아웃 |
+
+## 인증·인가 사용법 (T15)
+
+새 기능 라우터는 아래 의존성만 쓰면 됩니다. 사용자는 항상 토큰의 `sub`로 정하고, 경로·본문으로 user_id를 받지 않습니다.
+
+```python
+from fastapi import Depends
+from app.dependencies.auth import CurrentUserDep, ensure_owner, require_permissions, require_roles
+
+@router.get("/me/documents")                                         # 토큰 없음·만료·폐기 → 401
+def list_docs(user: CurrentUserDep): ...
+
+@router.get("/admin/audit", dependencies=[Depends(require_roles("admin"))])  # 역할 없음 → 403
+def audit(): ...
+
+@router.get("/documents/{document_id}")
+def get_doc(document_id: UUID, user: CurrentUserDep):
+    doc = repo.get_document(document_id)
+    ensure_owner(doc.owner_user_id if doc else None, user)           # 남의 것·없음 → 404
+```
+
+- 매 요청 DB에서 세션(폐기·만료)·계정 상태·역할을 다시 읽습니다. 로그아웃·역할 회수·정지는 다음 요청부터 반영되며 토큰 안의 `roles`는 신뢰하지 않습니다.
+- 토큰이 없거나 틀린 요청은 DB 연결 전에 401로 끝납니다.
+- 실DB 통합 테스트: `tests/test_auth_postgres.py` 상단 주석 참고 (`T15_TEST_DATABASE_URL`, 일회용 DB 전용, T05 DDL + T10 Seed 사용).
 
 ## 공통 에러 처리
 
