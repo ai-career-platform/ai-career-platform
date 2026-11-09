@@ -1,0 +1,11 @@
+.app-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 14px;
+}
+.app-footer--wide {
+  padding-inline: max(24px, calc((100% - 1120px) / 2));
+}
+@media (max-width: 767px) { .app-footer, .app-footer--wide { padding: 16px; } }

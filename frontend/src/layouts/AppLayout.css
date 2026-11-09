@@ -1,0 +1,109 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 12px 16px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 2px solid var(--color-primary);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+}
+
+.app-sidebar {
+  flex: 0 0 224px;
+  padding: 24px 16px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-nav a {
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  background: var(--color-bg);
+}
+
+.app-nav a.active {
+  color: var(--color-primary);
+  background: var(--color-bg);
+  font-weight: 700;
+}
+
+.app-shell a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    flex: none;
+    padding: 12px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .app-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .app-main {
+    padding: 24px 16px;
+  }
+}
+
+.app-shell--landing {
+  background: #fff;
+}
+
+.app-shell--landing .app-main {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 0 24px;
+}
+
+@media (max-width: 767px) {
+
+  .app-shell--landing .app-main {
+    padding: 0 16px;
+  }
+}

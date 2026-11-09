@@ -1,0 +1,14 @@
+[Unit]
+Description=T154 finite synthetic night slots; install disabled, start-only after validation
+
+[Timer]
+OnCalendar=2026-11-08 21,22,23:00,30:00 Asia/Seoul
+OnCalendar=2026-11-09 00..07:00,30:00 Asia/Seoul
+Persistent=false
+RemainAfterElapse=false
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=ai-career-t154-night-20261108.service
+
+[Install]
+WantedBy=timers.target
