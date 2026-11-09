@@ -351,20 +351,26 @@ CREATE TABLE market_observations (
     observation_id uuid NOT NULL DEFAULT gen_random_uuid(),
     source_id uuid NOT NULL REFERENCES data_sources (source_id) ON DELETE RESTRICT,
     job_role_id uuid REFERENCES job_roles (job_role_id) ON DELETE RESTRICT,
+    skill_id uuid REFERENCES skills (skill_id) ON DELETE RESTRICT,
     observed_on date NOT NULL,
     period varchar(10) NOT NULL,
     metric_code varchar(80) NOT NULL,
     metric_value numeric NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (observation_id),
-    CHECK (period IN ('day', 'week', 'month'))
+    CHECK (period IN ('day', 'week', 'month')),
+    CHECK ((metric_code = 'skill_demand_share') = (skill_id IS NOT NULL)),
+    CHECK ((metric_code <> 'posting_count' OR (metric_value >= 0 AND metric_value = trunc(metric_value))) AND (metric_code <> 'skill_demand_share' OR metric_value BETWEEN 0 AND 1))
 );
-CREATE UNIQUE INDEX ix_market_observations_1 ON market_observations (source_id, job_role_id, metric_code, period, observed_on);
+CREATE UNIQUE INDEX ix_market_observations_1 ON market_observations (source_id, job_role_id, metric_code, period, observed_on) WHERE skill_id IS NULL;
 CREATE INDEX ix_market_observations_2 ON market_observations (job_role_id, metric_code, observed_on);
+CREATE UNIQUE INDEX ix_market_observations_3 ON market_observations (source_id, job_role_id, skill_id, metric_code, period, observed_on) WHERE skill_id IS NOT NULL;
+CREATE INDEX ix_market_observations_4 ON market_observations (skill_id, metric_code, observed_on);
 CREATE TABLE market_forecasts (
     forecast_id uuid NOT NULL DEFAULT gen_random_uuid(),
     model_version_id uuid NOT NULL REFERENCES model_versions (model_version_id) ON DELETE RESTRICT,
     job_role_id uuid REFERENCES job_roles (job_role_id) ON DELETE RESTRICT,
+    skill_id uuid REFERENCES skills (skill_id) ON DELETE RESTRICT,
     forecast_for date NOT NULL,
     metric_code varchar(80) NOT NULL,
     predicted_value numeric NOT NULL,
@@ -372,10 +378,12 @@ CREATE TABLE market_forecasts (
     upper_bound numeric,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (forecast_id),
-    CHECK (lower_bound IS NULL OR upper_bound IS NULL OR lower_bound <= upper_bound)
+    CHECK (lower_bound IS NULL OR upper_bound IS NULL OR lower_bound <= upper_bound),
+    CHECK ((metric_code = 'skill_demand_share') = (skill_id IS NOT NULL))
 );
 CREATE INDEX ix_market_forecasts_1 ON market_forecasts (model_version_id);
 CREATE INDEX ix_market_forecasts_2 ON market_forecasts (job_role_id, metric_code, forecast_for);
+CREATE INDEX ix_market_forecasts_3 ON market_forecasts (skill_id, metric_code, forecast_for);
 CREATE TABLE behavior_events (
     event_id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
