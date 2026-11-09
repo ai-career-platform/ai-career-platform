@@ -25,7 +25,7 @@ python -m pytest -q tests/test_recommendation_baseline.py tests/test_recommendat
 python -m pytest -q
 ```
 
-합성 fixture와 Mock 서비스 경로는 GitHub Backend CI에서 검증한다. 실제 PostgreSQL run 저장/조회 E2E, 부하/스냅샷, 개인정보 동의 기반 행동 추천, 배포 검증은 **별도 NOT_VERIFIED**로 기록한다.
+합성 fixture와 Mock 서비스 경로 및 격리 PostgreSQL run 저장·조회 E2E는 GitHub Backend CI에서 검증했다. **2026-11-09 Backend tests** [워크플로 #42577067461](https://github.com/ai-career-platform/ai-career-platform/actions/runs/42577067461): **377 passed, 0 failed, 28 skipped, 1 warning**. E2E는 자체 일회용 PostgreSQL DB의 T05 DDL·T10 합성 Seed를 사용했으며, 공개/만료 공고·본인 run·타인 run 404·모델 버전·저장 행을 확인한다. 부하/과거 공고 스냅샷, 개인정보 동의 기반 행동 추천 및 실제 Staging 배포 검증은 **별도 NOT_VERIFIED**다.
 
 ## 4. 구현 경계
 
