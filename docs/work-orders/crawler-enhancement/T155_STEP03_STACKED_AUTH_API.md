@@ -23,3 +23,12 @@
 4. Normal PR and CI merge gates; only then deploy; retain T154 Timer disabled and Live HOLD.
 
 No permission seed or migration is added in this step; current T15 `admin` role is required. T155 write/schedule commands remain out of scope.
+
+
+## 2026-11-09 deployment-path audit
+
+The currently active staging crawler container uses `poc/staging/backend/Dockerfile.integrated` and runs `poc/staging/backend/main.py` with the standalone `backend/training_jobs_api.py`. It **does not run** `backend/app/main.py`, where T15 and T155 are registered. Passing stacked-branch TestClient tests is therefore **not** evidence that the live staging backend exposes the admin endpoints.
+
+To complete STEP03 in an appropriate isolated deployment, integrate the main Backend application and T15 application DB schema, include the `crawler` package and dependencies in its runtime image, configure *separate* restricted crawler DB read access, prove role and session revocation and explicit 401/403/200/422/503 paths. Do not replace the existing staging PoC image, wire new external routes to its public port, or modify T154 night state as part of this stacked branch. Build and verify a separate integration target first.
+
+The T15 base branch advanced to `108436ff1c4106484daf650f91dfcddbc22e771b` after #122 was opened. This stacked PR's head must be synchronized with that T15 version and **current main** only after T15 merges. The follow-up store `crawler/admin/read_models.py` exists on current main, not necessarily in the old T15 stacked base. No early deployment or green staging claim.
