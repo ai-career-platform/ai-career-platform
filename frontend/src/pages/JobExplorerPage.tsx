@@ -20,6 +20,7 @@ export function JobExplorerPage() {
 
   useEffect(() => {
     let active = true;
+    void attempt; // A retry intentionally triggers this request again.
     const params = new URLSearchParams({ limit: '20' });
     if (query) params.set('q', query);
     const cursor = cursors[cursors.length - 1];
@@ -33,6 +34,7 @@ export function JobExplorerPage() {
 
   useEffect(() => {
     if (!selected) return;
+    void detailAttempt; // A retry intentionally triggers this request again.
     let active = true;
     apiGet<Detail>(`/v1/job-roles/${encodeURIComponent(selected)}`).then(
       data => { if (active) { setDetail(data); setDetailError(false); } },

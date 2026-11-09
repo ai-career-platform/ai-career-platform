@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiGet } from '../api/client';
 import { JobExplorerPage } from './JobExplorerPage';
 
-vi.mock('../api/client', () => ({ apiGet: vi.fn() }));
+vi.mock('../api/client', () => ({ apiGet: vi.fn<typeof apiGet>() }));
 const get = vi.mocked(apiGet);
 beforeEach(() => get.mockReset());
 
