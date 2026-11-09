@@ -32,7 +32,7 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 
-FACTORY_VERSION = "t147.1"
+FACTORY_VERSION = "t147.2"
 NAMESPACE = uuid.UUID("6f1d3c3e-1470-4b47-9a1d-000000000147")
 ALLOWED_ENVS = ("local", "ci", "test")
 BLOCKED_ENV_WORDS = ("staging", "stage", "prod", "production", "live")
@@ -105,15 +105,18 @@ def generate(seed: int, users: int, companies: int, postings: int) -> Dataset:
     ds = Dataset(seed=seed)
     t = ds.tables
 
-    roles = [{"job_role_id": sid(seed, "role", i), "code": f"SYN_ROLE_{i:02d}",
+    # Codes are shared across datasets, so their IDs and relationships must also
+    # be shared. Keep the original seed-147 catalog for existing test databases.
+    catalog_rng = random.Random(147)
+    roles = [{"job_role_id": sid(147, "role", i), "code": f"SYN_ROLE_{i:02d}",
               "name": f"합성 직무 {i:02d} ({ROLE_NAMES[i - 1]})"} for i in range(1, len(ROLE_NAMES) + 1)]
-    skills = [{"skill_id": sid(seed, "skill", i), "code": f"SYN_SKILL_{i:03d}",
+    skills = [{"skill_id": sid(147, "skill", i), "code": f"SYN_SKILL_{i:03d}",
                "name": f"합성 기술 {i:03d} ({SKILL_NAMES[i - 1]})"} for i in range(1, len(SKILL_NAMES) + 1)]
     t["job_roles"], t["skills"] = roles, skills
 
     role_skills = []
     for r in roles:
-        for level, s in zip((5, 4, 3, 2, 1), rng.sample(skills, 5)):
+        for level, s in zip((5, 4, 3, 2, 1), catalog_rng.sample(skills, 5)):
             role_skills.append({"job_role_id": r["job_role_id"], "skill_id": s["skill_id"], "required_level": level})
     t["job_role_skills"] = role_skills
 

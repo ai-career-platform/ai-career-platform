@@ -14,6 +14,13 @@ import synth_factory as sf  # noqa: E402
 
 
 class DeterminismTest(unittest.TestCase):
+    def test_different_seeds_share_catalog_ids_and_relationships(self):
+        a = sf.generate(147, 5, 2, 5)
+        b = sf.generate(2, 5, 2, 5)
+        for table in ("job_roles", "skills", "job_role_skills"):
+            self.assertEqual(a.tables[table], b.tables[table], table)
+        self.assertNotEqual(a.tables["users"], b.tables["users"])
+
     def test_same_seed_same_output(self):
         a = sf.generate(147, 50, 10, 80)
         b = sf.generate(147, 50, 10, 80)

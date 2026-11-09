@@ -77,6 +77,18 @@ psql_test -q -f "$synth_sql" >/dev/null
 [[ "$(fingerprint)" == "$first_fp" && "$(db_counts)" == "$got" ]] || { echo "FAIL second apply changed data"; exit 1; }
 echo "PASS apply 2: idempotent (counts and row fingerprint identical)"
 
+# A second seed must coexist with the first without orphaned catalog UUIDs.
+python3 database/fixtures/synth_factory.py --target-env ci --seed 2 --users 5 --companies 2 \
+  --postings 5 --out-sql "$work/second.sql" >/dev/null
+docker cp "$work/second.sql" "$container:/tmp/second.sql"
+psql_test -q -f /tmp/second.sql >/dev/null
+[[ "$(psql_test -qAtc 'SELECT count(*) FROM career.users')" == "305" ]] || exit 1
+[[ "$(psql_test -qAtc 'SELECT count(*) FROM career.job_roles')" == "12" ]] || exit 1
+second_fp="$(fingerprint)"
+psql_test -q -f /tmp/second.sql >/dev/null
+[[ "$(fingerprint)" == "$second_fp" ]] || { echo "FAIL second seed is not idempotent"; exit 1; }
+echo "PASS different seeds coexist and remain idempotent"
+
 bad="$(psql_test -qAtc "SELECT count(*) FROM career.users WHERE email NOT LIKE '%@example.test' OR email_canonical <> lower(email)")"
 [[ "$bad" == "0" ]] || { echo "FAIL non-synthetic emails: $bad"; exit 1; }
 echo "PASS only example.test canonical emails"

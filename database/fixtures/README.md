@@ -69,3 +69,11 @@ psql -X -v ON_ERROR_STOP=1 -d <로컬_test_DB> -f /tmp/synth.sql
 - 선행 일감 T11(제약·인덱스 테스트)·T87(동의 철회 E2E)·T115(환경별 Migration 검증)는 진행 중입니다. 그 결과에 맞춰 생성 규칙(예: 동의·문서 데이터)을 늘려야 합니다.
 - 동의·문서·추천 등 나머지 T05 테이블은 담당 일감의 규칙이 정해진 뒤 추가합니다.
 - CI 워크플로에 이 테스트를 넣는 일은 공용 워크플로 파일을 고치게 되어 이번에는 하지 않았습니다 (`python3 -B -m unittest discover -s database/tests -p "test_synth_factory.py"` 한 줄 추가로 가능).
+
+## 2026-11-09 regression review
+
+- Factory version `t147.2`: shared `SYN_ROLE_*` / `SYN_SKILL_*` codes now use stable catalog UUIDs and role-skill relationships across seeds. Catalog IDs retain the original seed-147 mapping. User, company and posting IDs remain seed-specific.
+- Unit tests: 17 passed on Windows / Python 3.14.
+- Isolated native PostgreSQL 18 verification: original DB test body passed, including two applications, the additional seed-2 dataset (305 total users), repeat application of that dataset, and rejection in a disposable database deliberately named `career_staging`. This was a local test database, not shared Staging.
+- The Docker wrapper and GitHub CI execution are separate checks; local execution does not establish their success.
+- Existing disposable databases populated by versions before `t147.2` with a seed other than 147 should be recreated before using the stable catalog.
