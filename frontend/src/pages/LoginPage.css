@@ -10,14 +10,45 @@
   max-width: 400px;
   padding: 32px;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: 24px;
   background: var(--color-surface);
 }
 
-.login-card h1 {
+/* 위쪽 원형 사용자 아이콘 */
+.login-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border: 2px solid #3454d1;
+  border-radius: 50%;
+  background: #eff3ff;
+  color: #3454d1;
+}
+
+.login-avatar svg {
+  width: 36px;
+  height: 36px;
+}
+
+/* 제목 양옆의 가로선 */
+.login-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   margin: 0 0 24px;
   font-size: 24px;
   text-align: center;
+}
+
+.login-title::before,
+.login-title::after {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+  content: '';
 }
 
 .login-form {
@@ -35,7 +66,65 @@
   font-size: 14px;
 }
 
+.login-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.login-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  color: #536079;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.login-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #3454d1;
+}
+
+.login-forgot {
+  margin-left: auto;
+  color: #3454d1;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.login-forgot:hover,
+.login-signup a:hover {
+  text-decoration: underline;
+}
+
+/* 하단 구분선과 회원가입 안내 */
+.login-signup {
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.login-signup a {
+  color: #3454d1;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-forgot:focus-visible,
+.login-signup a:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
 @media (max-width: 767px) {
   .login-page { padding-top: 0; }
-  .login-card { padding: 24px 20px; }
+  .login-card { padding: 24px 20px; border-radius: 16px; }
 }

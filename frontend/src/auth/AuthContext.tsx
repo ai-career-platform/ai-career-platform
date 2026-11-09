@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ApiError, apiRequest } from '../api/client';
 import type { ApiRequestOptions } from '../api/client';
+import { forgetSession, rememberSession, shouldKeepSession } from './loginPreferences';
 import { AuthContext } from './useAuth';
 import type { AuthState } from './useAuth';
 
@@ -41,14 +42,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (started.current) return;
     started.current = true;
     apiRequest<TokenResponse>('/v1/auth/refresh', { method: 'POST' })
-      .then((t) => loadUser(t.access_token))
+      .then(async (t) => {
+        const restored = await loadUser(t.access_token);
+        if (shouldKeepSession()) return restored;
+        // 자동 로그인을 끄고 브라우저를 닫았다 다시 연 경우: 서버 세션도 끝내고 로그인 화면으로 보냅니다.
+        await apiRequest<void>('/v1/auth/logout', { method: 'POST', token: t.access_token }).catch(() => undefined);
+        return { status: 'anonymous' } as AuthState;
+      })
       .then(setState)
       .catch(() => setState({ status: 'anonymous' }));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, autoLogin = false) => {
     const t = await apiRequest<TokenResponse>('/v1/auth/login', { method: 'POST', body: { email, password } });
-    setState(await loadUser(t.access_token));
+    const next = await loadUser(t.access_token);
+    rememberSession(autoLogin);
+    setState(next);
   }, []);
 
   const token = state.status === 'authenticated' ? state.token : null;
@@ -58,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiRequest<void>('/v1/auth/logout', { method: 'POST', token });
     } finally {
       // 서버 호출이 실패해도 화면에서는 로그아웃 처리합니다.
+      forgetSession();
       setState({ status: 'anonymous' });
     }
   }, [token]);

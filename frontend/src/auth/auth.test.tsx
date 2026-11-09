@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import type { RouteObject } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { forgetSession, rememberSession, shouldKeepSession } from './loginPreferences';
 import { MOCK_PASSWORD } from '../mocks/handlers';
 import { AccountPage } from '../pages/AccountPage';
 import { LoginPage } from '../pages/LoginPage';
@@ -37,13 +38,19 @@ const setup = (path: string, tree: RouteObject[] = routes) => {
   return router;
 };
 
-async function signIn(email: string, password = MOCK_PASSWORD) {
+async function signIn(email: string, password = MOCK_PASSWORD, options: { saveEmail?: boolean; autoLogin?: boolean } = {}) {
   fireEvent.change(await screen.findByLabelText(/^이메일/), { target: { value: email } });
   fireEvent.change(screen.getByLabelText(/^비밀번호/), { target: { value: password } });
+  if (options.saveEmail) fireEvent.click(screen.getByLabelText('아이디 저장'));
+  if (options.autoLogin) fireEvent.click(screen.getByLabelText('자동 로그인'));
   fireEvent.click(screen.getByRole('button', { name: '로그인' }));
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
+  sessionStorage.clear();
+});
 
 describe('login flow', () => {
   it('logs in, lands on the account page, then logs out', async () => {
@@ -96,5 +103,60 @@ describe('role guard', () => {
 
     await act(() => router.navigate('/admin'));
     expect(await screen.findByRole('heading', { name: '관리자 화면' })).toBeInTheDocument();
+  });
+});
+
+describe('login options', () => {
+  it('remembers the email when 아이디 저장 is checked and prefills it next time', async () => {
+    setup('/login');
+    await signIn('user@example.com', MOCK_PASSWORD, { saveEmail: true });
+    await screen.findByRole('heading', { name: '내 계정' });
+    expect(localStorage.getItem('login.savedEmail')).toBe('user@example.com');
+
+    cleanup();
+    setup('/login');
+    expect(await screen.findByLabelText(/^이메일/)).toHaveValue('user@example.com');
+    expect(screen.getByLabelText('아이디 저장')).toBeChecked();
+  });
+
+  it('does not save the email by default and never stores the password', async () => {
+    setup('/login');
+    await signIn('user@example.com');
+    await screen.findByRole('heading', { name: '내 계정' });
+    expect(localStorage.getItem('login.savedEmail')).toBeNull();
+    expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain(MOCK_PASSWORD);
+  });
+
+  it('keeps the session only for this browser session unless 자동 로그인 is checked', async () => {
+    setup('/login');
+    await signIn('user@example.com');
+    await screen.findByRole('heading', { name: '내 계정' });
+    expect(localStorage.getItem('login.autoLogin')).toBeNull();
+    expect(sessionStorage.getItem('login.sessionAlive')).toBe('1');
+  });
+
+  it('stores the auto-login choice and clears it on logout', async () => {
+    setup('/login');
+    await signIn('user@example.com', MOCK_PASSWORD, { autoLogin: true });
+    await screen.findByRole('heading', { name: '내 계정' });
+    expect(localStorage.getItem('login.autoLogin')).toBe('1');
+
+    fireEvent.click(screen.getByRole('button', { name: '로그아웃' }));
+    await screen.findByRole('heading', { name: '로그인' });
+    expect(localStorage.getItem('login.autoLogin')).toBeNull();
+    expect(sessionStorage.getItem('login.sessionAlive')).toBeNull();
+  });
+
+  it('decides whether a restored session may continue', () => {
+    expect(shouldKeepSession()).toBe(false); // 아무 설정도 없음 = 브라우저를 새로 연 상태
+    rememberSession(false);
+    expect(shouldKeepSession()).toBe(true); // 같은 브라우저 세션 (새로고침)
+    sessionStorage.clear(); // 브라우저를 닫았다 다시 연 것과 같음
+    expect(shouldKeepSession()).toBe(false);
+    rememberSession(true);
+    sessionStorage.clear();
+    expect(shouldKeepSession()).toBe(true); // 자동 로그인
+    forgetSession();
+    expect(shouldKeepSession()).toBe(false);
   });
 });

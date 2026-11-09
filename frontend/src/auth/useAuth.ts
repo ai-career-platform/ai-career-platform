@@ -14,7 +14,7 @@ export type AuthState =
 
 export interface AuthContextValue {
   state: AuthState;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, autoLogin?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   /** 로그인 토큰을 붙여 호출하고, 401이면 세션을 비워 로그인 화면으로 돌려보냅니다. */
   request: <T>(path: string, options?: ApiRequestOptions) => Promise<T>;
