@@ -1,4 +1,5 @@
 import { ApiError } from '../api/errors';
+import { resolveRecommendationMock } from './recommendations';
 
 /**
  * 개발용 가상 데이터. 실제 개인정보·운영 데이터를 넣지 않습니다.
@@ -61,6 +62,14 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
   return null;
 }
 
+/** 로그인이 필요한 도메인 Mock. 경로가 맞으면 먼저 토큰을 확인합니다(없으면 401). */
+function resolveAuthed(path: string, { method, body, token }: MockRequest): unknown {
+  if (path.startsWith('/v1/recommendation-runs')) {
+    return resolveRecommendationMock(path, method, body, authedUser(token).email);
+  }
+  return null;
+}
+
 const MOCK_DELAY_MS = 150;
 
 export async function resolveMock<T>(
@@ -71,6 +80,8 @@ export async function resolveMock<T>(
   try {
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;
+    const authedResult = resolveAuthed(path, request);
+    if (authedResult !== null) return structuredClone(authedResult) as T;
   } catch (error) {
     if (error instanceof ApiError) throw new ApiError(error.status, path, undefined, error.code);
     throw error;

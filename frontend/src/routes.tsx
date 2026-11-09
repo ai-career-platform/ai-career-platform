@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 
 /**
@@ -26,7 +27,14 @@ export const routes: RouteObject[] = [
       { path: 'system-status', element: <HomePage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'login', element: <LoginPage /> },
-      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }] },
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: 'account', element: <AccountPage /> },
+          // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+          { path: 'recommendations', element: <RecommendationsPage /> },
+        ],
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

@@ -36,6 +36,9 @@ export function AppLayout() {
               <NavLink to="/" end>
                 홈
               </NavLink>
+              <NavLink to="/recommendations">
+                맞춤 추천
+              </NavLink>
               <NavLink to="/ui-preview">
                 공통 UI 미리보기
               </NavLink>
