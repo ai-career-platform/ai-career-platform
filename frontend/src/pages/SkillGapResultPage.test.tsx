@@ -16,7 +16,7 @@ const authenticated: AuthState = { status: 'authenticated', token: 'test-only', 
 function setup(jobRoleId?: string, assessmentId?: string) {
   const request = vi.fn<AuthContextValue['request']>();
   const value: AuthContextValue = {
-    state: authenticated, login: vi.fn(), logout: vi.fn(),
+    state: authenticated, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(),
     request: async <T,>(path: string, options?: Parameters<AuthContextValue['request']>[1]) => await request(path, options) as T,
   };
   const view = (state: AuthState = authenticated, role = jobRoleId) => <AuthContext.Provider value={{ ...value, state }}><SkillGapResultPage jobRoleId={role} assessmentId={assessmentId} /></AuthContext.Provider>;

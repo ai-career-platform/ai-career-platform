@@ -49,14 +49,14 @@ describe('T44 Skill Gap 결과', () => {
   });
 
   it('실패 상태의 재시도를 전달한다', () => {
-    const retry = vi.fn();
+    const retry = vi.fn<() => void>();
     render(<SkillGapPage status={{ state: 'error' }} onRetry={retry} />);
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(retry).toHaveBeenCalledOnce();
   });
 
   it('오래된 결과를 알리고 재분석 중 중복 요청을 막는다', () => {
-    const analyze = vi.fn();
+    const analyze = vi.fn<() => void>();
     const status = { state: 'ready' as const, result: { ...skillGapPreviewResult, is_stale: true } };
     const { rerender } = render(<SkillGapPage status={status} onAnalyze={analyze} />);
     expect(screen.getByText(/이전 입력으로/)).toBeInTheDocument();
@@ -85,14 +85,14 @@ describe('T44 Skill Gap 결과', () => {
   });
 
   it('빈 결과에서 분석 요청을 전달한다', () => {
-    const analyze = vi.fn();
+    const analyze = vi.fn<() => void>();
     render(<SkillGapPage status={{ state: 'empty' }} onAnalyze={analyze} />);
     fireEvent.click(screen.getByRole('button', { name: '분석하기' }));
     expect(analyze).toHaveBeenCalledOnce();
   });
 
   it('첫 분석 대기 중 버튼과 포커스 위치를 유지하고 중복 요청을 막는다', () => {
-    const analyze = vi.fn();
+    const analyze = vi.fn<() => void>();
     const { rerender } = render(<SkillGapPage status={{ state: 'empty' }} onAnalyze={analyze} />);
     const button = screen.getByRole('button', { name: '분석하기' });
     button.focus();
