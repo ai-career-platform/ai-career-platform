@@ -172,9 +172,18 @@ def test_postgres_commit_failure_rolls_back_and_returns_connection(pg_app):
     assert admin.execute('SELECT display_name FROM career.users WHERE user_id=%s',(A,)).fetchone()[0]=='Synthetic A'
 
 
-def test_integrated_staging_entrypoint_reuses_real_t14_t15_t16(pg_app, monkeypatch):
+@pytest.mark.parametrize("reuse_poc_settings", [False, True])
+def test_integrated_staging_entrypoint_reuses_real_t14_t15_t16(pg_app, monkeypatch, reuse_poc_settings):
     import importlib.util
     _, _, admin, headers = pg_app
+    if reuse_poc_settings:
+        from sqlalchemy.engine import make_url
+        url = make_url(os.environ['DATABASE_URL'])
+        for key, value in {'POSTGRES_HOST':url.host, 'POSTGRES_PORT':str(url.port),
+                           'POSTGRES_DB':url.database, 'POSTGRES_USER':url.username,
+                           'POSTGRES_PASSWORD':url.password}.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv('DATABASE_URL', '')
     monkeypatch.setenv('ENABLE_SERVICE_API', '1')
     monkeypatch.setenv('ENABLE_CRAWLER_API', '1')
     monkeypatch.syspath_prepend(str(ROOT))

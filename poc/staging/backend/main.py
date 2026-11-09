@@ -5,9 +5,27 @@ import psycopg
 from fastapi import FastAPI, HTTPException
 
 if os.environ.get('ENABLE_SERVICE_API') == '1':
+    from sqlalchemy import URL
+    from app.core.config import get_settings
+
+    # MVP: reuse the existing private PostgreSQL settings when no dedicated URL
+    # was supplied. Only T14 creates the engine/pool; no credentials are logged.
+    db_keys = ('POSTGRES_HOST', 'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD')
+    if not os.environ.get('DATABASE_URL') and all(os.environ.get(k) for k in db_keys):
+        try:
+            port = int(os.environ.get('POSTGRES_PORT', '5432'))
+        except ValueError:
+            raise ValueError('POSTGRES_PORT must be an integer') from None
+        os.environ['DATABASE_URL'] = URL.create(
+            'postgresql', username=os.environ['POSTGRES_USER'],
+            password=os.environ['POSTGRES_PASSWORD'], host=os.environ['POSTGRES_HOST'],
+            port=port, database=os.environ['POSTGRES_DB'],
+        ).render_as_string(hide_password=False)
+    get_settings.cache_clear()
     from app.main import create_app
     from fastapi.openapi.docs import get_swagger_ui_html
-    from fastapi.exception_handlers import http_exception_handler
+    from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+    from fastapi.exceptions import RequestValidationError
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
     # One application/lifespan owns T14 sessions and T15 authentication.
@@ -21,6 +39,14 @@ if os.environ.get('ENABLE_SERVICE_API') == '1':
         if request.url.path.startswith('/api/v1/'):
             return await service_http_error(request, exc)
         return await http_exception_handler(request, exc)
+
+    service_validation_error = app.exception_handlers[RequestValidationError]
+
+    @app.exception_handler(RequestValidationError)
+    async def staging_validation_error(request, exc):
+        if request.url.path.startswith('/api/v1/'):
+            return await service_validation_error(request, exc)
+        return await request_validation_exception_handler(request, exc)
 
     @app.get('/docs', include_in_schema=False)
     def staging_docs():
