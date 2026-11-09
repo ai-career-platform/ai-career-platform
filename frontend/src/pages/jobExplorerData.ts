@@ -46,7 +46,7 @@ export function filterJobRoles(
     throw new TypeError('Invalid job explorer inputs');
   }
   const term = query.trim().toLocaleLowerCase('ko');
-  const result = roles.filter((role) =>
+  const result = roles.filter((role: JobRole) =>
     (category === '전체' || role.category === category) &&
     (!term || [role.name, role.code, role.category,
       ...role.skills.flatMap((skill) => [skill.name, skill.code])]
@@ -57,7 +57,7 @@ export function filterJobRoles(
     collator.compare(a.name, b.name) || collator.compare(a.code, b.code));
 }
 
-export function pageJobRoles<T>(rows: readonly T[], page: number, size = 4) {
+export function pageJobRoles<T>(rows: readonly T[], page: number, size = 4): { items: T[]; current: number; pages: number } {
   if (!Array.isArray(rows) || !Number.isInteger(page) || page < 1 ||
       !Number.isInteger(size) || size < 1) throw new RangeError('Invalid page');
   const pages = Math.max(1, Math.ceil(rows.length / size));
