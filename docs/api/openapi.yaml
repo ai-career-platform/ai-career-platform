@@ -1532,22 +1532,30 @@ paths:
       summary: 채용시장 지표 관측값 + 예측값
       x-requirements: [FR-ANL-005]
       x-screens: [UI-024]
-      x-tables: [market_observations, market_forecasts, data_sources, model_versions, job_roles]
+      x-tables: [market_observations, market_forecasts, data_sources, model_versions, job_roles, skills]
+      description: |
+        지표 정의·단위·구간 규칙은 docs/data/MARKET_METRICS_CONTRACT.md (T65).
+        관측이 없는 구간은 observations에 넣지 않는다(0으로 채우지 않음). 관측값은 출처별로만 준다.
+        기간 상한: day 366일, week 157주, month 60개월. 넘으면 422.
       parameters:
-        - { name: job_role_id, in: query, schema: { type: string, format: uuid } }
         - name: metric_code
           in: query
           required: true
           schema: { type: string, enum: [posting_count, skill_demand_share] }
-        - { name: from, in: query, required: true, schema: { type: string, format: date } }
-        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: from, in: query, required: true, description: '시작일 (포함)', schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, description: '종료일 (포함). from 이후', schema: { type: string, format: date } }
+        - { name: period, in: query, description: '집계 단위 (KST)', schema: { type: string, enum: [day, week, month], default: week } }
+        - { name: job_role_id, in: query, description: '없으면 전체 시장', schema: { type: string, format: uuid } }
+        - { name: skill_id, in: query, description: 'skill_demand_share일 때 필수, 그 외 지정하면 422', schema: { type: string, format: uuid } }
+        - { name: source, in: query, description: '출처 코드. 없으면 데이터가 있는 출처가 하나일 때 자동 선택, 둘 이상이면 422', schema: { type: string, minLength: 1, maxLength: 80 } }
       responses:
         '200':
-          description: 관측과 예측을 분리해 반환
+          description: 관측과 예측을 분리해 반환 (데이터가 없으면 빈 배열)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MarketTrend' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
   # ------------------------------------------------------------------ admin
@@ -2724,11 +2732,45 @@ components:
     MarketTrend:
       type: object
       additionalProperties: false
-      required: [metric_code, period, source, observations, forecasts, forecast_model]
+      required: [metric_code, unit, period, from, to, source, job_role, skill, observations, forecasts, forecast_model]
       properties:
-        metric_code: { type: string }
+        metric_code: { type: string, enum: [posting_count, skill_demand_share] }
+        unit: { type: string, enum: [count, ratio], description: 'count = 건, ratio = 0~1 비율 (T65 계약 §1)' }
         period: { type: string, enum: [day, week, month] }
-        source: { type: string, description: '출처 코드 (화면에 표시)' }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        source:
+          description: 관측값 출처 (화면에 표시). 관측값이 없으면 null
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [code, name]
+              properties:
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
+        job_role:
+          description: null = 전체 시장
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [job_role_id, code, name]
+              properties:
+                job_role_id: { type: string, format: uuid }
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
+        skill:
+          description: skill_demand_share의 대상 기술, 그 외 null
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [skill_id, code, name]
+              properties:
+                skill_id: { type: string, format: uuid }
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
         observations:
           type: array
           items: { $ref: '#/components/schemas/MarketPoint' }

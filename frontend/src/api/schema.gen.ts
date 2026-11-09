@@ -865,7 +865,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 채용시장 지표 관측값 + 예측값 */
+        /**
+         * 채용시장 지표 관측값 + 예측값
+         * @description 지표 정의·단위·구간 규칙은 docs/data/MARKET_METRICS_CONTRACT.md (T65).
+         *     관측이 없는 구간은 observations에 넣지 않는다(0으로 채우지 않음). 관측값은 출처별로만 준다.
+         *     기간 상한: day 366일, week 157주, month 60개월. 넘으면 422.
+         */
         get: operations["getMarketTrends"];
         put?: never;
         post?: never;
@@ -1581,11 +1586,38 @@ export interface components {
             upper_bound?: number | null;
         };
         MarketTrend: {
-            metric_code: string;
+            /** @enum {string} */
+            metric_code: "posting_count" | "skill_demand_share";
+            /**
+             * @description count = 건, ratio = 0~1 비율 (T65 계약 §1)
+             * @enum {string}
+             */
+            unit: "count" | "ratio";
             /** @enum {string} */
             period: "day" | "week" | "month";
-            /** @description 출처 코드 (화면에 표시) */
-            source: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @description 관측값 출처 (화면에 표시). 관측값이 없으면 null */
+            source: {
+                code: string;
+                name: string;
+            } | null;
+            /** @description null = 전체 시장 */
+            job_role: {
+                /** Format: uuid */
+                job_role_id: string;
+                code: string;
+                name: string;
+            } | null;
+            /** @description skill_demand_share의 대상 기술, 그 외 null */
+            skill: {
+                /** Format: uuid */
+                skill_id: string;
+                code: string;
+                name: string;
+            } | null;
             observations: components["schemas"]["MarketPoint"][];
             /** @description 관측값과 시각적으로 구분해 표시. 범위(lower/upper) 포함 */
             forecasts: components["schemas"]["MarketPoint"][];
@@ -3965,10 +3997,19 @@ export interface operations {
     getMarketTrends: {
         parameters: {
             query: {
-                job_role_id?: string;
                 metric_code: "posting_count" | "skill_demand_share";
+                /** @description 시작일 (포함) */
                 from: string;
+                /** @description 종료일 (포함). from 이후 */
                 to: string;
+                /** @description 집계 단위 (KST) */
+                period?: "day" | "week" | "month";
+                /** @description 없으면 전체 시장 */
+                job_role_id?: string;
+                /** @description skill_demand_share일 때 필수, 그 외 지정하면 422 */
+                skill_id?: string;
+                /** @description 출처 코드. 없으면 데이터가 있는 출처가 하나일 때 자동 선택, 둘 이상이면 422 */
+                source?: string;
             };
             header?: never;
             path?: never;
@@ -3976,7 +4017,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 관측과 예측을 분리해 반환 */
+            /** @description 관측과 예측을 분리해 반환 (데이터가 없으면 빈 배열) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3986,6 +4027,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
         };
     };
