@@ -11,6 +11,11 @@ export type QueryState<T> =
 export type Query<T> = QueryState<T> & {
   /** 같은 key 로 다시 불러옵니다. */
   retry: () => void;
+  /**
+   * 저장·삭제 응답으로 현재 key 의 데이터를 바로 바꿉니다(다시 불러오지 않음).
+   * 아직 데이터가 없거나(idle·loading·error) key 가 바뀐 뒤면 아무것도 하지 않습니다.
+   */
+  setData: (update: (current: T) => T) => void;
 };
 
 type Settled<T> = { hash: string; attempt: number; outcome: { data: T } | { error: unknown } };
@@ -44,10 +49,15 @@ export function useQuery<T>(
   }, [hash, attempt]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const setData = useCallback((update: (current: T) => T) => {
+    setSettled((previous) => (previous && previous.hash === hash && previous.attempt === attempt && 'data' in previous.outcome
+      ? { ...previous, outcome: { data: update(previous.outcome.data) } }
+      : previous));
+  }, [hash, attempt]);
 
-  if (hash === null) return { status: 'idle', retry };
-  if (!settled || settled.hash !== hash || settled.attempt !== attempt) return { status: 'loading', retry };
+  if (hash === null) return { status: 'idle', retry, setData };
+  if (!settled || settled.hash !== hash || settled.attempt !== attempt) return { status: 'loading', retry, setData };
   return 'data' in settled.outcome
-    ? { status: 'ready', data: settled.outcome.data, retry }
-    : { status: 'error', error: settled.outcome.error, retry };
+    ? { status: 'ready', data: settled.outcome.data, retry, setData }
+    : { status: 'error', error: settled.outcome.error, retry, setData };
 }
