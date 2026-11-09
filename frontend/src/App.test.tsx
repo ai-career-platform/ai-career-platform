@@ -20,6 +20,10 @@ afterEach(() => {
 });
 
 describe('routing and home page', () => {
+  it('protects the career workspace routes', async () => {
+    renderAt('/me/target-roles');
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
+  });
   it('shows Operational when all health APIs succeed', async () => {
     mockFetch({
       '/api/health': { status: 200, body: { status: 'ok', service: 'ai-career-backend' } },

@@ -5,3 +5,4 @@ SQLAlchemy==2.0.57
 pydantic==2.14.3
 PyJWT==2.10.1
 argon2-cffi==25.1.0
+python-multipart==0.0.22

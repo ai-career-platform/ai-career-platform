@@ -3,12 +3,17 @@ import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layouts/AppLayout';
 import { AccountPage } from './pages/AccountPage';
+import { PrivacySettingsPage } from './pages/PrivacySettingsPage';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
+import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
+import { MySkillsPage } from './pages/MySkillsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
+import { JobPostingsPage } from './pages/JobPostingsPage';
+import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
@@ -25,16 +30,20 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
+      { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
+      { path: 'job-postings', element: <JobPostingsPage /> },
       { path: 'login', element: <LoginPage /> },
-      {
-        element: <RequireAuth />,
-        children: [
-          { path: 'account', element: <AccountPage /> },
-          // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
-          { path: 'recommendations', element: <RecommendationsPage /> },
-        ],
-      },
+      { element: <RequireAuth />, children: [
+        { path: 'account', element: <AccountPage /> },
+        { path: 'account/privacy', element: <PrivacySettingsPage /> },
+        { path: 'me/target-roles', element: <TargetRolesPage /> },
+        { path: 'me/career-history', element: <CareerHistoryPage /> },
+        { path: 'me/bookmarks', element: <BookmarksPage /> },
+        { path: 'me/skills', element: <MySkillsPage /> },
+        // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+        { path: 'recommendations', element: <RecommendationsPage /> },
+      ] },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

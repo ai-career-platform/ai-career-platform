@@ -8,12 +8,11 @@ from app.core.config import API_V1_PREFIX, get_settings
 from app.dependencies.auth import (
     CurrentUserDep,
     ensure_owner,
-    get_auth_repository,
     require_permissions,
     require_roles,
 )
 from app.main import create_app
-from tests.fakes import MemoryAuthRepository
+from tests.fakes import MemoryAuthRepository, override_auth_repository
 
 TEST_SECRET = "t15-test-secret-0123456789-abcdefghij"
 PASSWORD = "correct-horse-battery-1"
@@ -62,7 +61,7 @@ def app(monkeypatch, repo, owners):
     get_settings.cache_clear()
     application = create_app()
     application.include_router(build_probe_router(owners), prefix=API_V1_PREFIX)
-    application.dependency_overrides[get_auth_repository] = lambda: repo
+    override_auth_repository(application, repo)
     yield application
     get_settings.cache_clear()
 
