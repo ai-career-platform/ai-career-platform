@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MOCK_PASSWORD } from '../mocks/handlers';
+import {
+  MOCK_FALLBACK_REASON,
+  MOCK_RULE_MODEL,
+  resetRecommendationMock,
+  setRecommendationMockScenario,
+} from '../mocks/recommendations';
 import { apiRequest } from './client';
 import type { ApiRequestOptions } from './client';
 import {
@@ -8,7 +14,7 @@ import {
   getRecommendationRun,
   jobPostingDetailPath,
 } from './recommendations';
-import type { AuthedRequest } from './recommendations';
+import type { AuthedRequest, RecommendationRun } from './recommendations';
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -21,7 +27,8 @@ const requesterFor = (fetchImpl: typeof fetch): AuthedRequest =>
 const run = {
   recommendation_run_id: '00000000-0000-4000-8000-000000000a01',
   status: 'completed',
-  model_version: { model_code: 'match_rule', version: '1', kind: 'rule' },
+  // T45 실제 규칙 기준선 버전 (backend/app/repositories/recommendation_runs.py)
+  model_version: { model_code: 'skill_overlap_baseline', version: 'skill-overlap-draft-v2', kind: 'rule' },
   generated_at: '2026-11-06T03:10:00Z',
   items: [],
 };
@@ -83,5 +90,34 @@ describe('recommendations mock', () => {
     await expect(
       apiRequest('/v1/recommendation-runs', { mockEnabled: true, method: 'POST', body: { limit: 51 }, token }),
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('follows the T45 response shape: same rule model for completed and fallback, fallback reason, empty fallback, 503', async () => {
+    resetRecommendationMock();
+    const login = await apiRequest<{ access_token: string }>('/v1/auth/login', {
+      mockEnabled: true,
+      method: 'POST',
+      body: { email: 'user@example.com', password: MOCK_PASSWORD },
+    });
+    const token = login.access_token;
+    const create = () =>
+      apiRequest<RecommendationRun>('/v1/recommendation-runs', { mockEnabled: true, method: 'POST', body: { limit: 20 }, token });
+
+    const completed = await create();
+    expect(completed.status).toBe('completed');
+    expect(completed.model_version).toEqual(MOCK_RULE_MODEL);
+    expect(completed.items.every((item) => item.feedback !== 'not_interested')).toBe(true);
+
+    setRecommendationMockScenario({ create: 'fallback' });
+    const fallback = await create();
+    expect(fallback.model_version).toEqual(MOCK_RULE_MODEL);
+    expect(fallback.items.every((item) => item.score === null && item.reason === MOCK_FALLBACK_REASON)).toBe(true);
+
+    setRecommendationMockScenario({ create: 'fallback_empty' });
+    await expect(create()).resolves.toMatchObject({ status: 'fallback', items: [] });
+
+    setRecommendationMockScenario({ create: 'unavailable' });
+    await expect(create()).rejects.toMatchObject({ status: 503, code: 'DEPENDENCY_UNAVAILABLE' });
+    resetRecommendationMock();
   });
 });

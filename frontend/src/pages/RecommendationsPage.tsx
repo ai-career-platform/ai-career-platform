@@ -161,7 +161,7 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
             <div>
               <dt>계산 기준</dt>
               <dd>
-                {run.model_version.model_code} v{run.model_version.version} ({kindLabels[run.model_version.kind]})
+                {run.model_version.model_code} · {run.model_version.version} ({kindLabels[run.model_version.kind]})
               </dd>
             </div>
             <div>

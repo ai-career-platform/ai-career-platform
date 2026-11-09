@@ -4,12 +4,18 @@ import { ApiError } from './errors';
 /*
  * 맞춤 공고 추천 API (UI-017, FR-ANL-003). docs/api/openapi.yaml 의
  * RecommendationRun / RecommendationItem / JobPostingSummary / ModelVersionRef 를 그대로 옮긴 타입입니다.
- * 실제 Backend 구현(T45)이 머지되기 전까지는 Mock(VITE_API_MOCK=true)으로만 검증합니다.
+ * T45 Backend(backend/app/schemas/recommendation_runs.py, app/routers/recommendation_runs.py)와
+ * 필드 이름·필수 여부·경로가 같습니다. T45 규칙 기준선은 completed·fallback 모두
+ * model_version = skill_overlap_baseline / skill-overlap-draft-v2 (kind=rule) 을 돌려줍니다.
  */
 
 /** 로그인 토큰을 붙여 호출하는 함수. 화면에서는 useAuth().request 를 넘깁니다. */
 export type AuthedRequest = <T>(path: string, options?: ApiRequestOptions) => Promise<T>;
 
+/**
+ * 계약(openapi.yaml)의 status 전체. T45 Backend는 현재 completed·fallback 만 만들고 failed 는 만들지 않지만,
+ * 계약에 있으므로 화면은 failed 도 처리합니다.
+ */
 export type RecommendationRunStatus = 'completed' | 'fallback' | 'failed';
 /** 이 공고에 대한 내 최신 피드백. cleared 는 서버에서 null 로 돌려줍니다. */
 export type RecommendationFeedbackValue = 'liked' | 'not_interested';
@@ -90,13 +96,20 @@ export async function findLatestRecommendationRun(request: AuthedRequest): Promi
   }
 }
 
-/** POST /api/v1/recommendation-runs — 새 추천을 계산합니다(201). 계산 실패 시 status=fallback 으로 최신 공고를 돌려줍니다. */
+/**
+ * POST /api/v1/recommendation-runs — 새 추천을 계산합니다(201, Location 헤더는 쓰지 않음).
+ * T45: 보유 기술이 없거나 기술을 비교할 공고가 없으면 status=fallback + 최신 공개 공고(score=null),
+ * 공개 공고가 없으면 fallback + 빈 items. 관심 없음(최신 피드백) 공고는 제외됩니다. DB 오류는 503.
+ */
 export const createRecommendationRun = (
   request: AuthedRequest,
   body: RecommendationRunRequest = { limit: RECOMMENDATION_LIMIT_DEFAULT },
 ) => request<RecommendationRun>(RUNS_PATH, { method: 'POST', body });
 
-/** GET /api/v1/recommendation-runs/{recommendation_run_id} */
+/**
+ * GET /api/v1/recommendation-runs/{recommendation_run_id} — 저장된 결과 읽기 전용. 다른 사용자 run 은 404.
+ * T45: 이후 비공개·삭제된 공고 항목은 빠질 수 있어 rank 가 1부터 연속이 아닐 수 있습니다.
+ */
 export const getRecommendationRun = (request: AuthedRequest, recommendationRunId: string) =>
   request<RecommendationRun>(`${RUNS_PATH}/${encodeURIComponent(recommendationRunId)}`);
 
