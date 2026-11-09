@@ -25,3 +25,7 @@ jobs:
         env:
           D1_TEST_ONLY: 'YES'
         run: bash database/tests/test_role_permissions.sh
+      - name: T11 full schema constraint, index and privilege tests
+        env:
+          D1_TEST_ONLY: 'YES'
+        run: bash database/tests/test_full_schema.sh
