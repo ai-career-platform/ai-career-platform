@@ -6,13 +6,16 @@ export class ApiError extends Error {
   readonly code?: string;
   /** 오류 응답의 message — Backend 카탈로그의 사용자용 문구(API_CONTRACT §1.4). 화면에 그대로 표시 가능 */
   readonly userMessage?: string;
+  /** 응답 X-Request-ID — 오류 화면의 요청 번호, 감사 기록 조회 키 (FR-ADM-004) */
+  readonly requestId?: string;
 
-  constructor(status: number, path: string, message?: string, code?: string, userMessage?: string) {
+  constructor(status: number, path: string, message?: string, code?: string, userMessage?: string, requestId?: string) {
     super(message ?? `API ${path} failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
     this.path = path;
     this.code = code;
     this.userMessage = userMessage;
+    this.requestId = requestId;
   }
 }

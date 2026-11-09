@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getDbHealth, getHealth, getVersion } from '../api/health';
+import { useApi } from '../api/ApiContext';
 import { env } from '../config/env';
 
 type Status =
@@ -11,11 +11,12 @@ type Status =
  * 실제 서비스 홈 화면은 기능 일감(T20~T24)에서 교체합니다.
  */
 export function HomePage() {
+  const { system } = useApi();
   const [status, setStatus] = useState<Status>({ state: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
-    Promise.allSettled([getHealth(), getVersion(), getDbHealth()]).then(([health, version, db]) => {
+    Promise.allSettled([system.health(), system.version(), system.dbHealth()]).then(([health, version, db]) => {
       if (cancelled) return;
       setStatus({
         state: 'ready',
@@ -27,7 +28,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [system]);
 
   const operational = status.state === 'ready' && status.backend && status.database;
 
