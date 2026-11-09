@@ -7,7 +7,10 @@ import type { BodyOf, ResponseOf, Schemas } from './schema';
 
 export type Me = ResponseOf<'getMe'>;
 export type Permissions = ResponseOf<'getMyPermissions'>;
-export type UserSkill = Schemas['UserSkill'];
+/** 자기평가 숙련도 1~5 (계약의 Level: integer 1~5). null = 미입력 */
+export type Proficiency = 1 | 2 | 3 | 4 | 5;
+export type UserSkill = Omit<Schemas['UserSkill'], 'proficiency'> & { proficiency: Proficiency | null };
+export type UserSkillsReplace = { items: { skill_id: string; proficiency: Proficiency | null }[] };
 export type TargetRole = Schemas['TargetRole'];
 export type Experience = Schemas['Experience'];
 export type Project = Schemas['Project'];
@@ -24,7 +27,7 @@ export const meApi = (http: HttpClient) => ({
   },
   skills: {
     list: (signal?: AbortSignal) => http.request<UserSkill[]>('/v1/me/skills', { signal }),
-    replace: (body: BodyOf<'replaceMySkills'>) =>
+    replace: (body: UserSkillsReplace) =>
       http.request<UserSkill[]>('/v1/me/skills', { method: 'PUT', body }),
   },
   targetRoles: {

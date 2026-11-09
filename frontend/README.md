@@ -76,9 +76,19 @@ frontend/
 |---|---|---|
 | 전송 | `api/http.ts` | `createHttpClient({ baseUrl, fetch, getToken, onUnauthorized })`. 모든 요청이 지나는 한 곳 (헤더·쿼리·오류·취소) |
 | 계약 타입 | `api/schema.gen.ts`, `api/schema.ts` | OpenAPI 생성 타입(직접 수정 금지)과 `ResponseOf<'operationId'>`·`BodyOf`·`QueryOf` 도우미 |
-| 엔드포인트 | `api/catalog.ts`, `api/me.ts`, `api/index.ts` | 경로와 타입은 여기에만. 화면은 `createApi(http).jobPostings.list(...)`처럼 호출 |
+| 엔드포인트 | `api/catalog.ts`, `api/me.ts`, `api/auth.ts`, `api/health.ts`, `api/index.ts` | 경로와 타입은 여기에만. `createApi(http)`가 묶음을 만듦 |
+| 주입 | `api/ApiContext.ts`, `auth/session.ts` | 화면은 `const api = useApi()` 하나로 호출. 기본은 공개 클라이언트, 로그인하면 `AuthProvider`가 토큰·401 처리를 붙인 클라이언트로 교체 |
 | React 상태 | `api/useQuery.ts` | `useQuery(key, fn)` → `{ status, data, error, retry }`. key 변경 시 이전 요청 취소 |
 | Mock | `mocks/mockFetch.ts` | 가상 데이터를 fetch 구현체로 끼움. mock 모드에서도 실제와 같은 코드 경로 |
+
+```tsx
+const api = useApi();
+const postings = useQuery(['job-postings', filters, cursor], (signal) => api.jobPostings.list({ ...filters, cursor }, signal));
+const detail = useQuery(selected && ['job-posting', selected], (signal) => api.jobPostings.get(selected!, signal));
+// <StatePanel onAction={postings.retry} />
+```
+
+화면 테스트는 `test/WithApi.tsx`로 전송만 바꿉니다(`<WithApi request={fn}>`). 가상 데이터로 보내려면 `test/api.ts`의 `mockHttp(token)`을 씁니다.
 
 계약(`openapi.yaml`)과 실제 Backend가 다른 필드는 엔드포인트 파일에서 보정하고 주석으로 이유를 남깁니다(예: `catalog.ts`의 `PostingRequiredSkill`).
 

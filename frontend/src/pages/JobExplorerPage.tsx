@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { publicHttp } from '../api/client';
-import { createApi } from '../api';
+import { useApi } from '../api/ApiContext';
 import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
@@ -11,8 +10,6 @@ import { TextField } from '../components/TextField';
 import { compareSkills, levelText } from './skillComparison';
 import type { ComparisonStatus, UserSkillItem } from './skillComparison';
 import './JobExplorerPage.css';
-
-const api = createApi(publicHttp);
 
 const PAGE_SIZE = 20;
 const STATUS_LABEL: Record<ComparisonStatus, string> = {
@@ -31,6 +28,7 @@ export function JobExplorerPage() {
   const cursor = stack[stack.length - 1];
   const [selected, setSelected] = useState<string | null>(null);
   const auth = useAuth();
+  const api = useApi();
 
   const list = useQuery(['job-roles', query, cursor], (signal) =>
     api.jobRoles.list({ limit: PAGE_SIZE, q: query, cursor }, signal));
@@ -40,8 +38,8 @@ export function JobExplorerPage() {
 
   // 내 보유 기술은 로그인했을 때만 불러옵니다(T33 `GET /me/skills`, 인증 필요).
   const member = auth.state.status === 'authenticated' ? auth.state.user.email : null;
-  const mySkills = useQuery(member !== null && ['me-skills', member], () =>
-    auth.request<UserSkillItem[]>('/v1/me/skills'));
+  const mySkills = useQuery<UserSkillItem[]>(member !== null && ['me-skills', member], (signal) =>
+    api.me.skills.list(signal));
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

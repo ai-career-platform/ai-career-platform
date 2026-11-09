@@ -1,15 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildQuery, type HttpRequest } from '../api/http';
+import { WithApi } from '../test/WithApi';
 import { JobPostingsPage } from './JobPostingsPage';
 
-// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 바꿔 get 으로 받습니다.
-const get = vi.hoisted(() => vi.fn<(path: string) => Promise<unknown>>());
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  publicHttp: { request: (path: string, init?: HttpRequest) => get(`${path}${buildQuery(init?.query)}`) },
-}));
+// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 받습니다.
+const get = vi.fn<(path: string) => Promise<unknown>>();
 
 const C1 = '11111111-1111-4111-8111-111111111111';
 const C2 = '22222222-2222-4222-8222-222222222222';
@@ -53,7 +49,7 @@ function serve(handlers: Handlers) {
 const listCalls = () => get.mock.calls.map(([path]) => path).filter((path) => path.startsWith('/v1/job-postings?'));
 function Where() { const location = useLocation(); return <output data-testid="where">{location.search}</output>; }
 function renderPage(url = '/job-postings') {
-  return render(<MemoryRouter initialEntries={[url]}><JobPostingsPage /><Where /></MemoryRouter>);
+  return render(<WithApi request={(path) => get(path)}><MemoryRouter initialEntries={[url]}><JobPostingsPage /><Where /></MemoryRouter></WithApi>);
 }
 
 beforeEach(() => { get.mockReset(); });

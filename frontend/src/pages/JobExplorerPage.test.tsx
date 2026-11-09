@@ -2,27 +2,23 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
-import { buildQuery, type HttpRequest } from '../api/http';
+import { WithApi } from '../test/WithApi';
 import { AuthContext } from '../auth/useAuth';
 import type { AuthContextValue, AuthState } from '../auth/useAuth';
 import { JobExplorerPage } from './JobExplorerPage';
 
-// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 바꿔 get 으로 받습니다.
-const get = vi.hoisted(() => vi.fn<(path: string) => Promise<unknown>>());
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  publicHttp: { request: (path: string, init?: HttpRequest) => get(`${path}${buildQuery(init?.query)}`) },
-}));
+// 화면이 보낸 요청은 "경로 + 쿼리스트링" 한 줄로 받습니다. 공개 API 는 get, 내 정보(/v1/me) 는 request.
+const get = vi.fn<(path: string) => Promise<unknown>>();
 const request = vi.fn<(path: string) => Promise<unknown>>();
 
 const ANON: AuthState = { status: 'anonymous' };
 const MEMBER: AuthState = { status: 'authenticated', token: 't', user: { email: 'a@example.com', displayName: '테스터', roles: [] } };
 
 function renderPage(state: AuthState = ANON, url = '/job-roles') {
-  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), request: request as unknown as AuthContextValue['request'] };
+  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
   return render(
     <MemoryRouter initialEntries={[url]}>
-      <AuthContext.Provider value={value}><JobExplorerPage /></AuthContext.Provider>
+      <AuthContext.Provider value={value}><WithApi request={(path) => (path.startsWith('/v1/me') ? request(path) : get(path))}><JobExplorerPage /></WithApi></AuthContext.Provider>
     </MemoryRouter>,
   );
 }

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
-import { publicHttp } from '../api/client';
-import { createApi } from '../api';
+import { useApi } from '../api/ApiContext';
 import { useQuery } from '../api/useQuery';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -11,7 +10,6 @@ import { TextField } from '../components/TextField';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 import './JobPostingsPage.css';
 
-const api = createApi(publicHttp);
 type Sort = '-published_at' | 'expires_at';
 
 const PAGE_SIZE = 20;
@@ -24,6 +22,7 @@ const STATUS_OPTIONS = [
 
 /** 이 화면이 쓰는 공고 조회는 T18 정식 API(`/v1/job-postings`, `/v1/companies`)입니다. 별도 수집 API 데이터는 섞지 않습니다. */
 export function JobPostingsPage() {
+  const api = useApi();
   const [params, setParams] = useSearchParams();
   const query = (params.get('q') ?? '').trim().slice(0, 100);
   const companyId = uuidOrEmpty(params.get('company'));
