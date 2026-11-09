@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.main import create_app
 from app.core.config import get_settings
-from app.repositories.catalog_sqlalchemy import SQLAlchemyCatalogRepository
+from app.repositories.catalog import SqlCatalogRepository
 from app.routers.catalog import get_catalog_service
 from app.schemas.catalog import JobRoleQuery, SkillQuery
-from app.services.catalog import CatalogNotFound, CatalogService
+from app.core.errors import AppError, ErrorCode
+from app.services.catalog import CatalogService
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("T17_LOCAL_POSTGRES") != "1",
@@ -42,7 +43,7 @@ def session():
 @pytest.fixture
 def service(session):
     return CatalogService(
-        SQLAlchemyCatalogRepository(session), cursor_key=b"postgres-local-test-only-" * 2
+        SqlCatalogRepository(session), cursor_key=b"postgres-local-test-only-" * 2
     )
 
 
@@ -68,8 +69,9 @@ def test_seed_detail_relationship_and_missing(service):
     levels = {s.skill.code: s.required_level for s in detail.required_skills}
     assert levels["PYTHON"] == 5
     assert levels["DOCKER"] == 1
-    with pytest.raises(CatalogNotFound):
+    with pytest.raises(AppError) as exc:
         service.get_job_role(UUID(int=0))
+    assert exc.value.code == ErrorCode.NOT_FOUND
 
 
 def test_active_filters_literal_wildcards_and_empty_relationship(session, service):

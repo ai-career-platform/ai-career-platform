@@ -13,16 +13,6 @@ from app.schemas.catalog import (
 )
 
 
-class InvalidCatalogCursor(AppError):
-    def __init__(self):
-        super().__init__(ErrorCode.INVALID_CURSOR)
-
-
-class CatalogNotFound(AppError):
-    def __init__(self):
-        super().__init__(ErrorCode.NOT_FOUND)
-
-
 class CatalogService:
     def __init__(self, repository: CatalogRepository, *, cursor_key: bytes):
         # Supplied by the integration layer; never hardcode a production key.
@@ -61,7 +51,7 @@ class CatalogService:
                 raise ValueError
             return anchor.name, anchor.job_role_id
         except (ValueError, TypeError, UnicodeError) as exc:
-            raise InvalidCatalogCursor() from exc
+            raise AppError(ErrorCode.INVALID_CURSOR) from exc
 
     def list_job_roles(self, query: JobRoleQuery) -> JobRolePage:
         after = (
@@ -81,7 +71,7 @@ class CatalogService:
     def get_job_role(self, role_id: UUID) -> JobRoleDetail:
         role = self.repository.get_job_role(role_id)
         if role is None:
-            raise CatalogNotFound()
+            raise AppError(ErrorCode.NOT_FOUND)
         return role
 
     def search_skills(self, query: SkillQuery) -> SkillSearchResult:

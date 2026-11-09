@@ -15,7 +15,7 @@ from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.catalog_auth import get_optional_catalog_user
-from app.repositories.catalog_sqlalchemy import SQLAlchemyCatalogRepository
+from app.repositories.catalog import SqlCatalogRepository
 from app.schemas.catalog import (
     JobRoleDetail, JobRolePage, JobRoleQuery, SkillQuery, SkillSearchResult,
 )
@@ -29,7 +29,7 @@ def get_catalog_service(db: Annotated[Session, Depends(get_db)]) -> CatalogServi
             ErrorCode.DEPENDENCY_UNAVAILABLE,
             log_detail="T17 cursor key is missing or too short",
         )
-    return CatalogService(SQLAlchemyCatalogRepository(db), cursor_key=cursor_key)
+    return CatalogService(SqlCatalogRepository(db), cursor_key=cursor_key)
 
 
 router = APIRouter(tags=["catalog"], dependencies=[Depends(get_optional_catalog_user)])

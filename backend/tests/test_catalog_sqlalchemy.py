@@ -9,7 +9,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
-from app.repositories.catalog_sqlalchemy import SQLAlchemyCatalogRepository
+from app.repositories.catalog import SqlCatalogRepository
 from app.schemas.catalog import JobRoleQuery
 from app.services.catalog import CatalogService
 
@@ -42,7 +42,7 @@ def repository():
                 (5, "under_score", True), (6, "underXscore", True), (7, "Python old", False)]
         ])
         session.execute(insert(links), [dict(job_role_id=UUID(int=1), skill_id=UUID(int=2), required_level=4)])
-        yield SQLAlchemyCatalogRepository(session, schema=None)
+        yield SqlCatalogRepository(session, schema=None)
     engine.dispose()
 
 
@@ -83,7 +83,7 @@ def test_postgres_parameterization_and_schema():
                     return []
             return Empty()
     session = Capture()
-    repo = SQLAlchemyCatalogRepository(session)
+    repo = SqlCatalogRepository(session)
     hostile = "' OR 1=1 --"
     repo.list_job_roles(q=hostile, after=("Backend", UUID(int=1)), limit=2)
     sql = str(session.compiled)

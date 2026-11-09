@@ -8,9 +8,8 @@ from pydantic import ValidationError
 from app.schemas.catalog import (
     JobRoleDetail, JobRoleQuery, JobRoleRef, RequiredSkill, Skill, SkillQuery,
 )
-from app.services.catalog import (
-    CatalogNotFound, CatalogService, InvalidCatalogCursor,
-)
+from app.core.errors import AppError, ErrorCode
+from app.services.catalog import CatalogService
 
 
 class MemoryCatalog:
@@ -90,8 +89,9 @@ def test_empty_search(service, q):
 
 def test_detail_missing_and_empty_relationship(service):
     assert service.get_job_role(UUID(int=1)).required_skills == []
-    with pytest.raises(CatalogNotFound):
+    with pytest.raises(AppError) as exc:
         service.get_job_role(UUID(int=999))
+    assert exc.value.code == ErrorCode.NOT_FOUND
 
 
 def test_skills_prefix_rank_case_and_literal_wildcard(service):
@@ -103,8 +103,9 @@ def test_skills_prefix_rank_case_and_literal_wildcard(service):
 
 @pytest.mark.parametrize("token", ["", "!bad", "a" * 100, "e30"])
 def test_invalid_cursor(service, token):
-    with pytest.raises(InvalidCatalogCursor):
+    with pytest.raises(AppError) as exc:
         service.list_job_roles(JobRoleQuery(cursor=token))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR
 
 
 def test_cursor_tampering_search_change_and_key_rotation(service):
@@ -113,11 +114,13 @@ def test_cursor_tampering_search_change_and_key_rotation(service):
         JobRoleQuery(q="Backend", cursor=token),
         JobRoleQuery(cursor=("A" if token[0] != "A" else "B") + token[1:]),
     ]:
-        with pytest.raises(InvalidCatalogCursor):
+        with pytest.raises(AppError) as exc:
             service.list_job_roles(query)
+        assert exc.value.code == ErrorCode.INVALID_CURSOR
     other = CatalogService(MemoryCatalog(), cursor_key=b"different-test-key" * 2)
-    with pytest.raises(InvalidCatalogCursor):
+    with pytest.raises(AppError) as exc:
         other.list_job_roles(JobRoleQuery(cursor=token))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR
 
 
 @pytest.mark.parametrize("limit", [0, -1, 101, 1.5, True, "20"])
@@ -167,5 +170,6 @@ def test_cursor_long_unicode_and_changed_anchor(service):
     next_page = service.list_job_roles(JobRoleQuery(q=q, cursor=page.next_cursor))
     assert next_page.items[0].job_role_id.int == 2
     service.repository.roles.pop(0)
-    with pytest.raises(InvalidCatalogCursor):
+    with pytest.raises(AppError) as exc:
         service.list_job_roles(JobRoleQuery(q=q, cursor=page.next_cursor))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR
