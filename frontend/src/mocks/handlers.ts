@@ -2,6 +2,7 @@ import { ApiError } from '../api/errors';
 import { resolveDocumentsMock } from './documents';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
+import { resolveMatchesMock } from './matches';
 import { resolveSkillsMock } from './skills';
 
 /**
@@ -70,6 +71,7 @@ const mockMessages: Record<string, string> = {
   UNAUTHENTICATED: '로그인이 필요합니다.',
   VALIDATION_FAILED: '입력값을 확인해 주세요.',
   DUPLICATE_SKILL: '같은 기술이 중복으로 들어 있습니다.',
+  NO_USER_SKILLS: '먼저 보유 기술을 1개 이상 등록해 주세요.',
   NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
   DOCUMENT_NOT_READY: '문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요.',
   FILE_TOO_LARGE: '파일은 10MB 이하만 올릴 수 있습니다.',
@@ -96,6 +98,10 @@ export async function resolveMock<T>(
     if (path.startsWith('/v1/skills') || path === '/v1/me/skills') {
       const userKey = path === '/v1/me/skills' ? authedUser(request.token).email : null;
       const result = resolveSkillsMock(path, request, userKey);
+      if (result !== null) return structuredClone(result) as T;
+    }
+    if (path === '/v1/matches' || path.startsWith('/v1/matches/')) {
+      const result = resolveMatchesMock(path, request, authedUser(request.token).email);
       if (result !== null) return structuredClone(result) as T;
     }
     if (path.startsWith('/v1/me/') || path.startsWith('/v1/job-roles')) {

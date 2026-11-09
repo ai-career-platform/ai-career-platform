@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
+import { MatchResultPage } from './pages/MatchResultPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -41,6 +42,7 @@ export const routes: RouteObject[] = [
         { path: 'me/career-history', element: <CareerHistoryPage /> },
         { path: 'me/bookmarks', element: <BookmarksPage /> },
         { path: 'me/skills', element: <MySkillsPage /> },
+        { path: 'matches/:matchId', element: <MatchResultPage /> },
         { path: 'me/documents', element: <MyDocumentsPage /> },
       ] },
       { path: '*', element: <NotFoundPage /> },

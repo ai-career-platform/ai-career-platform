@@ -64,3 +64,8 @@ export function resolveSkillsMock(path: string, request: MockRequest, userKey: s
   next.forEach((v, k) => owned.set(k, v));
   return listOf(owned);
 }
+
+/** T42 적합도 Mock이 "보유 기술 없음(400)"을 흉내 낼 때 사용. */
+export function mockSkillCount(userKey: string): number {
+  return states.get(userKey)?.size ?? 0;
+}

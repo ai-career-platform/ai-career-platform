@@ -7,6 +7,7 @@ import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
+import { MatchAction } from './MatchAction';
 import { compareSkills, levelText } from './skillComparison';
 import type { ComparisonStatus, UserSkillItem } from './skillComparison';
 import './JobExplorerPage.css';
@@ -175,7 +176,7 @@ export function JobExplorerPage() {
               {auth.state.status === 'loading' && <p>로그인 상태를 확인하는 중입니다.</p>}
               {auth.state.status === 'anonymous' && (
                 <p className="role-explorer-login-hint">
-                  <Link to="/login">로그인</Link>하면 내 보유 기술과 이 직무의 요구 수준을 비교해 볼 수 있어요.
+                  <Link to="/login">로그인</Link>하면 내 보유 기술과 이 직무의 요구 수준을 비교하고 적합도도 계산해 볼 수 있어요.
                 </p>
               )}
               {auth.state.status === 'authenticated' && mySkills.status === 'loading' && <p role="status">내 보유 기술을 불러오는 중입니다.</p>}
@@ -206,8 +207,9 @@ export function JobExplorerPage() {
                   )}
                 </>
               )}
+              <MatchAction target={{ job_role_id: detail.data.job_role_id }} targetName={detail.data.name} loginHint={false} />
               <p className="role-explorer-disclaimer">
-                숙련도를 입력하지 않은 기술은 0으로 계산하지 않고 “숙련도 미입력”으로 따로 표시합니다. AI 기반 Skill Gap 분석(T26)·추천(T27)은 이 화면에 연결되어 있지 않습니다.
+                숙련도를 입력하지 않은 기술은 0으로 계산하지 않고 “숙련도 미입력”으로 따로 표시합니다. AI 기반 Skill Gap 분석(T26)·추천(T27)은 이 화면에 연결되어 있지 않습니다. “내 적합도 계산”은 T41 규칙 기반 점수이며 결과 화면에서 근거를 볼 수 있습니다.
               </p>
             </div>
           )}

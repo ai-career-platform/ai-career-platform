@@ -10,6 +10,7 @@ import { JobExplorerPage } from './JobExplorerPage';
 // 화면이 보낸 요청은 "경로 + 쿼리스트링" 한 줄로 받습니다. 공개 API 는 get, 내 정보(/v1/me) 는 request.
 const get = vi.fn<(path: string) => Promise<unknown>>();
 const request = vi.fn<(path: string) => Promise<unknown>>();
+const post = vi.fn<(path: string, init?: unknown) => Promise<unknown>>();
 
 const ANON: AuthState = { status: 'anonymous' };
 const MEMBER: AuthState = { status: 'authenticated', token: 't', user: { email: 'a@example.com', displayName: '테스터', roles: [] } };
@@ -18,7 +19,7 @@ function renderPage(state: AuthState = ANON, url = '/job-roles') {
   const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
   return render(
     <MemoryRouter initialEntries={[url]}>
-      <AuthContext.Provider value={value}><WithApi request={(path) => (path.startsWith('/v1/me') ? request(path) : get(path))}><JobExplorerPage /></WithApi></AuthContext.Provider>
+      <AuthContext.Provider value={value}><WithApi request={(path, init) => (path.startsWith('/v1/me') ? request(path) : path === '/v1/matches' ? post(path, init) : get(path))}><JobExplorerPage /></WithApi></AuthContext.Provider>
     </MemoryRouter>,
   );
 }
@@ -29,7 +30,7 @@ const detail = (id: string, name: string, skills: [string, string, number][] = [
   required_skills: skills.map(([skill_id, skillName, required_level]) => ({ skill: { skill_id, name: skillName }, required_level })),
 });
 
-beforeEach(() => { get.mockReset(); request.mockReset(); });
+beforeEach(() => { get.mockReset(); request.mockReset(); post.mockReset(); });
 
 describe('job role explorer (T17 API)', () => {
   it('shows role cards and loads the selected role detail from its own endpoint', async () => {
@@ -150,5 +151,28 @@ describe('paging after search changes', () => {
     expect(await screen.findByText('첫 직무')).toBeInTheDocument();
     expect(get).toHaveBeenLastCalledWith('/v1/job-roles?limit=20');
     expect(screen.getByText('1 페이지')).toBeInTheDocument();
+  });
+});
+
+describe('적합도 계산 버튼 (T42 → T41, 직무)', () => {
+  it('로그인 사용자는 직무 ID 하나로 적합도를 계산한다', async () => {
+    get.mockResolvedValueOnce(page([role('1', '개발자')]));
+    get.mockResolvedValueOnce(detail('1', '개발자', [['s1', 'Python', 3]]));
+    request.mockResolvedValue([]);
+    post.mockResolvedValue({ match_id: '99999999-9999-4999-8999-999999999999' });
+    renderPage(MEMBER);
+    fireEvent.click(await screen.findByRole('button', { name: '개발자 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '내 적합도 계산' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/v1/matches', expect.objectContaining({ method: 'POST', body: { job_role_id: '1' } })));
+  });
+
+  it('비로그인이면 기존 로그인 안내 하나만 보여 준다(중복 안내 없음)', async () => {
+    get.mockResolvedValueOnce(page([role('1', '개발자')]));
+    get.mockResolvedValueOnce(detail('1', '개발자', [['s1', 'Python', 3]]));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '개발자 상세 보기' }));
+    expect(await screen.findByText(/적합도도 계산해 볼 수 있어요/)).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: '로그인' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: '내 적합도 계산' })).not.toBeInTheDocument();
   });
 });
