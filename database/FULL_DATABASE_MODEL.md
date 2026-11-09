@@ -1,5 +1,7 @@
-# S03 — AI Career Platform 전체 데이터 모델 v0.1
+# S03 — AI Career Platform 전체 데이터 모델 v0.2
 
+> **v0.2 (T05, Redmine #1521, 2026-11-06):** [요구사항 정의서](../docs/requirements/README.md)(T04 기준선)를 반영해 테이블을 확정·추가하고, 모든 컬럼 계약을 [데이터 사전](DATA_DICTIONARY.md)으로, 전체 관계를 [ERD](ERD.md)로 분리했습니다. **컬럼·제약·삭제 정책은 데이터 사전이 기준이며 §3의 v0.1 표보다 우선합니다.** 변경 요약은 [§10](#10-v02-변경t05)을 보세요.
+>
 > **상태: FULL-SCOPE DESIGN DRAFT / NOT BASELINED / NOT DEPLOYED**  
 > 기준일: 2026-11-06 · 연계 문서: [전체 기능 매핑](../docs/FULL_SCOPE_TRACEABILITY.md) · [전체 설계 계획](../docs/FULL_SCOPE_DESIGN_PLAN.md)
 >
@@ -224,3 +226,117 @@ erDiagram
 - [ ] PM/JM 통합 설계 베이스라인 승인
 
 **판정:** `S03_FULL_DATABASE_MODEL=DRAFT_COMPLETE`, `FULL_SCHEMA_BASELINE=HOLD`, `STAGING_DB_UNCHANGED`. 다음은 S04 전체 API 계약 초안 작성과 S03 ↔ S04 간 정합성 검증.
+
+## 10. v0.2 변경(T05)
+
+> 입력: [요구사항 정의서](../docs/requirements/README.md) (T04, PR #13 승인 — 기준선) · 산출물: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) (기준), [ERD.md](ERD.md) (자동 생성), [check_data_dictionary.py](model/check_data_dictionary.py), [t05_contract_cases.sql](tests/t05_contract_cases.sql)
+> 요구사항은 바뀔 수 있습니다. 테이블마다 `- 요구사항:` 줄로 요구사항 ID를 적고, 검증 스크립트가 매번 `docs/requirements`와 대조합니다. PM 결정(D-xx)에 기대는 항목은 **제안값**으로 표시했습니다.
+
+### 10.1 테이블 확정 결과 — 후보 51개
+
+| 구분 | 수 | 내용 |
+|---|---:|---|
+| v0.1 후보 유지 | 46 | 46개 모두 유지 (컬럼은 데이터 사전 기준으로 보강·수정) |
+| 추가 | 5 | `account_deletion_requests`(FR-ACC-007 탈퇴), `password_reset_tokens`(FR-ACC-004 비밀번호 재설정), `recommendation_feedback`(FR-ANL-004 피드백 이력), `consent_policies`(FR-ACC-006·FR-CMN-003 약관 버전), `user_project_skills`(FR-PRF-004 사용 기술) |
+| 제외 | 0 | 운영 콘텐츠 검수는 요구사항 범위 밖(개요 §4.2)이라 테이블을 **추가하지 않음** |
+| 조건부 | 3 | `job_posting_external_refs`·`ingestion_runs`(외부 수집 T62 전까지 비어 있음), `agent_runs` 계열 3개(D-09 작업 목록 확정 전 생성 보류 가능). 인증 테이블은 자체 로그인(D-01)으로 확정 |
+
+**51은 목표 숫자가 아닙니다**(작업지시서 §6). 요구사항이 바뀌면 줄거나 늘 수 있습니다.
+
+### 10.2 v0.1 대비 주요 변경
+
+| 대상 | 변경 | 이유 |
+|---|---|---|
+| `job_role_skills.importance` | → `required_level` (1~5, NOT NULL) | Skill Gap = 요구 수준 − 보유 수준. 같은 척도여야 함 (FR-ANL-002) |
+| `job_posting_skills` | `required_level` 추가 (NULL이면 직무 기본값) | 공고별 요구 수준 (F-014) |
+| `recommendation_items.feedback` | 삭제 → `recommendation_feedback` 이력 | 피드백 변경 이력 보존 (FR-ANL-004, S04 §4 누락) |
+| `user_consents` | 정책 코드·버전을 `consent_policies` 복합 FK로 | 존재하지 않는 약관 버전에 동의 기록 방지 |
+| `user_target_roles.priority` | 1~3 + `UNIQUE(user_id, priority)` | 목표 직무 최대 3개 (FR-PRF-002) |
+| `match_evaluations` | 공고·직무 중 정확히 하나, `model_version_id` 필수, 점수 0~100 | API `MatchEvaluateRequest` 정책, "확률 아님" 표기 근거 |
+| `skill_gap_items` | `gap` 컬럼 + 계산식 CHECK | 계산 시점 값을 고정해 재현 (NFR-AIQ-002) |
+| `model_versions` | `kind`(`rule`/`ml`/`llm`) 추가 | 1차 규칙 기반(T26·T27) 결과도 같은 버전 ID 체계 |
+| `companies`, `job_postings` | `source_id` → `data_sources` FK | 모든 기업·공고 데이터의 출처 추적 (D-05: 1차는 `synthetic_seed`만) |
+| `job_postings` | `employment_type`, `location_text` 추가, `published` 상태면 `published_at` 필수 | 공고 상세 화면·정렬 |
+| `user_documents` | 파일 메타데이터·`status`·`visibility(private/shared)` | 업로드 검사 흐름, RAG 대상 범위 (D-08 가안) |
+| `audit_events` | 검수(F-027) 연결 제거, `request_id` 추가 | 검수 범위 제외, 오류 화면 요청 번호와 연결 (FR-ADM-004) |
+| `users` | `email_canonical`(비교용 이메일) 추가, 유일성 기준을 `email`에서 `email_canonical`로 | `+태그`·gmail 점이 다른 같은 메일함의 중복 가입 방지 (FR-ACC-001, PR #13 리뷰) |
+| `user_documents.storage_key` | `varchar(64)` + 무작위 16진수 형식 CHECK | 추측할 수 없는 저장 이름, 파일은 분리된 저장소에 (NFR-SEC-003, PR #13 리뷰) |
+
+### 10.3 삭제·보존 정책 (D-06 제안값 기준)
+
+v0.1의 "전부 `RESTRICT` 우선"을 아래처럼 나눴습니다. **D-06 승인 전까지 제안값**입니다.
+
+| 참조 방향 | 삭제 동작 | 예 |
+|---|---|---|
+| 사용자 → 본인 데이터 | `CASCADE` | 프로필, 기술, 목표 직무, 동의, 북마크, 매칭·Gap·추천, 문서, 행동 이벤트 |
+| 사용자 → 감사·비용·탈퇴 요청 기록 | `SET NULL` (익명화 후 보존) | `audit_events.actor_user_id`, `ai_usage_records.user_id`, `account_deletion_requests.user_id` |
+| 기준 데이터(직무·기술·모델 버전·출처) → 참조 | `RESTRICT` | 사용 중인 기술·모델 버전은 삭제 불가. 폐기는 `is_active=false` |
+| 공고 → 공고에 딸린 개인 기록 | `CASCADE` | 보존 기한이 지나 공고를 지우면 북마크·추천 항목도 정리 |
+
+검증 스크립트는 "기준 데이터에서 개인 데이터로 `CASCADE`"를 오류로 처리합니다.
+
+### 10.4 요구사항 → 테이블 매핑 (100%)
+
+테이블별 요구사항 ID는 [데이터 사전](DATA_DICTIONARY.md)의 `- 요구사항:` 줄이 기준입니다. 검증 스크립트가 `docs/requirements`의 모든 기능 요구사항(FR)이 테이블 1개 이상과 연결됐는지 매번 확인합니다.
+
+| 결과 | 내용 |
+|---|---|
+| 기능 요구사항 37개 | 36개 연결 + 1개 데이터 없음 (FR-CMN-004 공통 상태 화면) |
+| 비기능 요구사항 | 데이터에 영향이 있는 NFR-SEC-001·003, NFR-PRV-001~003, NFR-OPS-001을 해당 테이블에 표시 |
+
+요구사항이 바뀌면 `docs/requirements`를 고친 뒤 `python3 database/model/check_data_dictionary.py`를 실행하면 연결이 끊긴 요구사항·없는 ID를 바로 알려줍니다.
+
+### 10.5 DRAFT_0001(10개 테이블) 호환성
+
+| 테이블 | 호환 | 차이 |
+|---|---|---|
+| `users` | 변경 | `email_canonical` 추가, `UNIQUE(email)` → `UNIQUE(email_canonical)`, `last_login_at` 추가 |
+| `user_profiles` | 변경 | FK `RESTRICT` → `CASCADE`, `bio` 길이 CHECK |
+| `companies` | 변경 | `description`, `source_id NOT NULL` 추가 |
+| `job_roles` | 호환 + | `description`, `is_active` 추가 |
+| `skills` | 호환 + | `is_active` 추가 |
+| `job_role_skills` | **비호환** | `importance` → `required_level NOT NULL`, FK 동작 변경 |
+| `user_skills` | 변경 | FK `CASCADE`, `updated_at` 추가 |
+| `job_postings` | 변경 | `source_id NOT NULL`, `employment_type`, `location_text`, 게시 상태 CHECK 추가 |
+| `job_posting_skills` | 변경 | `required_level` 추가, FK `CASCADE` |
+| `user_job_bookmarks` | 변경 | FK `CASCADE` |
+
+DRAFT_0001은 Staging에 적용된 적이 없으므로(§1) 비호환 변경의 데이터 이전 부담은 없습니다. T09에서 데이터 사전 기준으로 새 Migration을 작성하고 DRAFT_0001은 기술 검증 기록으로만 남길 것을 제안합니다.
+
+### 10.6 검증 방법과 결과
+
+```bash
+# 1) 문서 형식·FK 대상·기능 매핑 검사 (DB 불필요)
+python3 database/model/check_data_dictionary.py
+python3 -B -m unittest discover -s database/tests -p "test_data_dictionary.py" -v
+# 2) 일회용 PostgreSQL에서 생성·제약 검사 (docker postgres:18.1, 또는 T05_PSQL로 로컬 일회용 서버)
+T05_TEST_ONLY=YES bash database/tests/test_data_dictionary_ddl.sh
+# 3) ERD 재생성
+python3 database/model/check_data_dictionary.py --write-erd
+```
+
+| 검사 | 결과 (2026-11-06, 로컬 일회용 PostgreSQL 16.15) |
+|---|---|
+| 문서 검사 | `PASS tables=51 columns=329 fks=76` (요구사항 연결 검사 포함) |
+| 단위 테스트 | 8개 OK (정상 1 + 오류 탐지 7) |
+| DDL 생성 | 테이블 51 · FK 76 생성 |
+| 정상 케이스 | 가상 사용자·기술·목표 직무·공고·Gap·매칭·탈퇴 요청 삽입 PASS |
+| 거부 케이스 | 18건 모두 거부 PASS (비교용 이메일 중복·형식, 추측 가능한 저장 이름, 30분 넘는 재설정 토큰, 4번째 목표 직무, 점수 범위, Gap 계산 불일치, 라이선스 없는 외부 출처, 사용 중 기술·모델 삭제 등) |
+| 탈퇴 삭제 | 개인 데이터 삭제 · 기준 데이터 유지 · 감사 기록 익명화 PASS |
+
+**한계:** 운영 대상은 PostgreSQL 18.1이지만 로컬 검증은 16.15에서 했습니다(사용한 기능은 13 이상 공통). `test_data_dictionary_ddl.sh`의 docker 모드로 18.1 재검증이 필요하며, 현재 CI(`ci.yml`)는 이 검사를 실행하지 않으므로 `T05_STATUS=PARTIAL`입니다. 생성 DDL은 검증 전용이며 Migration이 아닙니다.
+
+### 10.7 남은 결정 (PM·DB 리뷰)
+
+| ID | 내용 | 영향 테이블 | 연결 |
+|---|---|---|---|
+| D-02 | 기업 담당자 1차 포함 | 포함 시 기업 소속·초대 테이블 추가 (T122) | 요구사항 추적표 §3 |
+| D-05 | 외부 데이터 출처 | `data_sources` 라이선스, 수집 테이블 사용 시점 | 요구사항 추적표 §3, T61 |
+| D-06 | 보존·삭제 기간 | §10.3의 CASCADE/SET NULL, 보존 일수 | 요구사항 추적표 §3 |
+| D-08 | RAG 대상 문서 | `user_documents.visibility` 값 | 요구사항 추적표 §3 |
+| T05-1 | `updated_at` 갱신 주체 (앱 vs 트리거) | 변경 가능한 모든 테이블 | T09 |
+| T05-2 | 벡터 색인 위치 (pgvector vs 외부) | `document_chunks.index_ref` | T53 |
+| T05-3 | 감사 기록 변조 방지 수준 (권한만 vs 해시 체인) | `audit_events` | T83 |
+| T05-4 | 오래된 기록 정리 배치 (세션 30일, 검색 90일, 행동 180일) | A04, E04, F07, F10 | T73 |
+
+**상태:** `T05_STATUS=PARTIAL` (PM 결정·리뷰 승인 대기, CI 미연결) · `STAGING_DB_UNCHANGED`

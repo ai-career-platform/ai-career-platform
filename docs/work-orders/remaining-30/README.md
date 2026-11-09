@@ -14,10 +14,10 @@
 
 | ID | 영역 | 일감 | 우선순위 | 선행 | 기능 ID |
 |---|---|---|---|---|---|
-| [T61](T61.md) | 데이터/기획 | 데이터 출처·라이선스·수집 범위 승인 | P0 | T04,T05,T25 | F-012,F-024 |
-| [T62](T62.md) | 데이터/Backend | 채용공고 수집 Adapter·정규화 | P1 | T18,T61 | F-012,F-024 |
-| [T63](T63.md) | 데이터/DB | 공고 중복·만료·출처 품질 검사 | P1 | T61,T62,T09 | F-012,F-024 |
-| [T64](T64.md) | 데이터/DevOps | 공고 수집 실행·장애 재처리 운영 | P1 | T62,T63,T28 | F-024 |
+| [T61](T61.md) | 데이터/기획 | 크롤러 데이터 출처·수집 정책·라이선스 관리 | P0 | T04,T05,T25 | F-012,F-024 |
+| [T62](T62.md) | 데이터/Backend | 채용공고 크롤러 Adapter·독립 Batch Worker 개발 | P1 | T18,T61 | F-012,F-024 |
+| [T63](T63.md) | 데이터/DB | 크롤링 데이터 정규화·중복·만료·품질 검증 | P1 | T61,T62,T09 | F-012,F-024 |
+| [T64](T64.md) | 데이터/DevOps | 크롤러 스케줄러·실행 관리·장애 복구 | P1 | T62,T63,T28 | F-024 |
 | [T65](T65.md) | 데이터/분석 | 채용시장 지표·관측 데이터 계약 | P0 | T04,T05,T61 | F-024 |
 | [T66](T66.md) | 데이터/Backend | 시장 관측 지표 집계 Pipeline | P1 | T63,T65 | F-024 |
 | [T67](T67.md) | Backend | 채용시장 추세 조회 API | P1 | T14,T18,T65,T66 | F-024 |
@@ -55,3 +55,25 @@
 - T86~T90: 보안·개인정보·성능·접근성·최종 릴리스
 - 설계 원본이 아직 **CANDIDATE BASELINE**인 항목은 PM 검토와 승인 필요.
 - `WORK_ORDERS=AUTHORED` / `IMPLEMENTATION=NOT_STARTED` / `ASSIGNEES=UNASSIGNED` / `STAGING_CHANGED=NO`.
+
+## T61~T64 크롤러 아키텍처 기준 (2026-11-06 보강)
+
+- **T61** 출처·라이선스·rate limit·허용/보류/금지 정책을 승인하고 비승인 출처는 수집 금지.
+- **T62** 승인된 출처의 Adapter와 **FastAPI에서 독립된 Python Batch Worker** 개발.
+- **T63** 정규화, 동일 `source_id+external_id` 중복/만료 판정, 반복 실행 멱등성·품질 검증.
+- **T64** **Ubuntu systemd timer → DB 기반 dispatcher → 독립 Worker**. 기본 제안 매일 03:00 KST 1회, 실제 시각은 관리자 화면에서 변경. 관리자 API의 스케줄·수동 실행·로그·재처리 계약과 실행 이력·동시 실행 방지 필수.
+- 관리자 React UI는 기존 관리자 화면 작업과 연계하고 T64가 계약 및 Backend/DevOps 책임을 맡음. 구현 위치·API 경로·DB 신규 테이블은 기존 T05/T09/T15/관리자 일감의 승인된 계약과 대조 후 확정.
+- 문서 설계 반영만 완료되었으며 **코드 구현/시스템 배포/실수집은 NOT_STARTED**. Staging Timer 활성화는 PM 별도 승인 필요.
+
+## T번호 전체 일감의 강제 완료 조건 — 자동 배포 → 스테이징 QA → Redmine CLOSED
+
+**이 디렉터리의 T번호 개별 작업지시서 30건 모두에 [공통 종료 게이트](../../WORK_ITEM_CLOSURE_GATE.md)를 필수로 적용합니다.** 개별 T문서의 기존 `완료 기준(DoD)` 또는 담당자 체크리스트에 내용이 빠져 있더라도 아래 종료 조건을 **추가된 필수 요구사항으로 읽어야 합니다.**
+
+1. 로컬 테스트 PASS, PR 리뷰·필수 CI 통과, `main` Squash Merge SHA 확보.
+2. 병합 뒤 **기존 자동 CD**(GitHub Publish → Ubuntu 1분 주기 Pull)를 통해 변경한 기능이 **배포 이미지/서비스에 포함되었고 실제 적용 성공했는지** 확인. 수동 배포를 기본 단계로 요구하지 않음.
+3. 배포 Manifest/이미지 Digest·스테이징 `/api/version` 등 실제 실행 SHA를 대조. 이미지에 해당 기능이 없다면 `DEPLOY_SCOPE_GAP/HOLD`이며 자동 배포 성공을 기능 배포 성공으로 간주하지 않음.
+4. **실제 Staging API·DB·Frontend·핵심 시나리오**의 정상/오류 경로를 대상 일감에 맞게 검증하고 비밀정보 제거한 Evidence 기록. 로컬/Mock/CI만으로 Staging PASS 금지.
+5. PR/CI/배포/검증 URL·SHA·상태 및 PM/JM 검수자를 **Redmine 댓글에 기록한 다음**, 모든 필수 게이트 PASS 시에만 진척률 **100% / CLOSED**. 실패·미검증·서버 접근 불가 시 REVIEW/BLOCKED 유지.
+6. 설계·문서 등 **배포 대상 자체가 없는 일감**은 PM/JM이 Redmine에 `DEPLOY=N/A` 사유·대체 검증·승인자를 명시한 경우에만 종료 가능. 코드가 기존 배포 이미지에 포함되지 않는 상황은 N/A가 아님.
+
+**결론: `MERGED ≠ DEPLOYED ≠ STAGING_QA_PASS ≠ CLOSED`.**

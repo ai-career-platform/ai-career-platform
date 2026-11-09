@@ -1,0 +1,2815 @@
+openapi: 3.1.0
+info:
+  title: AI Career Platform API
+  version: 0.2.0-draft
+  summary: T06 API·DTO 계약 초안 (구현 아님)
+  description: |
+    **상태: DRAFT / NOT IMPLEMENTED / 리뷰 대기** — T06 (Redmine #1529). 기준: main의 T04 요구사항·T05 데이터 사전.
+
+    - 근거: T04 `docs/requirements/` 요구사항 정의서, T05 `database/DATA_DICTIONARY.md`, S04 `docs/API_CONTRACT.md`.
+    - 모든 operation에는 추적용 확장 필드가 있습니다: `x-requirements`(요구사항 ID), `x-screens`(화면 ID), `x-tables`(T05 테이블).
+      `python3 docs/api/check_openapi.py`가 문법·참조·예시·추적 100%를 검사합니다.
+    - 인증: **자체 로그인**(이메일+비밀번호) 기준 (요구사항 D-01).
+    - 경로: servers의 `/api/v1`은 외부 주소. Nginx가 `/api/`를 떼고 넘기므로 앱 안의 접두사는 배포 구성에 맞춰야 함 (API_CONTRACT.md §7 T06-4).
+    - 공통 규칙(오류·페이징·비동기·소유권)은 `docs/API_CONTRACT.md` §1을 보세요.
+servers:
+  - url: /api/v1
+    description: 모든 업무 API의 기준 경로 (Nginx 뒤 FastAPI)
+tags:
+  - name: auth
+    description: 가입·로그인·토큰 (F-001, F-002)
+  - name: me
+    description: 로그인 사용자 본인 리소스. 경로·본문에 user_id를 받지 않음
+  - name: catalog
+    description: 직무·기술·기업·공고 조회 (비로그인 허용, 요구사항 D-03 제안)
+  - name: insights
+    description: 매칭·Skill Gap·추천 (규칙 기반 1차)
+  - name: documents
+    description: 문서 업로드·LLM 분석·RAG Q&A
+  - name: agent
+    description: 승인 기반 Agent 실행 (F-023, Could)
+  - name: admin
+    description: 운영 관리자 전용 (`admin` 역할)
+  - name: ops
+    description: 상태 확인 (기존 PoC 경로 유지)
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ------------------------------------------------------------------ auth
+  /auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      summary: 이메일 가입 + 필수 약관 동의
+      description: |
+        중복 검사는 **비교용 이메일**(`users.email_canonical`)로 한다 (FR-ACC-001 수용 기준 2).
+        만드는 규칙: 앞뒤 공백 제거 → 소문자 → `@` 앞 `+` 이후 제거 → gmail.com·googlemail.com은 `@` 앞 `.` 제거, 도메인 `gmail.com`.
+        예: `crasnec+box@gmail.com`, `Cras.Nec@googlemail.com` → `crasnec@gmail.com`. 입력한 이메일은 연락용으로 그대로 저장한다.
+      x-requirements: [FR-ACC-001, FR-ACC-006]
+      x-screens: [UI-001]
+      x-tables: [users, auth_identities, user_profiles, user_roles, consent_policies, user_consents]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+            example:
+              email: seeker@example.com
+              password: correct-horse-battery-1
+              display_name: 김구직
+              consents:
+                - { policy_code: terms, policy_version: '2026-11', granted: true }
+                - { policy_code: privacy, policy_version: '2026-11', granted: true }
+      responses:
+        '201':
+          description: 가입 완료. 바로 로그인 상태 (FR-ACC-001 수용 기준 1)
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+              example: { access_token: eyJhbGciOi..., token_type: Bearer, expires_in: 900 }
+        '409':
+          description: 비교용 이메일이 같은 계정이 이미 있음 (code=EMAIL_TAKEN). `+태그`만 다른 이메일도 포함
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                code: EMAIL_TAKEN
+                status: 409
+                message: 이미 가입된 이메일입니다.
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 이메일·비밀번호 로그인
+      description: 입력한 이메일을 비교용 이메일로 바꿔 계정을 찾는다. `crasnec+box@gmail.com`으로 가입했어도 `crasnec@gmail.com`으로 로그인할 수 있다.
+      x-requirements: [FR-ACC-002]
+      x-screens: [UI-001]
+      x-tables: [users, auth_identities, auth_sessions, audit_events]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { email: seeker@example.com, password: correct-horse-battery-1 }
+      responses:
+        '200':
+          description: 로그인 성공
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+              example: { access_token: eyJhbGciOi..., token_type: Bearer, expires_in: 900 }
+        '401':
+          description: 이메일 또는 비밀번호 불일치. 계정 존재 여부를 구분하지 않음 (FR-ACC-002 수용 기준 2)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                code: INVALID_CREDENTIALS
+                status: 401
+                message: 이메일 또는 비밀번호가 올바르지 않습니다.
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: refresh 쿠키로 access token 재발급 (refresh 회전)
+      x-requirements: [FR-ACC-003, NFR-SEC-001]
+      x-screens: [UI-C01]
+      x-tables: [auth_sessions]
+      security:
+        - refreshCookie: []
+      responses:
+        '200':
+          description: 새 access token + 새 refresh 쿠키. 이전 refresh는 즉시 폐기
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: 현재 세션 폐기
+      x-requirements: [FR-ACC-003]
+      x-screens: [UI-002, UI-C02]
+      x-tables: [auth_sessions]
+      security:
+        - refreshCookie: []
+      responses:
+        '204':
+          description: 로그아웃. refresh 쿠키 삭제 (Max-Age=0)
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/password-reset-requests:
+    post:
+      tags: [auth]
+      operationId: requestPasswordReset
+      summary: 비밀번호 재설정 메일 요청
+      description: 가입 여부와 관계없이 항상 같은 202 응답 (FR-ACC-004 수용 기준 1). 가입된 경우에만 30분 유효한 링크를 메일로 보낸다.
+      x-requirements: [FR-ACC-004]
+      x-screens: [UI-N03]
+      x-tables: [users, password_reset_tokens]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+            example: { email: seeker@example.com }
+      responses:
+        '202':
+          description: 접수 (본문 없음)
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/password-resets:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      summary: 메일 링크의 토큰으로 새 비밀번호 설정 (모든 세션 종료)
+      x-requirements: [FR-ACC-004, NFR-SEC-001]
+      x-screens: [UI-N03]
+      x-tables: [password_reset_tokens, auth_identities, auth_sessions, audit_events]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordReset' }
+            example: { token: 3q2-7wKz9mR4xV8bN1cT6yH0, new_password: new-correct-horse-2 }
+      responses:
+        '204':
+          description: 변경 완료. 이 계정의 모든 세션이 종료됨
+        '400':
+          description: 만료·사용·위조된 토큰 (code=INVALID_RESET_TOKEN) → 다시 요청 안내
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                code: INVALID_RESET_TOKEN
+                status: 400
+                message: 비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다.
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /consent-policies:
+    get:
+      tags: [auth]
+      operationId: listConsentPolicies
+      summary: 현재 시행 중인 약관·처리방침 목록
+      x-requirements: [FR-ACC-006, FR-CMN-003]
+      x-screens: [UI-001, UI-005, UI-N04]
+      x-tables: [consent_policies]
+      security: []
+      responses:
+        '200':
+          description: 정책별 최신 버전
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConsentPolicy' }
+              example:
+                - { policy_code: terms, version: '2026-11', is_required: true, content_url: 'https://docs.ai-career.invalid/terms/2026-11', effective_at: '2026-11-06T00:00:00Z' }
+                - { policy_code: llm_processing, version: '2026-11', is_required: false, content_url: 'https://docs.ai-career.invalid/llm/2026-11', effective_at: '2026-11-06T00:00:00Z' }
+
+  # ------------------------------------------------------------------ me: account
+  /me:
+    get:
+      tags: [me]
+      operationId: getMe
+      summary: 내 계정·프로필
+      x-requirements: [FR-ACC-005]
+      x-screens: [UI-003, UI-N02, UI-C02]
+      x-tables: [users, user_profiles]
+      responses:
+        '200':
+          description: 본인 정보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+              example:
+                user_id: 3f1b6c2e-6a4f-4f53-9a7e-0c2d1e5b7a10
+                email: seeker@example.com
+                display_name: 김구직
+                status: active
+                profile: { headline: 백엔드 주니어, bio: null, location_text: 서울 }
+                created_at: '2026-11-06T01:00:00Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [me]
+      operationId: updateMe
+      summary: 내 프로필 수정 (보낸 필드만 변경, null은 지움)
+      x-requirements: [FR-ACC-005, FR-CMN-002]
+      x-screens: [UI-003, UI-N02]
+      x-tables: [users, user_profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MePatch' }
+            example: { headline: 백엔드 개발자 지망, location_text: 서울 }
+      responses:
+        '200':
+          description: 수정 결과
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/permissions:
+    get:
+      tags: [me]
+      operationId: getMyPermissions
+      summary: 내 역할·권한 (메뉴 노출용. 서버는 매 요청 다시 검사)
+      x-requirements: [FR-ADM-001, FR-CMN-003]
+      x-screens: [UI-C02, UI-C01]
+      x-tables: [user_roles, roles, role_permissions, permissions]
+      responses:
+        '200':
+          description: 역할·권한 코드
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Permissions' }
+              example: { roles: [job_seeker], permissions: [] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me/sessions:
+    get:
+      tags: [me]
+      operationId: listMySessions
+      summary: 로그인된 기기 목록
+      x-requirements: [FR-ACC-003]
+      x-screens: [UI-002]
+      x-tables: [auth_sessions]
+      responses:
+        '200':
+          description: 폐기되지 않은 세션
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me/sessions/{session_id}:
+    delete:
+      tags: [me]
+      operationId: revokeMySession
+      summary: 다른 기기 로그아웃
+      x-requirements: [FR-ACC-003]
+      x-screens: [UI-002]
+      x-tables: [auth_sessions]
+      parameters:
+        - { $ref: '#/components/parameters/SessionId' }
+      responses:
+        '204': { description: '폐기됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/consents:
+    get:
+      tags: [me]
+      operationId: listMyConsents
+      summary: 정책별 현재 동의 상태와 이력
+      x-requirements: [FR-ACC-006]
+      x-screens: [UI-005]
+      x-tables: [user_consents, consent_policies]
+      responses:
+        '200':
+          description: 최신 상태 + 이력
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Consent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [me]
+      operationId: recordMyConsent
+      summary: 선택 항목 동의·철회 기록 (이력 추가)
+      description: 선택 항목만 최신 유효 정책 버전으로 기록한다. 필수 항목은422. 동일한 최신 동의 상태를 반복하면 기존 기록을 반환하고 새 이력을 만들지 않는다.
+      x-requirements: [FR-ACC-006]
+      x-screens: [UI-005]
+      x-tables: [user_consents, consent_policies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OptionalConsentInput' }
+            example: { policy_code: llm_processing, policy_version: '2026-11', granted: false }
+      responses:
+        '201':
+          description: 기록됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Consent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/deletion-request:
+    get:
+      tags: [me]
+      operationId: getMyDeletionRequest
+      summary: 진행 중인 탈퇴 요청
+      x-requirements: [FR-ACC-007]
+      x-screens: [UI-005]
+      x-tables: [account_deletion_requests]
+      responses:
+        '200':
+          description: 진행 중 요청
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [me]
+      operationId: requestMyDeletion
+      summary: 탈퇴 요청 접수 (즉시 비활성화, 물리 삭제 미구현)
+      x-requirements: [FR-ACC-007]
+      x-screens: [UI-005]
+      x-tables: [account_deletion_requests, users, auth_sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionRequestInput' }
+            example: { confirmation: DELETE }
+      responses:
+        '202':
+          description: 요청 접수와 계정 비활성화·모든 세션 폐기를 원자적으로 기록. D-06 미확정으로 scheduled_purge_at=null. 자동/물리 삭제 없음. 폐기된 인증으로 후속 조회·취소는 불가하여 재인증 계약은 HOLD.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionRequest' }
+              example:
+                request_id: 0c9c1a64-2b1d-4c7e-8f3a-5d6e7f8a9b0c
+                status: requested
+                requested_at: '2026-11-06T02:00:00Z'
+                scheduled_purge_at: null
+                completed_at: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [me]
+      operationId: cancelMyDeletion
+      summary: 탈퇴 요청 취소 (HOLD - 재인증 계약 미확정)
+      description: 비활성화·세션 폐기 후 T15 인증으로 취소할 수 없음. 인증 우회 없이 미인증401, 인증 가능한 과거 요청은503으로 차단한다.
+      x-implementation-status: HOLD
+      x-requirements: [FR-ACC-007]
+      x-screens: [UI-005]
+      x-tables: [account_deletion_requests, users]
+      responses:
+        '204': { description: '취소됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /me/dashboard:
+    get:
+      tags: [me]
+      operationId: getMyDashboard
+      summary: 로그인 후 홈 요약 (FR-CMN-001)
+      x-requirements: [FR-CMN-001]
+      x-screens: [UI-N01]
+      x-tables: [user_profiles, user_skills, user_target_roles, skill_gap_assessments, recommendation_runs, recommendation_items]
+      responses:
+        '200':
+          description: 화면 진입용 요약. 일부 요약이 비어도 200
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example:
+                profile_completeness: 60
+                next_actions: [add_skills, choose_target_role]
+                target_roles: []
+                latest_skill_gap: null
+                top_recommendations: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------------------------------------------------------------ me: skills, targets, history
+  /me/skills:
+    get:
+      tags: [me]
+      operationId: listMySkills
+      summary: 내 보유 기술
+      x-requirements: [FR-PRF-001]
+      x-screens: [UI-008, UI-N02]
+      x-tables: [user_skills, skills]
+      responses:
+        '200':
+          description: 보유 기술
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserSkill' }
+              example:
+                - { skill: { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, code: python, name: Python }, proficiency: 2 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [me]
+      operationId: replaceMySkills
+      summary: 보유 기술 전체 교체
+      x-requirements: [FR-PRF-001, FR-CMN-002]
+      x-screens: [UI-008, UI-N02]
+      x-tables: [user_skills, skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserSkillsReplace' }
+            example:
+              items:
+                - { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, proficiency: 2 }
+      responses:
+        '200':
+          description: 교체 결과
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserSkill' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/target-roles:
+    get:
+      tags: [me]
+      operationId: listMyTargetRoles
+      summary: 내 목표 직무 (최대 3개)
+      x-requirements: [FR-PRF-002]
+      x-screens: [UI-009, UI-N02, UI-N01]
+      x-tables: [user_target_roles, job_roles]
+      responses:
+        '200':
+          description: 우선순위 순
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TargetRole' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [me]
+      operationId: replaceMyTargetRoles
+      summary: 목표 직무 전체 교체
+      x-requirements: [FR-PRF-002, FR-CMN-002]
+      x-screens: [UI-009, UI-006, UI-N02]
+      x-tables: [user_target_roles, job_roles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TargetRolesReplace' }
+            example:
+              items:
+                - { job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b, priority: 1 }
+      responses:
+        '200':
+          description: 교체 결과
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TargetRole' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/experiences:
+    get:
+      tags: [me]
+      operationId: listMyExperiences
+      summary: 경력 목록
+      x-requirements: [FR-PRF-003]
+      x-screens: [UI-010]
+      x-tables: [user_experiences]
+      responses:
+        '200':
+          description: 경력
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Experience' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [me]
+      operationId: createMyExperience
+      summary: 경력 추가
+      x-requirements: [FR-PRF-003]
+      x-screens: [UI-010]
+      x-tables: [user_experiences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExperienceInput' }
+            example: { organization: 예시 주식회사, title: 인턴, start_date: '2026-03-01', end_date: null }
+      responses:
+        '201':
+          description: 생성됨
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Experience' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/experiences/{experience_id}:
+    parameters:
+      - { $ref: '#/components/parameters/ExperienceId' }
+    patch:
+      tags: [me]
+      operationId: updateMyExperience
+      summary: 경력 수정
+      x-requirements: [FR-PRF-003]
+      x-screens: [UI-010]
+      x-tables: [user_experiences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExperiencePatch' }
+      responses:
+        '200':
+          description: 수정됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Experience' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [me]
+      operationId: deleteMyExperience
+      summary: 경력 삭제
+      x-requirements: [FR-PRF-003]
+      x-screens: [UI-010]
+      x-tables: [user_experiences]
+      responses:
+        '204': { description: '삭제됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/projects:
+    get:
+      tags: [me]
+      operationId: listMyProjects
+      summary: 프로젝트 목록 (사용 기술 포함)
+      x-requirements: [FR-PRF-004]
+      x-screens: [UI-010]
+      x-tables: [user_projects, user_project_skills, skills]
+      responses:
+        '200':
+          description: 프로젝트
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [me]
+      operationId: createMyProject
+      summary: 프로젝트 추가
+      x-requirements: [FR-PRF-004]
+      x-screens: [UI-010]
+      x-tables: [user_projects, user_project_skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectInput' }
+            example: { title: 커리어 추천 서비스, summary: 'FastAPI 백엔드 담당', skill_ids: [6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f] }
+      responses:
+        '201':
+          description: 생성됨
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/projects/{project_id}:
+    parameters:
+      - { $ref: '#/components/parameters/ProjectId' }
+    patch:
+      tags: [me]
+      operationId: updateMyProject
+      summary: 프로젝트 수정 (skill_ids를 보내면 전체 교체)
+      x-requirements: [FR-PRF-004]
+      x-screens: [UI-010]
+      x-tables: [user_projects, user_project_skills]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectPatch' }
+      responses:
+        '200':
+          description: 수정됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [me]
+      operationId: deleteMyProject
+      summary: 프로젝트 삭제
+      x-requirements: [FR-PRF-004]
+      x-screens: [UI-010]
+      x-tables: [user_projects, user_project_skills]
+      responses:
+        '204': { description: '삭제됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ catalog
+  /job-roles:
+    get:
+      tags: [catalog]
+      operationId: listJobRoles
+      summary: 직무 목록·검색
+      x-requirements: [FR-JOB-001]
+      x-screens: [UI-006, UI-009]
+      x-tables: [job_roles]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Q' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 활성 직무 (이름순)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobRolePage' }
+              example:
+                items:
+                  - { job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b, code: backend, name: 백엔드 개발자 }
+                next_cursor: null
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /job-roles/{job_role_id}:
+    get:
+      tags: [catalog]
+      operationId: getJobRole
+      summary: 직무 상세 (요구 기술 포함)
+      x-requirements: [FR-JOB-002]
+      x-screens: [UI-006, UI-016]
+      x-tables: [job_roles, job_role_skills, skills]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/JobRoleId' }
+      responses:
+        '200':
+          description: 직무 상세
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobRoleDetail' }
+              example:
+                job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b
+                code: backend
+                name: 백엔드 개발자
+                description: 서버·API·데이터베이스를 설계하고 운영합니다.
+                required_skills:
+                  - { skill: { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, code: python, name: Python }, required_level: 4 }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /skills:
+    get:
+      tags: [catalog]
+      operationId: searchSkills
+      summary: 기술 검색·자동완성 (2글자 이상)
+      x-requirements: [FR-JOB-003]
+      x-screens: [UI-007, UI-008, UI-010]
+      x-tables: [skills]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 60 }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: 이름 앞부분 일치 우선
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Skill' }
+              example:
+                items:
+                  - { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, code: python, name: Python }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /companies:
+    get:
+      tags: [catalog]
+      operationId: listCompanies
+      summary: 기업 목록·검색
+      x-requirements: [FR-JOB-004]
+      x-screens: [UI-011]
+      x-tables: [companies]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Q' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 기업 목록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyPage' }
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /companies/{company_id}:
+    get:
+      tags: [catalog]
+      operationId: getCompany
+      summary: 기업 상세 (진행 중 공고 수 포함)
+      x-requirements: [FR-JOB-004]
+      x-screens: [UI-011]
+      x-tables: [companies, job_postings, data_sources]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CompanyId' }
+      responses:
+        '200':
+          description: 기업 상세
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /job-postings:
+    get:
+      tags: [catalog]
+      operationId: listJobPostings
+      summary: 채용공고 목록·필터 (기본은 게시 중인 공고만)
+      x-requirements: [FR-JOB-005]
+      x-screens: [UI-012, UI-011]
+      x-tables: [job_postings, companies, job_roles]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Q' }
+        - { name: company_id, in: query, schema: { type: string, format: uuid } }
+        - { name: job_role_id, in: query, schema: { type: string, format: uuid } }
+        - name: include_closed
+          in: query
+          description: true면 마감 공고 포함 (FR-JOB-005 수용 기준 2)
+          schema: { type: boolean, default: false }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [-published_at, expires_at], default: -published_at }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 공고 목록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobPostingPage' }
+              example:
+                items:
+                  - job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c
+                    title: 백엔드 개발자 (신입)
+                    status: published
+                    company: { company_id: 5e7a9c1e-3f5b-4d7f-9b1d-3f5a7c9e1b3d, name: 예시 테크 }
+                    job_role: { job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b, code: backend, name: 백엔드 개발자 }
+                    employment_type: full_time
+                    location_text: 서울
+                    published_at: '2026-11-01T00:00:00Z'
+                    expires_at: '2026-12-01T00:00:00Z'
+                next_cursor: eyJwIjoiMjAyNi0xMS0wMSJ9
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /job-postings/{job_posting_id}:
+    get:
+      tags: [catalog]
+      operationId: getJobPosting
+      summary: 공고 상세 (요구 기술, 로그인 시 내 저장 여부)
+      x-requirements: [FR-JOB-006]
+      x-screens: [UI-012, UI-015]
+      x-tables: [job_postings, job_posting_skills, job_role_skills, skills, companies, user_job_bookmarks]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/JobPostingId' }
+      responses:
+        '200':
+          description: 공고 상세. draft 공고는 404
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobPostingDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  # ------------------------------------------------------------------ me: bookmarks
+  /me/bookmarks:
+    get:
+      tags: [me]
+      operationId: listMyBookmarks
+      summary: 저장한 공고 (최근 저장 순)
+      x-requirements: [FR-JOB-007]
+      x-screens: [UI-013]
+      x-tables: [user_job_bookmarks, job_postings, companies]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 마감 공고도 표시 (status로 구분)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobPostingPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me/bookmarks/{job_posting_id}:
+    parameters:
+      - { $ref: '#/components/parameters/JobPostingId' }
+    put:
+      tags: [me]
+      operationId: addMyBookmark
+      summary: 공고 저장 (멱등)
+      x-requirements: [FR-JOB-007]
+      x-screens: [UI-012, UI-013]
+      x-tables: [user_job_bookmarks]
+      responses:
+        '204': { description: '저장됨 (이미 저장돼 있어도 204)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [me]
+      operationId: removeMyBookmark
+      summary: 저장 해제 (멱등)
+      x-requirements: [FR-JOB-007]
+      x-screens: [UI-012, UI-013]
+      x-tables: [user_job_bookmarks]
+      responses:
+        '204': { description: '해제됨 (없어도 204)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------------------------------------------------------------ insights
+  /matches:
+    post:
+      tags: [insights]
+      operationId: createMatch
+      summary: 공고 또는 직무 하나에 대한 적합도 계산 (규칙 기반, 동기)
+      x-requirements: [FR-ANL-001]
+      x-screens: [UI-015, UI-012]
+      x-tables: [match_evaluations, user_skills, user_project_skills, job_posting_skills, job_role_skills, model_versions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MatchRequest' }
+            example: { job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c }
+      responses:
+        '201':
+          description: 계산 완료
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Match' }
+              example:
+                match_id: 9e1c3a5e-7b9d-4f1a-8c3e-5a7c9e1b3d5f
+                target: { job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c, job_role_id: null }
+                status: completed
+                score: 62.5
+                score_is_probability: false
+                matched_skill_count: 5
+                missing_skill_count: 3
+                model_version: { model_code: match_rule, version: '1', kind: rule }
+                limitations: [자기평가 숙련도 기준이며 채용 결과를 예측하지 않습니다.]
+                evaluated_at: '2026-11-06T03:00:00Z'
+        '400':
+          description: 보유 기술이 없음 (code=NO_USER_SKILLS → 기술 입력 화면 안내)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /matches/{match_id}:
+    get:
+      tags: [insights]
+      operationId: getMatch
+      summary: 적합도 결과 조회
+      x-requirements: [FR-ANL-001]
+      x-screens: [UI-015]
+      x-tables: [match_evaluations, model_versions]
+      parameters:
+        - { $ref: '#/components/parameters/MatchId' }
+      responses:
+        '200':
+          description: 결과
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Match' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /skill-gaps:
+    get:
+      tags: [insights]
+      operationId: listMySkillGaps
+      summary: 내 Skill Gap 이력 (최신 순)
+      x-requirements: [FR-ANL-002]
+      x-screens: [UI-016, UI-N01]
+      x-tables: [skill_gap_assessments, job_roles]
+      parameters:
+        - { name: job_role_id, in: query, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 요약 목록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkillGapSummaryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [insights]
+      operationId: createSkillGap
+      summary: 목표 직무 기준 Skill Gap 계산 (규칙 기반, 동기)
+      x-requirements: [FR-ANL-002]
+      x-screens: [UI-016]
+      x-tables: [skill_gap_assessments, skill_gap_items, user_skills, user_target_roles, job_role_skills, model_versions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkillGapRequest' }
+            example: { job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b }
+      responses:
+        '201':
+          description: 계산 완료
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkillGap' }
+              example:
+                assessment_id: 02a33aa5-d58c-4bc5-bb8e-62e8f45c53f5
+                job_role: { job_role_id: 8a2c4e6f-1b3d-4f5a-9c7e-0d2f4a6c8e1b, code: backend, name: 백엔드 개발자 }
+                model_version: { model_code: skill_gap_rule, version: '1', kind: rule }
+                is_stale: false
+                evaluated_at: '2026-11-06T03:05:00Z'
+                items:
+                  - { skill: { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, code: python, name: Python }, required_level: 4, observed_level: 2, gap: 2 }
+        '400':
+          description: 목표 직무가 아님 (code=NOT_A_TARGET_ROLE) 또는 보유 기술 없음 (code=NO_USER_SKILLS)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /skill-gaps/{assessment_id}:
+    get:
+      tags: [insights]
+      operationId: getSkillGap
+      summary: Skill Gap 결과 (is_stale=true면 이후 기술·목표가 바뀜)
+      x-requirements: [FR-ANL-002]
+      x-screens: [UI-016]
+      x-tables: [skill_gap_assessments, skill_gap_items, skills]
+      parameters:
+        - { $ref: '#/components/parameters/AssessmentId' }
+      responses:
+        '200':
+          description: 결과
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkillGap' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recommendation-runs:
+    post:
+      tags: [insights]
+      operationId: createRecommendationRun
+      summary: 맞춤 공고 추천 생성 (규칙 기반, 동기. 실패 시 최신 공고로 대체)
+      x-requirements: [FR-ANL-003]
+      x-screens: [UI-017]
+      x-tables: [recommendation_runs, recommendation_items, recommendation_feedback, user_target_roles, user_skills, job_postings, model_versions]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationRunRequest' }
+            example: { limit: 20 }
+      responses:
+        '201':
+          description: 추천 결과. status=fallback이면 최신 공고 목록 + 안내 (FR-ANL-003 예외 처리)
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationRun' }
+              example:
+                recommendation_run_id: 4b6d8f0a-2c4e-4a6c-8e0a-2c4e6a8c0e2a
+                status: completed
+                model_version: { model_code: match_rule, version: '1', kind: rule }
+                generated_at: '2026-11-06T03:10:00Z'
+                items:
+                  - rank: 1
+                    score: 71.0
+                    reason: 목표 직무(백엔드)와 일치하고 Python·SQL 요구를 충족합니다.
+                    feedback: null
+                    job_posting:
+                      job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c
+                      title: 백엔드 개발자 (신입)
+                      status: published
+                      company: { company_id: 5e7a9c1e-3f5b-4d7f-9b1d-3f5a7c9e1b3d, name: 예시 테크 }
+                      job_role: null
+                      employment_type: full_time
+                      location_text: 서울
+                      published_at: '2026-11-01T00:00:00Z'
+                      expires_at: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /recommendation-runs/latest:
+    get:
+      tags: [insights]
+      operationId: getLatestRecommendationRun
+      summary: 가장 최근 추천 (없으면 404 → 화면에서 생성 버튼)
+      x-requirements: [FR-ANL-003]
+      x-screens: [UI-017, UI-N01]
+      x-tables: [recommendation_runs, recommendation_items, recommendation_feedback]
+      responses:
+        '200':
+          description: 최근 추천
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recommendation-runs/{recommendation_run_id}:
+    get:
+      tags: [insights]
+      operationId: getRecommendationRun
+      summary: 추천 결과 조회
+      x-requirements: [FR-ANL-003, FR-ANL-004]
+      x-screens: [UI-017]
+      x-tables: [recommendation_runs, recommendation_items, recommendation_feedback]
+      parameters:
+        - { $ref: '#/components/parameters/RecommendationRunId' }
+      responses:
+        '200':
+          description: 추천 결과
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recommendation-feedback:
+    post:
+      tags: [insights]
+      operationId: createRecommendationFeedback
+      summary: 추천 공고 피드백 (이력 추가)
+      x-requirements: [FR-ANL-004]
+      x-screens: [UI-017]
+      x-tables: [recommendation_feedback]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationFeedbackInput' }
+            example:
+              recommendation_run_id: 4b6d8f0a-2c4e-4a6c-8e0a-2c4e6a8c0e2a
+              job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c
+              feedback: not_interested
+      responses:
+        '201':
+          description: 기록됨. not_interested 공고는 다음 추천에서 제외
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationFeedback' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ------------------------------------------------------------------ documents
+  /documents:
+    get:
+      tags: [documents]
+      operationId: listMyDocuments
+      summary: 내 문서 목록
+      x-requirements: [FR-AI-001]
+      x-screens: [UI-019]
+      x-tables: [user_documents]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 문서 목록 (저장 위치는 노출하지 않음)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: 문서 업로드 (검사는 비동기)
+      description: |
+        파일은 API 서버와 분리된 파일 저장소에 실행 권한 없이, 서버가 만든 무작위 이름(128비트 이상)으로 저장한다 (NFR-SEC-003).
+        형식은 실제 파일 내용으로 확인하고, 사용자가 올린 파일 이름은 화면 표시용으로만 쓴다.
+      x-requirements: [FR-AI-001, NFR-SEC-003]
+      x-screens: [UI-019]
+      x-tables: [user_documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/DocumentUpload' }
+      responses:
+        '202':
+          description: 업로드 접수, status=scanning. GET으로 ready/rejected 확인
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+              example:
+                document_id: 7c9e1a3c-5e7a-4c9e-a1c3-5e7a9c1e3a5c
+                kind: resume
+                original_filename: 이력서.pdf
+                mime_type: application/pdf
+                size_bytes: 182340
+                status: scanning
+                created_at: '2026-11-06T04:00:00Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /documents/{document_id}:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [documents]
+      operationId: getMyDocument
+      summary: 문서 상태 (업로드 검사 폴링 대상)
+      x-requirements: [FR-AI-001]
+      x-screens: [UI-019, UI-020]
+      x-tables: [user_documents]
+      responses:
+        '200':
+          description: 문서
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [documents]
+      operationId: deleteMyDocument
+      summary: 문서 삭제 (원본·분석·검색 색인까지, 비동기)
+      x-requirements: [FR-AI-001]
+      x-screens: [UI-019]
+      x-tables: [user_documents, document_analyses, document_chunks]
+      responses:
+        '202':
+          description: status=deleting. 완료 후 GET은 404
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{document_id}/file:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [documents]
+      operationId: downloadMyDocument
+      summary: 원본 파일 내려받기 (서버가 소유권 확인 후 저장소에서 읽어 전달)
+      description: |
+        파일 저장소 주소나 저장 이름(storage_key)은 노출하지 않는다 (NFR-SEC-003).
+        항상 `Content-Disposition: attachment`로 내려 브라우저에서 실행되지 않게 한다.
+      x-requirements: [FR-AI-001, NFR-SEC-003]
+      x-screens: [UI-019]
+      x-tables: [user_documents]
+      responses:
+        '200':
+          description: 파일 본문
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename*=UTF-8''''<원래 파일 이름>`'
+              schema: { type: string }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            application/pdf:
+              schema: { type: string, contentMediaType: application/pdf }
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.wordprocessingml.document }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 검사가 끝나지 않았거나 거부된 문서 (code=DOCUMENT_NOT_READY)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /documents/{document_id}/analyses:
+    parameters:
+      - { $ref: '#/components/parameters/DocumentId' }
+    post:
+      tags: [documents]
+      operationId: requestDocumentAnalysis
+      summary: LLM 문서 분석 요청 (비동기, llm_processing 동의 필요)
+      x-requirements: [FR-AI-002]
+      x-screens: [UI-020]
+      x-tables: [document_analyses, user_documents, user_consents, model_versions, ai_usage_records]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalysisRequest' }
+            example: { analysis_type: skill_extraction }
+      responses:
+        '202':
+          description: 접수, status=queued
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Analysis' }
+              example:
+                analysis_id: 1a3c5e7a-9c1e-4a3c-9e7a-1c3e5a7c9e1a
+                document_id: 7c9e1a3c-5e7a-4c9e-a1c3-5e7a9c1e3a5c
+                analysis_type: skill_extraction
+                status: queued
+                result: null
+                error_code: null
+                model_version: { model_code: resume_llm, version: '2026-11-a', kind: llm }
+                requested_at: '2026-11-06T04:01:00Z'
+                completed_at: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: llm_processing 동의 없음 (code=CONSENT_REQUIRED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 문서가 ready 상태가 아님 (code=DOCUMENT_NOT_READY)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /document-analyses/{analysis_id}:
+    get:
+      tags: [documents]
+      operationId: getDocumentAnalysis
+      summary: 분석 상태·결과 (폴링)
+      x-requirements: [FR-AI-002]
+      x-screens: [UI-020]
+      x-tables: [document_analyses, model_versions]
+      parameters:
+        - { $ref: '#/components/parameters/AnalysisId' }
+      responses:
+        '200':
+          description: status가 succeeded/failed가 될 때까지 Retry-After 간격으로 조회
+          headers:
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Analysis' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /document-analyses/{analysis_id}/apply:
+    post:
+      tags: [documents]
+      operationId: applyDocumentAnalysis
+      summary: 분석 결과 중 사용자가 고른 기술만 내 기술에 반영 (자동 반영 금지)
+      x-requirements: [FR-AI-002]
+      x-screens: [UI-020]
+      x-tables: [document_analyses, user_skills]
+      parameters:
+        - { $ref: '#/components/parameters/AnalysisId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalysisApply' }
+            example:
+              skills:
+                - { skill_id: 6b1d0b1c-7e2a-4f1b-9d3c-2a1b0c9d8e7f, proficiency: 3 }
+      responses:
+        '200':
+          description: 반영 후 내 기술 전체
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserSkill' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 분석이 succeeded가 아님
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /knowledge/answers:
+    post:
+      tags: [documents]
+      operationId: askKnowledge
+      summary: 근거 기반 커리어 Q&A (내 문서 + 공용 자료, 동기)
+      description: FR-AI-003 — 검색 API는 공개하지 않고 이 endpoint 안에서만 사용합니다.
+      x-requirements: [FR-AI-003]
+      x-screens: [UI-022]
+      x-tables: [retrieval_runs, retrieval_citations, document_chunks, user_documents, model_versions, ai_usage_records]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeQuestion' }
+            example: { question: '백엔드 신입에게 가장 많이 요구되는 기술은 무엇인가요?' }
+      responses:
+        '200':
+          description: status=answered(인용 1개 이상) 또는 no_evidence(답변 없음)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeAnswer' }
+              example:
+                retrieval_run_id: 5c7e9a1c-3e5a-4c7e-9a1c-3e5a7c9e1a3c
+                status: answered
+                answer: 공용 가이드 기준으로 Python과 SQL이 가장 자주 요구됩니다.
+                citations:
+                  - { rank: 1, document_id: 9a1c3e5a-7c9e-4a1c-8e5a-7c9e1a3c5e7a, document_title: 백엔드 커리어 가이드.pdf, chunk_index: 4, score: 0.82 }
+                limitations: [공용 자료와 내 문서만 검색했습니다.]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+
+  # ------------------------------------------------------------------ agent
+  /agent-runs:
+    get:
+      tags: [agent]
+      operationId: listMyAgentRuns
+      summary: 내 Agent 실행 내역
+      x-requirements: [FR-AI-004]
+      x-screens: [UI-023]
+      x-tables: [agent_runs]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 최신 순
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentRunPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [agent]
+      operationId: startAgentRun
+      summary: Agent 작업 시작 (비동기, Idempotency-Key 필수)
+      x-requirements: [FR-AI-004]
+      x-screens: [UI-023]
+      x-tables: [agent_runs, ai_usage_records]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentRunRequest' }
+            example: { workflow_code: summarize_target_postings }
+      responses:
+        '202':
+          description: 접수, status=queued. 같은 Idempotency-Key 재요청은 같은 실행을 200으로 반환
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentRun' }
+        '200':
+          description: 같은 Idempotency-Key로 이미 시작된 실행
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /agent-runs/{agent_run_id}:
+    get:
+      tags: [agent]
+      operationId: getMyAgentRun
+      summary: 실행 상태·승인 요청·도구 호출 요약 (폴링)
+      x-requirements: [FR-AI-004]
+      x-screens: [UI-023]
+      x-tables: [agent_runs, agent_tool_approvals, agent_tool_calls]
+      parameters:
+        - { $ref: '#/components/parameters/AgentRunId' }
+      responses:
+        '200':
+          description: 실행 상세
+          headers:
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentRun' }
+              example:
+                agent_run_id: 6e8a0c2e-4a6c-4e8a-8c2e-4a6c8e0a2c4e
+                workflow_code: summarize_target_postings
+                status: awaiting_approval
+                started_at: '2026-11-06T05:00:00Z'
+                ended_at: null
+                approvals:
+                  - { approval_id: 8c0e2a4c-6e8a-4c0e-a4c6-e8a0c2e4a6c8, tool_code: export_to_bookmarks, decision: pending, expires_at: '2026-11-06T05:30:00Z' }
+                tool_calls: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /agent-runs/{agent_run_id}/approvals/{approval_id}:
+    post:
+      tags: [agent]
+      operationId: decideAgentApproval
+      summary: 도구 실행 승인·거절 (실행 소유자만)
+      x-requirements: [FR-AI-004]
+      x-screens: [UI-023]
+      x-tables: [agent_tool_approvals, agent_runs, audit_events]
+      parameters:
+        - { $ref: '#/components/parameters/AgentRunId' }
+        - { $ref: '#/components/parameters/ApprovalId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalDecision' }
+            example: { decision: approved }
+      responses:
+        '200':
+          description: 결정 반영
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Approval' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 이미 결정됐거나 만료됨 (code=APPROVAL_CLOSED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ------------------------------------------------------------------ market
+  /market-trends:
+    get:
+      tags: [insights]
+      operationId: getMarketTrends
+      summary: 채용시장 지표 관측값 + 예측값
+      x-requirements: [FR-ANL-005]
+      x-screens: [UI-024]
+      x-tables: [market_observations, market_forecasts, data_sources, model_versions, job_roles]
+      parameters:
+        - { name: job_role_id, in: query, schema: { type: string, format: uuid } }
+        - name: metric_code
+          in: query
+          required: true
+          schema: { type: string, enum: [posting_count, skill_demand_share] }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: 관측과 예측을 분리해 반환
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketTrend' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ------------------------------------------------------------------ admin
+  /admin/users/{user_id}/roles/{role_code}:
+    parameters:
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: role_code, in: path, required: true, schema: { type: string, enum: [job_seeker, admin] } }
+    put:
+      tags: [admin]
+      operationId: grantRole
+      summary: 역할 부여 (멱등, 감사 기록)
+      x-requirements: [FR-ADM-002]
+      x-screens: [UI-028]
+      x-tables: [user_roles, roles, audit_events]
+      responses:
+        '204': { description: '부여됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [admin]
+      operationId: revokeRole
+      summary: 역할 회수 (즉시 반영, 감사 기록)
+      x-requirements: [FR-ADM-002]
+      x-screens: [UI-028]
+      x-tables: [user_roles, audit_events]
+      responses:
+        '204': { description: '회수됨' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: 마지막 관리자 회수 시도 (code=LAST_ADMIN)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /admin/segments:
+    get:
+      tags: [admin]
+      operationId: listSegments
+      summary: 사용자 세그먼트 집계 (개인 식별 없음)
+      x-requirements: [FR-ADM-006]
+      x-screens: [UI-025]
+      x-tables: [user_segments, user_segment_assignments, model_versions]
+      responses:
+        '200':
+          description: 세그먼트별 인원 수
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SegmentAggregate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/anomalies:
+    get:
+      tags: [admin]
+      operationId: listAnomalies
+      summary: 이상 이벤트 목록
+      x-requirements: [FR-ADM-006]
+      x-screens: [UI-025]
+      x-tables: [anomaly_events, model_versions]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, false_positive, resolved], default: open }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 최신 순
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnomalyPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/anomalies/{anomaly_id}:
+    patch:
+      tags: [admin]
+      operationId: updateAnomaly
+      summary: 이상 이벤트 상태 변경 (오탐·해결)
+      x-requirements: [FR-ADM-006]
+      x-screens: [UI-025]
+      x-tables: [anomaly_events, audit_events]
+      parameters:
+        - { name: anomaly_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: { type: string, enum: [false_positive, resolved] }
+      responses:
+        '200':
+          description: 변경됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Anomaly' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/models:
+    get:
+      tags: [admin]
+      operationId: listModelVersions
+      summary: 규칙·모델 버전 목록
+      x-requirements: [FR-ADM-003]
+      x-screens: [UI-026]
+      x-tables: [model_versions]
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 최신 순
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelVersionPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/models/{model_version_id}/evaluations:
+    get:
+      tags: [admin]
+      operationId: listModelEvaluations
+      summary: 버전별 평가 지표
+      x-requirements: [FR-ADM-003]
+      x-screens: [UI-026]
+      x-tables: [model_evaluations]
+      parameters:
+        - { name: model_version_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 평가 지표
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ModelEvaluation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/audit-events:
+    get:
+      tags: [admin]
+      operationId: listAuditEvents
+      summary: 감사 기록 조회 (읽기 전용)
+      x-requirements: [FR-ADM-004]
+      x-screens: [UI-028]
+      x-tables: [audit_events]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: actor_user_id, in: query, schema: { type: string, format: uuid } }
+        - { name: action_code, in: query, schema: { type: string, maxLength: 100 } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 최신 순
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/ai-usage:
+    get:
+      tags: [admin]
+      operationId: getAiUsage
+      summary: AI 사용량·추정 비용 합계
+      x-requirements: [FR-ADM-005]
+      x-screens: [UI-028]
+      x-tables: [ai_usage_records, model_versions]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - name: group_by
+          in: query
+          schema: { type: string, enum: [day, feature_code, provider_model], default: day }
+      responses:
+        '200':
+          description: 그룹별 합계 (추정치, 청구 금액 아님)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AiUsageBucket' }
+              example:
+                - { key: '2026-11-06', input_tokens: 120400, output_tokens: 18300, estimated_cost_usd: 0.42, request_count: 37 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ------------------------------------------------------------------ ops
+  /health:
+    get:
+      tags: [ops]
+      operationId: health
+      summary: 상태 확인. 실제 경로는 `/api/health` (servers의 /api/v1 미적용)
+      x-requirements: [NFR-AVL-002]
+      x-screens: []
+      x-tables: []
+      servers:
+        - url: /api
+      security: []
+      responses:
+        '200':
+          description: 기존 PoC와 같은 응답
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status: { type: string, const: ok }
+                  service: { type: string }
+              example: { status: ok, service: ai-career-backend }
+  /version:
+    get:
+      tags: [ops]
+      operationId: version
+      summary: 배포 버전. 실제 경로는 `/api/version`
+      x-requirements: [NFR-AVL-002]
+      x-screens: []
+      x-tables: []
+      servers:
+        - url: /api
+      security: []
+      responses:
+        '200':
+          description: 기존 PoC와 같은 응답
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [application, environment, version]
+                properties:
+                  application: { type: string }
+                  environment: { type: string }
+                  version: { type: string }
+              example: { application: ai-career-platform, environment: staging-poc, version: 0.1.0 }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        access token (JWT, HS256 또는 RS256 — T15에서 결정). 수명 15분. `sub`=user_id, `sid`=session_id, `roles`=역할 코드.
+        서버는 매 요청 `sub`로 소유권을 검사하며, 클라이언트가 보낸 user_id는 받지 않습니다.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: |
+        불투명 refresh token. `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, 수명 14일.
+        사용할 때마다 새 토큰으로 회전하고, DB에는 SHA-256 해시만 저장(`auth_sessions`).
+
+  headers:
+    RefreshCookie:
+      description: '`refresh_token=<opaque>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600`'
+      schema: { type: string }
+    Location:
+      description: 생성된(또는 상태를 조회할) 리소스 URL
+      schema: { type: string, format: uri-reference }
+    RetryAfter:
+      description: 다음 상태 조회까지 기다릴 초 (비동기 작업)
+      schema: { type: integer, minimum: 1, maximum: 60 }
+
+  parameters:
+    Q:
+      name: q
+      in: query
+      description: 이름 검색어 (부분 일치, 대소문자 무시)
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Cursor:
+      name: cursor
+      in: query
+      description: 이전 응답의 `next_cursor` 그대로. 서버가 만든 불투명 문자열이며 변조 시 400
+      schema: { type: string, maxLength: 500 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 100 }
+    SessionId: { name: session_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ExperienceId: { name: experience_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ProjectId: { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    JobRoleId: { name: job_role_id, in: path, required: true, schema: { type: string, format: uuid } }
+    CompanyId: { name: company_id, in: path, required: true, schema: { type: string, format: uuid } }
+    JobPostingId: { name: job_posting_id, in: path, required: true, schema: { type: string, format: uuid } }
+    MatchId: { name: match_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AssessmentId: { name: assessment_id, in: path, required: true, schema: { type: string, format: uuid } }
+    RecommendationRunId: { name: recommendation_run_id, in: path, required: true, schema: { type: string, format: uuid } }
+    DocumentId: { name: document_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AnalysisId: { name: analysis_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AgentRunId: { name: agent_run_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ApprovalId: { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    Unauthorized:
+      description: access token 없음·만료·위조 (code=UNAUTHENTICATED / TOKEN_EXPIRED)
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, example: Bearer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: TOKEN_EXPIRED
+            status: 401
+            message: 로그인이 만료되었습니다. 다시 로그인해 주세요.
+    Forbidden:
+      description: 로그인했지만 역할 권한 없음 (/admin). 리소스 소유권 실패는 403이 아니라 404
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: FORBIDDEN
+            status: 403
+            message: 접근 권한이 없습니다.
+    NotFound:
+      description: 없음, 또는 다른 사용자 소유라서 존재를 숨김 (code=NOT_FOUND)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: NOT_FOUND
+            status: 404
+            message: 요청한 정보를 찾을 수 없습니다.
+    Conflict:
+      description: 중복·상태 충돌 (code=EMAIL_TAKEN, DELETION_ALREADY_REQUESTED 등)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: EMAIL_TAKEN
+            status: 409
+            message: 이미 가입된 이메일입니다.
+    ValidationFailed:
+      description: 요청 형식·값 검증 실패. FastAPI 기본 422를 이 형식으로 바꿔서 반환
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: VALIDATION_FAILED
+            status: 422
+            message: 입력값을 확인해 주세요.
+    BadCursor:
+      description: 변조되었거나 만료된 cursor (code=INVALID_CURSOR)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: 요청 한도 초과 (code=RATE_LIMITED)
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PayloadTooLarge:
+      description: 파일이 10MB 초과 (code=FILE_TOO_LARGE)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: PDF·DOCX 외 형식, 또는 확장자와 실제 내용 불일치 (code=UNSUPPORTED_FILE_TYPE)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ServiceUnavailable:
+      description: 계산·AI 의존 서비스 장애. 화면은 해당 패널만 오류 처리 (code=DEPENDENCY_UNAVAILABLE)
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    GatewayTimeout:
+      description: 외부 AI 응답 시간 초과 (code=DEPENDENCY_TIMEOUT)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ---------- common
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      description: 모든 오류 응답 본문. 메시지는 Backend 카탈로그(app/core/errors.py ERROR_CATALOG)의 고정 문구. 입력값·내부 정보·스택트레이스는 넣지 않음
+      required: [code, status, message]
+      properties:
+        code: { type: string, pattern: '^[A-Z][A-Z0-9_]+$', description: 화면 분기용 고정 코드 }
+        status: { type: integer, minimum: 400, maximum: 599, description: HTTP 상태와 같은 값 }
+        message: { type: string, description: 사용자에게 그대로 보여 줄 수 있는 안내 문구 }
+    Uuid: { type: string, format: uuid }
+    Timestamp: { type: string, format: date-time }
+    NextCursor:
+      type: [string, 'null']
+      description: null이면 마지막 페이지
+
+    # ---------- auth & account
+    Password:
+      type: string
+      minLength: 10
+      maxLength: 128
+      description: 10자 이상. 서버는 해시(Argon2id 권장, T15)만 저장
+    SignupRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, display_name, consents]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { $ref: '#/components/schemas/Password' }
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        consents:
+          type: array
+          minItems: 1
+          description: 필수 정책(is_required=true)은 모두 granted=true여야 함 (아니면 422)
+          items: { $ref: '#/components/schemas/ConsentInput' }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, const: Bearer }
+        expires_in: { type: integer, description: '초 단위 (900)' }
+    Session:
+      type: object
+      additionalProperties: false
+      required: [session_id, created_at, expires_at, is_current]
+      properties:
+        session_id: { $ref: '#/components/schemas/Uuid' }
+        user_agent: { type: [string, 'null'] }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+        expires_at: { $ref: '#/components/schemas/Timestamp' }
+        is_current: { type: boolean }
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [headline, bio, location_text]
+      properties:
+        headline: { type: [string, 'null'], maxLength: 200 }
+        bio: { type: [string, 'null'], maxLength: 5000 }
+        location_text: { type: [string, 'null'], maxLength: 120 }
+    Me:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, display_name, status, profile, created_at]
+      properties:
+        user_id: { $ref: '#/components/schemas/Uuid' }
+        email: { type: string, format: email, description: 사용자가 입력한 원래 이메일 (비교용 이메일은 응답에 넣지 않음) }
+        display_name: { type: string }
+        status: { type: string, enum: [active, disabled] }
+        profile: { $ref: '#/components/schemas/Profile' }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+    MePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: 보낸 필드만 변경. null을 보내면 값을 지움 (display_name은 null 불가). 이메일 변경은 1차 범위 밖
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        headline: { type: [string, 'null'], maxLength: 200 }
+        bio: { type: [string, 'null'], maxLength: 5000 }
+        location_text: { type: [string, 'null'], maxLength: 120 }
+    Permissions:
+      type: object
+      additionalProperties: false
+      required: [roles, permissions]
+      properties:
+        roles:
+          type: array
+          items: { type: string, enum: [job_seeker, admin] }
+        permissions:
+          type: array
+          items: { type: string }
+    ConsentPolicy:
+      type: object
+      additionalProperties: false
+      required: [policy_code, version, is_required, content_url, effective_at]
+      properties:
+        policy_code: { type: string, enum: [terms, privacy, llm_processing, behavior_tracking] }
+        version: { type: string }
+        is_required: { type: boolean }
+        content_url: { type: string, format: uri }
+        effective_at: { $ref: '#/components/schemas/Timestamp' }
+    ConsentInput:
+      type: object
+      additionalProperties: false
+      required: [policy_code, policy_version, granted]
+      properties:
+        policy_code: { type: string, enum: [terms, privacy, llm_processing, behavior_tracking] }
+        policy_version: { type: string, maxLength: 40 }
+        granted: { type: boolean }
+    OptionalConsentInput:
+      type: object
+      additionalProperties: false
+      description: 가입 후 바꿀 수 있는 선택 항목만 (FR-ACC-006)
+      required: [policy_code, policy_version, granted]
+      properties:
+        policy_code: { type: string, enum: [llm_processing, behavior_tracking] }
+        policy_version: { type: string, minLength: 1, maxLength: 40 }
+        granted: { type: boolean }
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+    PasswordReset:
+      type: object
+      additionalProperties: false
+      required: [token, new_password]
+      properties:
+        token: { type: string, minLength: 16, maxLength: 200, description: 메일 링크의 토큰. 서버는 해시로 비교 }
+        new_password: { $ref: '#/components/schemas/Password' }
+    Consent:
+      type: object
+      additionalProperties: false
+      required: [consent_id, is_required, policy_code, policy_version, granted, recorded_at]
+      properties:
+        consent_id: { $ref: '#/components/schemas/Uuid' }
+        is_required: { type: boolean, description: true면 화면에 변경 버튼을 두지 않음 }
+        policy_code: { type: string }
+        policy_version: { type: string }
+        granted: { type: boolean }
+        recorded_at: { $ref: '#/components/schemas/Timestamp' }
+    DeletionRequestInput:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation: { type: string, const: DELETE, description: '화면에서 사용자가 직접 입력' }
+    DeletionRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id, status, requested_at, scheduled_purge_at, completed_at]
+      properties:
+        request_id: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [requested, cancelled, completed] }
+        requested_at: { $ref: '#/components/schemas/Timestamp' }
+        scheduled_purge_at: { type: [string, 'null'], format: date-time, description: '삭제 정책 미확정이면 null; 자동 삭제를 뜻하지 않음' }
+        completed_at: { type: [string, 'null'], format: date-time }
+    Dashboard:
+      type: object
+      additionalProperties: false
+      required: [profile_completeness, next_actions, target_roles, latest_skill_gap, top_recommendations]
+      properties:
+        profile_completeness: { type: integer, minimum: 0, maximum: 100 }
+        next_actions:
+          type: array
+          items: { type: string, enum: [complete_profile, add_skills, choose_target_role, run_skill_gap, get_recommendations] }
+        target_roles:
+          type: array
+          items: { $ref: '#/components/schemas/TargetRole' }
+        latest_skill_gap:
+          oneOf:
+            - { $ref: '#/components/schemas/SkillGapSummary' }
+            - { type: 'null' }
+        top_recommendations:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/RecommendationItem' }
+
+    # ---------- catalog
+    Skill:
+      type: object
+      additionalProperties: false
+      required: [skill_id, code, name]
+      properties:
+        skill_id: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+    Level:
+      type: integer
+      minimum: 1
+      maximum: 5
+      description: 1 입문 · 2 기초 · 3 실무 가능 · 4 능숙 · 5 전문가 (T05 공통 척도, 화면에 단계 설명 표시)
+    JobRoleRef:
+      type: object
+      additionalProperties: false
+      required: [job_role_id, code, name]
+      properties:
+        job_role_id: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+    JobRolePage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/JobRoleRef' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    RequiredSkill:
+      type: object
+      additionalProperties: false
+      required: [skill, required_level]
+      properties:
+        skill: { $ref: '#/components/schemas/Skill' }
+        required_level: { $ref: '#/components/schemas/Level' }
+        is_required: { type: boolean, description: '공고에만 있음 (필수/우대)' }
+    JobRoleDetail:
+      type: object
+      additionalProperties: false
+      required: [job_role_id, code, name, description, required_skills]
+      properties:
+        job_role_id: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        required_skills:
+          type: array
+          items: { $ref: '#/components/schemas/RequiredSkill' }
+    CompanyRef:
+      type: object
+      additionalProperties: false
+      required: [company_id, name]
+      properties:
+        company_id: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+    CompanyPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CompanyRef' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    CompanyDetail:
+      type: object
+      additionalProperties: false
+      required: [company_id, name, website_url, description, open_posting_count, source]
+      properties:
+        company_id: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string }
+        website_url: { type: [string, 'null'], format: uri }
+        description: { type: [string, 'null'] }
+        open_posting_count: { type: integer, minimum: 0 }
+        source: { type: string, description: '데이터 출처 코드 (1차는 synthetic_seed)' }
+    JobPostingSummary:
+      type: object
+      additionalProperties: false
+      required: [job_posting_id, title, status, company, job_role, employment_type, location_text, published_at, expires_at]
+      properties:
+        job_posting_id: { $ref: '#/components/schemas/Uuid' }
+        title: { type: string }
+        status: { type: string, enum: [published, closed] }
+        company: { $ref: '#/components/schemas/CompanyRef' }
+        job_role:
+          oneOf:
+            - { $ref: '#/components/schemas/JobRoleRef' }
+            - { type: 'null' }
+        employment_type: { type: [string, 'null'], enum: [full_time, contract, intern, part_time, null] }
+        location_text: { type: [string, 'null'] }
+        published_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+    JobPostingPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/JobPostingSummary' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    JobPostingDetail:
+      allOf:
+        - { $ref: '#/components/schemas/JobPostingSummary' }
+        - type: object
+          required: [description, source_url, required_skills, is_bookmarked]
+          properties:
+            description: { type: [string, 'null'] }
+            source_url: { type: [string, 'null'], format: uri }
+            required_skills:
+              type: array
+              description: required_level이 공고에 없으면 직무 기본값(job_role_skills)으로 채움
+              items: { $ref: '#/components/schemas/RequiredSkill' }
+            is_bookmarked: { type: [boolean, 'null'], description: '비로그인이면 null' }
+
+    # ---------- me: skills & history
+    UserSkill:
+      type: object
+      additionalProperties: false
+      required: [skill, proficiency]
+      properties:
+        skill: { $ref: '#/components/schemas/Skill' }
+        proficiency:
+          oneOf:
+            - { $ref: '#/components/schemas/Level' }
+            - { type: 'null' }
+    UserSkillsReplace:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          description: 같은 skill_id 중복 시 422 (code=DUPLICATE_SKILL)
+          items:
+            type: object
+            additionalProperties: false
+            required: [skill_id]
+            properties:
+              skill_id: { $ref: '#/components/schemas/Uuid' }
+              proficiency:
+                oneOf:
+                  - { $ref: '#/components/schemas/Level' }
+                  - { type: 'null' }
+    TargetRole:
+      type: object
+      additionalProperties: false
+      required: [job_role, priority]
+      properties:
+        job_role: { $ref: '#/components/schemas/JobRoleRef' }
+        priority: { type: integer, minimum: 1, maximum: 3 }
+    TargetRolesReplace:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 3
+          description: priority 중복·직무 중복 시 422
+          items:
+            type: object
+            additionalProperties: false
+            required: [job_role_id, priority]
+            properties:
+              job_role_id: { $ref: '#/components/schemas/Uuid' }
+              priority: { type: integer, minimum: 1, maximum: 3 }
+    ExperienceInput:
+      type: object
+      additionalProperties: false
+      required: [organization, title]
+      properties:
+        organization: { type: string, minLength: 1, maxLength: 200 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date, description: 'null = 재직 중. start_date보다 이르면 422' }
+        description: { type: [string, 'null'] }
+    ExperiencePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        organization: { type: string, minLength: 1, maxLength: 200 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date }
+        description: { type: [string, 'null'] }
+    Experience:
+      type: object
+      additionalProperties: false
+      required: [experience_id, organization, title, start_date, end_date, description, updated_at]
+      properties:
+        experience_id: { $ref: '#/components/schemas/Uuid' }
+        organization: { type: string }
+        title: { type: string }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date }
+        description: { type: [string, 'null'] }
+        updated_at: { $ref: '#/components/schemas/Timestamp' }
+    ProjectInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        summary: { type: [string, 'null'] }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date }
+        skill_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Uuid' }
+    ProjectPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        summary: { type: [string, 'null'] }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date }
+        skill_ids:
+          type: array
+          maxItems: 30
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Uuid' }
+    Project:
+      type: object
+      additionalProperties: false
+      required: [project_id, title, summary, start_date, end_date, skills, updated_at]
+      properties:
+        project_id: { $ref: '#/components/schemas/Uuid' }
+        title: { type: string }
+        summary: { type: [string, 'null'] }
+        start_date: { type: [string, 'null'], format: date }
+        end_date: { type: [string, 'null'], format: date }
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/Skill' }
+        updated_at: { $ref: '#/components/schemas/Timestamp' }
+
+    # ---------- insights
+    ModelVersionRef:
+      type: object
+      additionalProperties: false
+      required: [model_code, version, kind]
+      description: 결과 계산 기준. 화면에 "계산 기준" 으로 표시
+      properties:
+        model_code: { type: string }
+        version: { type: string }
+        kind: { type: string, enum: [rule, ml, llm] }
+    Score:
+      type: number
+      minimum: 0
+      maximum: 100
+      description: 0~100 적합 점수. **확률이 아니며** 화면에 확률로 표시하지 않음 (E2)
+    MatchRequest:
+      type: object
+      additionalProperties: false
+      description: job_posting_id와 job_role_id 중 정확히 하나
+      oneOf:
+        - required: [job_posting_id]
+          not: { required: [job_role_id] }
+        - required: [job_role_id]
+          not: { required: [job_posting_id] }
+      properties:
+        job_posting_id: { $ref: '#/components/schemas/Uuid' }
+        job_role_id: { $ref: '#/components/schemas/Uuid' }
+    Match:
+      type: object
+      additionalProperties: false
+      required: [match_id, target, status, score, score_is_probability, matched_skill_count, missing_skill_count, model_version, limitations, evaluated_at]
+      properties:
+        match_id: { $ref: '#/components/schemas/Uuid' }
+        target:
+          type: object
+          additionalProperties: false
+          required: [job_posting_id, job_role_id]
+          properties:
+            job_posting_id: { type: [string, 'null'], format: uuid }
+            job_role_id: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [pending, completed, failed] }
+        score:
+          oneOf:
+            - { $ref: '#/components/schemas/Score' }
+            - { type: 'null' }
+        score_is_probability: { type: boolean, const: false }
+        matched_skill_count: { type: [integer, 'null'], minimum: 0 }
+        missing_skill_count: { type: [integer, 'null'], minimum: 0 }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+        limitations:
+          type: array
+          minItems: 1
+          items: { type: string }
+        evaluated_at: { $ref: '#/components/schemas/Timestamp' }
+    SkillGapRequest:
+      type: object
+      additionalProperties: false
+      required: [job_role_id]
+      properties:
+        job_role_id: { $ref: '#/components/schemas/Uuid' }
+    SkillGapItem:
+      type: object
+      additionalProperties: false
+      required: [skill, required_level, observed_level, gap]
+      properties:
+        skill: { $ref: '#/components/schemas/Skill' }
+        required_level: { $ref: '#/components/schemas/Level' }
+        observed_level: { type: integer, minimum: 0, maximum: 5, description: '미입력은 0' }
+        gap: { type: integer, minimum: 0, maximum: 5, description: 'max(required - observed, 0)' }
+    SkillGap:
+      type: object
+      additionalProperties: false
+      required: [assessment_id, job_role, model_version, is_stale, evaluated_at, items]
+      properties:
+        assessment_id: { $ref: '#/components/schemas/Uuid' }
+        job_role: { $ref: '#/components/schemas/JobRoleRef' }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+        is_stale: { type: boolean, description: '계산 이후 내 기술·목표 직무가 바뀌었으면 true ("이전 기준" 표시)' }
+        evaluated_at: { $ref: '#/components/schemas/Timestamp' }
+        items:
+          type: array
+          description: gap 큰 순. 빈 배열이면 "요구 기술을 모두 충족"
+          items: { $ref: '#/components/schemas/SkillGapItem' }
+    SkillGapSummary:
+      type: object
+      additionalProperties: false
+      required: [assessment_id, job_role, missing_skill_count, total_gap, is_stale, evaluated_at]
+      properties:
+        assessment_id: { $ref: '#/components/schemas/Uuid' }
+        job_role: { $ref: '#/components/schemas/JobRoleRef' }
+        missing_skill_count: { type: integer, minimum: 0 }
+        total_gap: { type: integer, minimum: 0 }
+        is_stale: { type: boolean }
+        evaluated_at: { $ref: '#/components/schemas/Timestamp' }
+    SkillGapSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SkillGapSummary' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    RecommendationRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    RecommendationItem:
+      type: object
+      additionalProperties: false
+      required: [rank, score, reason, feedback, job_posting]
+      properties:
+        rank: { type: integer, minimum: 1 }
+        score:
+          oneOf:
+            - { $ref: '#/components/schemas/Score' }
+            - { type: 'null' }
+        reason: { type: string, minLength: 1 }
+        feedback: { type: [string, 'null'], enum: [liked, not_interested, null], description: '이 공고에 대한 내 최신 피드백' }
+        job_posting: { $ref: '#/components/schemas/JobPostingSummary' }
+    RecommendationRun:
+      type: object
+      additionalProperties: false
+      required: [recommendation_run_id, status, model_version, generated_at, items]
+      properties:
+        recommendation_run_id: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [completed, fallback, failed] }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+        generated_at: { $ref: '#/components/schemas/Timestamp' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RecommendationItem' }
+    RecommendationFeedbackInput:
+      type: object
+      additionalProperties: false
+      required: [job_posting_id, feedback]
+      properties:
+        recommendation_run_id: { $ref: '#/components/schemas/Uuid' }
+        job_posting_id: { $ref: '#/components/schemas/Uuid' }
+        feedback: { type: string, enum: [liked, not_interested, cleared] }
+    RecommendationFeedback:
+      type: object
+      additionalProperties: false
+      required: [feedback_id, job_posting_id, feedback, created_at]
+      properties:
+        feedback_id: { $ref: '#/components/schemas/Uuid' }
+        job_posting_id: { $ref: '#/components/schemas/Uuid' }
+        feedback: { type: string, enum: [liked, not_interested, cleared] }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+
+    # ---------- documents
+    DocumentUpload:
+      type: object
+      required: [file, kind]
+      properties:
+        file: { type: string, contentMediaType: application/octet-stream, description: 'PDF 또는 DOCX, 최대 10MB' }
+        kind: { type: string, enum: [resume, portfolio] }
+    Document:
+      type: object
+      additionalProperties: false
+      required: [document_id, kind, original_filename, mime_type, size_bytes, status, created_at]
+      description: storage_key·checksum은 응답에 넣지 않음
+      properties:
+        document_id: { $ref: '#/components/schemas/Uuid' }
+        kind: { type: string, enum: [resume, portfolio, career_guide] }
+        original_filename: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer, minimum: 1 }
+        status: { type: string, enum: [uploaded, scanning, ready, rejected, deleting] }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Document' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    AnalysisRequest:
+      type: object
+      additionalProperties: false
+      required: [analysis_type]
+      properties:
+        analysis_type: { type: string, enum: [skill_extraction, summary] }
+    AnalysisResult:
+      type: object
+      additionalProperties: false
+      properties:
+        summary: { type: string }
+        skills:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [skill, suggested_proficiency, evidence]
+            properties:
+              skill: { $ref: '#/components/schemas/Skill' }
+              suggested_proficiency: { $ref: '#/components/schemas/Level' }
+              evidence: { type: string, maxLength: 300, description: '문서 속 근거 문장 요약' }
+        experiences:
+          type: array
+          items: { $ref: '#/components/schemas/ExperienceInput' }
+    Analysis:
+      type: object
+      additionalProperties: false
+      required: [analysis_id, document_id, analysis_type, status, result, error_code, model_version, requested_at, completed_at]
+      properties:
+        analysis_id: { $ref: '#/components/schemas/Uuid' }
+        document_id: { $ref: '#/components/schemas/Uuid' }
+        analysis_type: { type: string, enum: [skill_extraction, summary] }
+        status: { type: string, enum: [queued, running, succeeded, failed] }
+        result:
+          oneOf:
+            - { $ref: '#/components/schemas/AnalysisResult' }
+            - { type: 'null' }
+        error_code: { type: [string, 'null'], enum: [TIMEOUT, PROVIDER_ERROR, UNREADABLE_DOCUMENT, null] }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+        requested_at: { $ref: '#/components/schemas/Timestamp' }
+        completed_at: { type: [string, 'null'], format: date-time }
+    AnalysisApply:
+      type: object
+      additionalProperties: false
+      required: [skills]
+      properties:
+        skills:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [skill_id, proficiency]
+            properties:
+              skill_id: { $ref: '#/components/schemas/Uuid' }
+              proficiency: { $ref: '#/components/schemas/Level' }
+    KnowledgeQuestion:
+      type: object
+      additionalProperties: false
+      required: [question]
+      properties:
+        question: { type: string, minLength: 2, maxLength: 1000, description: '원문은 저장하지 않음 (해시만)' }
+        document_ids:
+          type: array
+          maxItems: 20
+          description: 생략 시 내 문서 전체 + 공용 자료
+          items: { $ref: '#/components/schemas/Uuid' }
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [rank, document_id, document_title, chunk_index, score]
+      properties:
+        rank: { type: integer, minimum: 1 }
+        document_id: { $ref: '#/components/schemas/Uuid' }
+        document_title: { type: string }
+        chunk_index: { type: integer, minimum: 0 }
+        score: { type: [number, 'null'] }
+    KnowledgeAnswer:
+      type: object
+      additionalProperties: false
+      required: [retrieval_run_id, status, answer, citations, limitations]
+      properties:
+        retrieval_run_id: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [answered, no_evidence] }
+        answer: { type: [string, 'null'], description: 'no_evidence면 null (답변 생성 안 함)' }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/Citation' }
+        limitations:
+          type: array
+          items: { type: string }
+
+    # ---------- agent
+    AgentRunRequest:
+      type: object
+      additionalProperties: false
+      required: [workflow_code]
+      properties:
+        workflow_code: { type: string, enum: [summarize_target_postings], description: '1차 허용 목록 (요구사항 D-09, PM 확정 필요)' }
+    Approval:
+      type: object
+      additionalProperties: false
+      required: [approval_id, tool_code, decision, expires_at]
+      properties:
+        approval_id: { $ref: '#/components/schemas/Uuid' }
+        tool_code: { type: string }
+        decision: { type: string, enum: [pending, approved, rejected, expired] }
+        reason: { type: [string, 'null'] }
+        expires_at: { $ref: '#/components/schemas/Timestamp' }
+    ApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected] }
+        reason: { type: string, maxLength: 500 }
+    ToolCall:
+      type: object
+      additionalProperties: false
+      required: [tool_code, status, started_at]
+      properties:
+        tool_code: { type: string }
+        status: { type: string, enum: [running, succeeded, failed] }
+        started_at: { $ref: '#/components/schemas/Timestamp' }
+    AgentRun:
+      type: object
+      additionalProperties: false
+      required: [agent_run_id, workflow_code, status, started_at, ended_at, approvals, tool_calls]
+      properties:
+        agent_run_id: { $ref: '#/components/schemas/Uuid' }
+        workflow_code: { type: string }
+        status: { type: string, enum: [queued, running, awaiting_approval, succeeded, failed, rejected, timed_out] }
+        started_at: { $ref: '#/components/schemas/Timestamp' }
+        ended_at: { type: [string, 'null'], format: date-time }
+        approvals:
+          type: array
+          items: { $ref: '#/components/schemas/Approval' }
+        tool_calls:
+          type: array
+          items: { $ref: '#/components/schemas/ToolCall' }
+    AgentRunPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AgentRun' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+
+    # ---------- market & admin
+    MarketPoint:
+      type: object
+      additionalProperties: false
+      required: [date, value]
+      properties:
+        date: { type: string, format: date }
+        value: { type: number }
+        lower_bound: { type: [number, 'null'] }
+        upper_bound: { type: [number, 'null'] }
+    MarketTrend:
+      type: object
+      additionalProperties: false
+      required: [metric_code, period, source, observations, forecasts, forecast_model]
+      properties:
+        metric_code: { type: string }
+        period: { type: string, enum: [day, week, month] }
+        source: { type: string, description: '출처 코드 (화면에 표시)' }
+        observations:
+          type: array
+          items: { $ref: '#/components/schemas/MarketPoint' }
+        forecasts:
+          type: array
+          description: 관측값과 시각적으로 구분해 표시. 범위(lower/upper) 포함
+          items: { $ref: '#/components/schemas/MarketPoint' }
+        forecast_model:
+          oneOf:
+            - { $ref: '#/components/schemas/ModelVersionRef' }
+            - { type: 'null' }
+    SegmentAggregate:
+      type: object
+      additionalProperties: false
+      required: [segment_code, label, user_count, model_version]
+      properties:
+        segment_code: { type: string }
+        label: { type: string }
+        user_count: { type: integer, minimum: 0, description: '5명 미만은 0으로 가림 (재식별 방지)' }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+    Anomaly:
+      type: object
+      additionalProperties: false
+      required: [anomaly_id, score, status, detected_at, model_version]
+      properties:
+        anomaly_id: { $ref: '#/components/schemas/Uuid' }
+        score: { type: [number, 'null'] }
+        status: { type: string, enum: [open, false_positive, resolved] }
+        detected_at: { $ref: '#/components/schemas/Timestamp' }
+        model_version: { $ref: '#/components/schemas/ModelVersionRef' }
+    AnomalyPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Anomaly' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    ModelVersion:
+      type: object
+      additionalProperties: false
+      required: [model_version_id, model_code, version, kind, description, approved_at, created_at]
+      properties:
+        model_version_id: { $ref: '#/components/schemas/Uuid' }
+        model_code: { type: string }
+        version: { type: string }
+        kind: { type: string, enum: [rule, ml, llm] }
+        description: { type: [string, 'null'] }
+        approved_at: { type: [string, 'null'], format: date-time }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+    ModelVersionPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ModelVersion' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    ModelEvaluation:
+      type: object
+      additionalProperties: false
+      required: [model_evaluation_id, dataset_ref, metric_code, metric_value, leakage_checked, evaluated_at]
+      properties:
+        model_evaluation_id: { $ref: '#/components/schemas/Uuid' }
+        dataset_ref: { type: string }
+        metric_code: { type: string }
+        metric_value: { type: number }
+        leakage_checked: { type: boolean }
+        evaluated_at: { $ref: '#/components/schemas/Timestamp' }
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [audit_event_id, actor_user_id, action_code, resource_type, resource_id, request_id, occurred_at]
+      properties:
+        audit_event_id: { $ref: '#/components/schemas/Uuid' }
+        actor_user_id: { type: [string, 'null'], format: uuid }
+        action_code: { type: string }
+        resource_type: { type: string }
+        resource_id: { type: [string, 'null'], format: uuid }
+        request_id: { type: [string, 'null'] }
+        occurred_at: { $ref: '#/components/schemas/Timestamp' }
+    AuditEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEvent' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    AiUsageBucket:
+      type: object
+      additionalProperties: false
+      required: [key, input_tokens, output_tokens, estimated_cost_usd, request_count]
+      properties:
+        key: { type: string, description: 'group_by 값 (날짜·기능·모델)' }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        estimated_cost_usd: { type: number, minimum: 0 }
+        request_count: { type: integer, minimum: 0 }

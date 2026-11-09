@@ -36,3 +36,20 @@
 
 ## 현재 CI에 관한 주의
 초기 `.github/workflows/ci.yml`은 제한된 Smoke CI입니다. 2026-11-06 현재 PR #5에 별도 PostgreSQL 격리 검증 CI가 추가되어 있으며, PR #3/4의 GHCR→Ubuntu Auto-CD E2E도 검증되었습니다. 전체 서비스 품질·보안을 자동 보증하지는 않습니다.
+
+
+## 자동화 테스트 증빙 필수 항목
+
+개발자 PR은 [테스트 자동화 표준](testing/README.md)과 [증빙 제출 가이드](testing/TEST_EVIDENCE_GUIDE.md)를 따릅니다. 실행한 테스트에 대해서만 다음을 기록합니다.
+
+- Redmine Issue, PR, HEAD SHA, 환경·실행 명령
+- pytest/Vitest/Playwright/DB 중 **실제로 실행한** 영역 및 PASS/FAIL/SKIP 수
+- GitHub Actions Run URL, 실패 원인, 미구현/미실행/HOLD 사유
+- JUnit XML·콘솔 로그·스크린샷·HTML Report 등 **민감정보를 제거한** 증빙 URL
+- Staging DB 변경 여부(기본 NO), Schema/Seed/Migration 승인 링크(해당 시)
+
+[테스트 결과 보고서 양식](testing/TEST_REPORT_TEMPLATE.md)을 PR/Redmine에 붙여 주세요. Playwright는 2026-11-06 확인 시점에 설치되지 않았으며 도입·CI 작업은 별도 승인 PR이 필요합니다. 어떤 CI Smoke의 PASS도 전체 pytest/Vitest/Playwright PASS를 의미하지 않습니다.
+
+## PR 병합 후에도 필수: 자동 배포·Staging QA·Redmine 종료
+
+모든 개발 작업은 **[공통 종료 게이트](WORK_ITEM_CLOSURE_GATE.md)**를 적용합니다. `main` Squash Merge는 완료가 아니라 **스테이징 확인 시작 조건**입니다. 기존 GH Actions 자동 Publish → Ubuntu 1분 주기 Pull/배포의 실제 성공 기록, 대상 이미지에 변경 기능이 포함되었는지, 실행 SHA·Digest, **실제 Staging API/DB/Frontend 기능 테스트**를 확인하세요. 확인 결과를 Redmine에 기록하고 PM/JM이 승인해야 100%/Closed입니다. 자동 배포 미실행·범위 누락·서버 미접근·기능 FAIL은 HOLD/Blocked 유지. 배포 대상이 아닌 문서 전용 작업만 승인된 N/A 절차를 적용합니다.

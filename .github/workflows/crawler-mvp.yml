@@ -1,0 +1,77 @@
+name: Crawler MVP
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: ai_career_crawler_training
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m unittest discover -s crawler/tests
+      - run: python -m unittest discover -s backend/training_tests
+      - run: node backend/training_tests/frontend_collected_test.cjs
+      - run: node backend/training_tests/frontend_collected_test.cjs --staging
+      - run: python -m pytest poc/staging/tests -q
+      - name: Build and smoke-test integrated staging image
+        run: |
+          docker build -f poc/staging/backend/Dockerfile.integrated -t crawler-staging-test .
+          docker run --rm crawler-staging-test python -m crawler.jobs.import_jobkorea_html --help
+          docker run --rm crawler-staging-test python -m crawler.jobs.dispatcher --help
+          docker run --rm crawler-staging-test python -m crawler.jobs.scheduled_worker --help
+          docker build -t crawler-staging-frontend-test poc/staging/frontend
+          python poc/staging/tests/docker_route_smoke.py
+          docker run --rm crawler-staging-test python -c "import main; assert '/api/jobs/collected' in main.app.openapi()['paths']; assert '/api/health' in main.app.openapi()['paths']; assert '/api/v1/me' in main.app.openapi()['paths']"
+      - name: Test constructed HTML through real isolated PostgreSQL and API
+        env:
+          CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_LOCAL_PG_TEST: '1'
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE ROLE crawler_student LOGIN NOSUPERUSER'
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'ALTER DATABASE ai_career_crawler_training OWNER TO crawler_student'
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -f crawler/storage/local_training_schema.sql
+          python -m unittest crawler.tests.local_html_pg_integration -v
+          psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE ROLE crawler_staging LOGIN NOSUPERUSER'
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -c 'GRANT USAGE ON SCHEMA crawler_training TO crawler_staging; GRANT SELECT, INSERT, UPDATE ON crawler_training.postings TO crawler_staging'
+          CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_staging_pg_integration -v
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f crawler/storage/migrations/0002_scheduler.sql
+          CRAWLER_T64_ISOLATED_TEST=1 python -m unittest crawler.tests.local_t64_integration -v
+          CRAWLER_STAGING_PG_TEST=1 python -m unittest crawler.tests.local_t64_permissions -v
+      - name: Test bounded fixture night executor in isolated PostgreSQL
+        env:
+          CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_NIGHT_TEST_DSN: postgresql://crawler_staging@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_NIGHT_PG_TEST: '1'
+        run: |
+          for migration in crawler/storage/migrations/000{3,4,5,6,7,8,9}_*.sql crawler/storage/migrations/0010_*.sql; do
+            psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          python -m unittest crawler.tests.local_t154_night_executor crawler.tests.local_t154_night_caller -v
+          python -m unittest crawler.tests.local_t155_admin_read_pg -v
+          CRAWLER_NIGHT_CONTAINER_TEST=1 python -m unittest crawler.tests.local_t154_caller_container -v
+      - name: Verify disabled crawler systemd unit files
+        run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer poc/staging/crawler/ai-career-t154-night-20261108.service poc/staging/crawler/ai-career-t154-night-20261108.timer

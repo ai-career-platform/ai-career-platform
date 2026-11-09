@@ -1,0 +1,11 @@
+[Unit]
+Description=Check crawler DB schedules every five minutes (disabled until approved)
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+Unit=ai-career-crawler-dispatch.service
+
+[Install]
+WantedBy=timers.target
