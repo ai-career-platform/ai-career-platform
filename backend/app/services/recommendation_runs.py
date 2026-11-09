@@ -24,13 +24,17 @@ class RecommendationService:
         if data.skills and eligible:
             # T18 filtering already handles exact timestamp expiration, NULL = ongoing.
             # The T27 date-only primitive is invoked only on T18-confirmed open postings.
-            baseline = recommend(data.skills, [Posting(
-                id=str(c.posting.job_posting_id), skills=c.skill_codes,
-                source_id="catalog", expires_on=(c.posting.expires_at.date()
-                    if c.posting.expires_at is not None else date.max))
-                for c in eligible], as_of=now.date(), limit=min(50, len(eligible)))
-            scores = {UUID(x.posting_id): x for x in baseline.items}
-            # Baseline returns <=50; eligible is latest-first. Do not claim a full-corpus top-K.
+            scores = {}
+            # T27 accepts at most 50 outputs. Process every candidate in batches,
+            # then apply one global deterministic ordering (including target ties).
+            for offset in range(0, len(eligible), 50):
+                batch = eligible[offset:offset + 50]
+                baseline = recommend(data.skills, [Posting(
+                    id=str(c.posting.job_posting_id), skills=c.skill_codes,
+                    source_id="catalog", expires_on=(c.posting.expires_at.astimezone(UTC).date()
+                        if c.posting.expires_at is not None else date.max))
+                    for c in batch], as_of=now.date(), limit=len(batch))
+                scores.update({UUID(x.posting_id): x for x in baseline.items})
             matched = [c for c in eligible if c.posting.job_posting_id in scores]
             matched.sort(key=lambda c: (-scores[c.posting.job_posting_id].score,
                 data.target_priorities.get(c.posting.job_role.job_role_id, 999)
