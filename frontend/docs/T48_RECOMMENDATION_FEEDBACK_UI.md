@@ -41,7 +41,7 @@ npm run lint
 npm test
 npm run build
 ~~~
-- 결과: `Test Files 8 passed | 1 skipped (9)`, `Tests 64 passed | 6 skipped (70)` (건너뛴 6개는 실제 API origin이 필요한 기존 `client.integration.test.ts`)
+- 결과: `Test Files 9 passed | 1 skipped (10)`, `Tests 66 passed | 6 skipped (72)` (건너뛴 6개는 실제 API origin이 필요한 기존 `client.integration.test.ts`)
 - 추가 테스트: `src/components/RecommendationFeedbackActions.test.tsx` 17개
   - 피드백 11개: 이전 피드백 표시, 저장 본문·중복 전송 방지·재조회 순서, 정정과 취소, 토글 해제, 5xx 오류와 다시 시도, 404·422는 다시 시도 없는 안내(2개), 재조회 실패 보정, not_interested의 다음 추천 제외, 401, 기업 제공 표현 없음
   - 대화상자 6개: role·label·description·초점 이동·부족 역량 없음 상태, Esc와 초점 복귀, Tab 가두기, 초점이 body로 빠진 뒤의 Esc·Tab·Shift+Tab, 닫기 버튼과 바깥 클릭, fallback 표시

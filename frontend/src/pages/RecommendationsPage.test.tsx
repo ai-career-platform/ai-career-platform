@@ -110,7 +110,7 @@ describe('RecommendationsPage (UI-017)', () => {
     expect(items).toHaveLength(2);
     expect(screen.queryByText(/데이터 엔지니어 \(주니어\)/)).not.toBeInTheDocument();
     expect(within(at(items, 1)).getByText(/2위 · Python 서버 개발자/)).toBeInTheDocument();
-    expect(within(at(items, 1)).getByText('좋아요 표시함')).toBeInTheDocument();
+    expect(within(at(items, 1)).getByText('관심 있음 표시함')).toBeInTheDocument();
   });
 
   it('marks a fallback run as 기준 추천 (not personalized) and shows no numeric score', async () => {
