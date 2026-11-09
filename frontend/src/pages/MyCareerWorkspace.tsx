@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useApi } from '../api/ApiContext';
+import type { JobPostingSummary, JobRoleRef } from '../api/catalog';
+import type { Experience, Project } from '../api/me';
 import './MyCareerWorkspace.css';
 
-type Role = { job_role_id: string; code: string; name: string };
-type TargetRole = { job_role: Role; priority: number };
-type Experience = { experience_id: string; organization: string; title: string; description: string | null };
-type Project = { project_id: string; title: string; summary: string | null };
-type Posting = { job_posting_id: string; title: string; status: 'published' | 'closed'; company: { name: string } };
-type Page<T> = { items: T[]; next_cursor: string | null };
+type Role = JobRoleRef;
 
 function Feedback({ loading, error, empty }: { loading: boolean; error: string; empty?: string }) {
   if (loading) return <p role="status">불러오는 중…</p>;
@@ -16,7 +13,7 @@ function Feedback({ loading, error, empty }: { loading: boolean; error: string; 
 }
 
 export function TargetRolesPage() {
-  const { request } = useAuth();
+  const api = useApi();
   const [roles, setRoles] = useState<Role[]>([]);
   const [selected, setSelected] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,11 +23,11 @@ export function TargetRolesPage() {
     setLoading(true); setMessage('');
     try {
       const [catalog, targets] = await Promise.all([
-        request<Page<Role>>('/v1/job-roles?limit=100'), request<TargetRole[]>('/v1/me/target-roles'),
+        api.jobRoles.list({ limit: 100 }), api.me.targetRoles.list(),
       ]);
       setRoles(catalog.items); setSelected(targets.sort((a, b) => a.priority - b.priority).map((x) => x.job_role));
     } catch { setMessage('목표 직무를 불러오지 못했습니다.'); } finally { setLoading(false); }
-  }, [request]);
+  }, [api]);
   // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
   useEffect(() => { void load(); }, [load]);
   const toggle = (role: Role) => {
@@ -46,7 +43,7 @@ export function TargetRolesPage() {
   const save = async () => {
     setSaving(true); setMessage('');
     try {
-      const saved = await request<TargetRole[]>('/v1/me/target-roles', { method: 'PUT', body: { items: selected.map((role, index) => ({ job_role_id: role.job_role_id, priority: index + 1 })) } });
+      const saved = await api.me.targetRoles.replace({ items: selected.map((role, index) => ({ job_role_id: role.job_role_id, priority: index + 1 })) });
       setSelected(saved.sort((a, b) => a.priority - b.priority).map((x) => x.job_role)); setMessage('목표 직무를 저장했습니다.');
     } catch { setMessage('저장하지 못했습니다. 다시 시도해 주세요.'); } finally { setSaving(false); }
   };
@@ -60,22 +57,22 @@ export function TargetRolesPage() {
 }
 
 export function CareerHistoryPage() {
-  const { request } = useAuth();
+  const api = useApi();
   const [experiences, setExperiences] = useState<Experience[]>([]); const [projects, setProjects] = useState<Project[]>([]);
   const [kind, setKind] = useState<'experience' | 'project'>('experience'); const [title, setTitle] = useState(''); const [organization, setOrganization] = useState('');
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const load = useCallback(async () => { setLoading(true); setError(''); try { const [e, p] = await Promise.all([request<Experience[]>('/v1/me/experiences'), request<Project[]>('/v1/me/projects')]); setExperiences(e); setProjects(p); } catch { setError('경력 정보를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [request]);
+  const load = useCallback(async () => { setLoading(true); setError(''); try { const [e, p] = await Promise.all([api.me.experiences.list(), api.me.projects.list()]); setExperiences(e); setProjects(p); } catch { setError('경력 정보를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [api]);
   // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
   useEffect(() => { void load(); }, [load]);
   const add = async () => {
     if (!title.trim() || (kind === 'experience' && !organization.trim())) return setError('필수 항목을 입력해 주세요.');
     try {
-      if (kind === 'experience') { const item = await request<Experience>('/v1/me/experiences', { method: 'POST', body: { organization, title } }); setExperiences([...experiences, item]); }
-      else { const item = await request<Project>('/v1/me/projects', { method: 'POST', body: { title, summary: organization || null, skill_ids: [] } }); setProjects([...projects, item]); }
+      if (kind === 'experience') { const item = await api.me.experiences.create({ organization, title }); setExperiences([...experiences, item]); }
+      else { const item = await api.me.projects.create({ title, summary: organization || null, skill_ids: [] }); setProjects([...projects, item]); }
       setTitle(''); setOrganization(''); setError('');
     } catch { setError('등록하지 못했습니다.'); }
   };
-  const remove = async (type: 'experiences' | 'projects', id: string) => { try { await request<void>(`/v1/me/${type}/${id}`, { method: 'DELETE' }); if (type === 'experiences') setExperiences(experiences.filter((x) => x.experience_id !== id)); else setProjects(projects.filter((x) => x.project_id !== id)); } catch { setError('삭제하지 못했습니다.'); } };
+  const remove = async (type: 'experiences' | 'projects', id: string) => { try { await (type === 'experiences' ? api.me.experiences.remove(id) : api.me.projects.remove(id)); if (type === 'experiences') setExperiences(experiences.filter((x) => x.experience_id !== id)); else setProjects(projects.filter((x) => x.project_id !== id)); } catch { setError('삭제하지 못했습니다.'); } };
   const empty = !loading && !error && experiences.length === 0 && projects.length === 0;
   return <main className="career-workspace"><h1>경력·프로젝트</h1><Feedback loading={loading} error={error} empty={empty ? '등록한 경력이나 프로젝트가 없습니다.' : undefined} />
     {!loading && <><div className="career-form"><label>유형<select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="experience">경력</option><option value="project">프로젝트</option></select></label><label>{kind === 'experience' ? '회사·기관' : '프로젝트 요약'}<input value={organization} onChange={(e) => setOrganization(e.target.value)} /></label><label>{kind === 'experience' ? '직무' : '프로젝트명'}<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><button className="primary" onClick={() => void add()}>추가</button></div>
@@ -84,11 +81,11 @@ export function CareerHistoryPage() {
 }
 
 export function BookmarksPage() {
-  const { request } = useAuth(); const [items, setItems] = useState<Posting[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const load = useCallback(async () => { try { const page = await request<Page<Posting>>('/v1/me/bookmarks'); setItems(page.items); } catch { setError('저장한 공고를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [request]);
+  const api = useApi(); const [items, setItems] = useState<JobPostingSummary[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  const load = useCallback(async () => { try { const page = await api.me.bookmarks.list(); setItems(page.items); } catch { setError('저장한 공고를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [api]);
   // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
   useEffect(() => { void load(); }, [load]);
-  const remove = async (id: string) => { try { await request<void>(`/v1/me/bookmarks/${id}`, { method: 'DELETE' }); setItems(items.filter((x) => x.job_posting_id !== id)); } catch { setError('저장을 해제하지 못했습니다.'); } };
+  const remove = async (id: string) => { try { await api.me.bookmarks.remove(id); setItems(items.filter((x) => x.job_posting_id !== id)); } catch { setError('저장을 해제하지 못했습니다.'); } };
   return <main className="career-workspace"><h1>저장한 채용공고</h1><Feedback loading={loading} error={error} empty={!loading && !error && items.length === 0 ? '저장한 공고가 없습니다.' : undefined} />
     <ul>{items.map((item) => <li key={item.job_posting_id}><span><strong>{item.title}</strong> · {item.company.name}{item.status === 'closed' && <em> 마감된 공고</em>}</span><button onClick={() => void remove(item.job_posting_id)}>저장 해제</button></li>)}</ul>
   </main>;
