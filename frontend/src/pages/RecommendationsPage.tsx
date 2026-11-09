@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useApi } from '../api/ApiContext';
+import { useQuery } from '../api/useQuery';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
 import { RecommendationCard } from '../components/RecommendationCard';
 import { StatePanel } from '../components/StatePanel';
-import {
-  createRecommendationRun,
-  findLatestRecommendationRun,
-  RECOMMENDATION_LIMIT_DEFAULT,
-} from '../api/recommendations';
+import { RECOMMENDATION_LIMIT_DEFAULT } from '../api/recommendations';
 import type { ModelKind, RecommendationItem, RecommendationRun, RecommendationRunStatus } from '../api/recommendations';
 import './RecommendationsPage.css';
 
@@ -52,45 +49,26 @@ type RecommendationsPageProps = {
 
 /** UI-017 맞춤 공고 추천 목록 (FR-ANL-003). 로그인 필요 경로(RequireAuth) 아래에 둡니다. */
 export function RecommendationsPage({ renderItemActions }: RecommendationsPageProps = {}) {
-  const { request } = useAuth();
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [run, setRun] = useState<RecommendationRun | null>(null);
+  const api = useApi();
+  // 가장 최근 추천(없으면 null). 늦게 온 이전 조회가 최신 상태를 덮어쓰지 않는 것은 useQuery 가 맡습니다.
+  const latest = useQuery(['recommendation-latest'], (signal) => api.recommendations.findLatest(signal));
+  // 새로 받은 추천·피드백 반영 후 다시 조회한 추천. 있으면 조회 결과보다 우선합니다.
+  const [override, setOverride] = useState<RecommendationRun | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(false);
   const [filter, setFilter] = useState<FeedbackFilter>('all');
 
-  // 응답이 늦게 온 이전 조회가 최신 상태를 덮어쓰지 않도록 조회마다 번호를 매깁니다.
-  const loadSeq = useRef(0);
-  const loadLatest = useCallback(() => {
-    const seq = ++loadSeq.current;
-    findLatestRecommendationRun(request)
-      .then((latest) => {
-        if (seq !== loadSeq.current) return;
-        setRun(latest);
-        setPhase('ready');
-      })
-      .catch(() => {
-        if (seq === loadSeq.current) setPhase('error');
-      });
-  }, [request]);
-
-  useEffect(() => {
-    loadLatest();
-  }, [loadLatest]);
-
-  const retryLoad = () => {
-    setPhase('loading');
-    loadLatest();
-  };
+  const phase: 'loading' | 'ready' | 'error' = override ? 'ready' : latest.status === 'ready' ? 'ready' : latest.status === 'error' ? 'error' : 'loading';
+  const run = override ?? (latest.status === 'ready' ? latest.data : null);
+  const setRun = (next: RecommendationRun) => setOverride(next);
 
   const requestNewRun = async () => {
-    loadSeq.current += 1; // 진행 중인 조회 결과는 버리고 새 추천을 보여줍니다.
     setCreating(true);
     setCreateError(false);
     try {
-      setRun(await createRecommendationRun(request, { limit: RECOMMENDATION_LIMIT_DEFAULT }));
+      // 진행 중인 조회가 나중에 끝나도 새 추천이 우선합니다(override).
+      setRun(await api.recommendations.create({ limit: RECOMMENDATION_LIMIT_DEFAULT }));
       setFilter('all');
-      setPhase('ready');
     } catch {
       setCreateError(true);
     } finally {
@@ -130,7 +108,7 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
           title="추천을 불러오지 못했습니다"
           description="잠시 후 다시 시도해 주세요."
           actionLabel="다시 시도"
-          onAction={retryLoad}
+          onAction={latest.retry}
         />
       )}
 
