@@ -1,4 +1,5 @@
 import { ApiError } from '../api/errors';
+import { resolveDocumentsMock } from './documents';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
 import { resolveSkillsMock } from './skills';
@@ -32,6 +33,7 @@ export interface MockRequest {
   method: string;
   body?: unknown;
   token?: string | null;
+  signal?: AbortSignal;
 }
 
 const problem = (status: number, code: string): never => {
@@ -69,6 +71,10 @@ const mockMessages: Record<string, string> = {
   UNAUTHENTICATED: '로그인이 필요합니다.',
   VALIDATION_FAILED: '입력값을 확인해 주세요.',
   DUPLICATE_SKILL: '같은 기술이 중복으로 들어 있습니다.',
+  NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
+  DOCUMENT_NOT_READY: '문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요.',
+  FILE_TOO_LARGE: '파일은 10MB 이하만 올릴 수 있습니다.',
+  UNSUPPORTED_FILE_TYPE: 'PDF 또는 DOCX 파일만 올릴 수 있습니다.',
 };
 
 const MOCK_DELAY_MS = 150;
@@ -77,8 +83,18 @@ export async function resolveMock<T>(
   path: string,
   request: MockRequest = { method: 'GET' },
 ): Promise<T> {
-  await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
+  await new Promise<void>((resolve, reject) => {
+    const aborted = () => { clearTimeout(timer); reject(new ApiError(0, path, 'Request aborted', 'ABORTED')); };
+    const timer = setTimeout(() => { request.signal?.removeEventListener('abort', aborted); resolve(); }, MOCK_DELAY_MS);
+    if (request.signal?.aborted) aborted();
+    else request.signal?.addEventListener('abort', aborted, { once: true });
+  });
   try {
+    if (path === '/v1/documents' || path.startsWith('/v1/documents?') || path.startsWith('/v1/documents/')) {
+      const result = resolveDocumentsMock(path, request, authedUser(request.token).email);
+      if (result instanceof Blob) return result as T;
+      if (result !== null) return structuredClone(result) as T;
+    }
     if (['/v1/me/consents', '/v1/me/deletion-request', '/v1/consent-policies'].includes(path)) {
       const userKey = path === '/v1/consent-policies' ? null : authedUser(request.token).email;
       return structuredClone(resolvePrivacyMock(path, request, userKey)) as T;
