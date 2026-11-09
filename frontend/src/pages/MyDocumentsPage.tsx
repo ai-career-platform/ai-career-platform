@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import type { DragEvent, KeyboardEvent } from 'react';
 import { useApi } from '../api/ApiContext';
 import {
   ACCEPT, MAX_FILE_BYTES, documentErrorMessage, formatBytes, isAbortError, isPending, kindNames, saveDocument,
@@ -62,6 +62,7 @@ export function MyDocumentsPage() {
   const [kind, setKind] = useState<UploadKind>('resume');
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
+  const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const uploadBusy = useRef(false);
@@ -137,22 +138,26 @@ export function MyDocumentsPage() {
   }
 
   function chooseFile(next: File | null) {
+    if (!next || uploadBusy.current) return;
     setFile(next); setUploadError(''); setNotice('');
-    setFileError(next ? validateFile(next) ?? '' : '');
+    const invalid = validateFile(next);
+    setFileError(invalid ?? '');
+    if (!invalid) void send(next);
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  function dropFile(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault(); setDragging(false);
+    chooseFile(event.dataTransfer.files[0] ?? null);
+  }
+
+  async function send(selected: File) {
     if (uploadBusy.current) return;
-    if (!file) { setFileError('올릴 파일을 선택해 주세요.'); return; }
-    const invalid = validateFile(file);
-    if (invalid) { setFileError(invalid); return; }
     uploadBusy.current = true;
     const ctrl = new AbortController();
     controller.current = ctrl;
     setUploading(true); setUploadError(''); setNotice('');
     try {
-      const created = await documents.upload(file, kind, ctrl.signal);
+      const created = await documents.upload(selected, kind, ctrl.signal);
       if (ctrl.signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
       setDocs(previous => [created, ...previous.filter(d => d.document_id !== created.document_id)]);
       setPhase('ready');
@@ -217,42 +222,51 @@ export function MyDocumentsPage() {
 
   return <section className="documents-page" aria-labelledby="documents-title">
     <div inert={Boolean(confirm)}>
-      <h1 id="documents-title">내 문서 관리</h1>
+      <header className="documents-head">
+        <h1 id="documents-title">내 문서</h1>
+        <p className="documents-lead">이력서와 포트폴리오를 올려서 관리해요</p>
+      </header>
       {mock && <p className="documents-mode" role="status">Mock 모드: 가상 문서 상태만 흉내 내며 파일 내용은 저장하지 않습니다. 실제 서버 검증이 아닙니다.</p>}
 
-      <form className="documents-upload" onSubmit={e => void submit(e)} aria-labelledby="documents-upload-title" noValidate>
-        <h2 id="documents-upload-title">문서 올리기</h2>
-        <p className="documents-privacy">
-          이력서·포트폴리오에는 연락처 등 개인정보가 포함될 수 있습니다. 본인 문서만 올리고, 필요 없는 개인정보는 지운 뒤 올려 주세요.
-          문서는 본인만 볼 수 있으며 공개 링크를 만들지 않습니다.
-        </p>
-        <fieldset className="documents-kind" disabled={uploading}>
-          <legend>문서 유형</legend>
-          {(['resume', 'portfolio'] as const).map(k => <label key={k}>
-            <input type="radio" name="document-kind" value={k} checked={kind === k} onChange={() => setKind(k)} />
-            {kindNames[k]}
-          </label>)}
-        </fieldset>
-        <label className="documents-file-label" htmlFor="documents-file">파일 선택 (PDF 또는 DOCX)</label>
-        <input id="documents-file" ref={fileInput} type="file" accept={ACCEPT} disabled={uploading}
-          aria-describedby="documents-file-hint" aria-invalid={Boolean(fileError)}
-          onChange={e => chooseFile(e.target.files?.[0] ?? null)} />
-        <p id="documents-file-hint" className="documents-hint">PDF·DOCX만 가능하며 최대 {formatBytes(MAX_FILE_BYTES)}까지 올릴 수 있습니다.</p>
-        {file && <p className="documents-selected">선택한 파일: <span className="documents-filename">{file.name}</span> ({formatBytes(file.size)})</p>}
-        {fileError && <p className="documents-error" role="alert">{fileError}</p>}
-        {uploadError && <p className="documents-error" role="alert">{uploadError}</p>}
-        <div className="documents-upload-actions">
-          <Button type="submit" disabled={uploading || !file || Boolean(fileError)}>{uploading ? '업로드 중…' : '업로드'}</Button>
-          {uploading && <Button variant="outline" onClick={() => controller.current?.abort()}>업로드 취소</Button>}
+      <p className="documents-privacy">
+        이력서·포트폴리오에는 연락처 등 개인정보가 포함될 수 있습니다. 본인 문서만 올리고, 필요 없는 개인정보는 지운 뒤 올려 주세요.
+        문서는 본인만 볼 수 있으며 공개 링크를 만들지 않습니다.
+      </p>
+      <div className={`documents-drop${dragging ? ' documents-drop--active' : ''}`}
+        data-testid="document-dropzone" onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }}
+        onDragLeave={() => setDragging(false)} onDrop={dropFile}>
+        <p>첨부할 파일을 여기에 끌어다 놓거나, 파일 선택 버튼을 눌러 주세요</p>
+        <div className="documents-drop-actions">
+          <label className="documents-kind">문서 종류
+            <select className="text-field-input" value={kind} disabled={uploading} onChange={e => setKind(e.target.value as UploadKind)}>
+              <option value="resume">이력서</option><option value="portfolio">포트폴리오</option>
+            </select>
+          </label>
+          <Button disabled={uploading} onClick={() => fileInput.current?.click()}>파일 선택</Button>
         </div>
-        {uploading && <p role="status" aria-live="polite">업로드 중입니다. 완료될 때까지 기다리거나 취소할 수 있습니다.</p>}
-      </form>
+        <input id="documents-file" ref={fileInput} type="file" accept={ACCEPT} disabled={uploading} hidden
+          aria-label="파일 선택 (PDF 또는 DOCX)" aria-describedby="documents-file-hint" aria-invalid={Boolean(fileError)}
+          onChange={e => { chooseFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+        <p id="documents-file-hint" className="documents-hint">PDF·DOCX만 가능하며 최대 {formatBytes(MAX_FILE_BYTES)}까지 올릴 수 있습니다.</p>
+        {fileError && <p className="documents-error" role="alert">{fileError}</p>}
+      </div>
+      {(uploading || uploadError || file) && <div className="documents-transfer">
+        <span className="documents-filename">{file?.name}</span>
+        {uploading ? <>
+          <span role="status"><span className="documents-spinner" aria-hidden="true" />업로드 중입니다</span>
+          <Button variant="outline" onClick={() => controller.current?.abort()}>업로드 취소</Button>
+        </> : <>
+          {uploadError && <p className="documents-error" role="alert">{uploadError}</p>}
+          <Button variant="outline" onClick={() => file && void send(file)}>다시 시도</Button>
+        </>}
+      </div>}
 
       <div aria-live="polite" role="status" className="documents-notice">{notice}</div>
 
       <section aria-labelledby="documents-list-title">
         <div className="documents-list-head">
-          <h2 id="documents-list-title">내 문서</h2>
+          <h2 id="documents-list-title">문서 목록</h2>
+          {phase === 'ready' && <p className="documents-count"><strong>{docs.length}개</strong>{cursor ? ' 이상' : ''}</p>}
           {phase === 'ready' && hasPending && <Button variant="outline" onClick={() => void refreshPending()}>상태 새로고침</Button>}
         </div>
         {rowError && <p className="documents-error" role="alert">{rowError}</p>}
@@ -266,13 +280,17 @@ export function MyDocumentsPage() {
             const busy = busyIds.has(doc.document_id);
             return <li key={doc.document_id} className={`documents-item documents-item--${doc.status}`}>
               <article aria-label={doc.original_filename}>
-                <h3 className="documents-filename">{doc.original_filename}</h3>
+                <div className="documents-details"><h3 className="documents-filename">{doc.original_filename}</h3>
                 <dl className="documents-meta">
                   <div><dt>유형</dt><dd>{kindNames[doc.kind] ?? doc.kind}</dd></div>
                   <div><dt>크기</dt><dd>{formatBytes(doc.size_bytes)}</dd></div>
                   <div><dt>등록일</dt><dd>{new Date(doc.created_at).toLocaleString('ko-KR')}</dd></div>
-                  <div><dt>상태</dt><dd><span className={`documents-status documents-status--${doc.status}`}>{statusNames[doc.status]}</span></dd></div>
-                </dl>
+                </dl></div>
+                <span className={`documents-status documents-status--${doc.status}`}>
+                  <span aria-hidden="true" className={isPending(doc.status) ? 'documents-spinner' : 'documents-mark'}>
+                    {isPending(doc.status) ? '' : doc.status === 'ready' ? '✓' : '!'}
+                  </span>{statusNames[doc.status]}
+                </span>
                 <div className="documents-item-actions">
                   <Button variant="outline" disabled={doc.status !== 'ready' || busy}
                     aria-label={`${doc.original_filename} 다운로드`} onClick={() => void download(doc)}>다운로드</Button>

@@ -35,13 +35,12 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: (ne
 }
 
 function file(name: string, size = 2048, type = 'application/pdf') {
-  const f = new File(['synthetic'], name, { type });
-  Object.defineProperty(f, 'size', { value: size });
+  const f = new File([new Uint8Array(size)], name, { type });
   return f;
 }
 const input = () => screen.getByLabelText('파일 선택 (PDF 또는 DOCX)');
 const choose = (f: File) => fireEvent.change(input(), { target: { files: [f] } });
-const uploadButton = () => screen.getByRole('button', { name: /^업로드( 중…)?$/ });
+const retryUpload = () => screen.getByRole('button', { name: '다시 시도' });
 const posts = (request: ReturnType<typeof show>) =>
   request.mock.calls.filter(([path, o]) => path === '/v1/documents' && o?.method === 'POST');
 const item = (name: string) => screen.getByRole('article', { name });
@@ -69,41 +68,41 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     expect(screen.getByText(/개인정보가 포함될 수 있습니다/)).toBeInTheDocument();
     expect(screen.getByText(/최대 10.0 MB/)).toBeInTheDocument();
     expect(input()).toHaveAttribute('accept', expect.stringContaining('.pdf'));
-    expect(screen.getByRole('radio', { name: '이력서' })).toBeChecked();
-    expect(uploadButton()).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: '문서 종류' })).toHaveValue('resume');
+    expect(screen.getByRole('button', { name: '파일 선택' })).toBeEnabled();
   });
 
   it.each([['이력서.pdf', 'application/pdf'], ['포트폴리오.DOCX', '']])('accepts %s and shows name and size', async (name, type) => {
     show(); await screen.findByText('등록한 문서가 없습니다');
     choose(file(name, 2048, type));
+    await screen.findByRole('article', { name });
     expect(screen.getByText(name)).toBeInTheDocument();
     expect(screen.getByText(/2.0 KB/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(uploadButton()).toBeEnabled();
+    expect(screen.getByRole('button', { name: '파일 선택' })).toBeEnabled();
   });
 
   it('rejects wrong extensions and files over 10MiB before sending', async () => {
     const request = show(); await screen.findByText('등록한 문서가 없습니다');
     choose(file('resume.pdf.exe', 10, 'application/pdf'));
     expect(screen.getByRole('alert')).toHaveTextContent('PDF(.pdf) 또는 DOCX(.docx)');
-    expect(uploadButton()).toBeDisabled();
+    expect(screen.getByRole('button', { name: '파일 선택' })).toBeEnabled();
     choose(file('big.pdf', MAX_FILE_BYTES + 1));
     expect(screen.getByRole('alert')).toHaveTextContent('10MB 이하');
     expect(input()).toHaveAttribute('aria-invalid', 'true');
-    expect(uploadButton()).toBeDisabled();
+    expect(screen.getByRole('button', { name: '파일 선택' })).toBeEnabled();
     expect(posts(request)).toHaveLength(0);
   });
 
   it('shows uploading state, blocks duplicate submit, then lists the new scanning document', async () => {
     const request = show(); await screen.findByText('등록한 문서가 없습니다');
-    fireEvent.click(screen.getByRole('radio', { name: '포트폴리오' }));
+    fireEvent.change(screen.getByRole('combobox', { name: '문서 종류' }), { target: { value: 'portfolio' } });
     choose(file('포트폴리오.pdf'));
-    fireEvent.click(uploadButton());
-    fireEvent.click(uploadButton());
-    expect(screen.getByRole('button', { name: '업로드 중…' })).toBeDisabled();
+    fireEvent.drop(screen.getByTestId('document-dropzone'), { dataTransfer: { files: [file('중복.pdf')] } });
+    expect(screen.getByRole('button', { name: '파일 선택' })).toBeDisabled();
     expect(screen.getByText(/업로드 중입니다/)).toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument(); // no fake progress percentage
-    expect(screen.getByRole('radio', { name: '이력서' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: '문서 종류' })).toBeDisabled();
     expect(await screen.findByText('업로드를 접수했습니다. 파일을 확인하는 중입니다.')).toBeInTheDocument();
     expect(posts(request)).toHaveLength(1);
     const form = posts(request)[0]![1]!.body as FormData;
@@ -118,17 +117,39 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
   it('cancels an in-flight upload, never reports success, reloads the list to show server state, can retry', async () => {
     const request = show(); await screen.findByText('등록한 문서가 없습니다');
     choose(file('이력서.pdf'));
-    fireEvent.click(uploadButton());
     fireEvent.click(screen.getByRole('button', { name: '업로드 취소' }));
     expect(await screen.findByText(/업로드를 취소했습니다/)).toBeInTheDocument();
     expect(screen.queryByText('업로드를 접수했습니다. 파일을 확인하는 중입니다.')).not.toBeInTheDocument();
     await waitFor(() => expect(request.mock.calls.filter(([p]) => p.startsWith('/v1/documents?'))).toHaveLength(2));
     // The synthetic server had already received the request: the reloaded list shows it (deletable), not a fake success.
     expect(await screen.findByRole('article', { name: '이력서.pdf' })).toBeInTheDocument();
-    expect(uploadButton()).toBeEnabled(); // file kept for retry
-    fireEvent.click(uploadButton());
+    expect(retryUpload()).toBeEnabled(); // file kept for retry
+    fireEvent.click(retryUpload());
     expect(await screen.findByText('업로드를 접수했습니다. 파일을 확인하는 중입니다.')).toBeInTheDocument();
     expect(screen.getAllByRole('article', { name: '이력서.pdf' })).toHaveLength(2);
+  });
+
+  it('uploads a dropped file immediately with the selected kind', async () => {
+    const request = show(); await screen.findByText('등록한 문서가 없습니다');
+    fireEvent.change(screen.getByRole('combobox', { name: '문서 종류' }), { target: { value: 'portfolio' } });
+    const zone = screen.getByTestId('document-dropzone');
+    fireEvent.dragOver(zone);
+    expect(zone).toHaveClass('documents-drop--active');
+    fireEvent.drop(zone, { dataTransfer: { files: [file('드롭.pdf')] } });
+    expect(zone).not.toHaveClass('documents-drop--active');
+    await screen.findByRole('article', { name: '드롭.pdf' });
+    expect(posts(request)).toHaveLength(1);
+    expect((posts(request)[0]![1]!.body as FormData).get('kind')).toBe('portfolio');
+  });
+
+  it('rejects invalid drops and keeps file selection as a keyboard alternative', async () => {
+    const request = show(); await screen.findByText('등록한 문서가 없습니다');
+    fireEvent.drop(screen.getByTestId('document-dropzone'), { dataTransfer: { files: [file('wrong.exe')] } });
+    expect(screen.getByRole('alert')).toHaveTextContent('PDF(.pdf) 또는 DOCX(.docx)');
+    expect(posts(request)).toHaveLength(0);
+    const click = vi.spyOn(input(), 'click');
+    fireEvent.click(screen.getByRole('button', { name: '파일 선택' }));
+    expect(click).toHaveBeenCalledOnce();
   });
 
   it('only ready documents can be downloaded; rejected cannot; object URL is revoked', async () => {
@@ -146,7 +167,6 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
   it('scanning becomes ready after a status refresh', async () => {
     show(); await screen.findByText('등록한 문서가 없습니다');
     choose(file('검사.pdf'));
-    fireEvent.click(uploadButton());
     await screen.findByRole('article', { name: '검사.pdf' });
     settleDocumentMocks();
     fireEvent.click(screen.getByRole('button', { name: '상태 새로고침' }));
@@ -176,13 +196,12 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('등록한 문서가 없습니다')).toBeInTheDocument();
     choose(file('a.pdf'));
-    fireEvent.click(uploadButton());
     expect(await screen.findByRole('alert')).toHaveTextContent('PDF 또는 DOCX 파일만');
     uploadError = new ApiError(0, '/v1/documents', 'Network error');
-    fireEvent.click(uploadButton());
+    fireEvent.click(retryUpload());
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('네트워크 연결'));
     uploadError = new ApiError(413, '/v1/documents');
-    fireEvent.click(uploadButton());
+    fireEvent.click(retryUpload());
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('10MB 이하'));
   });
 
@@ -247,7 +266,6 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     const log = vi.spyOn(console, 'log');
     show(); await screen.findByRole('article', { name: '노출검사.pdf' });
     choose(file('업로드.pdf'));
-    fireEvent.click(uploadButton());
     await screen.findByRole('article', { name: '업로드.pdf' });
     await act(async () => { fireEvent.click(within(item('노출검사.pdf')).getByRole('button', { name: '노출검사.pdf 다운로드' })); });
     const text = document.body.textContent ?? '';
