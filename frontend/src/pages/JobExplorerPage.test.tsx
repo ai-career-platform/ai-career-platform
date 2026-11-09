@@ -1,73 +1,36 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiGet } from '../api/client';
 import { JobExplorerPage } from './JobExplorerPage';
-import { demoJobRoles, filterJobRoles, pageJobRoles, type JobRole } from './jobExplorerData';
 
-describe('T23 synthetic job role explorer', () => {
-  it('displays explicit mock notice, search, role and skill detail', async () => {
+vi.mock('../api/client', () => ({ apiGet: vi.fn() }));
+const get = vi.mocked(apiGet);
+beforeEach(() => get.mockReset());
+
+describe('job role API', () => {
+  it('loads a role and its required skills from separate endpoints', async () => {
+    get.mockResolvedValueOnce({ items: [{ job_role_id: '1', code: 'dev', name: '개발자' }], next_cursor: null });
+    get.mockResolvedValueOnce({ job_role_id: '1', name: '개발자', code: 'dev', description: null, required_skills: [{ skill: { skill_id: 's1', name: 'Python' }, required_level: 3 }] });
     render(<JobExplorerPage />);
-    expect(screen.getByText('UI 미리보기 · 가상 데이터')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '백엔드' } });
-    const card = await screen.findByRole('button', { name: '백엔드 개발자 상세 보기' });
-    fireEvent.click(card);
-    expect(card).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('heading', { level: 3, name: '백엔드 개발자' })).toBeInTheDocument();
-    expect(screen.getByText(/실제 보유 기술·Skill Gap 분석은 연동되지 않았습니다/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '개발자' }));
+    expect(await screen.findByText('Python · 요구 수준 3')).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith('/v1/job-roles/1');
   });
-
-  it('filters by skill and category and restores results after empty search', async () => {
+  it('uses the returned cursor and sends server-side search', async () => {
+    get.mockResolvedValueOnce({ items: [], next_cursor: 'next' });
+    get.mockResolvedValueOnce({ items: [], next_cursor: null });
+    get.mockResolvedValueOnce({ items: [], next_cursor: null });
     render(<JobExplorerPage />);
-    await screen.findByText('8개 직무');
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Python' } });
-    expect(screen.getByText('4개 직무')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '데이터' }));
-    expect(screen.getByText('2개 직무')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '없는 기술' } });
-    expect(screen.getByText('검색 결과가 없습니다')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '검색 조건 초기화' }));
-    expect(screen.getByRole('searchbox')).toHaveValue('');
-    expect(screen.getByText('8개 직무')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: '다음' }));
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/v1/job-roles?limit=20&cursor=next'));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '개발' } });
+    fireEvent.click(screen.getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/v1/job-roles?limit=20&q=%EA%B0%9C%EB%B0%9C'));
   });
-
-  it('supports next/previous and resets page when search changes', async () => {
+  it('shows an error and retries', async () => {
+    get.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ items: [], next_cursor: null });
     render(<JobExplorerPage />);
-    await screen.findByText('8개 직무');
-    expect(screen.getByText('1 / 2 페이지')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '이전' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: '다음' }));
-    expect(screen.getByText('2 / 2 페이지')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'UX' } });
-    expect(screen.getByText('1 / 1 페이지')).toBeInTheDocument();
-  });
-
-  it('does not display a stale selection after another search', async () => {
-    render(<JobExplorerPage />);
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '백엔드' } });
-    fireEvent.click(await screen.findByRole('button', { name: '백엔드 개발자 상세 보기' }));
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'UX' } });
-    expect(screen.getByText('직무를 선택해 주세요')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 3, name: '백엔드 개발자' })).not.toBeInTheDocument();
-  });
-
-  it('renders an error state and retries without contacting backend', async () => {
-    const loader = vi.fn<() => Promise<readonly JobRole[]>>()
-      .mockRejectedValueOnce(new Error('synthetic'))
-      .mockResolvedValueOnce(demoJobRoles);
-    render(<JobExplorerPage loadRoles={loader} />);
-    expect(screen.getByText('예시 직무를 불러오는 중입니다')).toBeInTheDocument();
-    expect(await screen.findByText('직무 목록을 불러오지 못했습니다')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    await screen.findByText('8개 직무');
-    expect(loader).toHaveBeenCalledTimes(2);
-  });
-
-  it('keeps mock data immutable and validates pagination', () => {
-    const snapshot = demoJobRoles.map((job) => job.id);
-    expect(filterJobRoles(demoJobRoles, 'SQL', '전체', 'category').length).toBe(4);
-    expect(demoJobRoles.map((job) => job.id)).toEqual(snapshot);
-    expect(pageJobRoles(demoJobRoles, 100).current).toBe(2);
-    expect(pageJobRoles([], 1).items).toEqual([]);
-    expect(() => pageJobRoles(demoJobRoles, 0)).toThrow('Invalid page');
+    fireEvent.click(await screen.findByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('검색 결과가 없습니다.')).toBeInTheDocument();
   });
 });
