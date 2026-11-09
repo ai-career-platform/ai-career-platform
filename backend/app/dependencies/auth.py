@@ -16,8 +16,6 @@
 
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -29,8 +27,8 @@ from app.core.errors import AppError, ErrorCode
 from app.core.rate_limit import AttemptLimiter
 from app.core.security import AccessClaims, TokenExpired, TokenInvalid, decode_access_token
 from app.db import get_db
-from app.repositories.auth import AuthRepository, SqlAuthRepository
-from app.services.auth import AuthService, is_session_active
+from app.repositories.auth import SqlAuthRepository
+from app.services.auth import AuthService, CurrentUser
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -43,24 +41,12 @@ def get_attempt_limiter(request: Request) -> AttemptLimiter:
     return request.app.state.attempt_limiter
 
 
-def get_auth_repository(session: Annotated[Session, Depends(get_db)]) -> AuthRepository:
-    return SqlAuthRepository(session)
-
-
 def get_auth_service(
-    repo: Annotated[AuthRepository, Depends(get_auth_repository)],
+    session: Annotated[Session, Depends(get_db)],
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
     limiter: Annotated[AttemptLimiter, Depends(get_attempt_limiter)],
 ) -> AuthService:
-    return AuthService(repo, settings, limiter)
-
-
-@dataclass(frozen=True)
-class CurrentUser:
-    user_id: uuid.UUID
-    session_id: uuid.UUID
-    roles: frozenset[str]
-    permissions: frozenset[str]
+    return AuthService(SqlAuthRepository(session), settings, limiter)
 
 
 def get_access_claims(
@@ -79,21 +65,11 @@ def get_access_claims(
 
 
 def get_current_user(
+    # claims를 먼저 풀어 토큰이 없거나 잘못되면 DB 세션을 열기 전에 401로 끝낸다.
     claims: Annotated[AccessClaims, Depends(get_access_claims)],
-    repo: Annotated[AuthRepository, Depends(get_auth_repository)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> CurrentUser:
-    session = repo.get_session(claims.session_id)
-    if not is_session_active(session, datetime.now(UTC)) or session.user_id != claims.user_id:
-        raise AppError(ErrorCode.UNAUTHENTICATED, log_detail="session revoked, expired or mismatched")
-    user = repo.get_user(claims.user_id)
-    if user is None or user.status != "active":
-        raise AppError(ErrorCode.UNAUTHENTICATED, log_detail="user missing or disabled")
-    return CurrentUser(
-        user_id=claims.user_id,
-        session_id=claims.session_id,
-        roles=frozenset(repo.role_codes(claims.user_id)),
-        permissions=frozenset(repo.permission_codes(claims.user_id)),
-    )
+    return service.authenticate(claims)
 
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]

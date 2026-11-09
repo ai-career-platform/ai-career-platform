@@ -14,7 +14,7 @@ import pytest
 import yaml
 
 from app.core.config import API_V1_PREFIX
-from app.routers.my_skills import get_my_skills_repository, get_my_skills_service
+from app.routers.my_skills import get_my_skills_service
 from app.services.my_skills import MySkillsService
 from tests.conftest import bearer, signup
 from tests.fakes_my_skills import MemoryMySkillsRepository
@@ -29,7 +29,7 @@ def skills_repo() -> MemoryMySkillsRepository:
 
 @pytest.fixture
 def api(app, client, skills_repo):
-    app.dependency_overrides[get_my_skills_repository] = lambda: skills_repo
+    app.dependency_overrides[get_my_skills_service] = lambda: MySkillsService(skills_repo)
     return client
 
 

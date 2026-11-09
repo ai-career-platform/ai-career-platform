@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.core.security import derive_key, issue_access_token
 from app.db import get_db
-from app.dependencies.auth import get_auth_repository
+from app.dependencies.auth import get_auth_service
 from app.main import create_app
 from app.routers.catalog import get_catalog_service
 from app.services.catalog import CURSOR_KEY_PURPOSE, CatalogService
@@ -32,7 +32,7 @@ def client(monkeypatch):
     service = CatalogService(MemoryCatalog(), cursor_key=derive_key(TEST_SECRET, CURSOR_KEY_PURPOSE))
     app.dependency_overrides[get_catalog_service] = lambda: service
     # 카탈로그가 인증 저장소를 건드리면 바로 실패하게 한다.
-    app.dependency_overrides[get_auth_repository] = lambda: pytest.fail("catalog must not load auth state")
+    app.dependency_overrides[get_auth_service] = lambda: pytest.fail("catalog must not load auth state")
     try:
         with TestClient(app, base_url="https://testserver") as c:
             yield c

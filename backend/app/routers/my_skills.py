@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
-from app.repositories.my_skills import MySkillsRepository, SqlMySkillsRepository, UserSkillRecord
+from app.repositories.my_skills import SqlMySkillsRepository, UserSkillRecord
 from app.routers.me import private_request
 from app.schemas.catalog import Skill
 from app.schemas.my_skills import UserSkill, UserSkillsReplace
@@ -20,12 +20,8 @@ from app.services.my_skills import MySkillsService
 router = APIRouter(prefix="/me/skills", tags=["me"], responses=error_responses(401, 503))
 
 
-def get_my_skills_repository(session: Annotated[Session, Depends(get_db)]) -> MySkillsRepository:
-    return SqlMySkillsRepository(session)
-
-
-def get_my_skills_service(repo: Annotated[MySkillsRepository, Depends(get_my_skills_repository)]) -> MySkillsService:
-    return MySkillsService(repo)
+def get_my_skills_service(session: Annotated[Session, Depends(get_db)]) -> MySkillsService:
+    return MySkillsService(SqlMySkillsRepository(session))
 
 
 ServiceDep = Annotated[MySkillsService, Depends(get_my_skills_service)]
