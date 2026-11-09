@@ -1,0 +1,81 @@
+.home-job-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e8ebf0;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.job-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 164px;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.job-visual-category {
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.job-monogram {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 120px;
+  font-weight: 900;
+  line-height: 1.2;
+  opacity: 0.15;
+  transform: rotate(-12deg);
+}
+
+.job-visual-company {
+  z-index: 1;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.job-card-content {
+  padding: 20px;
+}
+
+.job-company {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.home-job-card h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.job-detail {
+  margin: 0;
+  color: #657086;
+  font-size: 12px;
+}
+
+.job-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job-tags li {
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: #536079;
+  background: #f3f5f8;
+  font-size: 10px;
+}

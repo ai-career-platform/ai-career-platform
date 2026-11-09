@@ -1,0 +1,46 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  min-height: 72px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.app-brand {
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.app-header--wide {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 24px 48px;
+  padding-inline: max(24px, calc((100% - 1120px) / 2));
+}
+.brand-dot {
+  color: #3454d1;
+}
+.landing-header-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.landing-header-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.landing-header-nav a:hover {
+  color: #3454d1;
+}
+.app-header a:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+@media (max-width: 767px) {
+  .app-header, .app-header--wide { padding: 16px; }
+  .app-header--wide { gap: 8px; }
+  .landing-header-nav { width: 100%; gap: 20px; }
+}

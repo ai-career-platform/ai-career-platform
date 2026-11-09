@@ -27,7 +27,7 @@ describe('routing and home page', () => {
       '/api/health/db': { status: 200, body: { status: 'ok', service: 'ai-career-database' } },
     });
 
-    renderAt('/');
+    renderAt('/system-status');
 
     expect(screen.getByRole('heading', { name: 'AI Career Platform', level: 1 })).toBeInTheDocument();
     expect(await screen.findByText('Operational')).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe('routing and home page', () => {
       '/api/health/db': { status: 503, body: { status: 'error' } },
     });
 
-    renderAt('/');
+    renderAt('/system-status');
 
     expect(await screen.findByText('Degraded')).toBeInTheDocument();
     expect(screen.getByTestId('backend-status')).toHaveTextContent('Connected');

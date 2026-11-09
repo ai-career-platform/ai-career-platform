@@ -1,0 +1,27 @@
+.home-company-card {
+  padding: 24px;
+  border: 1px solid #e8ebf0;
+  border-radius: 14px;
+}
+
+.company-logo {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.home-company-card h3 {
+  margin: 20px 0 8px;
+  font-size: 16px;
+}
+
+.home-company-card p {
+  margin: 0;
+  color: #657086;
+  font-size: 12px;
+  line-height: 1.7;
+}

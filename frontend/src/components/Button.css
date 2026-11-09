@@ -1,0 +1,21 @@
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 44px;
+  padding: 12px 18px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ui-button--primary { color: #fff; background: #3454d1; }
+.ui-button--primary:hover:not(:disabled) { background: #253fa9; }
+.ui-button--outline { color: #3454d1; border-color: #3454d1; background: #fff; }
+.ui-button--outline:hover:not(:disabled) { background: #eef2ff; }
+.ui-button:focus-visible { outline: 3px solid #3454d1; outline-offset: 3px; }
+.ui-button:disabled { opacity: 0.6; cursor: not-allowed; }
