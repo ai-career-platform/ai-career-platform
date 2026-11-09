@@ -1,0 +1,9 @@
+{
+  "name": "ai-career-frontend-openapi-tools",
+  "private": true,
+  "description": "docs/api/openapi.yaml → src/api/schema.gen.ts 생성 도구. openapi-typescript 7 은 TypeScript 5 의 컴파일러 API 가 필요해(TypeScript 7 에는 없음) 앱과 분리된 lockfile 로 고정합니다.",
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

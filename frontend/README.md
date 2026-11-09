@@ -40,12 +40,15 @@ npm run dev:mock        # Backend 없이 Mock 데이터로 실행 → http://127
 | `npm run dev` | 개발 서버(실제 API, `/api` 프록시) |
 | `npm run dev:mock` | 개발 서버(Mock API, `.env.mock`) |
 | `npm run lint` | oxlint (경고 포함 실패) |
+| `npm run api:tools` | 타입 생성 도구 설치 (`tools/openapi`, 최초 1회·도구 lockfile 변경 시) |
+| `npm run gen:api` | `docs/api/openapi.yaml` → `src/api/schema.gen.ts` 타입 생성 (계약이 바뀌면 실행 후 커밋) |
+| `npm run check:api` | 생성 타입이 계약과 같은지 검사 (CI에서 실행) |
 | `npm run typecheck` | TypeScript 타입 검사 |
 | `npm test` | Vitest 1회 실행 (`npm run test:watch`: 감시 모드) |
 | `npm run build` | 타입 검사 + 프로덕션 빌드(`dist/`) |
 | `npm run preview` | 빌드 결과 미리보기 |
 
-PR 전 확인 순서: `npm ci` → `npm run lint` → `npm test` → `npm run build`
+PR 전 확인 순서: `npm ci` → `npm run api:tools` → `npm run lint` → `npm run check:api` → `npm test` → `npm run build`
 
 ## 폴더 구조
 
@@ -58,7 +61,7 @@ frontend/
 └── src/
     ├── main.tsx          # 진입점, Router 생성
     ├── routes.tsx        # 라우트 목록 (새 화면은 여기에 등록)
-    ├── api/              # API client(apiGet, ApiError)와 도메인별 API 함수
+    ├── api/              # API 계층 (아래 "API 계층" 참고)
     ├── mocks/            # Mock 데이터 (docs/API_CONTRACT.md 기준)
     ├── config/env.ts     # 환경 변수 접근
     ├── layouts/          # 공통 레이아웃 (T20에서 디자인 구현)
@@ -67,6 +70,28 @@ frontend/
     ├── styles/           # 전역 CSS, 디자인 토큰 초안
     └── test/setup.ts     # 테스트 공통 설정
 ~~~
+
+## API 계층
+
+| 층 | 파일 | 역할 |
+|---|---|---|
+| 전송 | `api/http.ts` | `createHttpClient({ baseUrl, fetch, getToken, onUnauthorized })`. 모든 요청이 지나는 한 곳 (헤더·쿼리·오류·취소) |
+| 계약 타입 | `api/schema.gen.ts`, `api/schema.ts` | OpenAPI 생성 타입(직접 수정 금지)과 `ResponseOf<'operationId'>`·`BodyOf`·`QueryOf` 도우미. 생성기(openapi-typescript)는 TypeScript 5 컴파일러 API가 필요해 앱(TypeScript 7)과 분리된 `tools/openapi/`에 자체 lockfile로 고정 |
+| 엔드포인트 | `api/catalog.ts`, `api/me.ts`, `api/auth.ts`, `api/health.ts`, `api/index.ts` | 경로와 타입은 여기에만. `createApi(http)`가 묶음을 만듦 |
+| 주입 | `api/ApiContext.ts`, `auth/session.ts` | 화면은 `const api = useApi()` 하나로 호출. 기본은 공개 클라이언트, 로그인하면 `AuthProvider`가 토큰·401 처리를 붙인 클라이언트로 교체 |
+| React 상태 | `api/useQuery.ts` | `useQuery(key, fn)` → `{ status, data, error, retry }`. key 변경 시 이전 요청 취소 |
+| Mock | `mocks/mockFetch.ts` | 가상 데이터를 fetch 구현체로 끼움. mock 모드에서도 실제와 같은 코드 경로 |
+
+```tsx
+const api = useApi();
+const postings = useQuery(['job-postings', filters, cursor], (signal) => api.jobPostings.list({ ...filters, cursor }, signal));
+const detail = useQuery(selected && ['job-posting', selected], (signal) => api.jobPostings.get(selected!, signal));
+// <StatePanel onAction={postings.retry} />
+```
+
+화면 테스트는 `test/WithApi.tsx`로 전송만 바꿉니다(`<WithApi request={fn}>`). 가상 데이터로 보내려면 `test/api.ts`의 `mockHttp(token)`을 씁니다.
+
+계약(`openapi.yaml`)과 실제 Backend가 다른 필드는 엔드포인트 파일에서 보정하고 주석으로 이유를 남깁니다(예: `catalog.ts`의 `PostingRequiredSkill`).
 
 ## 개발 규칙
 

@@ -44,6 +44,7 @@ htmlcov/
 .coverage.*
 .cache
 nosetests.xml
+backend/t49-upload-e2e.xml
 coverage.xml
 *.cover
 *.py.cover

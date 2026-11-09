@@ -1,0 +1,47 @@
+name: T49 upload E2E and file security
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/t49-upload-e2e.yml']
+  push:
+    branches: [main, task/t49-document-api]
+    paths: ['backend/**', '.github/workflows/t49-upload-e2e.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  upload-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.1
+        env:
+          POSTGRES_USER: t49_e2e
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: t49_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U t49_e2e -d t49_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      T49_E2E_DATABASE_URL: postgresql://t49_e2e:synthetic-ci-only@127.0.0.1:5432/t49_e2e
+      T49_E2E_ALLOW_RESET: 'YES'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - name: Real HTTP upload lifecycle, webshell and upload attacks
+        working-directory: backend
+        run: python -m pytest -q tests/test_documents_e2e.py --junitxml=t49-upload-e2e.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t49-upload-e2e
+          path: backend/t49-upload-e2e.xml

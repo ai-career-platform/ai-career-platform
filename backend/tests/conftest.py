@@ -69,13 +69,13 @@ def app(monkeypatch, repo, owners):
 @pytest.fixture
 def client(app):
     # refresh 쿠키가 Secure이므로 https 기준 주소를 쓴다.
-    with TestClient(app, base_url="https://testserver") as test_client:
+    with TestClient(app, base_url="https://testserver", headers={"X-CSRF-TOKEN": "1"}) as test_client:
         yield test_client
 
 
 def signup(client: TestClient, email: str = "seeker@example.com", **overrides):
     body = {"email": email, "password": PASSWORD, "display_name": "김구직", "consents": CONSENTS, **overrides}
-    return client.post(f"{API_V1_PREFIX}/auth/signup", json=body)
+    return client.post(f"{API_V1_PREFIX}/auth/signup", json=body, headers={"X-CSRF-TOKEN": "1"})
 
 
 def bearer(token: str) -> dict[str, str]:

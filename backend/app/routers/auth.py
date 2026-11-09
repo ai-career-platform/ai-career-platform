@@ -8,13 +8,16 @@ from app.core.auth_config import AuthSettings
 from app.core.config import API_V1_PREFIX
 from app.core.exception_handlers import error_responses
 from app.dependencies.auth import get_auth_service, get_auth_settings
+from app.dependencies.csrf import require_csrf_protection
 from app.schemas.auth import ConsentPolicy, LoginRequest, SignupRequest, TokenResponse
 from app.services.auth import AuthService, IssuedTokens
 
 REFRESH_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = f"{API_V1_PREFIX}/auth"
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(
+    tags=["auth"], dependencies=[Depends(require_csrf_protection)], responses=error_responses(403),
+)
 ServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 SettingsDep = Annotated[AuthSettings, Depends(get_auth_settings)]
 RefreshCookie = Annotated[str | None, Cookie(alias=REFRESH_COOKIE)]

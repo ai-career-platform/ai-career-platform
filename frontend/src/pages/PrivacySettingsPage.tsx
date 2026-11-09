@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiError } from '../api/client';
-import type { ConsentPolicy, PrivacyConsent, DeletionRequest } from '../api/privacy';
-import { policyNames } from '../api/privacy';
+import type { ConsentPolicy, OptionalPolicy, PrivacyConsent, DeletionRequest } from '../api/privacy';
+import { isOptionalPolicy, policyNames } from '../api/privacy';
+import { useApi } from '../api/ApiContext';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { TextField } from '../components/TextField';
@@ -11,7 +12,7 @@ import { StatePanel } from '../components/StatePanel';
 import { env } from '../config/env';
 import './PrivacySettingsPage.css';
 
-type Action = { kind: 'consent'; policy: ConsentPolicy; granted: boolean } | { kind: 'delete' | 'cancel' };
+type Action = { kind: 'consent'; policy: OptionalPolicy; granted: boolean } | { kind: 'delete' | 'cancel' };
 
 function ConfirmDialog({ title, children, pending, onClose }: {
   title: string; children: ReactNode; pending: boolean; onClose: () => void;
@@ -40,7 +41,8 @@ function ConfirmDialog({ title, children, pending, onClose }: {
 }
 
 export function PrivacySettingsPage() {
-  const { request, logout } = useAuth();
+  const { logout } = useAuth();
+  const { me } = useApi();
   const navigate = useNavigate();
   const [consents, setConsents] = useState<PrivacyConsent[]>([]);
   const [policies, setPolicies] = useState<ConsentPolicy[]>([]);
@@ -57,17 +59,16 @@ export function PrivacySettingsPage() {
 
   useEffect(() => {
     let active = true;
-    const deletionRequest = request<DeletionRequest>('/v1/me/deletion-request').catch(e => {
+    const deletionRequest = me.deletion.get().catch(e => {
       if (e instanceof ApiError && e.status === 404) return null;
       throw e;
     });
-    Promise.all([request<PrivacyConsent[]>('/v1/me/consents'),
-      request<ConsentPolicy[]>('/v1/consent-policies'), deletionRequest])
+    Promise.all([me.consents.list(), me.consents.policies(), deletionRequest])
       .then(([c,p,d]) => { if (active) { setConsents(c); setPolicies(p); setDeletion(d); setLoaded(true); } })
       .catch(() => { if (active) setError('개인정보 설정을 불러오지 못했습니다. 로그인 상태와 API 연결을 확인해 주세요.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [request]);
+  }, [me]);
 
   function open(next: Action) { if (busy.current) return; setError(''); setNotice(''); setConfirmation(''); setAction(next); }
   function close() { if (!busy.current) { setAction(null); setConfirmation(''); } }
@@ -76,13 +77,13 @@ export function PrivacySettingsPage() {
     busy.current = true; setPending(true); setError(''); setNotice('');
     try {
       if (action.kind === 'consent') {
-        const result = await request<PrivacyConsent>('/v1/me/consents', { method: 'POST', body: {
+        const result = await me.consents.record({
           policy_code: action.policy.policy_code, policy_version: action.policy.version, granted: action.granted,
-        } });
+        });
         setConsents(previous => [result, ...previous.filter(c => c.consent_id !== result.consent_id)]);
         setNotice('동의 상태를 저장했습니다.');
       } else if (action.kind === 'delete') {
-        const result = await request<DeletionRequest>('/v1/me/deletion-request', { method: 'POST', body: { confirmation: 'DELETE' } });
+        const result = await me.deletion.request({ confirmation: 'DELETE' });
         setDeletion(result); setNotice('탈퇴 요청을 접수했습니다.');
         if (!mock) {
           // T31 revokes all sessions. Reuse T21 logout to clear local state too.
@@ -90,7 +91,7 @@ export function PrivacySettingsPage() {
           navigate('/login', { replace: true, state: { privacyNotice: '탈퇴 요청이 접수되어 계정이 비활성화됐습니다. 실제 삭제는 진행하지 않았습니다.' } });
         }
       } else if (mock) {
-        await request<void>('/v1/me/deletion-request', { method: 'DELETE' });
+        await me.deletion.cancel();
         setDeletion(null); setNotice('탈퇴 요청이 취소됐습니다.');
       }
       setAction(null); setConfirmation('');
@@ -120,7 +121,7 @@ export function PrivacySettingsPage() {
           {row && row.policy_version !== policy.version && <p>현재 정책: {policy.version}</p>}
           <p>{row ? row.granted ? '동의' : '철회' : '미기록'}</p>
           <p>마지막 기록일: {row ? new Date(row.recorded_at).toLocaleString('ko-KR') : '없음'}</p>
-          {!policy.is_required && <Button variant="outline" disabled={pending || (!mock && Boolean(deletion))}
+          {isOptionalPolicy(policy) && <Button variant="outline" disabled={pending || (!mock && Boolean(deletion))}
             onClick={() => open({ kind: 'consent', policy, granted: !row?.granted })}>{row?.granted ? '철회' : '동의'}</Button>}
         </article>;
       })}</div>
