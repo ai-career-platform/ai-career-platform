@@ -57,12 +57,23 @@ npm run build
 - `src/api/recommendations.test.ts`에 T48 4개: POST 경로·본문·헤더, `applyFeedbackToRun`, Mock 401·422(UUID 형식 포함)·404·멱등, 맞춤·기준 추천 모두 not_interested 제외(T45 병합 후 추가)
 - T46 필터 테스트는 `관심 있음` 문구에 맞게 고쳤다
 
-## PARTIAL 사유
-T45(추천 실행 API)는 `main`에 머지돼 더 이상 선행 차단 요인이 아니다. 하지만 T46(목록 UI)과 T47(피드백 API)은 아직 머지 전이고, T47 없이 `main`에는 `POST /recommendation-feedback`가 없다. 화면은 OpenAPI 계약, T45·T47 코드, Mock으로 검증했고 실제 Backend·DB와 연결한 저장 → 재조회는 확인하지 않았다. 이 브랜치의 CI도 아직 돌지 않았다. Mock 성공은 실제 서비스 PASS가 아니다.
+## 독립 통합 (PR #162, 2026-11-09)
+PR #162는 main 기준 통합 PR이다: T46(#161, `4c915e8`)은 이 브랜치의 조상이고, T47(#160, `215ee90`)은 이력째 merge했다. 최신 main도 merge했다.
+
+- 피드백 저장 후 재조회가 **401**이면 세션 만료로 보고 저장 응답으로 화면을 보정하거나 성공 문구를 남기지 않는다(5xx·네트워크는 기존처럼 보정).
+- 늦게 도착한 이전 실행 재조회가 그 사이 받은 새 추천을 덮어쓰지 않는다(`applyRunChange`, 회귀 테스트 추가).
+- 공고 상세 경로(`/job-postings/:id`, T24)가 main에 없어 NotFound 링크 대신 "공고 상세 화면 준비 중" 안내와 채용공고 목록 링크를 둔다.
+- 설명 대화상자가 열려 있는 동안 대화상자 밖 앱 화면을 `inert`로 막는다(닫힐 때 먼저 풀고 여는 버튼으로 초점 복귀).
+
+### 실제 Backend E2E (opt-in)
+`src/components/RecommendationFeedbackActions.integration.test.tsx`는 `T48_REAL_API_ORIGIN`(loopback http)이 있을 때만 실행한다. **일회용 PostgreSQL**(Migration 0001·0002 + Seed + 합성 동의 정책·PYTHON 공고 `…4801~4803`)에 붙은 Backend에서 합성 사용자를 만들고, T45 추천 생성 → T48 설명 대화상자 → 관심 있음 저장·재조회 → 멱등 → 관심 없음(다음 추천 제외) → 취소(다시 후보) → 타 사용자 404·422·401 → 네트워크 장애 후 다시 시도를 확인한다. 공유 DB·Staging에는 절대 연결하지 않는다.
+
+~~~bash
+T48_REAL_API_ORIGIN=http://127.0.0.1:8048 npx vitest run src/components/RecommendationFeedbackActions.integration.test.tsx
+~~~
 
 ## HOLD / 후속
-- T47 머지 후 `VITE_API_MOCK=false`로 실제 API에서 저장 → 재조회 흐름을 다시 검증한다(DoD "저장 후 상태 재조회"의 실 연동 증빙)
-- HOLD: `main`(T24)에는 `/job-postings/:id` 상세 경로가 없어 카드의 공고 상세 링크는 아직 NotFound로 간다(T46과 같음)
 - 부족 역량: 추천 항목에 부족 역량 필드가 생기거나 `GET /skill-gaps` 결과와 연결하는 방식이 계약에 정해지면 "추후 제공" 상태를 실제 목록으로 바꾼다. 계약 변경 제안은 T06 절차를 따른다
+- T24 공고 상세 경로가 생기면 카드에 상세 링크를 되살린다
 - 추적표(F-018)는 `UI-018 추천 설명`과 옛 경로 `POST /recommendations/{id}/feedback`을 적고 있다. 현재 계약 v0.2(`POST /recommendation-feedback`, 화면 UI-017)을 따랐으며, 별도 UI-018 화면은 만들지 않고 UI-017 안의 대화상자로 구현했다
-- 브라우저 수동 확인, 스크린리더 확인, 화면 캡처는 PR 작성자가 따로 남긴다
+- 브라우저 수동 확인, 스크린리더 확인, 화면 캡처는 하지 않았다(jsdom 자동 테스트만)

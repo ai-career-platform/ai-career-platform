@@ -39,7 +39,7 @@ type RecommendationFeedbackActionsProps = {
  * - 관심 있음(liked)·관심 없음(not_interested)은 눌림 상태(aria-pressed)를 가진 토글입니다.
  *   눌린 버튼을 다시 누르거나 "피드백 취소"를 누르면 cleared 를 보내 정정합니다.
  * - 저장 중에는 버튼을 막아 중복 전송을 막고, 저장 후 GET /recommendation-runs/{id} 로 다시 조회해 저장된 상태를 보여줍니다.
- *   재조회만 실패하면 저장 응답으로 화면을 맞춥니다.
+ *   재조회만 실패하면(5xx·네트워크) 저장 응답으로 화면을 맞춥니다. 재조회가 401 이면 세션 만료로 보고 아무것도 표시하지 않습니다.
  * - 저장 실패: 5xx·네트워크 오류는 다시 시도를 주고, 404·422 는 다시 보내도 실패하므로 새 추천을 받도록 안내만 합니다.
  * - 피드백은 내 다음 추천을 개선하는 데에만 씁니다.
  */
@@ -71,7 +71,10 @@ export function RecommendationFeedbackActions({ item, run, onRunChange }: Recomm
       let next: RecommendationRun;
       try {
         next = await recommendations.get(run.recommendation_run_id);
-      } catch {
+      } catch (refetchError) {
+        // 401 은 단순 재조회 실패가 아니라 세션 만료입니다. AuthProvider 가 세션을 비우고 로그인 화면으로 보내므로
+        // 저장 응답으로 화면을 보정하거나 성공 문구를 남기지 않습니다.
+        if (refetchError instanceof ApiError && refetchError.status === 401) return;
         next = applyFeedbackToRun(run, saved);
       }
       onRunChange(next);

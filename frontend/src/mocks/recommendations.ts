@@ -83,8 +83,8 @@ export interface RecommendationMockScenario {
    * / 내 추천에 없는 공고(404 NOT_FOUND) / 입력값 오류(422 VALIDATION_FAILED) (T48)
    */
   feedback: 'saved' | 'error' | 'unauthorized' | 'notFound' | 'invalid';
-  /** GET /recommendation-runs/{id} 응답: 정상 / 서버 오류(500). 피드백 저장 후 재조회 실패 검증용 (T48) */
-  runById: 'ok' | 'error';
+  /** GET /recommendation-runs/{id} 응답: 정상 / 서버 오류(500) / 세션 만료(401). 피드백 저장 후 재조회 실패 검증용 (T48) */
+  runById: 'ok' | 'error' | 'unauthorized';
 }
 
 const defaultScenario: RecommendationMockScenario = {
@@ -244,6 +244,7 @@ export function resolveRecommendationMock(path: string, method: string, body: un
   if (method === 'POST' && path === '/v1/recommendation-runs') return createFor(email, body);
   if (method === 'GET' && path.startsWith('/v1/recommendation-runs/')) {
     if (scenario.runById === 'error') throw new ApiError(500, '');
+    if (scenario.runById === 'unauthorized') throw new ApiError(401, '', undefined, 'UNAUTHENTICATED');
     const id = decodeURIComponent(path.slice('/v1/recommendation-runs/'.length));
     const found = visibleRuns(email).find((candidate) => candidate.recommendation_run_id === id);
     return found ? withFeedback(email, found) : notFound();

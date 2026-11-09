@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { jobPostingDetailPath } from '../api/recommendations';
 import type { EmploymentType, RecommendationItem } from '../api/recommendations';
 import { JobCard, type CardTone, type JobCardData } from './JobCard';
 import { feedbackStateLabels } from './recommendationLabels';
@@ -84,12 +83,14 @@ export function RecommendationCard({ item, personalized, actions }: Recommendati
 
       <footer className="recommendation-card-foot">
         {item.feedback && <span className="recommendation-feedback">{feedbackStateLabels[item.feedback]}</span>}
+        {/* 공고 상세 화면(/job-postings/:id, T24)은 아직 main 에 없어 NotFound 로 가는 링크 대신 안내와 목록 링크를 둡니다. */}
+        <span className="recommendation-detail-pending">공고 상세 화면 준비 중</span>
         <Link
           className="recommendation-detail-link"
-          to={jobPostingDetailPath(item.job_posting.job_posting_id)}
-          aria-label={`${item.job_posting.title} 공고 상세 보기`}
+          to="/job-postings"
+          aria-label={`${item.job_posting.title} — 채용공고 목록에서 찾기`}
         >
-          공고 상세 보기
+          채용공고 목록 보기
         </Link>
         {actions && <div className="recommendation-actions">{actions}</div>}
       </footer>

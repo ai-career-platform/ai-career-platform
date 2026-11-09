@@ -8,6 +8,12 @@ import {
   setRecommendationMockScenario,
 } from '../mocks/recommendations';
 import { routes } from '../routes';
+import { ApiError } from '../api/errors';
+import type { HttpClient } from '../api/http';
+import { recommendationsApi, type RecommendationRun } from '../api/recommendations';
+import { mockHttp, type RequestFn } from '../test/api';
+import { WithApi } from '../test/WithApi';
+import { RecommendationFeedbackActions } from './RecommendationFeedbackActions';
 
 // T45 추천 실행 API 가 머지되지 않았으므로 추천·피드백 호출을 모두 Mock 으로 처리한다 (PARTIAL).
 vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true } }));
@@ -158,6 +164,34 @@ describe('추천 피드백 버튼 (T48, FR-ANL-004)', () => {
     expect(runGets()).toHaveLength(1);
   });
 
+  it('treats a 401 on the re-fetch as session expiry: no patched state, no success message, back to login', async () => {
+    setRecommendationMockScenario({ runById: 'unauthorized' });
+    await openRecommendations();
+
+    fireEvent.click(toggle(TITLE_1, '관심 있음'));
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect(feedbackPosts()).toHaveLength(1);
+    expect(runGets()).toHaveLength(1);
+    expect(screen.queryByText('관심 있음으로 저장했어요.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: `${TITLE_1} 피드백` })).not.toBeInTheDocument();
+  });
+
+  it('a late re-fetch of the old run does not overwrite a newer run requested meanwhile', async () => {
+    await openRecommendations();
+    const oldTime = document.querySelector('time')?.getAttribute('datetime');
+
+    // 피드백 저장(POST → GET 이전 실행)을 시작하고, 끝나기 전에 새 추천(POST)을 요청한다.
+    fireEvent.click(toggle(TITLE_2, '관심 있음'));
+    fireEvent.click(screen.getByRole('button', { name: '새 추천 받기' }));
+    await waitFor(() => expect(runGets()).toHaveLength(1)); // 이전 실행 재조회가 실제로 도착
+    await waitFor(() => expect(screen.getByRole('button', { name: '새 추천 받기' })).toBeEnabled());
+    await new Promise((resolve) => setTimeout(resolve, 400)); // 늦은 응답이 처리될 시간을 준다
+
+    const newTime = document.querySelector('time')?.getAttribute('datetime');
+    expect(newTime).toBe('2026-11-09T01:01:00.000Z');
+    expect(newTime).not.toBe(oldTime);
+  });
+
   it('excludes a not_interested posting from the next recommendation run', async () => {
     await openRecommendations();
     fireEvent.click(toggle(TITLE_1, '관심 없음'));
@@ -215,9 +249,14 @@ describe('추천 설명 대화상자 (T48, F-018)', () => {
   it('closes on Escape and returns focus to the opener', async () => {
     await openRecommendations();
     const { trigger, dialog } = openDialog();
+    // 열려 있는 동안 앱 화면(대화상자 밖)은 inert 로 막힌다.
+    const appRoot = Array.from(document.body.children).find((element) => element.contains(trigger));
+    expect(appRoot).toHaveAttribute('inert');
+    expect(dialog.closest('[inert]')).toBeNull();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(appRoot).not.toHaveAttribute('inert');
     expect(trigger).toHaveFocus();
   });
 
@@ -293,3 +332,39 @@ describe('추천 설명 대화상자 (T48, F-018)', () => {
     expect(view.queryByText(/합격 가능성/)).not.toBeInTheDocument();
   });
 });
+
+describe('재조회 401 처리 (컴포넌트 단위, 세션 화면 전환과 무관하게 확인)', () => {
+  async function saveWithRefetchStatus(status: number) {
+    const user = mockHttp('mock-access-user@example.com');
+    const run = await createApiRun(user);
+    const item = run.items[0]!;
+    const onRunChange = vi.fn<(next: RecommendationRun) => void>();
+    const request = vi.fn<RequestFn>((path, init) =>
+      path.startsWith('/v1/recommendation-runs/') ? Promise.reject(new ApiError(status, path)) : user.request(path, init));
+    render(<WithApi request={request}>
+      <RecommendationFeedbackActions item={item} run={run} onRunChange={onRunChange} />
+    </WithApi>);
+    fireEvent.click(screen.getByRole('button', { name: '관심 있음' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '관심 있음' })).toBeEnabled());
+    expect(request.mock.calls.map(([p]) => p)).toEqual(['/v1/recommendation-feedback', `/v1/recommendation-runs/${run.recommendation_run_id}`]);
+    return onRunChange;
+  }
+
+  it('does not patch the run or show success when the re-fetch answers 401 (session expiry)', async () => {
+    const onRunChange = await saveWithRefetchStatus(401);
+    expect(onRunChange).not.toHaveBeenCalled();
+    expect(screen.queryByText('관심 있음으로 저장했어요.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('still patches the run from the saved response when the re-fetch fails with 500', async () => {
+    const onRunChange = await saveWithRefetchStatus(500);
+    expect(onRunChange).toHaveBeenCalledTimes(1);
+    expect(onRunChange.mock.calls[0]![0].items[0]!.feedback).toBe('liked');
+    expect(screen.getByText('관심 있음으로 저장했어요.')).toBeInTheDocument();
+  });
+});
+
+function createApiRun(http: HttpClient) {
+  return recommendationsApi(http).create();
+}

@@ -75,13 +75,17 @@ describe('RecommendationsPage (UI-017)', () => {
     expect(document.querySelector('time')).toHaveAttribute('datetime', '2026-11-06T03:10:00Z');
   });
 
-  it('links each card to the job posting detail route', async () => {
+  it('does not link to the missing detail route; shows a pending note and links to the job postings list', async () => {
     const router = await openRecommendations();
-    const link = within(await list()).getByRole('link', { name: '백엔드 개발자 (신입) 공고 상세 보기' });
-    expect(link).toHaveAttribute('href', '/job-postings/00000000-0000-4000-8000-000000000101');
+    const scope = within(await list());
+    expect(scope.queryByRole('link', { name: /공고 상세 보기/ })).not.toBeInTheDocument();
+    expect(scope.getAllByText('공고 상세 화면 준비 중').length).toBeGreaterThan(0);
+    const link = scope.getByRole('link', { name: '백엔드 개발자 (신입) — 채용공고 목록에서 찾기' });
+    expect(link).toHaveAttribute('href', '/job-postings');
 
     fireEvent.click(link);
-    expect(router.state.location.pathname).toBe('/job-postings/00000000-0000-4000-8000-000000000101');
+    expect(router.state.location.pathname).toBe('/job-postings');
+    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent('페이지를 찾을 수 없습니다');
   });
 
   it('shows the empty state when there is no recommendation yet (404) and creates one from the CTA', async () => {

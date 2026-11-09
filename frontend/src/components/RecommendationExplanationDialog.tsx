@@ -35,6 +35,17 @@ export function RecommendationExplanationDialog({ item, run, onClose, returnFocu
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // 열려 있는 동안 대화상자 밖(앱 화면)을 inert 로 막아 보조기기·키보드가 배경에 닿지 않게 합니다.
+  // 아래 초점 effect 보다 먼저 선언해, 닫힐 때 inert 를 먼저 풀고 나서 여는 버튼으로 초점을 돌려줍니다.
+  useEffect(() => {
+    const backdrop = dialogRef.current?.parentElement;
+    const others = Array.from(document.body.children).filter(
+      (element) => element !== backdrop && !element.hasAttribute('inert'),
+    );
+    others.forEach((element) => element.setAttribute('inert', ''));
+    return () => others.forEach((element) => element.removeAttribute('inert'));
+  }, []);
+
   useEffect(() => {
     closeRef.current?.focus();
     const opener = returnFocusRef.current;
