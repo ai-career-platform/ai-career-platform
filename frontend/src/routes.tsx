@@ -1,8 +1,12 @@
 import type { RouteObject } from 'react-router';
+import { AuthProvider } from './auth/AuthContext';
+import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layouts/AppLayout';
+import { AccountPage } from './pages/AccountPage';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
+import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 
@@ -13,12 +17,18 @@ import { UiPreviewPage } from './pages/UiPreviewPage';
 export const routes: RouteObject[] = [
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
+    ),
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
+      { path: 'login', element: <LoginPage /> },
+      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }] },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
