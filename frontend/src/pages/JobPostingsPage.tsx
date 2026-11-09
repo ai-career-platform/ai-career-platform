@@ -4,6 +4,9 @@ import './JobPostingsPage.css';
 
 type Posting = { job_posting_id: string; title: string; status: 'published' | 'closed'; company: { name: string }; job_role: { name: string } | null; location_text: string | null; published_at: string | null; expires_at: string | null };
 type Page = { items: Posting[]; next_cursor: string | null };
+type Company = { company_id: string; name: string };
+type Role = { job_role_id: string; name: string };
+type Options<T> = { items: T[]; next_cursor: string | null };
 type Detail = Posting & { description: string | null; source_url: string | null; required_skills: { skill: { skill_id: string; name: string }; required_level: number | null; is_required: boolean }[] };
 
 function safeUrl(value: string | null) {
@@ -13,6 +16,15 @@ function safeUrl(value: string | null) {
 export function JobPostingsPage() {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [roleQuery, setRoleQuery] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [roleId, setRoleId] = useState('');
+  const [companies, setCompanies] = useState<Options<Company> | null>(null);
+  const [roles, setRoles] = useState<Options<Role> | null>(null);
+  const [companyError, setCompanyError] = useState(false);
+  const [roleError, setRoleError] = useState(false);
+  const [optionsAttempt, setOptionsAttempt] = useState(0);
   const [includeClosed, setIncludeClosed] = useState(false);
   const [sort, setSort] = useState<'-published_at' | 'expires_at'>('-published_at');
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
@@ -28,6 +40,8 @@ export function JobPostingsPage() {
     let active = true;
     const params = new URLSearchParams({ limit: '20', sort, include_closed: String(includeClosed) });
     if (query) params.set('q', query);
+    if (companyId) params.set('company_id', companyId);
+    if (roleId) params.set('job_role_id', roleId);
     const cursor = cursors[cursors.length - 1];
     if (cursor) params.set('cursor', cursor);
     apiGet<Page>(`/v1/job-postings?${params}`).then(
@@ -35,7 +49,29 @@ export function JobPostingsPage() {
       () => { if (active) setError(true); },
     );
     return () => { active = false; };
-  }, [query, sort, includeClosed, cursors, attempt]);
+  }, [query, sort, includeClosed, companyId, roleId, cursors, attempt]);
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ limit: '20' });
+    if (companyQuery.trim()) params.set('q', companyQuery.trim());
+    setCompanies(null); setCompanyError(false);
+    apiGet<Options<Company>>(`/v1/companies?${params}`).then(
+      data => { if (active) setCompanies(data); },
+      () => { if (active) setCompanyError(true); },
+    );
+    return () => { active = false; };
+  }, [companyQuery, optionsAttempt]);
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ limit: '20' });
+    if (roleQuery.trim()) params.set('q', roleQuery.trim());
+    setRoles(null); setRoleError(false);
+    apiGet<Options<Role>>(`/v1/job-roles?${params}`).then(
+      data => { if (active) setRoles(data); },
+      () => { if (active) setRoleError(true); },
+    );
+    return () => { active = false; };
+  }, [roleQuery, optionsAttempt]);
   useEffect(() => {
     if (!selected) return;
     let active = true;
@@ -54,6 +90,12 @@ export function JobPostingsPage() {
     <header className="t24-hero"><div><h1>채용공고 탐색</h1><p>등록된 채용공고와 요구 기술을 살펴보세요.</p></div><div className="t24-hero-symbol" aria-hidden="true">↗</div></header>
     <form className="t24-controls" onSubmit={search}>
       <label htmlFor="posting-query">공고 검색</label>{' '}<input id="posting-query" type="search" maxLength={100} value={input} onChange={e => setInput(e.target.value)} />{' '}<button type="submit">검색</button>{' '}
+      <label htmlFor="company-search">기업 이름 찾기</label><input id="company-search" type="search" maxLength={100} value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); setCompanyId(''); resetPage(); }} />
+      <label htmlFor="company-filter">기업 필터</label><select id="company-filter" value={companyId} disabled={!companies} onChange={e => { resetPage(); setCompanyId(e.target.value); }}><option value="">전체 기업</option>{companies?.items.map(company => <option key={company.company_id} value={company.company_id}>{company.name}</option>)}</select>
+      {companyError && <p role="alert">기업 목록을 불러오지 못했습니다. <button type="button" onClick={() => setOptionsAttempt(n => n + 1)}>목록 다시 불러오기</button></p>}{companies?.next_cursor && <small>기업 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
+      <label htmlFor="role-search">직무 이름 찾기</label><input id="role-search" type="search" maxLength={100} value={roleQuery} onChange={e => { setRoleQuery(e.target.value); setRoleId(''); resetPage(); }} />
+      <label htmlFor="role-filter">직무 필터</label><select id="role-filter" value={roleId} disabled={!roles} onChange={e => { resetPage(); setRoleId(e.target.value); }}><option value="">전체 직무</option>{roles?.items.map(role => <option key={role.job_role_id} value={role.job_role_id}>{role.name}</option>)}</select>
+      {roleError && <p role="alert">직무 목록을 불러오지 못했습니다. <button type="button" onClick={() => setOptionsAttempt(n => n + 1)}>목록 다시 불러오기</button></p>}{roles?.next_cursor && <small>직무 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
       <label><input type="checkbox" checked={includeClosed} onChange={e => { resetPage(); setIncludeClosed(e.target.checked); }} /> 마감 공고 포함</label>{' '}
       <label>정렬 <select value={sort} onChange={e => { resetPage(); setSort(e.target.value as '-published_at' | 'expires_at'); }}><option value="-published_at">최신순</option><option value="expires_at">마감순</option></select></label>
     </form>
@@ -65,7 +107,7 @@ export function JobPostingsPage() {
     </section>
     <section className="t24-panel" aria-labelledby="posting-detail-title"><h2 id="posting-detail-title">공고 상세</h2>
       {!selected ? <p>공고를 선택해 주세요.</p> : detailError ? <p role="alert">상세 정보를 불러오지 못했습니다. <button onClick={() => { setDetailError(false); setDetailAttempt(n => n + 1); }}>다시 시도</button></p> : !detail ? <p role="status">불러오는 중...</p> : <>
-        <h3>{detail.title}</h3><p>{detail.company.name} · {detail.job_role?.name ?? '직무 미등록'} · {detail.location_text ?? '지역 미등록'}</p><p>{detail.description || '상세 설명이 없습니다.'}</p><h4>요구 기술</h4>
+        <h3>{detail.title}</h3><p>{detail.company.name} · {detail.job_role?.name ?? '직무 미등록'} · {detail.location_text ?? '지역 미등록'}</p><p>등록일: {detail.published_at ? new Date(detail.published_at).toLocaleDateString('ko-KR') : '미등록'} · 마감일: {detail.expires_at ? new Date(detail.expires_at).toLocaleDateString('ko-KR') : '미등록'}</p><p>{detail.description || '상세 설명이 없습니다.'}</p><h4>요구 기술</h4>
         {detail.required_skills.length ? <ul>{detail.required_skills.map(({ skill, required_level, is_required }) => <li key={skill.skill_id}>{skill.name} · {is_required ? '필수' : '우대'}{required_level != null ? ` · 요구 수준 ${required_level}` : ''}</li>)}</ul> : <p>등록된 요구 기술이 없습니다.</p>}
         {source && <a href={source} target="_blank" rel="noopener noreferrer">원본 공고 보기</a>}
       </>}
