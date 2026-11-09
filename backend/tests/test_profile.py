@@ -10,11 +10,14 @@ from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, FormatChecker
 
 from app.core.errors import AppError, ErrorCode
-from app.dependencies.auth import get_auth_repository
-from app.repositories.auth import SqlAuthRepository
-from app.dependencies.profile import AuthenticatedUser, get_authenticated_user, get_profile_repository
+from app.dependencies.auth import CurrentUser as AuthenticatedUser
+from app.dependencies.auth import get_current_user as get_authenticated_user
 from app.main import create_app
+from app.repositories.auth import SqlAuthRepository
 from app.repositories.profile import PostgresProfileRepository
+from app.routers.me import get_profile_service
+from app.services.profile import ProfileService
+from tests.fakes import override_auth_repository
 
 ALICE = UUID("00000000-0000-4000-8000-000000000001")
 BOB = UUID("00000000-0000-4000-8000-000000000002")
@@ -45,8 +48,8 @@ def fixture_app(pg_app):
         repository = PostgresProfileRepository(session)
         app = create_app()
         app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(ALICE, ALICE, frozenset(), frozenset())
-        app.dependency_overrides[get_profile_repository] = lambda: repository
-        app.dependency_overrides[get_auth_repository] = lambda: SqlAuthRepository(session)
+        app.dependency_overrides[get_profile_service] = lambda: ProfileService(repository)
+        override_auth_repository(app, SqlAuthRepository(session))
         with TestClient(app) as client:
             yield app, client, connection, repository
 
@@ -243,7 +246,7 @@ def test_unhandled_profile_error_is_redacted_and_not_cached():
             raise RuntimeError("synthetic internal detail")
     app = create_app()
     app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(ALICE, ALICE, frozenset(), frozenset())
-    app.dependency_overrides[get_auth_repository] = lambda: BrokenRepository()
+    override_auth_repository(app, BrokenRepository())
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.get("/api/v1/me")
     problem(response, 500, "INTERNAL_ERROR")

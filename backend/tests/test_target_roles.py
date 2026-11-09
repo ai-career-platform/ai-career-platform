@@ -5,8 +5,9 @@ import uuid
 import pytest
 
 from app.core.config import API_V1_PREFIX
-from app.dependencies.target_roles import get_target_role_repository
+from app.routers.target_roles import get_target_role_service
 from app.schemas.target_roles import JobRoleRef, TargetRole, TargetRoleItem
+from app.services.target_roles import TargetRoleService
 from tests.conftest import bearer, signup
 
 
@@ -41,9 +42,9 @@ class MemoryTargetRoleRepository:
 @pytest.fixture
 def target_repo(app):
     repository = MemoryTargetRoleRepository()
-    app.dependency_overrides[get_target_role_repository] = lambda: repository
+    app.dependency_overrides[get_target_role_service] = lambda: TargetRoleService(repository)
     yield repository
-    app.dependency_overrides.pop(get_target_role_repository, None)
+    app.dependency_overrides.pop(get_target_role_service, None)
 
 
 def access_token(client, email: str = "target@example.com") -> str:
