@@ -23,3 +23,15 @@
 body {
   margin: 0;
 }
+
+/* 화면에는 숨기고 스크린리더에만 읽히는 텍스트 (LandingPage.css 의 .home-sr-only 와 같은 방식) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

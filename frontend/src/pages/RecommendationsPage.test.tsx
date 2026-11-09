@@ -58,7 +58,12 @@ describe('RecommendationsPage (UI-017)', () => {
 
     const first = at(items, 0);
     expect(within(first).getByText(/1위 · 백엔드 개발자 \(신입\)/)).toBeInTheDocument();
-    expect(within(first).getByLabelText('적합 점수 100점 만점에 82점')).toBeInTheDocument();
+    expect(within(first).getByRole('heading', { level: 2, name: '1위 · 백엔드 개발자 (신입)' })).toBeInTheDocument();
+    expect(within(first).getByText('적합 점수 100점 만점에 82점')).toHaveClass('sr-only');
+    expect(within(first).getByText('82').closest('[aria-hidden="true"]')).not.toBeNull();
+    const info = within(first).getByRole('list', { name: '공고 정보' });
+    expect(within(info).getByText('정규직')).toBeInTheDocument();
+    expect(within(first).queryByRole('list', { name: '관련 기술' })).not.toBeInTheDocument();
     expect(within(first).getByText(/합격 가능성\(확률\)이 아닙니다/)).toBeInTheDocument();
     expect(within(first).getByText(/Python·SQL 요구 기술을 보유/)).toBeInTheDocument();
     expect(within(first).getByText('예시 테크', { selector: '.job-company' })).toBeInTheDocument();
@@ -99,6 +104,13 @@ describe('RecommendationsPage (UI-017)', () => {
     expect(await screen.findByRole('button', { name: '추천 계산 중…' })).toBeDisabled();
     expect(await screen.findByRole('button', { name: '새 추천 받기' })).toBeEnabled();
     expect(document.querySelector('time')).toHaveAttribute('datetime', '2026-11-09T01:01:00.000Z');
+
+    // 관심 없음으로 표시한 공고는 새 추천에서 빠지고, 나머지 피드백(내 최신 피드백)은 유지된다
+    const items = await cards();
+    expect(items).toHaveLength(2);
+    expect(screen.queryByText(/데이터 엔지니어 \(주니어\)/)).not.toBeInTheDocument();
+    expect(within(at(items, 1)).getByText(/2위 · Python 서버 개발자/)).toBeInTheDocument();
+    expect(within(at(items, 1)).getByText('좋아요 표시함')).toBeInTheDocument();
   });
 
   it('marks a fallback run as 기준 추천 (not personalized) and shows no numeric score', async () => {
@@ -107,11 +119,12 @@ describe('RecommendationsPage (UI-017)', () => {
     const items = await cards();
 
     expect(screen.getByText('기준 추천 (개인화 아님)')).toHaveClass('recommendations-badge--fallback');
-    expect(screen.getByRole('note')).toHaveTextContent('맞춤 추천을 준비하지 못했습니다');
+    expect(screen.getByRole('note')).toHaveTextContent('맞춤 추천을 계산하지 못해');
+    expect(screen.getByRole('note')).not.toHaveTextContent('입력하면 맞춤 추천을 받을 수 있습니다');
     expect(screen.getByText('latest_postings v1 (규칙 기반)')).toBeInTheDocument();
     expect(within(at(items, 0)).getByText('점수 없음')).toBeInTheDocument();
     expect(within(at(items, 0)).getByText('기준 추천이라 개인 적합 점수를 계산하지 않았습니다.')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/적합 점수 100점 만점에/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/적합 점수 100점 만점에/)).not.toBeInTheDocument();
   });
 
   it('shows a failed run clearly with a retry action', async () => {

@@ -16,7 +16,7 @@ const employmentLabels: Record<EmploymentType, string> = {
 
 const feedbackLabels = { liked: '좋아요 표시함', not_interested: '관심 없음 표시함' } as const;
 
-/** 추천 항목의 공고 요약을 공통 JobCard 형태로 바꿉니다. */
+/** 추천 항목의 공고 요약을 공통 JobCard 형태로 바꿉니다. tags 는 기술이 아닌 공고 정보(고용 형태·마감)라 '공고 정보' 목록으로 표시합니다. */
 function toJobCard(item: RecommendationItem): JobCardData {
   const posting = item.job_posting;
   const tags = [
@@ -51,15 +51,18 @@ export function RecommendationCard({ item, personalized, actions }: Recommendati
   return (
     <article className="recommendation-card" aria-labelledby={titleId}>
       <header className="recommendation-card-head">
-        <span className="recommendation-rank" id={titleId}>
+        <h2 className="recommendation-rank" id={titleId}>
           {item.rank}위 · {item.job_posting.title}
-        </span>
+        </h2>
         {item.score === null ? (
           <span className="recommendation-score recommendation-score--none">점수 없음</span>
         ) : (
-          <span className="recommendation-score" aria-label={`적합 점수 100점 만점에 ${item.score}점`}>
-            {item.score}
-            <small>/100</small>
+          <span className="recommendation-score">
+            <span aria-hidden="true">
+              {item.score}
+              <small>/100</small>
+            </span>
+            <span className="sr-only">적합 점수 100점 만점에 {item.score}점</span>
           </span>
         )}
       </header>
@@ -72,7 +75,7 @@ export function RecommendationCard({ item, personalized, actions }: Recommendati
           : '적합 점수는 목표 직무·보유 기술이 공고 요구와 얼마나 맞는지 나타낸 0~100 참고 값이며, 합격 가능성(확률)이 아닙니다.'}
       </p>
 
-      <JobCard job={toJobCard(item)} />
+      <JobCard job={toJobCard(item)} tagsLabel="공고 정보" />
 
       <div className="recommendation-reason">
         <p className="recommendation-reason-label">{personalized ? '추천 이유' : '표시 이유'}</p>

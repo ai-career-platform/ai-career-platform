@@ -10,7 +10,8 @@
 - 최근 추천 조회. 추천이 없으면(404) `추천 받기` 버튼이 있는 빈 상태를 보여준다
 - `새 추천 받기`(POST)로 다시 계산한다. 실패하면 기존 목록은 그대로 두고 오류 안내만 띄운다
 - 카드: 순위, 적합 점수(0~100, 확률이 아니라는 안내 포함, `score=null`이면 `점수 없음`), 추천 이유, 공고 요약(공통 `JobCard` 재사용), 공고 상세 링크, 내 최신 피드백 표시
-- 추천 상태 표시: `completed`=맞춤 추천, `fallback`=기준 추천(개인화 아님) 배지와 안내 문구, `failed`=추천 실패와 다시 추천 받기 버튼
+- 추천 상태 표시: `completed`=맞춤 추천, `fallback`=기준 추천(개인화 아님) 배지와 원인 중립 안내 문구(계약상 fallback은 계산 실패 전반에서 생길 수 있음), `failed`=추천 실패와 다시 추천 받기 버튼
+- 접근성: 카드 제목은 `h2`(페이지 `h1` > 카드 `h2` > JobCard `h3`). 점수 숫자는 `aria-hidden`이고 스크린리더에는 `적합 점수 100점 만점에 N점`(공통 `.sr-only`, `src/styles/global.css`)으로 읽힌다. 고용 형태·마감 표시는 `관련 기술`이 아니라 `공고 정보` 목록으로 읽힌다(`JobCard`에 `tagsLabel` prop 추가, tags가 비면 목록을 그리지 않음)
 - 계산 기준(`model_code vversion (규칙 기반 등)`)과 생성 시각을 항상 표시한다. "AI의 확정 판단이 아님" 안내 문구를 함께 둔다
 - 클라이언트 필터: 피드백 상태(전체/좋아요/피드백 없음/관심 없음)
 - 확장 지점: `RecommendationCard`의 `actions` 슬롯과 `RecommendationsPage`의 `renderItemActions(item, run, onRunChange)`. T48에서 설명 모달과 피드백 버튼을 여기에 연결한다
@@ -24,7 +25,7 @@
 
 - 타입: `frontend/src/api/recommendations.ts` (`RecommendationRun`, `RecommendationItem`, `JobPostingSummary`, `ModelVersionRef`)
 - DB 대응: D05 `recommendation_runs`(status, generated_at, model_version), D06 `recommendation_items`(rank, score, reason), D07 `recommendation_feedback`(카드의 최신 피드백 표시)
-- Mock: `frontend/src/mocks/recommendations.ts`. `handlers.ts`에서 로그인 토큰을 확인한 뒤 호출한다. 테스트는 `setRecommendationMockScenario`로 상태를 바꾼다. 회사와 공고는 모두 가상 데이터다
+- Mock: `frontend/src/mocks/recommendations.ts`. `handlers.ts`에서 로그인 토큰을 확인한 뒤 호출한다. 새 추천(POST, completed)은 `feedback`(내 최신 피드백)을 그대로 두고, 관심 없음으로 표시한 공고를 빼고 순위를 다시 매긴다. 테스트는 `setRecommendationMockScenario`로 상태를 바꾼다. 회사와 공고는 모두 가상 데이터다
 
 ## 테스트 명령 (frontend/, Node 24)
 ~~~bash
@@ -33,7 +34,8 @@ npm run lint
 npm test
 npm run build
 ~~~
-- 추가 테스트: `src/pages/RecommendationsPage.test.tsx` 12개(로그인 필요 리다이렉트, 401 세션 만료, 목록·점수 의미·근거·계산 기준, 상세 링크, 빈 상태와 생성, 새로고침, fallback 배지, failed 상태, 조회 오류와 재시도, 새로고침 실패, 필터, 메뉴), `src/api/recommendations.test.ts` 5개(경로·메서드·Bearer·limit 기본값, 404를 null로 처리, Mock 401·422)
+- 추가 테스트(19개): `src/pages/RecommendationsPage.test.tsx` 12개(로그인 필요 리다이렉트, 401 세션 만료, 목록·h2 제목·스크린리더 점수·공고 정보 목록·점수 의미·근거·계산 기준, 상세 링크, 빈 상태와 생성, 새로고침과 관심 없음 공고 제외·순위 재계산·최신 피드백 유지, fallback 배지와 원인 중립 안내, failed 상태, 조회 오류와 재시도, 새로고침 실패, 필터, 메뉴), `src/components/RecommendationCard.test.tsx` 2개(고용 형태·마감이 `공고 정보` 목록으로 표시, 태그가 없으면 빈 목록 없음), `src/api/recommendations.test.ts` 5개(경로·메서드·Bearer·limit 기본값, 404를 null로 처리, Mock 401·422)
+- 결과(Node v24.22.2): `npm ci` 취약점 0건, `npm run lint` PASS, `npm test` 8 files passed·1 skipped / 46 tests passed·6 skipped, `npm run build` PASS
 
 ## PARTIAL 사유
 선행 일감 T45(추천 실행 API)가 머지되지 않았다. 화면은 OpenAPI 계약과 Mock으로만 검증했고, 실제 Backend·DB와 연결한 검증은 하지 않았다. Mock 성공은 실제 서비스 PASS가 아니다.

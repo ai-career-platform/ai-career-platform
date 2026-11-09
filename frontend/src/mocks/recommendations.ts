@@ -96,6 +96,15 @@ function latestFor(email: string): RecommendationRun {
   return scenario.latest === 'fallback' ? seededFallbackRun() : seededRun();
 }
 
+/**
+ * 새 추천 계산 결과. feedback 은 계약상 '내 최신 피드백'이라 그대로 두고,
+ * 관심 없음으로 표시한 공고는 새 추천에서 빼고 순위를 다시 매깁니다.
+ */
+const rerankedWithoutNotInterested = (): RecommendationItem[] =>
+  personalizedItems
+    .filter((item) => item.feedback !== 'not_interested')
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+
 function createFor(email: string, body: unknown): RecommendationRun {
   const { limit = 20 } = (body ?? {}) as { limit?: unknown };
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 50) {
@@ -110,7 +119,7 @@ function createFor(email: string, body: unknown): RecommendationRun {
       ? run(id, 'failed', [], generatedAt)
       : scenario.create === 'fallback'
         ? run(id, 'fallback', fallbackItems.slice(0, limit), generatedAt)
-        : run(id, 'completed', personalizedItems.slice(0, limit).map((item) => ({ ...item, feedback: item.feedback === 'not_interested' ? null : item.feedback })), generatedAt);
+        : run(id, 'completed', rerankedWithoutNotInterested().slice(0, limit), generatedAt);
   createdRuns.set(email, created);
   return created;
 }

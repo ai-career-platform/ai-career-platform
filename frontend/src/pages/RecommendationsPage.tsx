@@ -174,8 +174,8 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
 
           {run.status === 'fallback' && (
             <p className="recommendations-notice" role="note">
-              맞춤 추천을 준비하지 못했습니다. 개인화되지 않은 최근 공고(기준 추천)를 대신 보여 드립니다. 보유 기술과 목표 직무를
-              입력하면 맞춤 추천을 받을 수 있습니다.
+              맞춤 추천을 계산하지 못해 개인화되지 않은 최근 공고(기준 추천)를 대신 보여 드립니다. 보유 기술·목표 직무 정보가
+              부족하면 이렇게 표시될 수 있습니다.
             </p>
           )}
 
