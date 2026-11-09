@@ -40,9 +40,9 @@ describe('T24 synthetic company and job posting explorer', () => {
   it('supports closed and all status; never exposes draft even in all', async () => {
     renderPage();
     await screen.findByText('검색 결과 6건');
-    fireEvent.click(screen.getByRole('button', { name: '마감', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: '마감' }));
     expect(screen.getByText('검색 결과 2건')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '전체', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: '전체' }));
     expect(screen.getByText('검색 결과 8건')).toBeInTheDocument();
     expect(screen.queryByText('미게시 가상 채용')).not.toBeInTheDocument();
   });
