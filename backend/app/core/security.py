@@ -6,6 +6,7 @@
 """
 
 import hashlib
+import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -55,6 +56,15 @@ def password_needs_rehash(password_hash: str) -> bool:
 
 def new_refresh_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def derive_key(secret: str, purpose: str) -> bytes:
+    """`JWT_SECRET` 하나에서 용도별 서명 키(32바이트)를 만든다.
+
+    목록 cursor 서명처럼 JWT가 아닌 용도에 같은 키를 그대로 쓰지 않게 하고,
+    새 비밀 환경변수 없이도 기동 시 검증된 키를 재사용한다.
+    """
+    return hmac.digest(secret.encode("utf-8"), purpose.encode("utf-8"), "sha256")
 
 
 def hash_token(token: str) -> str:
