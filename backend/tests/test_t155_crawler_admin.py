@@ -112,3 +112,20 @@ def test_openapi_security_scheme(client):
         assert doc["paths"][path]["get"]["security"]
     for verb in ("post","patch","put","delete"):
         assert verb not in doc["paths"][BASE+"/keywords"]
+
+
+def test_admin_dependency_fail_closed_without_crawler_database(client, app, repo, monkeypatch):
+    """No credentials or missing deployed crawler package must yield generic 503."""
+    from app.core.security import decode_access_token
+    from tests.conftest import TEST_SECRET
+
+    token = signup(client, email="unavailable-t155@example.com").json()["access_token"]
+    repo.grant_role(decode_access_token(TEST_SECRET, token).user_id, "admin")
+    monkeypatch.setenv("CRAWLER_DB_MODE", "local")
+    monkeypatch.delenv("CRAWLER_LOCAL_DATABASE_URL", raising=False)
+    app.dependency_overrides.pop(get_crawler_admin_store, None)
+    result = client.get(BASE + "/keywords", headers=bearer(token))
+    assert result.status_code == 503, result.text
+    assert result.json()["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert "postgres" not in result.text.lower()
+    assert "password" not in result.text.lower()
