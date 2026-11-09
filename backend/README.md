@@ -98,6 +98,8 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 | GET/DELETE | `/api/v1/me/sessions[/{session_id}]` | 로그인 기기 목록·다른 기기 로그아웃 |
 | GET | `/api/v1/me/skills` | 내 보유 기술 (이름순, T33) |
 | PUT | `/api/v1/me/skills` | 보유 기술 전체 교체 (최대 100개, 숙련도 1~5·null, 중복 422 `DUPLICATE_SKILL`, 없는·폐기 기술 422) |
+| GET | `/api/v1/me/target-roles` | 내 목표 직무를 우선순위 순으로 조회 |
+| PUT | `/api/v1/me/target-roles` | 목표 직무를 최대 3개까지 전체 교체 |
 
 ## 인증·인가 사용법 (T15)
 

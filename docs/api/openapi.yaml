@@ -335,10 +335,10 @@ paths:
       tags: [me]
       operationId: recordMyConsent
       summary: 선택 항목 동의·철회 기록 (이력 추가)
-      description: 선택 항목(`llm_processing`, `behavior_tracking`)만 받는다. 필수 항목은 화면에 변경 버튼이 없고, 요청에 넣으면 422 (FR-ACC-006)
+      description: 선택 항목만 최신 유효 정책 버전으로 기록한다. 필수 항목은422. 동일한 최신 동의 상태를 반복하면 기존 기록을 반환하고 새 이력을 만들지 않는다.
       x-requirements: [FR-ACC-006]
       x-screens: [UI-005]
-      x-tables: [user_consents, consent_policies, audit_events]
+      x-tables: [user_consents, consent_policies]
       requestBody:
         required: true
         content:
@@ -372,10 +372,10 @@ paths:
     post:
       tags: [me]
       operationId: requestMyDeletion
-      summary: 탈퇴 요청 (즉시 비활성화, 예정일에 삭제)
+      summary: 탈퇴 요청 접수 (즉시 비활성화, 물리 삭제 미구현)
       x-requirements: [FR-ACC-007]
       x-screens: [UI-005]
-      x-tables: [account_deletion_requests, users, auth_sessions, audit_events]
+      x-tables: [account_deletion_requests, users, auth_sessions]
       requestBody:
         required: true
         content:
@@ -384,7 +384,7 @@ paths:
             example: { confirmation: DELETE }
       responses:
         '202':
-          description: 요청 접수. 모든 세션 폐기, 삭제는 scheduled_purge_at에 진행 (D-06 가안 30일)
+          description: 요청 접수와 계정 비활성화·모든 세션 폐기를 원자적으로 기록. D-06 미확정으로 scheduled_purge_at=null. 자동/물리 삭제 없음. 폐기된 인증으로 후속 조회·취소는 불가하여 재인증 계약은 HOLD.
           headers:
             Location: { $ref: '#/components/headers/Location' }
           content:
@@ -394,7 +394,7 @@ paths:
                 request_id: 0c9c1a64-2b1d-4c7e-8f3a-5d6e7f8a9b0c
                 status: requested
                 requested_at: '2026-11-06T02:00:00Z'
-                scheduled_purge_at: '2026-12-06T02:00:00Z'
+                scheduled_purge_at: null
                 completed_at: null
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -402,14 +402,17 @@ paths:
     delete:
       tags: [me]
       operationId: cancelMyDeletion
-      summary: 탈퇴 요청 취소 (삭제 예정일 전까지)
+      summary: 탈퇴 요청 취소 (HOLD - 재인증 계약 미확정)
+      description: 비활성화·세션 폐기 후 T15 인증으로 취소할 수 없음. 인증 우회 없이 미인증401, 인증 가능한 과거 요청은503으로 차단한다.
+      x-implementation-status: HOLD
       x-requirements: [FR-ACC-007]
       x-screens: [UI-005]
-      x-tables: [account_deletion_requests, users, audit_events]
+      x-tables: [account_deletion_requests, users]
       responses:
         '204': { description: '취소됨' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /me/dashboard:
     get:
       tags: [me]
@@ -2050,7 +2053,7 @@ components:
       required: [policy_code, policy_version, granted]
       properties:
         policy_code: { type: string, enum: [llm_processing, behavior_tracking] }
-        policy_version: { type: string, maxLength: 40 }
+        policy_version: { type: string, minLength: 1, maxLength: 40 }
         granted: { type: boolean }
     PasswordResetRequest:
       type: object
@@ -2090,7 +2093,7 @@ components:
         request_id: { $ref: '#/components/schemas/Uuid' }
         status: { type: string, enum: [requested, cancelled, completed] }
         requested_at: { $ref: '#/components/schemas/Timestamp' }
-        scheduled_purge_at: { $ref: '#/components/schemas/Timestamp' }
+        scheduled_purge_at: { type: [string, 'null'], format: date-time, description: '삭제 정책 미확정이면 null; 자동 삭제를 뜻하지 않음' }
         completed_at: { type: [string, 'null'], format: date-time }
     Dashboard:
       type: object
