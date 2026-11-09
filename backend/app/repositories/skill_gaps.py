@@ -11,23 +11,46 @@ from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import DateTime, Integer, String, Uuid, column, func, insert, select, table, tuple_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
-from app.schemas.skill_gaps import (
-    GapJobRole, GapModelVersion, GapSkill, SkillGap, SkillGapItem, SkillGapSummary,
+from app.repositories.catalog import job_roles, job_role_skills, skills
+from app.repositories.my_skills import user_skills
+from app.schemas.catalog import JobRoleRef, Skill
+from app.schemas.skill_gaps import GapModelVersion, SkillGap, SkillGapItem, SkillGapSummary
+
+
+SCHEMA = "career"
+user_target_roles = table(
+    "user_target_roles", column("user_id", Uuid), column("job_role_id", Uuid), schema=SCHEMA,
+)
+model_versions = table(
+    "model_versions", column("model_version_id", Uuid), column("model_code", String),
+    column("version", String), column("kind", String),
+    column("approved_at", DateTime(timezone=True)), schema=SCHEMA,
+)
+skill_gap_assessments = table(
+    "skill_gap_assessments", column("assessment_id", Uuid), column("user_id", Uuid),
+    column("job_role_id", Uuid), column("model_version_id", Uuid),
+    column("evaluated_at", DateTime(timezone=True)), schema=SCHEMA,
+)
+skill_gap_items = table(
+    "skill_gap_items", column("assessment_id", Uuid), column("skill_id", Uuid),
+    column("required_level", Integer), column("observed_level", Integer),
+    column("gap", Integer), schema=SCHEMA,
 )
 
 
 @dataclass(frozen=True)
 class RequiredGapSkill:
-    skill: GapSkill
+    skill: Skill
     required_level: int
 
 
 @dataclass(frozen=True)
 class GapInputSnapshot:
-    role: GapJobRole
+    role: JobRoleRef
     is_target_role: bool
     requirements: tuple[RequiredGapSkill, ...]
     # None means a registered skill with unknown proficiency; missing key
@@ -102,68 +125,64 @@ class SqlSkillGapRepository:
     ):
         self.session = session
         self.stale_checker = stale_checker
-        self.roles = table("job_roles", column("job_role_id", Uuid), column("code", String), column("name", String), schema="career")
-        self.skills = table("skills", column("skill_id", Uuid), column("code", String), column("name", String), schema="career")
-        self.requirements = table("job_role_skills", column("job_role_id", Uuid), column("skill_id", Uuid), column("required_level", Integer), schema="career")
-        self.owned = table("user_skills", column("user_id", Uuid), column("skill_id", Uuid), column("proficiency", Integer), schema="career")
-        self.targets = table("user_target_roles", column("user_id", Uuid), column("job_role_id", Uuid), schema="career")
-        self.models = table("model_versions", column("model_version_id", Uuid), column("model_code", String), column("version", String), column("kind", String), column("approved_at", DateTime(timezone=True)), schema="career")
-        self.assessments = table("skill_gap_assessments", column("assessment_id", Uuid), column("user_id", Uuid), column("job_role_id", Uuid), column("model_version_id", Uuid), column("evaluated_at", DateTime(timezone=True)), schema="career")
-        self.items = table("skill_gap_items", column("assessment_id", Uuid), column("skill_id", Uuid), column("required_level", Integer), column("observed_level", Integer), column("gap", Integer), schema="career")
 
     def load_inputs(self, *, user_id: UUID, job_role_id: UUID) -> GapInputSnapshot | None:
-        r, s, req, owned, targets = self.roles.c, self.skills.c, self.requirements.c, self.owned.c, self.targets.c
-        requirements = select(func.jsonb_agg(func.jsonb_build_object(
-            "skill_id", s.skill_id, "code", s.code, "name", s.name,
-            "required_level", req.required_level,
-        ))).select_from(self.requirements.join(self.skills, req.skill_id == s.skill_id)).where(
-            req.job_role_id == r.job_role_id
-        ).correlate(self.roles).scalar_subquery()
-        levels = select(func.jsonb_agg(func.jsonb_build_object(
-            "skill_id", owned.skill_id, "proficiency", owned.proficiency,
-        ))).where(owned.user_id == user_id).scalar_subquery()
-        target = select(targets.user_id).where(
-            targets.user_id == user_id, targets.job_role_id == r.job_role_id,
-        ).correlate(self.roles).exists()
-        row = self.session.execute(select(
-            r.job_role_id, r.code, r.name, target.label("is_target"),
-            requirements.label("requirements"), levels.label("levels"),
-        ).where(r.job_role_id == job_role_id)).mappings().one_or_none()
-        if row is None:
-            return None
-        return GapInputSnapshot(
-            role=GapJobRole(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
-            is_target_role=row["is_target"],
-            requirements=tuple(RequiredGapSkill(
-                skill=GapSkill(skill_id=item["skill_id"], code=item["code"], name=item["name"]),
-                required_level=item["required_level"],
-            ) for item in row["requirements"] or []),
-            observed_levels={UUID(item["skill_id"]): item["proficiency"] for item in row["levels"] or []},
-        )
+        def operation():
+            r, s, req, owned, targets = job_roles.c, skills.c, job_role_skills.c, user_skills.c, user_target_roles.c
+            requirements = select(func.jsonb_agg(func.jsonb_build_object(
+                "skill_id", s.skill_id, "code", s.code, "name", s.name,
+                "required_level", req.required_level,
+            ))).select_from(job_role_skills.join(skills, req.skill_id == s.skill_id)).where(
+                req.job_role_id == r.job_role_id
+            ).correlate(job_roles).scalar_subquery()
+            levels = select(func.jsonb_agg(func.jsonb_build_object(
+                "skill_id", owned.skill_id, "proficiency", owned.proficiency,
+            ))).where(owned.user_id == user_id).scalar_subquery()
+            target = select(targets.user_id).where(
+                targets.user_id == user_id, targets.job_role_id == r.job_role_id,
+            ).correlate(job_roles).exists()
+            row = self.session.execute(select(
+                r.job_role_id, r.code, r.name, target.label("is_target"),
+                requirements.label("requirements"), levels.label("levels"),
+            ).where(r.job_role_id == job_role_id)).mappings().one_or_none()
+            if row is None:
+                return None
+            return GapInputSnapshot(
+                role=JobRoleRef(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
+                is_target_role=row["is_target"],
+                requirements=tuple(RequiredGapSkill(
+                    skill=Skill(skill_id=item["skill_id"], code=item["code"], name=item["name"]),
+                    required_level=item["required_level"],
+                ) for item in row["requirements"] or []),
+                observed_levels={UUID(item["skill_id"]): item["proficiency"] for item in row["levels"] or []},
+            )
+        return self._run(operation)
 
     def save(self, *, user_id: UUID, assessment: SkillGap) -> None:
-        m = self.models.c
-        model_id = self.session.scalar(select(m.model_version_id).where(
-            m.model_code == assessment.model_version.model_code,
-            m.version == assessment.model_version.version,
-            m.kind == "rule", m.approved_at.is_not(None),
-        ))
-        if model_id is None:
-            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE)
-        self.session.execute(insert(self.assessments).values(
-            assessment_id=assessment.assessment_id, user_id=user_id,
-            job_role_id=assessment.job_role.job_role_id, model_version_id=model_id,
-            evaluated_at=assessment.evaluated_at,
-        ))
-        if assessment.items:
-            self.session.execute(insert(self.items), [{
-                "assessment_id": assessment.assessment_id, "skill_id": item.skill.skill_id,
-                "required_level": item.required_level, "observed_level": item.observed_level,
-                "gap": item.gap,
-            } for item in assessment.items])
+        def operation():
+            m = model_versions.c
+            model_id = self.session.scalar(select(m.model_version_id).where(
+                m.model_code == assessment.model_version.model_code,
+                m.version == assessment.model_version.version,
+                m.kind == "rule", m.approved_at.is_not(None),
+            ))
+            if model_id is None:
+                raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE)
+            self.session.execute(insert(skill_gap_assessments).values(
+                assessment_id=assessment.assessment_id, user_id=user_id,
+                job_role_id=assessment.job_role.job_role_id, model_version_id=model_id,
+                evaluated_at=assessment.evaluated_at,
+            ))
+            if assessment.items:
+                self.session.execute(insert(skill_gap_items), [{
+                    "assessment_id": assessment.assessment_id, "skill_id": item.skill.skill_id,
+                    "required_level": item.required_level, "observed_level": item.observed_level,
+                    "gap": item.gap,
+                } for item in assessment.items])
+        return self._run(operation)
 
     def commit(self) -> None:
-        self.session.commit()
+        self._run(self.session.commit)
 
     def rollback(self) -> None:
         self.session.rollback()
@@ -175,57 +194,68 @@ class SqlSkillGapRepository:
         return stale
 
     def get_owned(self, *, user_id: UUID, assessment_id: UUID) -> SkillGap | None:
-        a, r, m, i, s = self.assessments.c, self.roles.c, self.models.c, self.items.c, self.skills.c
-        row = self.session.execute(select(
-            a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
-            m.model_code, m.version, m.kind,
-        ).select_from(self.assessments.join(self.roles, a.job_role_id == r.job_role_id).join(
-            self.models, a.model_version_id == m.model_version_id,
-        )).where(a.user_id == user_id, a.assessment_id == assessment_id)).mappings().one_or_none()
-        if row is None:
-            return None
-        item_rows = self.session.execute(select(
-            s.skill_id, s.code, s.name, i.required_level, i.observed_level, i.gap,
-        ).select_from(self.items.join(self.skills, i.skill_id == s.skill_id).join(
-            self.assessments, i.assessment_id == a.assessment_id,
-        )).where(a.user_id == user_id, a.assessment_id == assessment_id).order_by(
-            i.gap.desc(), s.code, s.skill_id,
-        )).mappings()
-        return SkillGap(
-            assessment_id=row["assessment_id"],
-            job_role=GapJobRole(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
-            model_version=GapModelVersion(model_code=row["model_code"], version=row["version"], kind=row["kind"]),
-            is_stale=self._stale(user_id, assessment_id, row["evaluated_at"]),
-            evaluated_at=row["evaluated_at"],
-            items=[SkillGapItem(
-                skill=GapSkill(skill_id=item["skill_id"], code=item["code"], name=item["name"]),
-                required_level=item["required_level"], observed_level=item["observed_level"], gap=item["gap"],
-            ) for item in item_rows],
-        )
+        def operation():
+            a, r, m, i, s = skill_gap_assessments.c, job_roles.c, model_versions.c, skill_gap_items.c, skills.c
+            row = self.session.execute(select(
+                a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
+                m.model_code, m.version, m.kind,
+            ).select_from(skill_gap_assessments.join(job_roles, a.job_role_id == r.job_role_id).join(
+                model_versions, a.model_version_id == m.model_version_id,
+            )).where(a.user_id == user_id, a.assessment_id == assessment_id)).mappings().one_or_none()
+            if row is None:
+                return None
+            item_rows = self.session.execute(select(
+                s.skill_id, s.code, s.name, i.required_level, i.observed_level, i.gap,
+            ).select_from(skill_gap_items.join(skills, i.skill_id == s.skill_id).join(
+                skill_gap_assessments, i.assessment_id == a.assessment_id,
+            )).where(a.user_id == user_id, a.assessment_id == assessment_id).order_by(
+                i.gap.desc(), s.code, s.skill_id,
+            )).mappings()
+            return SkillGap(
+                assessment_id=row["assessment_id"],
+                job_role=JobRoleRef(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
+                model_version=GapModelVersion(model_code=row["model_code"], version=row["version"], kind=row["kind"]),
+                is_stale=self._stale(user_id, assessment_id, row["evaluated_at"]),
+                evaluated_at=row["evaluated_at"],
+                items=[SkillGapItem(
+                    skill=Skill(skill_id=item["skill_id"], code=item["code"], name=item["name"]),
+                    required_level=item["required_level"], observed_level=item["observed_level"], gap=item["gap"],
+                ) for item in item_rows],
+            )
+        return self._run(operation)
 
     def list_owned(
         self, *, user_id: UUID, job_role_id: UUID | None,
         before: tuple[datetime, UUID] | None, limit: int,
     ) -> list[SkillGapSummary]:
-        a, r, i = self.assessments.c, self.roles.c, self.items.c
-        statement = select(
-            a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
-            func.count(i.skill_id).filter(i.gap > 0).label("missing_count"),
-            func.coalesce(func.sum(i.gap), 0).label("total_gap"),
-        ).select_from(self.assessments.join(self.roles, a.job_role_id == r.job_role_id).outerjoin(
-            self.items, a.assessment_id == i.assessment_id,
-        )).where(a.user_id == user_id)
-        if job_role_id is not None:
-            statement = statement.where(a.job_role_id == job_role_id)
-        if before is not None:
-            statement = statement.where(tuple_(a.evaluated_at, a.assessment_id) < tuple_(*before))
-        rows = self.session.execute(statement.group_by(
-            a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
-        ).order_by(a.evaluated_at.desc(), a.assessment_id.desc()).limit(limit)).mappings()
-        return [SkillGapSummary(
-            assessment_id=row["assessment_id"],
-            job_role=GapJobRole(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
-            missing_skill_count=row["missing_count"], total_gap=row["total_gap"],
-            is_stale=self._stale(user_id, row["assessment_id"], row["evaluated_at"]),
-            evaluated_at=row["evaluated_at"],
-        ) for row in rows]
+        def operation():
+            a, r, i = skill_gap_assessments.c, job_roles.c, skill_gap_items.c
+            statement = select(
+                a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
+                func.count(i.skill_id).filter(i.gap > 0).label("missing_count"),
+                func.coalesce(func.sum(i.gap), 0).label("total_gap"),
+            ).select_from(skill_gap_assessments.join(job_roles, a.job_role_id == r.job_role_id).outerjoin(
+                skill_gap_items, a.assessment_id == i.assessment_id,
+            )).where(a.user_id == user_id)
+            if job_role_id is not None:
+                statement = statement.where(a.job_role_id == job_role_id)
+            if before is not None:
+                statement = statement.where(tuple_(a.evaluated_at, a.assessment_id) < tuple_(*before))
+            rows = self.session.execute(statement.group_by(
+                a.assessment_id, a.evaluated_at, r.job_role_id, r.code, r.name,
+            ).order_by(a.evaluated_at.desc(), a.assessment_id.desc()).limit(limit)).mappings()
+            return [SkillGapSummary(
+                assessment_id=row["assessment_id"],
+                job_role=JobRoleRef(job_role_id=row["job_role_id"], code=row["code"], name=row["name"]),
+                missing_skill_count=row["missing_count"], total_gap=row["total_gap"],
+                is_stale=self._stale(user_id, row["assessment_id"], row["evaluated_at"]),
+                evaluated_at=row["evaluated_at"],
+            ) for row in rows]
+        return self._run(operation)
+
+    def _run(self, operation):
+        try:
+            return operation()
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail=type(exc).__name__) from None

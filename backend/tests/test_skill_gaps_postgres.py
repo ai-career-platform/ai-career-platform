@@ -3,7 +3,8 @@
 Never creates/drops schema. Per-test changes use an outer transaction and
 savepoints, including service commit/rollback, and are rolled back on teardown.
 A separate durability test commits its own generated rows and removes them
-in teardown. Actual T26 computation/stale policy is not provided here.
+in teardown. Two cases use the actual merged T26 calculator. Stale policy
+and approved test-model rows are still synthetic test dependencies.
 """
 
 import os
@@ -15,11 +16,13 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
 
 from app.core.errors import AppError, ErrorCode
 from app.repositories.skill_gaps import RuleEvaluation, SqlSkillGapRepository
-from app.schemas.skill_gaps import GapModelVersion, SkillGapHistoryQuery, SkillGapItem
+from app.schemas.skill_gaps import GapModelVersion, SkillGap, SkillGapHistoryQuery, SkillGapItem
 from app.services.skill_gaps import SkillGapService
+from app.services.skill_gap_evaluator import T26SkillGapEvaluator
 from tests.test_skill_gaps import STAMP
 
 DB_URL = os.environ.get("T43_TEST_DATABASE_URL")
@@ -99,6 +102,68 @@ def test_single_statement_input_snapshot_and_owner_filter(case):
     assert len(snapshot.observed_levels) == 3
     assert not case.repository.load_inputs(user_id=case.other, job_role_id=case.role).is_target_role
     assert case.repository.load_inputs(user_id=case.owner, job_role_id=UUID(int=0)) is None
+
+
+@pytest.mark.parametrize("null_proficiency", [False, True])
+def test_real_t26_sql_save_and_history(case, null_proficiency):
+    if null_proficiency:
+        case.session.execute(text("UPDATE career.user_skills SET proficiency=NULL WHERE user_id=:owner AND skill_id=(SELECT skill_id FROM career.skills WHERE code='PYTHON')"), {"owner": case.owner})
+    model = case.service.evaluator.model
+    service = SkillGapService(case.repository, T26SkillGapEvaluator.from_t26(model),
+                             clock=lambda: STAMP, cursor_key=b"T43-real-T26-local-test-only-" * 2)
+    result = service.create(user_id=case.owner, job_role_id=case.role)
+    levels = {item.skill.code: (item.required_level, item.observed_level, item.gap) for item in result.items}
+    assert levels["PYTHON"] == ((5, 0, 5) if null_proficiency else (5, 4, 1))
+    assert levels["REST_API"] == (2, 0, 2)  # absent skill also becomes numeric zero
+    assert service.get(user_id=case.owner, assessment_id=result.assessment_id).items == result.items
+    page = service.list_history(user_id=case.owner, query=SkillGapHistoryQuery(limit=1))
+    assert page.items[0].total_gap == sum(item.gap for item in result.items)
+    assert page.items[0].assessment_id == result.assessment_id
+    if null_proficiency:
+        assert case.session.scalar(text("SELECT proficiency FROM career.user_skills WHERE user_id=:owner AND skill_id=(SELECT skill_id FROM career.skills WHERE code='PYTHON')"), {"owner": case.owner}) is None
+
+
+def test_http_real_calculator_and_database_with_injected_identity(case, monkeypatch):
+    """Real HTTP/DTO/calculation/DB; identity and stale policy remain test doubles."""
+    from app.core.config import get_settings
+    from app.dependencies.auth import get_current_user
+    from app.main import create_app
+    from app.routers.skill_gaps import get_skill_gap_service, router
+    from app.services.auth import CurrentUser
+
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("JWT_SECRET", "T43-http-db-test-only-signature-key-123456789")
+    get_settings.cache_clear()
+    app = create_app()
+    app.include_router(router, prefix="/api/v1")
+    identity = {"user": case.owner}
+    service = SkillGapService(case.repository,
+        T26SkillGapEvaluator.from_t26(case.service.evaluator.model),
+        clock=lambda: STAMP, cursor_key=b"T43-http-database-test-key-only-" * 2)
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id=identity["user"], session_id=uuid4(), roles=frozenset(), permissions=frozenset())
+    app.dependency_overrides[get_skill_gap_service] = lambda: service
+    try:
+        with TestClient(app, base_url="https://testserver") as client:
+            response = client.post("/api/v1/skill-gaps", json={"job_role_id": str(case.role)})
+            assert response.status_code == 201, response.text
+            created = response.json()
+            assert next(item for item in created["items"] if item["skill"]["code"] == "PYTHON")["gap"] == 1
+            detail = client.get(response.headers["location"])
+            assert detail.status_code == 200
+            # PostgreSQL can serialize the same instant in its session timezone.
+            assert SkillGap.model_validate(detail.json()) == SkillGap.model_validate(created)
+            history = client.get("/api/v1/skill-gaps", params={"job_role_id": str(case.role), "limit": 1})
+            assert history.status_code == 200
+            assert history.json()["items"][0]["assessment_id"] == created["assessment_id"]
+            assert history.json()["items"][0]["total_gap"] == 6
+            invalid = client.get("/api/v1/skill-gaps", params={"cursor": ""})
+            assert invalid.status_code == 400 and invalid.json()["code"] == "INVALID_CURSOR"
+            identity["user"] = case.other
+            assert client.get(response.headers["location"]).status_code == 404
+            assert client.get("/api/v1/skill-gaps").json() == {"items": [], "next_cursor": None}
+    finally:
+        get_settings.cache_clear()
 
 
 def test_save_numeric_snapshot_and_read_without_recalculation(case):

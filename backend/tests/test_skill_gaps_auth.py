@@ -1,6 +1,6 @@
 """T43 with real T15 JWT/session checks; auth storage and T26/Gap DB are fakes.
 
-get_current_user and get_skill_gap_user_id are never overridden here.
+get_current_user is never overridden here.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -43,7 +43,7 @@ def auth_case(monkeypatch):
     override_auth_repository(application, auth_repo)
     application.dependency_overrides[get_skill_gap_service] = lambda: service
     try:
-        with TestClient(application, base_url="https://testserver") as client:
+        with TestClient(application, base_url="https://testserver", headers={"X-CSRF-TOKEN": "1"}) as client:
             yield client, auth_repo, gap_repo, service
     finally:
         get_settings.cache_clear()

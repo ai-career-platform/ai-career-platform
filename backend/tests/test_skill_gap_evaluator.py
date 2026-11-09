@@ -1,4 +1,4 @@
-"""Adapter contract tests with precomputed T26-shaped objects, no calculation."""
+"""Adapter boundary tests and integration with the merged T26 calculator."""
 
 from dataclasses import replace
 from types import SimpleNamespace
@@ -8,17 +8,18 @@ import pytest
 
 from app.core.errors import AppError, ErrorCode
 from app.repositories.skill_gaps import GapInputSnapshot, RequiredGapSkill
-from app.schemas.skill_gaps import GapJobRole, GapModelVersion, GapSkill
+from app.schemas.catalog import JobRoleRef, Skill
+from app.schemas.skill_gaps import GapModelVersion
 from app.services.skill_gap_evaluator import T26SkillGapEvaluator
 
 
 @pytest.fixture
 def snapshot():
     return GapInputSnapshot(
-        role=GapJobRole(job_role_id=UUID(int=1), code="ROLE", name="Synthetic role"),
+        role=JobRoleRef(job_role_id=UUID(int=1), code="ROLE", name="Synthetic role"),
         is_target_role=True,
         requirements=(RequiredGapSkill(
-            skill=GapSkill(skill_id=UUID(int=2), code="SKILL", name="Synthetic skill"),
+            skill=Skill(skill_id=UUID(int=2), code="SKILL", name="Synthetic skill"),
             required_level=4,
         ),),
         observed_levels={UUID(int=2): 2},
@@ -90,3 +91,26 @@ def test_duplicate_requirement_codes_rejected(snapshot):
     other = RequiredGapSkill(skill=requirement.skill.model_copy(update={"skill_id": UUID(int=3)}), required_level=4)
     with pytest.raises(AppError):
         evaluator_for(fixture_result()).evaluate(replace(snapshot, requirements=(requirement, other)))
+
+
+@pytest.mark.parametrize("observed,expected", [(1, 3), (2, 2), (4, 0), (5, 0), (None, 4)])
+def test_actual_t26_calculation_maps_to_response_without_mutating_input(snapshot, observed, expected):
+    source = replace(snapshot, observed_levels={UUID(int=2): observed})
+    model = GapModelVersion(model_code="synthetic_model", version="test", kind="rule")
+    evaluator = T26SkillGapEvaluator.from_t26(model)
+    result = evaluator.evaluate(source)
+    assert result.items[0].gap == expected
+    assert result.items[0].observed_level == (0 if observed is None else observed)
+    assert result.model_version == model
+    assert source.observed_levels == {UUID(int=2): observed}
+    assert evaluator.evaluate(source) == result
+
+
+def test_actual_t26_absent_skill_and_unrelated_skill(snapshot):
+    source = replace(snapshot, observed_levels={UUID(int=99): 5})
+    result = T26SkillGapEvaluator.from_t26(
+        GapModelVersion(model_code="synthetic_model", version="test", kind="rule"),
+    ).evaluate(source)
+    assert result.items[0].gap == 4
+    assert result.items[0].observed_level == 0
+    assert source.observed_levels == {UUID(int=99): 5}

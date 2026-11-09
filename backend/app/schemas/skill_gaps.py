@@ -5,21 +5,11 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.catalog import JobRoleRef, Skill
+
 
 class GapModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class GapSkill(GapModel):
-    skill_id: UUID
-    code: str
-    name: str
-
-
-class GapJobRole(GapModel):
-    job_role_id: UUID
-    code: str
-    name: str
 
 
 class GapModelVersion(GapModel):
@@ -33,7 +23,7 @@ class SkillGapRequest(GapModel):
 
 
 class SkillGapItem(GapModel):
-    skill: GapSkill
+    skill: Skill
     required_level: int = Field(ge=1, le=5, strict=True)
     observed_level: int = Field(ge=0, le=5, strict=True)
     gap: int = Field(ge=0, le=5, strict=True)
@@ -47,7 +37,7 @@ class SkillGapItem(GapModel):
 
 class SkillGap(GapModel):
     assessment_id: UUID
-    job_role: GapJobRole
+    job_role: JobRoleRef
     model_version: GapModelVersion
     is_stale: bool
     evaluated_at: AwareDatetime
@@ -56,7 +46,7 @@ class SkillGap(GapModel):
 
 class SkillGapSummary(GapModel):
     assessment_id: UUID
-    job_role: GapJobRole
+    job_role: JobRoleRef
     missing_skill_count: int = Field(ge=0)
     total_gap: int = Field(ge=0)
     is_stale: bool

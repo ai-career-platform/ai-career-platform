@@ -1,15 +1,21 @@
 """T43 orchestration; actual rule calculation is injected from T26."""
 
 from collections.abc import Callable
-import base64
-import hmac
-import json
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from app.core.errors import AppError, ErrorCode
+from app.core.security import derive_key
 from app.repositories.skill_gaps import SkillGapEvaluator, SkillGapRepository
 from app.schemas.skill_gaps import SkillGap, SkillGapHistoryQuery, SkillGapSummaryPage
+from app.services.job_postings import ListCursor
+
+CURSOR_KEY_PURPOSE = "t43-skill-gap-history-v2"
+
+
+def derive_cursor_key(secret: str) -> bytes:
+    """Reuse the common key derivation with a T43-specific purpose."""
+    return derive_key(secret, CURSOR_KEY_PURPOSE)
 
 
 class SkillGapService:
@@ -25,42 +31,36 @@ class SkillGapService:
         self.new_id = new_id
         if cursor_key is not None and (not isinstance(cursor_key, bytes) or len(cursor_key) < 32):
             raise ValueError("cursor_key must contain at least 32 bytes")
-        self._cursor_key = cursor_key
+        self._cursor = ListCursor(cursor_key) if cursor_key is not None else None
 
     def _history_cursor(
         self, *, user_id: UUID, role_id: UUID | None, timestamp: datetime, assessment_id: UUID,
     ) -> str:
-        payload = json.dumps([
-            1, str(user_id), str(role_id) if role_id else None,
-            timestamp.astimezone(timezone.utc).isoformat(), str(assessment_id),
-        ], separators=(",", ":")).encode()
-        signature = hmac.digest(self._cursor_key, payload, "sha256")
-        return base64.urlsafe_b64encode(signature + payload).decode().rstrip("=")
+        return self._cursor.encode("skill-gaps", self._cursor_params(user_id, role_id),
+                                   assessment_id, timestamp.astimezone(timezone.utc).isoformat())
+
+    @staticmethod
+    def _cursor_params(user_id: UUID, role_id: UUID | None) -> dict:
+        return {"owner": str(user_id), "job_role_id": str(role_id) if role_id else None}
 
     def _parse_history_cursor(
         self, token: str, *, user_id: UUID, role_id: UUID | None,
     ) -> tuple[datetime, UUID]:
         try:
-            raw = base64.b64decode(token + "=" * (-len(token) % 4), altchars=b"-_", validate=True)
-            if base64.urlsafe_b64encode(raw).decode().rstrip("=") != token:
+            params = self._cursor_params(user_id, role_id)
+            assessment, raw_timestamp = self._cursor.decode(token, "skill-gaps", params)
+            # Preserve T43's strict encoding check without changing the shared codec.
+            if self._cursor.encode("skill-gaps", params, assessment, raw_timestamp) != token:
                 raise ValueError
-            signature, payload = raw[:32], raw[32:]
-            if not hmac.compare_digest(signature, hmac.digest(self._cursor_key, payload, "sha256")):
-                raise ValueError
-            version, owner, role, timestamp, assessment = json.loads(payload)
-            if type(version) is not int or version != 1 or owner != str(user_id):
-                raise ValueError
-            if role != (str(role_id) if role_id else None):
-                raise ValueError
-            timestamp = datetime.fromisoformat(timestamp)
+            timestamp = datetime.fromisoformat(raw_timestamp)
             if timestamp.tzinfo is None or timestamp.utcoffset() is None:
                 raise ValueError
-            return timestamp, UUID(assessment)
+            return timestamp, assessment
         except (ValueError, TypeError, UnicodeError) as exc:
             raise AppError(ErrorCode.INVALID_CURSOR) from exc
 
     def list_history(self, *, user_id: UUID, query: SkillGapHistoryQuery) -> SkillGapSummaryPage:
-        if self._cursor_key is None:
+        if self._cursor is None:
             raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE)
         before = self._parse_history_cursor(
             query.cursor, user_id=user_id, role_id=query.job_role_id,

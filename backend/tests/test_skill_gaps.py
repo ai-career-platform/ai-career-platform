@@ -14,11 +14,14 @@ import pytest
 import yaml
 
 from app.core.errors import AppError, ErrorCode
+from app.dependencies.auth import get_current_user
+from app.services.auth import CurrentUser
+from app.schemas.catalog import JobRoleRef, Skill
 from app.main import create_app
 from app.repositories.skill_gaps import GapInputSnapshot, RequiredGapSkill, RuleEvaluation
-from app.routers.skill_gaps import get_skill_gap_service, get_skill_gap_user_id, router
+from app.routers.skill_gaps import get_skill_gap_service, router
 from app.schemas.skill_gaps import (
-    GapJobRole, GapModelVersion, GapSkill, SkillGapHistoryQuery, SkillGapItem,
+    GapModelVersion, SkillGapHistoryQuery, SkillGapItem,
     SkillGapRequest, SkillGapSummary,
 )
 from app.services.skill_gaps import SkillGapService
@@ -27,7 +30,7 @@ USER = UUID(int=1)
 OTHER_USER = UUID(int=2)
 ROLE = UUID(int=10)
 STAMP = datetime(2026, 11, 9, tzinfo=timezone.utc)
-SKILL = GapSkill(skill_id=UUID(int=20), code="SYNTHETIC_SKILL", name="Synthetic skill")
+SKILL = Skill(skill_id=UUID(int=20), code="SYNTHETIC_SKILL", name="Synthetic skill")
 
 
 class MemoryGapRepository:
@@ -36,7 +39,7 @@ class MemoryGapRepository:
     def __init__(self):
         self.owner = USER
         self.snapshot = GapInputSnapshot(
-            role=GapJobRole(job_role_id=ROLE, code="SYNTHETIC_ROLE", name="Synthetic role"),
+            role=JobRoleRef(job_role_id=ROLE, code="SYNTHETIC_ROLE", name="Synthetic role"),
             is_target_role=True,
             requirements=(RequiredGapSkill(skill=SKILL, required_level=4),),
             observed_levels={SKILL.skill_id: 2},
@@ -106,7 +109,7 @@ def service():
 def client(service):
     app = create_app()
     app.include_router(router, prefix="/api/v1")
-    app.dependency_overrides[get_skill_gap_user_id] = lambda: USER
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(USER, UUID(int=99), frozenset(), frozenset())
     app.dependency_overrides[get_skill_gap_service] = lambda: service
     with TestClient(app) as client:
         yield client
@@ -168,7 +171,7 @@ def test_duplicate_rule_result_rejected_before_save(service):
 
 
 def test_result_order_and_fixed_input_reproducibility(service):
-    other_skill = GapSkill(skill_id=UUID(int=21), code="SECOND_SYNTHETIC", name="Another skill")
+    other_skill = Skill(skill_id=UUID(int=21), code="SECOND_SYNTHETIC", name="Another skill")
     service.repository.snapshot = replace(service.repository.snapshot, requirements=(
         *service.repository.snapshot.requirements,
         RequiredGapSkill(skill=other_skill, required_level=5),
@@ -212,7 +215,7 @@ def test_body_user_id_cannot_select_owner(client):
 
 def test_http_other_owner_receives_404(client):
     response = client.post("/api/v1/skill-gaps", json={"job_role_id": str(ROLE)})
-    client.app.dependency_overrides[get_skill_gap_user_id] = lambda: OTHER_USER
+    client.app.dependency_overrides[get_current_user] = lambda: CurrentUser(OTHER_USER, UUID(int=99), frozenset(), frozenset())
     assert client.get(response.headers["location"]).status_code == 404
 
 
@@ -229,7 +232,7 @@ def test_authentication_not_implemented_fails_closed():
 def test_missing_service_adapter_returns_503():
     app = create_app()
     app.include_router(router, prefix="/api/v1")
-    app.dependency_overrides[get_skill_gap_user_id] = lambda: USER
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(USER, UUID(int=99), frozenset(), frozenset())
     with TestClient(app) as client:
         assert client.post("/api/v1/skill-gaps", json={"job_role_id": str(ROLE)}).status_code == 503
 
@@ -248,7 +251,7 @@ def test_request_requires_valid_role_id():
 def populate_history(service):
     template = service.create(user_id=USER, job_role_id=ROLE)
     service.repository.saved.clear()
-    other_role = GapJobRole(job_role_id=UUID(int=11), code="OTHER_ROLE", name="Other role")
+    other_role = JobRoleRef(job_role_id=UUID(int=11), code="OTHER_ROLE", name="Other role")
     for owner, ident, days, role in [
         (USER, 101, 0, template.job_role), (USER, 102, 0, template.job_role),
         (USER, 103, 1, other_role), (OTHER_USER, 999, 10, template.job_role),
@@ -354,7 +357,7 @@ def test_http_history_cursor_rejection(client, service):
     populate_history(service)
     assert client.get("/api/v1/skill-gaps?cursor=bad").status_code == 400
     token = client.get("/api/v1/skill-gaps?limit=1").json()["next_cursor"]
-    client.app.dependency_overrides[get_skill_gap_user_id] = lambda: OTHER_USER
+    client.app.dependency_overrides[get_current_user] = lambda: CurrentUser(OTHER_USER, UUID(int=99), frozenset(), frozenset())
     response = client.get("/api/v1/skill-gaps", params={"cursor": token})
     assert response.status_code == 400
     assert response.json()["code"] == "INVALID_CURSOR"
@@ -420,6 +423,52 @@ def test_t43_test_app_openapi_and_operations(client):
     assert "201" in collection["post"]["responses"]
     assert "400" in collection["get"]["responses"]
     assert spec["paths"]["/api/v1/skill-gaps/{assessment_id}"]["get"]["operationId"] == "getSkillGap"
+
+
+@pytest.mark.parametrize("operation", ["load_inputs", "save", "get_owned", "list_owned", "commit"])
+def test_sql_repository_maps_failures_to_common_error_without_raw_details(service, operation):
+    from sqlalchemy.exc import SQLAlchemyError
+    from app.repositories.skill_gaps import SqlSkillGapRepository
+
+    class BrokenSession:
+        rollbacks = 0
+
+        def execute(self, *args, **kwargs):
+            raise SQLAlchemyError("synthetic private database details")
+
+        scalar = execute
+        commit = execute
+
+        def rollback(self):
+            self.rollbacks += 1
+
+    session = BrokenSession()
+    repository = SqlSkillGapRepository(session, stale_checker=lambda *_: False)
+    assessment = service.create(user_id=USER, job_role_id=ROLE)
+    kwargs = {
+        "load_inputs": {"user_id": USER, "job_role_id": ROLE},
+        "save": {"user_id": USER, "assessment": assessment},
+        "get_owned": {"user_id": USER, "assessment_id": assessment.assessment_id},
+        "list_owned": {"user_id": USER, "job_role_id": ROLE, "before": None, "limit": 20},
+        "commit": {},
+    }
+    with pytest.raises(AppError) as error:
+        getattr(repository, operation)(**kwargs[operation])
+    assert error.value.code == ErrorCode.DEPENDENCY_UNAVAILABLE
+    assert error.value.log_detail == "SQLAlchemyError"
+    assert session.rollbacks == 1
+
+
+@pytest.mark.parametrize("timestamp", [None, "invalid", "2026-11-09T00:00:00"])
+def test_signed_common_cursor_still_requires_an_aware_timestamp(service, timestamp):
+    from app.services.job_postings import ListCursor
+
+    token = ListCursor(b"T43-history-fixture-key-only-" * 2).encode(
+        "skill-gaps", {"owner": str(USER), "job_role_id": None}, UUID(int=100), timestamp,
+    )
+    with pytest.raises(AppError) as error:
+        service.list_history(user_id=USER, query=SkillGapHistoryQuery(cursor=token))
+    assert error.value.code == ErrorCode.INVALID_CURSOR
 
 
 @pytest.mark.parametrize("path", ["/api/v1/skill-gaps", "/api/v1/skill-gaps/00000000-0000-0000-0000-000000000064"])

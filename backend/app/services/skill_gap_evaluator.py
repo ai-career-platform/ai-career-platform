@@ -1,6 +1,6 @@
 """T43 adapter for the inspected T26 draft interface.
 
-Inject calculate_skill_gap and Requirement from T26 after approval/merge.
+The merged T26 calculator is available through from_t26().
 No T26 calculation is copied here and this module does not approve a model.
 The caller must resolve an approved registry version matching rule_version.
 """
@@ -14,6 +14,14 @@ from app.schemas.skill_gaps import GapModelVersion, SkillGapItem
 
 
 class T26SkillGapEvaluator:
+    @classmethod
+    def from_t26(cls, model_version: GapModelVersion):
+        """Use main's actual calculator; model approval is checked at persistence."""
+        from app.services.skill_gap import RULE_VERSION, Requirement, calculate_skill_gap
+
+        return cls(calculate=calculate_skill_gap, requirement_factory=Requirement,
+                   rule_version=RULE_VERSION, model_version=model_version)
+
     def __init__(
         self, *, calculate: Callable[..., Any], requirement_factory: Callable[..., Any],
         rule_version: str, model_version: GapModelVersion,
