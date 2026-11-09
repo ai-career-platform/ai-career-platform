@@ -147,6 +147,7 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     fireEvent.drop(screen.getByTestId('document-dropzone'), { dataTransfer: { files: [file('wrong.exe')] } });
     expect(screen.getByRole('alert')).toHaveTextContent('PDF(.pdf) 또는 DOCX(.docx)');
     expect(posts(request)).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
     const click = vi.spyOn(input(), 'click');
     fireEvent.click(screen.getByRole('button', { name: '파일 선택' }));
     expect(click).toHaveBeenCalledOnce();

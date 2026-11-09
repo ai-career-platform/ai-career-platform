@@ -140,9 +140,8 @@ export function MyDocumentsPage() {
   function chooseFile(next: File | null) {
     if (!next || uploadBusy.current) return;
     setFile(next); setUploadError(''); setNotice('');
-    const invalid = validateFile(next);
-    setFileError(invalid ?? '');
-    if (!invalid) void send(next);
+    setFileError('');
+    void send(next);
   }
 
   function dropFile(event: DragEvent<HTMLDivElement>) {
@@ -152,6 +151,8 @@ export function MyDocumentsPage() {
 
   async function send(selected: File) {
     if (uploadBusy.current) return;
+    const invalid = validateFile(selected);
+    if (invalid) { setFileError(invalid); return; }
     uploadBusy.current = true;
     const ctrl = new AbortController();
     controller.current = ctrl;
@@ -250,7 +251,7 @@ export function MyDocumentsPage() {
         <p id="documents-file-hint" className="documents-hint">PDF·DOCX만 가능하며 최대 {formatBytes(MAX_FILE_BYTES)}까지 올릴 수 있습니다.</p>
         {fileError && <p className="documents-error" role="alert">{fileError}</p>}
       </div>
-      {(uploading || uploadError || file) && <div className="documents-transfer">
+      {(uploading || uploadError || (file && !fileError)) && <div className="documents-transfer">
         <span className="documents-filename">{file?.name}</span>
         {uploading ? <>
           <span role="status"><span className="documents-spinner" aria-hidden="true" />업로드 중입니다</span>
