@@ -40,6 +40,7 @@ npm run dev:mock        # Backend 없이 Mock 데이터로 실행 → http://127
 | `npm run dev` | 개발 서버(실제 API, `/api` 프록시) |
 | `npm run dev:mock` | 개발 서버(Mock API, `.env.mock`) |
 | `npm run lint` | oxlint (경고 포함 실패) |
+| `npm run api:tools` | 타입 생성 도구 설치 (`tools/openapi`, 최초 1회·도구 lockfile 변경 시) |
 | `npm run gen:api` | `docs/api/openapi.yaml` → `src/api/schema.gen.ts` 타입 생성 (계약이 바뀌면 실행 후 커밋) |
 | `npm run check:api` | 생성 타입이 계약과 같은지 검사 (CI에서 실행) |
 | `npm run typecheck` | TypeScript 타입 검사 |
@@ -47,7 +48,7 @@ npm run dev:mock        # Backend 없이 Mock 데이터로 실행 → http://127
 | `npm run build` | 타입 검사 + 프로덕션 빌드(`dist/`) |
 | `npm run preview` | 빌드 결과 미리보기 |
 
-PR 전 확인 순서: `npm ci` → `npm run lint` → `npm run check:api` → `npm test` → `npm run build`
+PR 전 확인 순서: `npm ci` → `npm run api:tools` → `npm run lint` → `npm run check:api` → `npm test` → `npm run build`
 
 ## 폴더 구조
 
@@ -75,7 +76,7 @@ frontend/
 | 층 | 파일 | 역할 |
 |---|---|---|
 | 전송 | `api/http.ts` | `createHttpClient({ baseUrl, fetch, getToken, onUnauthorized })`. 모든 요청이 지나는 한 곳 (헤더·쿼리·오류·취소) |
-| 계약 타입 | `api/schema.gen.ts`, `api/schema.ts` | OpenAPI 생성 타입(직접 수정 금지)과 `ResponseOf<'operationId'>`·`BodyOf`·`QueryOf` 도우미 |
+| 계약 타입 | `api/schema.gen.ts`, `api/schema.ts` | OpenAPI 생성 타입(직접 수정 금지)과 `ResponseOf<'operationId'>`·`BodyOf`·`QueryOf` 도우미. 생성기(openapi-typescript)는 TypeScript 5 컴파일러 API가 필요해 앱(TypeScript 7)과 분리된 `tools/openapi/`에 자체 lockfile로 고정 |
 | 엔드포인트 | `api/catalog.ts`, `api/me.ts`, `api/auth.ts`, `api/health.ts`, `api/index.ts` | 경로와 타입은 여기에만. `createApi(http)`가 묶음을 만듦 |
 | 주입 | `api/ApiContext.ts`, `auth/session.ts` | 화면은 `const api = useApi()` 하나로 호출. 기본은 공개 클라이언트, 로그인하면 `AuthProvider`가 토큰·401 처리를 붙인 클라이언트로 교체 |
 | React 상태 | `api/useQuery.ts` | `useQuery(key, fn)` → `{ status, data, error, retry }`. key 변경 시 이전 요청 취소 |
