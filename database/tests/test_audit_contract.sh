@@ -111,16 +111,21 @@ psql_test -c "INSERT INTO audit_mock.audit_retention_policies VALUES ('test_ephe
 as_writer "INSERT INTO audit_mock.audit_events ($base_cols) VALUES
   (now(), 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, 'req-t83-0301', NULL, NULL, 'test_ephemeral'),
   (now(), 'system', NULL, 'system.job.run', 'job', NULL, 'success', NULL, 'req-t83-0302', NULL, NULL, 'test_ephemeral');" >/dev/null
+expect_rejected "owner DELETE of an expired row with the flag set by hand" "SET audit_mock.purge_in_progress = 'on'; DELETE FROM audit_mock.audit_events WHERE request_id = 'req-t83-0301';"
 purged="$(psql_test -Atc "SELECT audit_mock.purge_expired()")"
-left="$(psql_test -Atc "SELECT count(*) FROM audit_mock.audit_events")"
+left="$(psql_test -Atc "SELECT count(*) FROM audit_mock.audit_events WHERE action_code <> 'system.audit.purge'")"
 [[ "$purged" == "2" && "$left" == "4" ]] || { echo "FAIL purge purged=$purged left=$left"; exit 1; }
 echo "PASS retention purge removed 2 expired rows, kept 4 unexpired"
+purge_log="$(psql_test -Atc "SELECT count(*) || ':' || max(metadata->>'deleted') FROM audit_mock.audit_events WHERE action_code = 'system.audit.purge'")"
+[[ "$purge_log" == "1:2" ]] || { echo "FAIL purge left no audit record: $purge_log"; exit 1; }
+echo "PASS purge recorded itself (system.audit.purge, deleted=2)"
 expect_rejected "plain DELETE after purge (flag reset)" "DELETE FROM audit_mock.audit_events;"
 
 # 4b. account deletion anonymizes actor (T05 FK ON DELETE SET NULL), nothing else may change
 as_writer "INSERT INTO audit_mock.audit_events ($base_cols) VALUES
   (now(), 'user', '$uid2', 'user.skill.update', 'user_skill', NULL, 'success', NULL, 'req-t83-0401', ARRAY['proficiency'], NULL, 'standard');" >/dev/null
 expect_rejected "re-assign actor to another user (owner)" "UPDATE audit_mock.audit_events SET actor_user_id = '$uid' WHERE request_id = 'req-t83-0401';"
+expect_rejected "owner nulls actor while the user still exists" "UPDATE audit_mock.audit_events SET actor_user_id = NULL WHERE request_id = 'req-t83-0401';"
 expect_rejected "anonymize + change result together (owner)" "UPDATE audit_mock.audit_events SET actor_user_id = NULL, result = 'failed', reason_code = 'X_TEST' WHERE request_id = 'req-t83-0401';"
 psql_test -c "DELETE FROM audit_mock.users WHERE user_id = '$uid2'" >/dev/null
 anon="$(psql_test -qAtc "SELECT actor_user_id IS NULL AND result = 'success' FROM audit_mock.audit_events WHERE request_id = 'req-t83-0401'")"

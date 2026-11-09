@@ -90,7 +90,7 @@
 | security | 2년 | **T05 가안보다 긴 제안.** 개인정보처리시스템 접속기록 보관 기준(최소 1년, 조건에 따라 2년) 후보 — **법무 확인 필요** |
 
 - 보존 기간은 `audit_retention_policies` 표에 두고, 기록 시점에 `retain_until` 을 계산해 고정합니다. 나중에 표를 바꿔도 이미 쌓인 행의 기한은 바뀌지 않습니다.
-- 삭제는 **`purge_expired()` 하나로만** 합니다. `retain_until` 이 지난 행만 지우고, 실행 결과는 `system.audit.purge` 이벤트로 다시 기록합니다 (T84 구현).
+- 삭제는 **`purge_expired()` 하나로만** 합니다. `retain_until` 이 지난 행만 지우고, 같은 트랜잭션에서 `system.audit.purge` 이벤트(삭제 건수, security 등급)를 남깁니다 (mock 에 구현).
 - 법적 보존 요청(legal hold)이 생기면 purge 를 멈추는 절차가 필요합니다 — **미확정**.
 
 ## 6. 변경·삭제 방지와 변조 감지
@@ -98,7 +98,7 @@
 | 층 | 방법 | 막는 대상 |
 |---|---|---|
 | 권한 | 앱 계정은 `INSERT` 만, 관리자 조회 계정은 `SELECT` 만. `UPDATE`/`DELETE`/`TRUNCATE` 권한은 아무에게도 주지 않음 | 앱 버그·SQL Injection 으로 인한 수정·삭제 |
-| 트리거 | `UPDATE` 는 거부하되 **탈퇴 익명화(`actor_user_id` → NULL, 다른 값 변경 없음)만 허용**하고 그때 `row_hash` 를 다시 계산. `DELETE` 는 purge 중이고 기한이 지난 행만 허용, `TRUNCATE` 거부 | 테이블 소유자(migrator)의 실수 |
+| 트리거 | `UPDATE` 는 거부하되 **탈퇴 익명화만 허용**: `actor_user_id` → NULL 이고 다른 값은 그대로이며, **그 사용자 행이 이미 삭제된 경우**(FK SET NULL)에만. 그때 `row_hash` 를 다시 계산. 사용자가 남아 있는데 직접 NULL 로 바꾸면 거부. `DELETE` 는 `purge_expired()` 가 자기 트랜잭션 번호로 표시한 경우 + 기한이 지난 행만 허용(플래그를 손으로 켜면 거부), `TRUNCATE` 거부 | 테이블 소유자(migrator)의 실수·임의 정리 |
 | DB 소유 필드 | `recorded_at`, `retain_until`, `row_hash` 는 트리거가 덮어씀 | 앱이 시각·기한을 속이는 것 |
 | 내용 지문 | `row_hash = sha256(정해진 순서의 모든 필드)` + `find_tampered_rows()` 로 정기 점검 | 소유자가 트리거를 끄고 몰래 고친 경우 **감지** |
 
@@ -119,7 +119,7 @@
 | 파일 | 내용 |
 |---|---|
 | [`database/tests/audit/T83_audit_events_mock.sql`](../../database/tests/audit/T83_audit_events_mock.sql) | 계약을 그대로 옮긴 mock 스키마 `audit_mock` (Migration 아님) |
-| [`database/tests/test_audit_contract.sh`](../../database/tests/test_audit_contract.sh) | 일회용 `postgres:18.1` 컨테이너에서 아래 35개 항목 검증 |
+| [`database/tests/test_audit_contract.sh`](../../database/tests/test_audit_contract.sh) | 일회용 `postgres:18.1` 컨테이너에서 아래 38개 항목 검증 |
 
 ```bash
 D1_TEST_ONLY=YES bash database/tests/test_audit_contract.sh
@@ -146,4 +146,4 @@ D1_TEST_ONLY=YES bash database/tests/test_audit_contract.sh
 6. legal hold 절차
 7. T06/T15 완료 후 실제 Migration(T08/T09 절차)과 Backend 기록 함수(T84) 연동
 
-**판정:** `T83_STATUS=PARTIAL` — T05 F11 기준 계약·mock 검증 PASS(로컬 35항목), 보존정책·추가 컬럼 PM 승인 전, T06/T15 미완료로 실연동 HOLD.
+**판정:** `T83_STATUS=PARTIAL` — T05 F11 기준 계약·mock 검증 PASS(로컬 38항목), 보존정책·추가 컬럼 PM 승인 전, T06/T15 미완료로 실연동 HOLD.
