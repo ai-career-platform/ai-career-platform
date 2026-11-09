@@ -103,7 +103,7 @@ def live(tmp_path_factory):
 
 
 def signup(client):
-    response = client.post("/api/v1/auth/signup", json={"email": f"e2e-{uuid4().hex}@example.com",
+    response = client.post("/api/v1/auth/signup", headers={"X-CSRF-TOKEN": "1"}, json={"email": f"e2e-{uuid4().hex}@example.com",
         "password": "synthetic-e2e-password-1", "display_name": "E2E synthetic",
         "consents": [{"policy_code": code, "policy_version": "2026-11", "granted": True} for code in ("terms", "privacy")]})
     assert response.status_code == 201, response.text
