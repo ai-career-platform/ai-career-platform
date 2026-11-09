@@ -62,7 +62,7 @@ def client(monkeypatch, repo):
     override_auth_repository(app, auth_repo)
     app.dependency_overrides[get_recommendation_feedback_service] = (
         lambda: RecommendationFeedbackService(repo, clock=clock))
-    with TestClient(app, base_url="https://testserver") as c:
+    with TestClient(app, base_url="https://testserver", headers={"X-CSRF-TOKEN": "1"}) as c:
         yield c
     get_settings.cache_clear()
 
