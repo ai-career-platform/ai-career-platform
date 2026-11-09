@@ -3,7 +3,8 @@
 - 로그인 필요(401). 사용자는 토큰의 `sub`로만 정한다. 본문에 user_id를 받지 않는다(받으면 422).
 - 내 추천에 없던 공고·다른 사람의 추천 실행은 404 (API_CONTRACT §1.3, 403 아님).
 - 중복·정정·감사 규칙은 `app/services/recommendation_feedback.py` 참고.
-- T45(추천 실행 생성·조회)가 머지되기 전이라 실제 DB 연동 검증은 HOLD. 테스트는 메모리 저장소로 한다.
+- 소유권은 T45(`POST /recommendation-runs`)가 기록한 `recommendation_runs`/`recommendation_items`로 확인한다.
+  여기서 남긴 최신 피드백은 T45 `RecommendationItem.feedback`과 다음 추천의 `not_interested` 제외에 쓰인다.
 """
 
 from typing import Annotated

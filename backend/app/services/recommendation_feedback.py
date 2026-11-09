@@ -21,7 +21,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.core.errors import AppError, ErrorCode
-from app.repositories.recommendation_feedback import AuditRecord, FeedbackRecord, RecommendationFeedbackRepository
+from app.repositories.recommendation_feedback import (
+    AuditRecord,
+    FeedbackRecord,
+    RecommendationFeedbackRepository,
+    current_feedback_values,
+)
 from app.schemas.recommendation_feedback import CurrentFeedback, RecommendationFeedback, RecommendationFeedbackInput
 
 AUDIT_ACTION = "user.recommendation_feedback.create"
@@ -74,16 +79,13 @@ class RecommendationFeedbackService:
             self._repo.rollback()
             raise
 
-    # ------------------------------------------------------------- T45 연동용 (공개 API 아님)
+    # ------------------------------------------------------------- 현재 값 조회 (공개 API 아님)
+    # T45 SqlRecommendationRepository는 같은 규칙의 모듈 함수(`latest_feedback_records`·`current_feedback_values`)를
+    # 자기 세션으로 직접 쓴다. 아래 메서드는 같은 규칙을 저장소 프로토콜(메모리 fake 포함) 위에서 확인하는 용도다.
     def current_feedback(self, user_id: UUID, job_posting_ids: Iterable[UUID]) -> dict[UUID, CurrentFeedback | None]:
-        """T45 `RecommendationItem.feedback` 채우기용. 공고별 내 최신 피드백, 없거나 cleared면 None."""
+        """공고별 내 최신 피드백 (`RecommendationItem.feedback` 규칙). 없거나 cleared면 None."""
         ids = list(dict.fromkeys(job_posting_ids))
-        latest = self._repo.latest_feedback(user_id, ids)
-        result: dict[UUID, CurrentFeedback | None] = {}
-        for posting_id in ids:
-            row = latest.get(posting_id)
-            result[posting_id] = None if row is None or row.feedback == "cleared" else row.feedback  # type: ignore[assignment]
-        return result
+        return current_feedback_values(self._repo.latest_feedback(user_id, ids), ids)
 
     def not_interested_ids(self, user_id: UUID, job_posting_ids: Iterable[UUID]) -> set[UUID]:
         """다음 추천에서 뺄 공고 (최신 값이 not_interested, D07 규칙 · FR-ANL-004 수용 기준 3)."""

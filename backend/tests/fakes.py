@@ -159,7 +159,9 @@ class MemoryAuthRepository:
 class MemoryRecommendationFeedbackRepository:
     """T47 테스트용 메모리 저장소. SqlRecommendationFeedbackRepository와 같은 의미(추가만, 트랜잭션 포함)로 동작한다.
 
-    T45(추천 실행)가 머지되기 전이라 추천 실행·항목은 `add_run()`으로 직접 넣는다.
+    T45는 추천 실행 저장소의 메모리 구현을 제공하지 않으므로(T45 테스트는 서비스 단위 MemoryRuns만 씀)
+    소유권 확인용 실행·항목은 `add_run()`으로 직접 넣는다. 실제 T45 저장소와의 연동은
+    `test_t47_recommendation_feedback_t45_postgres.py`(T45 E2E)가 확인한다.
     """
 
     def __init__(self) -> None:

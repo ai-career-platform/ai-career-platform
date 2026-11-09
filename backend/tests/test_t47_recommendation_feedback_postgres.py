@@ -1,15 +1,16 @@
-"""T47 PostgreSQL 저장소 테스트 (선택 실행, **HOLD**) — T08 Migration + T10 Seed가 적용된 **로컬 일회용 DB** 기준.
+"""T47 PostgreSQL 저장소 테스트 (선택 실행) — T08 Migration + T10 Seed가 적용된 **로컬 일회용 DB** 기준.
 
 `T47_TEST_DATABASE_URL`을 지정했을 때만 실행한다. 호스트가 localhost/127.0.0.1이 아니면 실행을 거부한다.
 테스트마다 바깥 트랜잭션을 열고 저장소의 commit은 SAVEPOINT로만 처리한 뒤, 끝나면 전부 롤백한다
-(Seed·다른 데이터는 바뀌지 않는다). 추천 실행·항목은 T45가 머지되기 전이라 테스트가 직접 넣는다.
+(Seed·다른 데이터는 바뀌지 않는다). 저장소 단위 경계(다른 사람 실행, 삭제 CASCADE)를 보려고
+추천 실행·항목을 테스트가 직접 넣는다. T45 `POST /recommendation-runs`가 만든 실제 실행과의 연동은
+`test_t47_recommendation_feedback_t45_postgres.py`(T15_TEST_DATABASE_URL)가 확인한다.
 
     # 준비: tests/test_t18_job_postings_postgres.py 머리말과 같은 절차 (database/migrations/README.md)
     export T47_TEST_DATABASE_URL=postgresql://USER@127.0.0.1:5432/career_dev
     python -m pytest tests/test_t47_recommendation_feedback_postgres.py -v
 
-T47 리뷰 반영 시 로컬 일회용 PostgreSQL 16(Migration 0001 + Seed 0001)에서 4건 PASS.
-T45가 만든 실제 추천 데이터와의 연동 검증은 T45 머지 후 이 파일로 다시 한다(HOLD).
+origin/main(T45) 병합 후 로컬 일회용 PostgreSQL 16(Migration 0001·0002 + Seed 0001)에서 4건 PASS.
 """
 
 import os

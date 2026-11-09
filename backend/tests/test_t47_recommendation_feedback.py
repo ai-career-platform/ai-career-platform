@@ -424,3 +424,46 @@ def test_sql_repository_statements_target_d05_d07_and_f11():
                           "job_posting_id, feedback, created_at)")
     assert audit.startswith("INSERT INTO career.audit_events (actor_user_id, action_code, resource_type, "
                             "resource_id, request_id, occurred_at)")
+
+
+# ------------------------------------------------------------------ T45 연동 (DB 없음)
+def test_t45_repository_shares_t47_tables_and_latest_feedback_rule():
+    from app.repositories import recommendation_feedback as t47_repo
+    from app.repositories import recommendation_runs as t45_repo
+    from app.repositories import recommendation_tables as tables
+
+    # 소유권 조회는 T45가 쓰는 같은 테이블 정의를 쓴다 (별도 중복 정의 없음).
+    assert t45_repo.runs is tables.runs and t45_repo.items is tables.items
+    assert t47_repo.recommendation_runs is tables.runs and t47_repo.recommendation_items is tables.items
+    assert t47_repo.recommendation_feedback is tables.feedback
+    # T45 항목 feedback·not_interested 제외는 T47의 최신 피드백 함수를 그대로 쓴다.
+    assert t45_repo.latest_feedback_records is t47_repo.latest_feedback_records
+    assert t45_repo.current_feedback_values is t47_repo.current_feedback_values
+
+
+def test_current_feedback_values_maps_cleared_and_missing_to_null():
+    from app.repositories.recommendation_feedback import current_feedback_values
+
+    def rec(post, value, seconds):
+        return FeedbackRecord(uuid.uuid4(), ALICE, None, post, value, T0 + timedelta(seconds=seconds))
+
+    latest = {POST_A: rec(POST_A, "liked", 1), POST_B: rec(POST_B, "cleared", 2)}
+    assert current_feedback_values(latest) == {POST_A: "liked", POST_B: None}
+    assert current_feedback_values(latest, [POST_C, POST_A, POST_C]) == {POST_C: None, POST_A: "liked"}
+    assert current_feedback_values({}) == {}
+
+
+def test_t45_latest_feedback_sql_is_single_distinct_on_query():
+    from app.repositories.recommendation_feedback import latest_feedback_records
+
+    session = _RecordingSession()
+    assert latest_feedback_records(session, ALICE, []) == {}  # type: ignore[arg-type]
+    assert session.statements == []
+    latest_feedback_records(session, ALICE, [POST_A, POST_B, POST_A])  # type: ignore[arg-type]
+    (stmt,) = session.statements
+    sql = _sql(stmt)
+    assert sql.startswith("SELECT DISTINCT ON (career.recommendation_feedback.job_posting_id)")
+    assert "career.recommendation_feedback.user_id =" in sql
+    assert "career.recommendation_feedback.job_posting_id IN (" in sql
+    params = stmt.compile(dialect=postgresql.dialect()).params
+    assert [POST_A, POST_B] in params.values()  # 중복 공고 ID는 한 번만 묻는다
