@@ -28,6 +28,9 @@ export function AppLayout() {
               <NavLink to="/" end>
                 홈
               </NavLink>
+              <NavLink to="/job-postings">
+                기업·채용공고 탐색
+              </NavLink>
               <NavLink to="/ui-preview">
                 공통 UI 미리보기
               </NavLink>
