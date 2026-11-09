@@ -3,7 +3,7 @@
 - 날짜: 2026-11-09
 - 기능 추적: F-018 / 화면 UI-017 맞춤 추천 / 요구사항 FR-ANL-003, FR-ANL-004
 - 상태: **PARTIAL** (Mock·계약 기준 검증. 실제 API·DB 연동과 CI 미확인)
-- 브랜치: `task/t48-recommendation-feedback-ui`. T46 `task/t46-recommendation-list-ui` 위에서 작업했고, 갱신된 T46(9893e32, `origin/main` d0d18e1 포함)을 병합했다(rebase 없음)
+- 브랜치: `task/t48-recommendation-feedback-ui`. T46 `task/t46-recommendation-list-ui` 위에서 작업했고, 갱신된 T46(9893e32, `origin/main` d0d18e1 포함)과 그 뒤 T46 수정 0a1bda5(적합 점수 안내를 기술 일치율 기준으로 고침)를 병합했다(rebase 없음). 이후 `origin/main`에 들어온 T51(e05a18e, Backend 문서 분석 API)은 화면과 관계없고 T46에도 없어 병합하지 않았다
 - 선행: T20(공통 UI, 머지됨), T45(추천 실행 API, `origin/main` d0d18e1 #156으로 머지됨), T46(추천 목록 UI, 미머지), T47(피드백 API, 미머지)
 
 ## 범위
@@ -48,7 +48,7 @@ npm run lint
 npm test
 npm run build
 ~~~
-- 결과(갱신된 T46·`origin/main` d0d18e1 병합 후, Node v24.22.2): `npm ci` 성공, `npm run lint` exit 0, `Test Files 16 passed | 2 skipped (18)`, `Tests 126 passed | 10 skipped (136)`, `npm run build` 성공 (건너뛴 10개는 실제 API origin이 필요한 `client.integration.test.ts`·`privacy.integration.test.ts`)
+- 결과(갱신된 T46 0a1bda5·`origin/main` d0d18e1 병합 후, Node v24.22.2): `npm ci` 성공, `npm run lint` exit 0, `Test Files 16 passed | 2 skipped (18)`, `Tests 126 passed | 10 skipped (136)`, `npm run build` 성공 (건너뛴 10개는 실제 API origin이 필요한 `client.integration.test.ts`·`privacy.integration.test.ts`)
 - 추천 관련 3개 파일: `RecommendationFeedbackActions.test.tsx` 17개, `recommendations.test.ts` 10개, `RecommendationsPage.test.tsx` 13개 (모두 통과)
 - T48 테스트: `src/components/RecommendationFeedbackActions.test.tsx` 17개
   - 피드백 11개: 이전 피드백 표시, 저장 본문·중복 전송 방지·재조회 순서, 정정과 취소, 토글 해제, 5xx 오류와 다시 시도, 404·422는 다시 시도 없는 안내(2개), 재조회 실패 보정, not_interested의 다음 추천 제외, 401, 기업 제공 표현 없음
