@@ -50,8 +50,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    const problem = (await response.json().catch(() => null)) as { code?: string } | null;
-    throw new ApiError(response.status, path, undefined, problem?.code);
+    const problem = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
+    throw new ApiError(response.status, path, undefined, problem?.code, problem?.message);
   }
   // 204 No Content 등 본문이 없는 성공 응답
   return (await response.json().catch(() => undefined)) as T;
