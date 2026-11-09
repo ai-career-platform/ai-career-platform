@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'docs/api/openapi.yaml'
       - '.github/workflows/frontend-ci.yml'
       - 'docs/QUALITY.md'
   push:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'docs/api/openapi.yaml'
       - '.github/workflows/frontend-ci.yml'
       - 'docs/QUALITY.md'
   workflow_dispatch:
@@ -31,11 +33,17 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            frontend/tools/openapi/package-lock.json
       - name: Install exact dependencies
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Install OpenAPI type generator (tools/openapi lockfile)
+        run: npm run api:tools
+      - name: API types match docs/api/openapi.yaml
+        run: npm run check:api
       - name: Test
         run: npm test
       - name: Build (includes TypeScript check)

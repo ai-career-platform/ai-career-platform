@@ -3,7 +3,7 @@ import { ApiError } from '../api/errors';
 import type { ConsentPolicy, PrivacyConsent, DeletionRequest } from '../api/privacy';
 import type { MockRequest } from './handlers';
 
-const policies: ConsentPolicy[] = ['terms', 'privacy', 'llm_processing', 'behavior_tracking'].map(code => ({
+const policies: ConsentPolicy[] = (['terms', 'privacy', 'llm_processing', 'behavior_tracking'] as const).map(code => ({
   policy_code: code, version: '2026-11', is_required: code === 'terms' || code === 'privacy',
   content_url: `https://example.invalid/privacy/${code}`, effective_at: '2026-11-01T00:00:00Z',
 }));
