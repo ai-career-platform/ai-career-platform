@@ -1,13 +1,13 @@
 """`/me`, `/me/permissions`, `/me/sessions` (openapi.yaml tag `me`).
 
 사용자는 토큰의 `sub`로만 정한다. 경로·본문·쿼리로 user_id를 받지 않는다 (API_CONTRACT §1.3).
-`PATCH /me`(프로필 수정)는 T16 범위.
+`PATCH /me`는 T14 요청 Session과 T15 인증을 재사용한다.
 """
 
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
@@ -15,15 +15,26 @@ from app.dependencies.auth import CurrentUserDep, get_auth_repository, get_auth_
 from app.repositories.auth import AuthRepository
 from app.schemas.auth import Me, Permissions, Profile, Session
 from app.services.auth import AuthService
+from app.dependencies.profile import get_profile_repository
+from app.repositories.profile import ProfileRepository
+from app.schemas.profile import MePatch
+from app.services.profile import ProfileService
 
-router = APIRouter(prefix="/me", tags=["me"], responses=error_responses(401))
+
+def private_request(request: Request) -> None:
+    if request.query_params:
+        raise AppError(ErrorCode.VALIDATION_FAILED)
+
+
+router = APIRouter(prefix="/me", tags=["me"], responses=error_responses(401, 404, 503))
 
 
 @router.get("", response_model=Me)
-def get_me(user: CurrentUserDep, repo: Annotated[AuthRepository, Depends(get_auth_repository)]) -> Me:
+def get_me(request: Request, user: CurrentUserDep, repo: Annotated[AuthRepository, Depends(get_auth_repository)]) -> Me:
+    private_request(request)
     record = repo.get_user(user.user_id)
-    if record is None:
-        raise AppError(ErrorCode.UNAUTHENTICATED, log_detail="user vanished")
+    if record is None or record.status != "active":
+        raise AppError(ErrorCode.NOT_FOUND, log_detail="profile missing")
     return Me(
         user_id=record.user_id, email=record.email, display_name=record.display_name,
         status=record.status, created_at=record.created_at,
@@ -53,3 +64,12 @@ def revoke_my_session(
 ) -> Response:
     service.revoke_my_session(user.user_id, session_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("", response_model=Me, operation_id="updateMe")
+def patch_me(
+    request: Request, patch: MePatch, user: CurrentUserDep,
+    repository: Annotated[ProfileRepository, Depends(get_profile_repository)],
+) -> Me:
+    private_request(request)
+    return ProfileService(repository).patch(user.user_id, patch)
