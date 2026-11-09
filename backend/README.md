@@ -28,6 +28,7 @@ backend/
 ├── tests/test_errors.py   # 공통 에러 계약 테스트
 ├── tests/test_auth*.py, test_authz.py, test_security.py  # T15 인증·인가 (test_auth_postgres.py는 실DB 선택 실행)
 ├── tests/test_my_skills*.py  # T33 보유 기술 (test_my_skills_postgres.py는 실DB 선택 실행)
+├── tests/test_match_rule.py, test_matches*.py  # T41 적합도 규칙 Golden·API (test_matches_postgres.py는 실DB 선택 실행)
 ├── requirements.txt       # 실행 의존성 (PoC와 동일 버전 pin)
 ├── requirements-dev.txt   # + pytest, httpx
 └── pytest.ini
@@ -103,6 +104,8 @@ T49 문서 API와 전용 디렉터리 설정·워커 실행 방법은
 | PUT | `/api/v1/me/skills` | 보유 기술 전체 교체 (최대 100개, 숙련도 1~5·null, 중복 422 `DUPLICATE_SKILL`, 없는·폐기 기술 422) |
 | GET | `/api/v1/me/target-roles` | 내 목표 직무를 우선순위 순으로 조회 |
 | PUT | `/api/v1/me/target-roles` | 목표 직무를 최대 3개까지 전체 교체 |
+| POST | `/api/v1/matches` | 공고 또는 직무 하나의 적합도 계산·저장 → 201 + Location (T41, 규칙: [docs/MATCH_RULE.md](docs/MATCH_RULE.md)) |
+| GET | `/api/v1/matches/{match_id}` | 내 적합도 결과 조회 (남의 결과 404) |
 
 ## 인증·인가 사용법 (T15)
 
