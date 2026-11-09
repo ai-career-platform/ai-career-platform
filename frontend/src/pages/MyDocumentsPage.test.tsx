@@ -3,7 +3,9 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '../auth/useAuth';
 import { RequireAuth } from '../auth/RequireAuth';
-import { ApiError, apiRequest, type ApiRequestOptions } from '../api/client';
+import { ApiError } from '../api/errors';
+import { mockHttp, type RequestFn } from '../test/api';
+import { WithApi } from '../test/WithApi';
 import { MAX_FILE_BYTES } from '../api/documents';
 import { resetDocumentMocks, seedDocumentMock, settleDocumentMocks } from '../mocks/documents';
 import { MyDocumentsPage } from './MyDocumentsPage';
@@ -12,8 +14,9 @@ vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true }
 
 const TOKEN = 'mock-access-user@example.com';
 const USER = 'user@example.com';
-type Req = (path: string, options?: ApiRequestOptions) => Promise<unknown>;
-const viaMock: Req = (path, options = {}) => apiRequest(path, { ...options, token: TOKEN, mockEnabled: true });
+type Req = RequestFn;
+const user = mockHttp(TOKEN);
+const viaMock: Req = (path, options) => user.request(path, options);
 
 function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: (next: Req) => Req } = {}) {
   const request = vi.fn<Req>(custom ? custom(viaMock) : viaMock);
@@ -22,13 +25,12 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: (ne
       user: { email: USER, displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
     logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
-    request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
   };
-  render(<AuthContext.Provider value={value}><MemoryRouter initialEntries={['/me/documents']}>
+  render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/me/documents']}>
     <Routes><Route element={<Outlet />}><Route element={<RequireAuth />}>
       <Route path="/me/documents" element={<MyDocumentsPage />} />
     </Route><Route path="/login" element={<h1>로그인 필요</h1>} /></Route></Routes>
-  </MemoryRouter></AuthContext.Provider>);
+  </MemoryRouter></WithApi></AuthContext.Provider>);
   return request;
 }
 
@@ -113,7 +115,7 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     expect(input()).toHaveValue('');
   });
 
-  it('cancels an in-flight upload, reloads the list, and can retry', async () => {
+  it('cancels an in-flight upload, never reports success, reloads the list to show server state, can retry', async () => {
     const request = show(); await screen.findByText('등록한 문서가 없습니다');
     choose(file('이력서.pdf'));
     fireEvent.click(uploadButton());
@@ -121,10 +123,12 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     expect(await screen.findByText(/업로드를 취소했습니다/)).toBeInTheDocument();
     expect(screen.queryByText('업로드를 접수했습니다. 파일을 확인하는 중입니다.')).not.toBeInTheDocument();
     await waitFor(() => expect(request.mock.calls.filter(([p]) => p.startsWith('/v1/documents?'))).toHaveLength(2));
-    expect(await screen.findByText('등록한 문서가 없습니다')).toBeInTheDocument();
+    // The synthetic server had already received the request: the reloaded list shows it (deletable), not a fake success.
+    expect(await screen.findByRole('article', { name: '이력서.pdf' })).toBeInTheDocument();
     expect(uploadButton()).toBeEnabled(); // file kept for retry
     fireEvent.click(uploadButton());
-    expect(await screen.findByRole('article', { name: '이력서.pdf' })).toBeInTheDocument();
+    expect(await screen.findByText('업로드를 접수했습니다. 파일을 확인하는 중입니다.')).toBeInTheDocument();
+    expect(screen.getAllByRole('article', { name: '이력서.pdf' })).toHaveLength(2);
   });
 
   it('only ready documents can be downloaded; rejected cannot; object URL is revoked', async () => {

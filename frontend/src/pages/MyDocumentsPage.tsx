@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import { ApiError, isAbortError } from '../api/client';
+import { useApi } from '../api/ApiContext';
 import {
-  ACCEPT, MAX_FILE_BYTES, deleteDocument, documentErrorMessage, downloadDocument, formatBytes, getDocument,
-  isPending, kindNames, listDocuments, statusNames, uploadDocument, validateFile,
+  ACCEPT, MAX_FILE_BYTES, documentErrorMessage, formatBytes, isAbortError, isPending, kindNames, saveDocument,
+  statusNames, validateFile,
 } from '../api/documents';
 import type { UploadKind, UserDocument } from '../api/documents';
-import { useAuth } from '../auth/useAuth';
+import { ApiError } from '../api/errors';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
 import { env } from '../config/env';
@@ -53,7 +53,7 @@ function ConfirmDelete({ doc, pending, error, onCancel, onConfirm }: {
 }
 
 export function MyDocumentsPage() {
-  const { request } = useAuth();
+  const { documents } = useApi();
   const [docs, setDocs] = useState<UserDocument[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -76,10 +76,10 @@ export function MyDocumentsPage() {
   const [deleteError, setDeleteError] = useState('');
   const mock = env.mockEnabled;
 
-  const loadFirstPage = useCallback((isActive: () => boolean = () => true) => listDocuments(request).then(
+  const loadFirstPage = useCallback((isActive: () => boolean = () => true) => documents.list().then(
     page => { if (isActive()) { setDocs(page.items); setCursor(page.next_cursor); setPhase('ready'); } },
     () => { if (isActive()) setPhase('error'); },
-  ), [request]);
+  ), [documents]);
 
   useEffect(() => {
     let active = true;
@@ -106,7 +106,7 @@ export function MyDocumentsPage() {
     const pending = docs.filter(d => isPending(d.status));
     await Promise.all(pending.map(async d => {
       try {
-        const latest = await getDocument(request, d.document_id);
+        const latest = await documents.get(d.document_id);
         setDocs(previous => previous.map(p => p.document_id === latest.document_id ? latest : p));
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) {
@@ -115,7 +115,7 @@ export function MyDocumentsPage() {
         }
       }
     }));
-  }, [docs, request]);
+  }, [docs, documents]);
 
   const hasPending = docs.some(d => isPending(d.status));
   useEffect(() => {
@@ -128,7 +128,7 @@ export function MyDocumentsPage() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true); setRowError('');
     try {
-      const page = await listDocuments(request, cursor);
+      const page = await documents.list(cursor);
       setDocs(previous => [...previous, ...page.items.filter(i => !previous.some(p => p.document_id === i.document_id))]);
       setCursor(page.next_cursor);
     } catch (error) {
@@ -152,8 +152,8 @@ export function MyDocumentsPage() {
     controller.current = ctrl;
     setUploading(true); setUploadError(''); setNotice('');
     try {
-      const created = await uploadDocument(request, file, kind, ctrl.signal);
-      if (ctrl.signal.aborted) throw new ApiError(0, '/v1/documents', 'Request aborted', 'ABORTED');
+      const created = await documents.upload(file, kind, ctrl.signal);
+      if (ctrl.signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
       setDocs(previous => [created, ...previous.filter(d => d.document_id !== created.document_id)]);
       setPhase('ready');
       setNotice('업로드를 접수했습니다. 파일을 확인하는 중입니다.');
@@ -162,7 +162,7 @@ export function MyDocumentsPage() {
     } catch (error) {
       if (isAbortError(error) || ctrl.signal.aborted) {
         // 서버 접수 여부가 불확실하므로 성공으로 표시하지 않고 목록을 다시 불러옵니다.
-        setNotice('업로드를 취소했습니다. 서버 접수 여부를 확인하기 위해 목록을 다시 불러옵니다.');
+        setNotice('업로드를 취소했습니다. 서버에 이미 접수되었는지 확인하려고 목록을 다시 불러옵니다. 접수된 문서는 목록에 표시되며 삭제할 수 있습니다.');
         reloadList();
       } else {
         setUploadError(documentErrorMessage(error, 'upload'));
@@ -178,12 +178,12 @@ export function MyDocumentsPage() {
     if (doc.status !== 'ready' || busyIds.has(doc.document_id)) return;
     setBusy(doc.document_id, true); setRowError(''); setNotice('');
     try {
-      await downloadDocument(request, doc);
+      await saveDocument(documents, doc);
     } catch (error) {
       setRowError(documentErrorMessage(error, 'download'));
       if (error instanceof ApiError && error.status === 404) remove(doc.document_id);
       if (error instanceof ApiError && error.status === 409) {
-        getDocument(request, doc.document_id).then(replace).catch(() => undefined);
+        documents.get(doc.document_id).then(replace).catch(() => undefined);
       }
     } finally { setBusy(doc.document_id, false); }
   }
@@ -198,7 +198,7 @@ export function MyDocumentsPage() {
     const target = confirm;
     setDeletePending(true); setDeleteError(''); setBusy(target.document_id, true);
     try {
-      const result = await deleteDocument(request, target.document_id);
+      const result = await documents.remove(target.document_id);
       replace({ ...target, ...result, status: 'deleting' });
       setNotice('삭제를 요청했습니다. 서버에서 삭제가 끝나면 목록에서 사라집니다.');
       setConfirm(null);

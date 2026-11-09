@@ -1,35 +1,44 @@
-/** T50 개인 문서 API (T49 `/api/v1/documents`, docs/api/openapi.yaml Document·DocumentPage). */
-import { ApiError, isAbortError } from './client';
-import type { ApiRequestOptions } from './client';
+/**
+ * T50 개인 문서 API (T49 `/api/v1/documents`). 경로와 타입은 이 파일에만 둡니다.
+ * 화면은 useApi().documents 로 씁니다. 타입은 T06 계약(schema.gen)의 Document·DocumentPage 입니다.
+ */
+import { ApiError } from './errors';
+import type { HttpClient } from './http';
+import type { Schemas } from './schema';
 
-export type DocumentKind = 'resume' | 'portfolio' | 'career_guide';
+/** 저장 키·체크섬·소유자 ID는 계약상 응답에 없습니다. */
+export type UserDocument = Schemas['Document'];
+export type DocumentPage = Schemas['DocumentPage'];
+export type DocumentKind = UserDocument['kind'];
+export type DocumentStatus = UserDocument['status'];
 export type UploadKind = 'resume' | 'portfolio';
-export type DocumentStatus = 'uploaded' | 'scanning' | 'ready' | 'rejected' | 'deleting';
-
-/** Backend `Document`. 저장 키·체크섬·소유자 ID는 응답에 없습니다. */
-export interface UserDocument {
-  document_id: string;
-  kind: DocumentKind;
-  original_filename: string;
-  mime_type: string;
-  size_bytes: number;
-  status: DocumentStatus;
-  created_at: string;
-}
-
-export interface DocumentPage {
-  items: UserDocument[];
-  next_cursor: string | null;
-}
-
-/** useAuth().request 와 같은 모양. 토큰은 이 함수 안에서만 붙습니다. */
-export type AuthedRequest = <T>(path: string, options?: ApiRequestOptions) => Promise<T>;
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // T49 MAX_FILE_BYTES (10 MiB)
 export const PDF_MIME = 'application/pdf';
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const ACCEPT = `.pdf,.docx,${PDF_MIME},${DOCX_MIME}`;
 export const PAGE_SIZE = 20;
+
+const id = (value: string) => encodeURIComponent(value);
+
+export const documentsApi = (http: HttpClient) => ({
+  list: (cursor?: string | null, signal?: AbortSignal) =>
+    http.request<DocumentPage>('/v1/documents', { query: { limit: PAGE_SIZE, cursor }, signal }),
+  get: (documentId: string, signal?: AbortSignal) =>
+    http.request<UserDocument>(`/v1/documents/${id(documentId)}`, { signal }),
+  upload: (file: File, kind: UploadKind, signal?: AbortSignal) => {
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', file, file.name);
+    return http.request<UserDocument>('/v1/documents', { method: 'POST', body: form, signal });
+  },
+  file: (documentId: string) =>
+    http.request<Blob>(`/v1/documents/${id(documentId)}/file`, { responseType: 'blob' }),
+  remove: (documentId: string) =>
+    http.request<UserDocument>(`/v1/documents/${id(documentId)}`, { method: 'DELETE' }),
+});
+
+export type DocumentsApi = ReturnType<typeof documentsApi>;
 
 export const kindNames: Record<DocumentKind, string> = {
   resume: '이력서', portfolio: '포트폴리오', career_guide: '커리어 가이드',
@@ -41,6 +50,9 @@ export const statusNames: Record<DocumentStatus, string> = {
 
 /** 서버 상태가 아직 바뀔 수 있는 문서 (재조회 대상) */
 export const isPending = (status: DocumentStatus) => status === 'uploaded' || status === 'scanning' || status === 'deleting';
+
+/** 사용자가 취소한 요청(http.ts 는 AbortError 를 그대로 던짐). 취소된 요청은 성공으로 다루지 않습니다. */
+export const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
 
 /** 브라우저 accept 속성만 믿지 않고 확장자·크기를 다시 확인합니다. 실제 내용 검증은 T49 서버가 합니다. */
 export function validateFile(file: File): string | null {
@@ -57,30 +69,9 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function listDocuments(request: AuthedRequest, cursor?: string | null) {
-  const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
-  if (cursor) query.set('cursor', cursor);
-  return request<DocumentPage>(`/v1/documents?${query.toString()}`);
-}
-
-export function getDocument(request: AuthedRequest, documentId: string) {
-  return request<UserDocument>(`/v1/documents/${encodeURIComponent(documentId)}`);
-}
-
-export function uploadDocument(request: AuthedRequest, file: File, kind: UploadKind, signal?: AbortSignal) {
-  const form = new FormData();
-  form.append('kind', kind);
-  form.append('file', file, file.name);
-  return request<UserDocument>('/v1/documents', { method: 'POST', body: form, signal });
-}
-
-export function deleteDocument(request: AuthedRequest, documentId: string) {
-  return request<UserDocument>(`/v1/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' });
-}
-
-/** 인증 요청으로 Blob 을 받아 임시 Object URL 로 저장하고 바로 해제합니다. */
-export async function downloadDocument(request: AuthedRequest, doc: UserDocument, target: Document = document) {
-  const blob = await request<Blob>(`/v1/documents/${encodeURIComponent(doc.document_id)}/file`, { responseType: 'blob' });
+/** 인증 요청으로 Blob 을 받아 임시 Object URL 로 저장하고, 클릭 직후 해제합니다. */
+export async function saveDocument(api: DocumentsApi, doc: UserDocument, target: Document = document) {
+  const blob = await api.file(doc.document_id);
   const url = URL.createObjectURL(blob);
   try {
     const link = target.createElement('a');
@@ -91,12 +82,11 @@ export async function downloadDocument(request: AuthedRequest, doc: UserDocument
     link.click();
     link.remove();
   } finally {
-    // 클릭으로 다운로드가 시작된 뒤 해제합니다(메모리·URL 재사용 방지).
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }
 
-/** ApiError 를 화면 문구로 바꿉니다. 응답 원문·토큰·내부 정보는 표시하지 않습니다. */
+/** 오류를 화면 문구로 바꿉니다. 응답 원문·토큰·내부 정보는 표시하지 않습니다. */
 export function documentErrorMessage(error: unknown, action: 'list' | 'upload' | 'download' | 'delete'): string {
   if (isAbortError(error)) return '업로드를 취소했습니다.';
   if (!(error instanceof ApiError)) return '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';

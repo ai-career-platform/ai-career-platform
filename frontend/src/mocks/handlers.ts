@@ -33,7 +33,6 @@ export interface MockRequest {
   method: string;
   body?: unknown;
   token?: string | null;
-  signal?: AbortSignal;
 }
 
 const problem = (status: number, code: string): never => {
@@ -83,12 +82,7 @@ export async function resolveMock<T>(
   path: string,
   request: MockRequest = { method: 'GET' },
 ): Promise<T> {
-  await new Promise<void>((resolve, reject) => {
-    const aborted = () => { clearTimeout(timer); reject(new ApiError(0, path, 'Request aborted', 'ABORTED')); };
-    const timer = setTimeout(() => { request.signal?.removeEventListener('abort', aborted); resolve(); }, MOCK_DELAY_MS);
-    if (request.signal?.aborted) aborted();
-    else request.signal?.addEventListener('abort', aborted, { once: true });
-  });
+  await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
   try {
     if (path === '/v1/documents' || path.startsWith('/v1/documents?') || path.startsWith('/v1/documents/')) {
       const result = resolveDocumentsMock(path, request, authedUser(request.token).email);

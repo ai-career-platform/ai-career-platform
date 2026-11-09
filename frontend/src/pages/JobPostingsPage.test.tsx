@@ -1,14 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiGet } from '../api/client';
+import { WithApi } from '../test/WithApi';
 import { JobPostingsPage } from './JobPostingsPage';
 
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  apiGet: vi.fn<typeof apiGet>(),
-}));
-const get = vi.mocked(apiGet);
+// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 받습니다.
+const get = vi.fn<(path: string) => Promise<unknown>>();
 
 const C1 = '11111111-1111-4111-8111-111111111111';
 const C2 = '22222222-2222-4222-8222-222222222222';
@@ -47,12 +44,12 @@ function serve(handlers: Handlers) {
             : path.startsWith('/v1/job-roles?') ? 'roles' : null;
     if (!kind) return Promise.reject(new Error(`unexpected ${path}`));
     try { return Promise.resolve((handlers[kind] ?? defaults[kind])(path)); } catch (error) { return Promise.reject(error); }
-  }) as typeof apiGet);
+  }) as typeof get);
 }
 const listCalls = () => get.mock.calls.map(([path]) => path).filter((path) => path.startsWith('/v1/job-postings?'));
 function Where() { const location = useLocation(); return <output data-testid="where">{location.search}</output>; }
 function renderPage(url = '/job-postings') {
-  return render(<MemoryRouter initialEntries={[url]}><JobPostingsPage /><Where /></MemoryRouter>);
+  return render(<WithApi request={(path) => get(path)}><MemoryRouter initialEntries={[url]}><JobPostingsPage /><Where /></MemoryRouter></WithApi>);
 }
 
 beforeEach(() => { get.mockReset(); });
@@ -140,6 +137,20 @@ describe('job postings (T18 API)', () => {
     expect(screen.queryByRole('link', { name: /원문/ })).not.toBeInTheDocument();
   });
 
+  it('renders untrusted posting and company HTML as text and rejects company script URLs', async () => {
+    const payload = '<img src=x onerror=alert(document.cookie)><script>alert(1)</script>';
+    serve({
+      list: () => ({ items: [posting('p1', payload)], next_cursor: null }),
+      detail: (path) => detailOf(path.split('/').pop() ?? '', { description: payload }),
+      company: () => companyDetail({ description: payload, website_url: 'data:text/html,<script>alert(1)</script>' }),
+    });
+    const { container } = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: `${payload} 상세 보기` }));
+    await waitFor(() => expect(screen.getAllByText(payload).length).toBeGreaterThanOrEqual(3));
+    expect(container.querySelector('img, script, [onerror]')).toBeNull();
+    expect(container.querySelector('a[href^="data:"], a[href^="javascript:"]')).toBeNull();
+  });
+
   it('does not invent dates or status when the API has none', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { published_at: null, expires_at: null, job_role: null, description: null, required_skills: [] }) });
     renderPage();
@@ -187,7 +198,7 @@ describe('job postings (T18 API)', () => {
     get.mockImplementation(((path: string) => {
       if (path.endsWith('/p1')) return new Promise<unknown>((resolve) => { resolveSlow = resolve; });
       return base?.(path);
-    }) as typeof apiGet);
+    }) as typeof get);
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: '가 상세 보기' }));
     fireEvent.click(screen.getByRole('button', { name: '나 상세 보기' }));
