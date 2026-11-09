@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiGet } from '../api/client';
 import { JobPostingsPage } from './JobPostingsPage';
-vi.mock('../api/client', () => ({ apiGet: vi.fn() }));
+vi.mock('../api/client', () => ({ apiGet: vi.fn<typeof apiGet>() }));
 const get = vi.mocked(apiGet);
 const posting = { job_posting_id: '1', title: '개발자', status: 'published', company: { name: '회사' } };
 beforeEach(() => {

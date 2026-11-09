@@ -29,6 +29,7 @@ export function CollectedJobsPreview() {
   const [source, setSource] = useState<'live_http' | 'imported_html'>('live_http');
   useEffect(() => {
     let active = true;
+    void retry; // Retry is an explicit request trigger.
     apiGet<CollectedJob[]>('/jobs/collected?limit=100', { mockEnabled: false }).then(
       data => { if (active) { setItems(data); setError(false); } },
       () => { if (active) setError(true); },

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiGet } from '../api/client';
 import { CollectedJobsPreview } from './CollectedJobsPreview';
-vi.mock('../api/client', () => ({ apiGet: vi.fn() }));
+vi.mock('../api/client', () => ({ apiGet: vi.fn<typeof apiGet>() }));
 const get = vi.mocked(apiGet);
 const base = { location_text: null, employment_type: null, collected_at: '2026-01-01', company_name: '가상 기업' };
 beforeEach(() => get.mockReset());

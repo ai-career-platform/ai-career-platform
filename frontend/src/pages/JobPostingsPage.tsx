@@ -39,6 +39,7 @@ export function JobPostingsPage() {
 
   useEffect(() => {
     let active = true;
+    void attempt; // Retry is an explicit request trigger.
     const params = new URLSearchParams({ limit: '20', sort, include_closed: String(includeClosed) });
     if (query) params.set('q', query);
     if (companyId) params.set('company_id', companyId);
@@ -55,7 +56,7 @@ export function JobPostingsPage() {
     let active = true;
     const params = new URLSearchParams({ limit: '20' });
     if (companyQuery.trim()) params.set('q', companyQuery.trim());
-    setCompanies(null); setCompanyError(false);
+    void optionsAttempt; // Retry is an explicit request trigger.
     apiGet<Options<Company>>(`/v1/companies?${params}`).then(
       data => { if (active) setCompanies(data); },
       () => { if (active) setCompanyError(true); },
@@ -66,7 +67,7 @@ export function JobPostingsPage() {
     let active = true;
     const params = new URLSearchParams({ limit: '20' });
     if (roleQuery.trim()) params.set('q', roleQuery.trim());
-    setRoles(null); setRoleError(false);
+    void optionsAttempt; // Retry is an explicit request trigger.
     apiGet<Options<Role>>(`/v1/job-roles?${params}`).then(
       data => { if (active) setRoles(data); },
       () => { if (active) setRoleError(true); },
@@ -75,6 +76,7 @@ export function JobPostingsPage() {
   }, [roleQuery, optionsAttempt]);
   useEffect(() => {
     if (!selected) return;
+    void detailAttempt; // Retry is an explicit request trigger.
     let active = true;
     apiGet<Detail>(`/v1/job-postings/${encodeURIComponent(selected)}`).then(
       data => { if (active) { setDetail(data); setDetailError(false); } },
@@ -83,6 +85,7 @@ export function JobPostingsPage() {
     return () => { active = false; };
   }, [selected, detailAttempt]);
   function resetPage() { setPage(null); setError(false); setSelected(null); setDetail(null); setCursors([null]); }
+  function retryOptions() { setCompanies(null); setRoles(null); setCompanyError(false); setRoleError(false); setOptionsAttempt(n => n + 1); }
   function search(event: React.FormEvent) { event.preventDefault(); resetPage(); setQuery(input.trim()); }
   function changePage(next: (string | null)[]) { setPage(null); setError(false); setSelected(null); setDetail(null); setCursors(next); }
   const source = detail ? safeUrl(detail.source_url) : null;
@@ -92,12 +95,12 @@ export function JobPostingsPage() {
     {import.meta.env.DEV && import.meta.env.VITE_T24_COLLECTED_PREVIEW === 'true' && <CollectedJobsPreview />}
     <form className="t24-controls" onSubmit={search}>
       <label htmlFor="posting-query">공고 검색</label>{' '}<input id="posting-query" type="search" maxLength={100} value={input} onChange={e => setInput(e.target.value)} />{' '}<button type="submit">검색</button>{' '}
-      <label htmlFor="company-search">기업 이름 찾기</label><input id="company-search" type="search" maxLength={100} value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); setCompanyId(''); resetPage(); }} />
+      <label htmlFor="company-search">기업 이름 찾기</label><input id="company-search" type="search" maxLength={100} value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); setCompanies(null); setCompanyError(false); setCompanyId(''); resetPage(); }} />
       <label htmlFor="company-filter">기업 필터</label><select id="company-filter" value={companyId} disabled={!companies} onChange={e => { resetPage(); setCompanyId(e.target.value); }}><option value="">전체 기업</option>{companies?.items.map(company => <option key={company.company_id} value={company.company_id}>{company.name}</option>)}</select>
-      {companyError && <p role="alert">기업 목록을 불러오지 못했습니다. <button type="button" onClick={() => setOptionsAttempt(n => n + 1)}>목록 다시 불러오기</button></p>}{companies?.next_cursor && <small>기업 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
-      <label htmlFor="role-search">직무 이름 찾기</label><input id="role-search" type="search" maxLength={100} value={roleQuery} onChange={e => { setRoleQuery(e.target.value); setRoleId(''); resetPage(); }} />
+      {companyError && <p role="alert">기업 목록을 불러오지 못했습니다. <button type="button" onClick={retryOptions}>목록 다시 불러오기</button></p>}{companies?.next_cursor && <small>기업 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
+      <label htmlFor="role-search">직무 이름 찾기</label><input id="role-search" type="search" maxLength={100} value={roleQuery} onChange={e => { setRoleQuery(e.target.value); setRoles(null); setRoleError(false); setRoleId(''); resetPage(); }} />
       <label htmlFor="role-filter">직무 필터</label><select id="role-filter" value={roleId} disabled={!roles} onChange={e => { resetPage(); setRoleId(e.target.value); }}><option value="">전체 직무</option>{roles?.items.map(role => <option key={role.job_role_id} value={role.job_role_id}>{role.name}</option>)}</select>
-      {roleError && <p role="alert">직무 목록을 불러오지 못했습니다. <button type="button" onClick={() => setOptionsAttempt(n => n + 1)}>목록 다시 불러오기</button></p>}{roles?.next_cursor && <small>직무 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
+      {roleError && <p role="alert">직무 목록을 불러오지 못했습니다. <button type="button" onClick={retryOptions}>목록 다시 불러오기</button></p>}{roles?.next_cursor && <small>직무 이름을 입력해 검색 범위를 좁혀 주세요.</small>}
       <label><input type="checkbox" checked={includeClosed} onChange={e => { resetPage(); setIncludeClosed(e.target.checked); }} /> 마감 공고 포함</label>{' '}
       <label>정렬 <select value={sort} onChange={e => { resetPage(); setSort(e.target.value as '-published_at' | 'expires_at'); }}><option value="-published_at">최신순</option><option value="expires_at">마감순</option></select></label>
     </form>
