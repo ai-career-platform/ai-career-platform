@@ -31,7 +31,7 @@ describe.skipIf(!origin)('T32 read-only real API contract (no credentials or DB 
     expect(spec.paths['/api/v1/me/consents']).toHaveProperty('post');
     expect(spec.paths['/api/v1/me/deletion-request']).toHaveProperty('get');
     expect(spec.paths['/api/v1/me/deletion-request']).toHaveProperty('post');
-    expect(spec.paths['/api/v1/me/deletion-request'].delete?.['x-implementation-status']).toBe('HOLD');
+    expect(spec.paths['/api/v1/me/deletion-request']?.delete?.['x-implementation-status']).toBe('HOLD');
   });
 
   it('reads consent policy metadata without modifying PostgreSQL', async () => {
