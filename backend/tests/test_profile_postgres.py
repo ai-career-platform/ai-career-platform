@@ -170,3 +170,35 @@ def test_postgres_commit_failure_rolls_back_and_returns_connection(pg_app):
         assert not db.in_transaction()
     assert engine.pool.checkedout()==0
     assert admin.execute('SELECT display_name FROM career.users WHERE user_id=%s',(A,)).fetchone()[0]=='Synthetic A'
+
+
+@pytest.mark.parametrize("reuse_poc_settings", [False, True])
+def test_integrated_staging_entrypoint_reuses_real_t14_t15_t16(pg_app, monkeypatch, reuse_poc_settings):
+    import importlib.util
+    _, _, admin, headers = pg_app
+    if reuse_poc_settings:
+        from sqlalchemy.engine import make_url
+        url = make_url(os.environ['DATABASE_URL'])
+        for key, value in {'POSTGRES_HOST':url.host, 'POSTGRES_PORT':str(url.port),
+                           'POSTGRES_DB':url.database, 'POSTGRES_USER':url.username,
+                           'POSTGRES_PASSWORD':url.password}.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv('DATABASE_URL', '')
+    monkeypatch.setenv('ENABLE_SERVICE_API', '1')
+    monkeypatch.setenv('ENABLE_CRAWLER_API', '1')
+    monkeypatch.syspath_prepend(str(ROOT))
+    spec = importlib.util.spec_from_file_location('staging_t16_pg', ROOT/'poc/staging/backend/main.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with TestClient(module.app, base_url='https://testserver') as client:
+        assert client.get('/api/v1/me').status_code == 401
+        assert client.get('/api/v1/me', headers=headers).status_code == 200
+        response = client.patch('/api/v1/me', headers=headers, json={'headline':'staging entrypoint'})
+        assert response.status_code == 200
+        assert response.json()['profile']['bio'] == 'keep'
+        assert admin.execute('SELECT headline FROM career.user_profiles WHERE user_id=%s',(A,)).fetchone()[0] == 'staging entrypoint'
+        assert client.get('/api/v1/me', headers=headers).json() == response.json()
+        assert admin.execute('SELECT headline FROM career.user_profiles WHERE user_id=%s',(B,)).fetchone()[0] == 'initial'
+        spec = client.get('/openapi.json').json()
+        assert 'patch' in spec['paths']['/api/v1/me']
+        assert '/api/jobs/collected' in spec['paths']

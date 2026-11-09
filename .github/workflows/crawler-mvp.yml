@@ -8,6 +8,8 @@ permissions:
 jobs:
   offline-tests:
     runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: backend
     services:
       postgres:
         image: postgres:18
@@ -29,7 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: pip install fastapi==0.115.12 httpx==0.28.1 'psycopg[binary]==3.3.4' pytest==8.3.5
+      - run: pip install -r backend/requirements-dev.txt
       - run: python -m unittest discover -s crawler/tests
       - run: python -m unittest discover -s backend/training_tests
       - run: node backend/training_tests/frontend_collected_test.cjs
@@ -41,7 +43,9 @@ jobs:
           docker run --rm crawler-staging-test python -m crawler.jobs.import_jobkorea_html --help
           docker run --rm crawler-staging-test python -m crawler.jobs.dispatcher --help
           docker run --rm crawler-staging-test python -m crawler.jobs.scheduled_worker --help
-          docker run --rm crawler-staging-test python -c "import main; assert '/jobs/collected' in main.app.openapi()['paths']; assert '/health' in main.app.openapi()['paths']"
+          docker build -t crawler-staging-frontend-test poc/staging/frontend
+          python poc/staging/tests/docker_route_smoke.py
+          docker run --rm crawler-staging-test python -c "import main; assert '/api/jobs/collected' in main.app.openapi()['paths']; assert '/api/health' in main.app.openapi()['paths']; assert '/api/v1/me' in main.app.openapi()['paths']"
       - name: Test constructed HTML through real isolated PostgreSQL and API
         env:
           CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training

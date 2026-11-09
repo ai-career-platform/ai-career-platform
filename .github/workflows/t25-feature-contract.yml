@@ -1,0 +1,28 @@
+name: T25 Feature Contract Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/t25/**'
+      - 'docs/ai/FEATURE_CONTRACT.md'
+      - 'docs/ai/RAG_MOCK_CONTRACT.md'
+      - '.github/workflows/t25-feature-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  t25-synthetic-contract:
+    name: T25 Synthetic Contract (unittest)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v5
+      - name: Configure Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run T25-only synthetic tests
+        run: python -B -m unittest discover -s tests/t25 -v
