@@ -1,7 +1,7 @@
-"""Opt-in integration tests for the dedicated T17 temporary local cluster.
+"""T17 PostgreSQL 통합 테스트 (선택 실행) — T05 스키마 + T10 Seed가 적용된 **로컬 일회용 DB** 기준.
 
-Set T17_LOCAL_POSTGRES=1 only after provisioning 127.0.0.1:25437 with
-user t17_test, T05 validation schema and T10 Seed. Never points to staging.
+`T17_TEST_DATABASE_URL`(postgresql://...)을 지정했을 때만 실행하고, 호스트가 localhost가 아니면 거부한다.
+테스트 데이터 변경은 트랜잭션 롤백 또는 finally 정리로 되돌린다. 준비 절차: backend/tests/T17_RUNTIME_SETUP.md
 """
 
 import os
@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.main import create_app
@@ -22,19 +23,19 @@ from app.schemas.catalog import JobRoleQuery, SkillQuery
 from app.core.errors import AppError, ErrorCode
 from app.services.catalog import CatalogService
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("T17_LOCAL_POSTGRES") != "1",
-    reason="Dedicated temporary PostgreSQL test cluster is opt-in",
-)
+DB_URL = os.environ.get("T17_TEST_DATABASE_URL", "")
+pytestmark = pytest.mark.skipif(not DB_URL, reason="T17_TEST_DATABASE_URL not set")
+if DB_URL and make_url(DB_URL).host not in {"localhost", "127.0.0.1", "::1"}:
+    raise RuntimeError("T17 Postgres tests run only against a local disposable DB")
+SQLA_URL = DB_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 
 @pytest.fixture
 def session():
-    engine = create_engine("postgresql+psycopg://t17_test@127.0.0.1:25437/postgres")
+    engine = create_engine(SQLA_URL)
     try:
         with engine.connect() as connection:
             transaction = connection.begin()
-            assert connection.scalar(text("SELECT current_user")) == "t17_test"
             with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
                 yield session
             transaction.rollback()
@@ -44,9 +45,7 @@ def session():
 
 @pytest.fixture
 def service(session):
-    return CatalogService(
-        SqlCatalogRepository(session), cursor_key=b"postgres-local-test-only-" * 2
-    )
+    return CatalogService(SqlCatalogRepository(session), cursor_key=b"postgres-local-test-only-" * 2)
 
 
 @pytest.mark.parametrize("limit", [1, 7, 9, 20, 100])
@@ -106,8 +105,9 @@ def test_http_with_real_repository(service):
 
 
 def test_t14_runtime_provider_without_overrides(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://t17_test@127.0.0.1:25437/postgres")
-    monkeypatch.setenv("T17_CURSOR_KEY", "dedicated-local-test-key-not-for-deployment-123")
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", DB_URL)
+    monkeypatch.delenv("T17_CURSOR_KEY", raising=False)
     get_settings.cache_clear()
     try:
         app = create_app()
@@ -129,8 +129,6 @@ def test_t14_runtime_provider_without_overrides(monkeypatch):
             assert client.get("/api/v1/job-roles?cursor=broken").status_code == 400
             assert client.get("/api/v1/skills?q=a").status_code == 422
             assert client.get("/api/v1/job-roles/00000000-0000-0000-0000-000000000000").status_code == 404
-            monkeypatch.delenv("T17_CURSOR_KEY")
-            assert client.get("/api/v1/job-roles").status_code == 503
         assert app.state.db_session_factory is None
     finally:
         get_settings.cache_clear()
@@ -145,10 +143,10 @@ def test_postgres_renamed_anchor_rejected(session, service):
     assert exc.value.code == ErrorCode.INVALID_CURSOR
 
 
-def test_authenticated_catalog_with_single_connection_pool(monkeypatch):
-    """Real auth and catalog queries must not compete for a second connection."""
-    url = "postgresql://t17_test@127.0.0.1:25437/postgres"
-    engine = create_engine(url.replace("postgresql://", "postgresql+psycopg://"))
+def test_logged_in_request_uses_one_connection_and_same_response(monkeypatch):
+    """토큰이 있어도 카탈로그는 인증 DB 조회를 하지 않으므로 풀 크기 1에서도 막히지 않는다."""
+    url = DB_URL
+    engine = create_engine(SQLA_URL)
     sid = uuid4()
     key = "T17-local-postgres-auth-test-key-only-0123456"
     monkeypatch.setenv("APP_ENV", "test")
@@ -156,7 +154,6 @@ def test_authenticated_catalog_with_single_connection_pool(monkeypatch):
     monkeypatch.setenv("DB_POOL_SIZE", "1")
     monkeypatch.setenv("DB_TIMEOUT_SECONDS", "1")
     monkeypatch.setenv("JWT_SECRET", key)
-    monkeypatch.setenv("T17_CURSOR_KEY", "T17-local-postgres-cursor-test-key-only-0123456")
     get_settings.cache_clear()
     try:
         now = datetime.now(timezone.utc)
@@ -175,6 +172,7 @@ def test_authenticated_catalog_with_single_connection_pool(monkeypatch):
             for path in ["/api/v1/job-roles?limit=1", "/api/v1/skills?q=python"]:
                 response = client.get(path, headers={"Authorization": f"Bearer {token}"})
                 assert response.status_code == 200, response.text
+                assert response.json() == client.get(path).json()
             role_id = client.get("/api/v1/job-roles?limit=1").json()["items"][0]["job_role_id"]
             assert client.get(f"/api/v1/job-roles/{role_id}", headers={"Authorization": f"Bearer {token}"}).status_code == 200
     finally:

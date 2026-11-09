@@ -115,7 +115,7 @@ def test_openapi_catalog_contract(client):
     parameters = {p["name"]: p for p in operation["parameters"]}
     assert parameters["limit"]["schema"]["maximum"] == 100
     assert parameters["limit"]["schema"]["default"] == 20
-    for status in ["400", "401", "422", "503"]:
+    for status in ["400", "422", "503"]:
         content = operation["responses"][status]["content"]
         assert set(content) == {"application/json"}
     skills = spec["paths"]["/api/v1/skills"]["get"]

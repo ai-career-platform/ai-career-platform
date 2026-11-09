@@ -1,74 +1,55 @@
 # T17 로컬 실행 안내
 
-T14 `get_db`와 T17 조회가 연결된 상태다. 공유 Staging 접속 정보는 사용하지 않는다.
-공통 `.env.example`·설정 파일은 수정하지 않았으며 `.env`는 자동으로 읽지 않는다.
+T17 직무·기술 조회 API(`/api/v1/job-roles`, `/api/v1/job-roles/{id}`, `/api/v1/skills`)를
+본인 전용 DB로 실행·검증하는 방법입니다. 공유 Staging 접속 정보는 사용하지 않습니다.
 
-## 현재 main 인증과의 연결
+## 동작 요약
 
-T17 조회는 T06 선택 인증 계약을 유지한다. Authorization 헤더가 없으면
-비로그인 조회, 헤더가 있으면 T15 토큰 서명/만료와 DB 세션·사용자 상태를
-검증한다. 잘못된 토큰을 비로그인으로 간주해 통과시키지 않는다.
-401 응답은 공통 UNAUTHENTICATED/TOKEN_EXPIRED와 WWW-Authenticate를 사용한다.
-main의 인증 코드와 메시지를 재사용하며 별도 JWT 구현은 두지 않는다.
-DB와 cursor 키는 비로그인 조회에도 필요하다. 인증한 요청에는 T15의
-정상 사용자·세션 DB 레코드가 추가로 필요하다.
-JWT_SECRET 등 인증 실행 설정은 main의 backend/README.md를 따른다.
-로그인 조회는 T15 인증 확인과 T17 조회에 같은 요청별 Session을 사용한다.
-연결 풀 크기가 1인 실제 PostgreSQL 환경에서도 로그인 조회를 회귀 검증했다.
-빈 cursor나 발급 형식과 다른 Base64 표현은 INVALID_CURSOR로 거부한다.
-페이지 기준 직무의 이름이 바뀌면 데이터 누락으로 이어가지 않고 400으로
-처음부터 재조회하도록 한다. 동시 데이터 변경에 대한 snapshot 보장은 없다.
+- **공개 조회:** 로그인 여부로 달라지는 응답이 없어서 `Authorization` 헤더를 읽지 않습니다.
+  만료되거나 잘못된 토큰이 와도 비로그인과 같은 200을 줍니다(openapi.yaml도 401을 선언하지 않음).
+- **DB:** T14 공통 `get_db` 세션을 씁니다. 카탈로그 전용 세션·인증 함수는 없습니다.
+- **cursor 서명 키:** 별도 환경변수 없이 `JWT_SECRET`에서 용도별로 파생합니다
+  (`HMAC(JWT_SECRET, "t17-job-roles-cursor-v1")`). `JWT_SECRET`이 바뀌면 이전 cursor만 400이 됩니다.
+- **cursor 거부(400 `INVALID_CURSOR`):** 빈 값, 변조, 다른 검색어, 발급 형식과 다른 Base64,
+  기준 직무가 사라졌거나 이름이 바뀐 경우. 이름이 바뀐 채로 이어 읽으면 항목이 조용히 빠지므로
+  처음부터 다시 조회하게 합니다. 동시 데이터 변경에 대한 snapshot 보장은 없습니다.
+- **비활성(`is_active=false`):** 목록·검색에서만 빠집니다. 이미 알고 있는 ID의 상세는 그대로 열립니다
+  (데이터 사전: "폐기 시 참조 보존").
 
 ## 준비
 
-- `backend/.venv`에 `requirements-dev.txt` 설치.
-- 본인 전용 PostgreSQL에 T05 검증 스키마·T10 합성 Seed 적용.
-  정식 T09 Migration 호환성 검증과는 구분한다.
-- 임시 테스트 클러스터는 검증 후 종료했다. 새 환경에서는
-  [검증 스키마 안내](../../database/schema/README.md)와
-  [Seed 안내](../../database/seeds/README.md)를 따라 본인 전용 DB를 준비한다.
+1. `backend/.venv`에 `requirements-dev.txt`를 설치합니다.
+2. 본인 전용 PostgreSQL에 T05 검증 스키마와 T10 합성 Seed를 적용합니다.
+
+```bash
+psql -d <로컬DB> -c "CREATE SCHEMA career"
+psql -d <로컬DB> -v ON_ERROR_STOP=1 -f database/schema/T05_VALIDATION_ONLY.sql
+psql -d <로컬DB> -v ON_ERROR_STOP=1 -f database/seeds/0001_initial_seed.sql
+```
+
+자세한 내용은 [검증 스키마 안내](../../database/schema/README.md)와 [Seed 안내](../../database/seeds/README.md)를 따릅니다.
 
 ## 실행
 
-아래는 앞서 만든 전용 임시 클러스터(25437)가 실행 중일 때 사용하는 예시다.
-현재 실행 중인 서버를 임의로 종료하지 말고, 별도 터미널에서 사용 가능한 포트를 쓴다.
-
-```powershell
-cd C:\dev\ai-career-platform\backend
-$env:DATABASE_URL='postgresql://t17_test@127.0.0.1:25437/postgres'
-$env:T17_CURSOR_KEY=(& .\.venv\Scripts\python.exe -c 'import secrets; print(secrets.token_urlsafe(48))')
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 25438
+```bash
+cd backend
+export DATABASE_URL='postgresql://<user>@127.0.0.1:<port>/<로컬DB>'   # T14 규약: postgresql:// 형식
+export JWT_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-새 키 생성은 기존 cursor를 무효화한다. 위 예시는 일회성 로컬 검증용이고,
-계속 사용하는 환경에서는 비공개로 관리한 같은 키를 모든 프로세스에 제공해야 한다.
-키를 화면에 출력하거나 Git에 넣지 않는다. DATABASE_URL은 SQLAlchemy의
-`postgresql+psycopg://`가 아니라 T14 규약의 `postgresql://` 형식을 사용한다.
+비밀번호는 `PGPASSWORD`나 `.pgpass`로 넘기고, 키·비밀번호를 화면에 출력하거나 Git에 넣지 않습니다.
 
-확인할 주소:
+확인할 주소: `/docs`, `/health/db`, `/api/v1/job-roles?limit=1`, `/api/v1/skills?q=python`.
+다음 페이지는 응답의 `next_cursor`를 같은 검색 조건과 함께 보냅니다.
 
-- `http://127.0.0.1:25438/docs`
-- `http://127.0.0.1:25438/health/db`
-- `http://127.0.0.1:25438/api/v1/job-roles?limit=1`
-- `http://127.0.0.1:25438/api/v1/skills?q=python`
+## 테스트
 
-직무 상세는 목록 응답의 job_role_id로 조회한다. 다음 페이지는 응답의
-next_cursor를 같은 검색 조건과 함께 전달한다.
-
-테스트: 전용 클러스터가 준비된 상태에서
-
-```powershell
-$env:T17_LOCAL_POSTGRES='1'
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
-Remove-Item Env:T17_LOCAL_POSTGRES
+```bash
+cd backend
+.venv/bin/python -m pytest -q                      # DB 없이 도는 단위·HTTP 테스트
+T17_TEST_DATABASE_URL='postgresql://<user>@127.0.0.1:<port>/<로컬DB>' \
+  .venv/bin/python -m pytest -q tests/test_catalog_postgres.py   # 실제 PostgreSQL (선택)
 ```
 
-2026-11-09: 111 passed, 1 warning. 테스트에서 DB 설정은 전용 localhost
-주소로 제한하고, 서비스 override 없는 T14 연결 경로도 검증한다.
-
-종료: 본인이 띄운 서버 터미널에서 Ctrl+C 후 해당 세션 환경변수를 정리한다.
-임시 DB도 본인이 만든 클러스터의 pg_ctl 명령으로 종료한다. 기존 DB 서비스는 종료하지 않는다.
-
-```powershell
-Remove-Item Env:DATABASE_URL,Env:T17_CURSOR_KEY -ErrorAction SilentlyContinue
-```
+Postgres 테스트는 호스트가 localhost가 아니면 실행을 거부하고, 바꾼 데이터는 롤백·정리합니다.

@@ -34,6 +34,9 @@ class MemoryCatalog:
             and (after is None or (r.name, r.job_role_id) > after)
         ][:limit]
 
+    def job_role_name(self, role_id):
+        return next((r.name for r in self.roles if r.job_role_id == role_id), None)
+
     def get_job_role(self, role_id):
         for role in self.roles:
             if role.job_role_id == role_id:
@@ -182,6 +185,24 @@ def test_noncanonical_cursor_rejected(service):
     assert exc.value.code == ErrorCode.INVALID_CURSOR
 
 
+def test_repository_error_during_anchor_lookup_is_not_a_cursor_error(service):
+    """서명이 맞는 cursor의 기준 직무를 읽다가 난 오류는 400이 아니라 그대로 올라가야 한다."""
+    token = service.list_job_roles(JobRoleQuery(limit=1)).next_cursor
+
+    def broken(_role_id):
+        RequiredSkill(skill=service.repository.skills[0], required_level=9)  # pydantic ValidationError
+
+    service.repository.job_role_name = broken
+    with pytest.raises(ValidationError):
+        service.list_job_roles(JobRoleQuery(cursor=token))
+
+
+def test_cursor_lookup_reads_only_the_anchor_name(service):
+    token = service.list_job_roles(JobRoleQuery(limit=1)).next_cursor
+    service.repository.get_job_role = lambda _id: pytest.fail("detail query must not run for a cursor")
+    assert service.list_job_roles(JobRoleQuery(cursor=token)).items
+
+
 def test_renamed_anchor_rejected_instead_of_silently_skipping(service):
     first = service.list_job_roles(JobRoleQuery(limit=1))
     anchor = first.items[0]
@@ -192,3 +213,27 @@ def test_renamed_anchor_rejected_instead_of_silently_skipping(service):
     with pytest.raises(AppError) as exc:
         service.list_job_roles(JobRoleQuery(cursor=first.next_cursor))
     assert exc.value.code == ErrorCode.INVALID_CURSOR
+
+
+def test_sql_is_parameterized_and_uses_career_schema():
+    """DB 없이 PostgreSQL 방언으로 컴파일만 해서, 검색어가 SQL 문자열이 아니라 파라미터로 가는지 본다."""
+    from sqlalchemy.dialects import postgresql
+
+    from app.repositories.catalog import SqlCatalogRepository
+
+    class Capture:
+        def execute(self, statement):
+            self.compiled = statement.compile(dialect=postgresql.dialect())
+            return self
+
+        def mappings(self):
+            return []
+
+    session = Capture()
+    hostile = "' OR 1=1 --"
+    SqlCatalogRepository(session).list_job_roles(q=hostile, after=("Backend", UUID(int=1)), limit=2)
+    sql = str(session.compiled)
+    assert "career.job_roles" in sql
+    assert hostile not in sql
+    assert any(hostile in str(value) for value in session.compiled.params.values())
+    assert "LIMIT" in sql
