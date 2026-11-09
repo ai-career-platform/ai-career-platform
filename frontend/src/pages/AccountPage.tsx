@@ -16,6 +16,9 @@ export function AccountPage() {
       <p><Link to="/me/skills">나의 기술 관리</Link></p>
       <p><Link to="/me/documents">내 문서 관리</Link></p>
       <p>역할: {state.user.roles.join(', ')}</p>
+      <p>
+        <Link to="/account/profile">프로필 보기·수정</Link>
+      </p>
       <Button variant="outline" onClick={() => void logout()}>
         로그아웃
       </Button>

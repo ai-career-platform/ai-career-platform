@@ -3,6 +3,7 @@ import { resolveDocumentsMock } from './documents';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
 import { resolveSkillsMock } from './skills';
+import { resolveProfileMock } from './profile';
 
 /**
  * 개발용 가상 데이터. 실제 개인정보·운영 데이터를 넣지 않습니다.
@@ -102,6 +103,10 @@ export async function resolveMock<T>(
       authedUser(request.token);
       const workspaceResult = resolveCareerWorkspaceMock(path, request);
       if (workspaceResult !== null) return structuredClone(workspaceResult) as T;
+    }
+    if (path === '/v1/me' && (request.method === 'GET' || request.method === 'PATCH')) {
+      const { email, display_name } = authedUser(request.token);
+      return structuredClone(resolveProfileMock(request, email, display_name)) as T;
     }
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;

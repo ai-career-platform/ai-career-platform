@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -36,6 +37,7 @@ export const routes: RouteObject[] = [
       { path: 'login', element: <LoginPage /> },
       { element: <RequireAuth />, children: [
         { path: 'account', element: <AccountPage /> },
+        { path: 'account/profile', element: <ProfilePage /> },
         { path: 'account/privacy', element: <PrivacySettingsPage /> },
         { path: 'me/target-roles', element: <TargetRolesPage /> },
         { path: 'me/career-history', element: <CareerHistoryPage /> },

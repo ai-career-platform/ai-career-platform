@@ -23,6 +23,7 @@ const id = (value: string) => encodeURIComponent(value);
 export const meApi = (http: HttpClient) => ({
   profile: {
     get: (signal?: AbortSignal) => http.request<Me>('/v1/me', { signal }),
+    update: (body: BodyOf<'updateMe'>) => http.request<Me>('/v1/me', { method: 'PATCH', body }),
     permissions: (signal?: AbortSignal) => http.request<Permissions>('/v1/me/permissions', { signal }),
   },
   skills: {

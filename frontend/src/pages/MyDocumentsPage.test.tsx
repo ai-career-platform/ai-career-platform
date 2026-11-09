@@ -24,6 +24,7 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: (ne
     state: anonymous ? { status: 'anonymous' } : { status: 'authenticated', token: TOKEN,
       user: { email: USER, displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
+    updateUser: vi.fn<AuthContextValue['updateUser']>(),
     logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
   };
   render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/me/documents']}>

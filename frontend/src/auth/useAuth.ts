@@ -16,6 +16,8 @@ export interface AuthContextValue {
   state: AuthState;
   login: (email: string, password: string, autoLogin?: boolean) => Promise<void>;
   logout: () => Promise<void>;
+  /** 프로필 수정 후 화면의 사용자 이름을 갱신합니다. */
+  updateUser: (changes: Partial<AuthUser>) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

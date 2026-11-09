@@ -5,7 +5,7 @@ import { ApiContext } from '../api/ApiContext';
 import { forgetSession, rememberSession, shouldKeepSession } from './loginPreferences';
 import { createSession } from './session';
 import { AuthContext } from './useAuth';
-import type { AuthState } from './useAuth';
+import type { AuthState, AuthUser } from './useAuth';
 
 async function loadUser(api: Api, token: string): Promise<AuthState> {
   const [me, permissions] = await Promise.all([api.me.profile.get(), api.me.profile.permissions()]);
@@ -75,7 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [api, apply]);
 
-  const value = useMemo(() => ({ state, login, logout }), [state, login, logout]);
+  const updateUser = useCallback((changes: Partial<AuthUser>) => {
+    setState((prev) =>
+      prev.status === 'authenticated' ? { ...prev, user: { ...prev.user, ...changes } } : prev,
+    );
+  }, []);
+
+  const value = useMemo(() => ({ state, login, logout, updateUser }), [state, login, logout, updateUser]);
   return (
     <AuthContext.Provider value={value}>
       <ApiContext.Provider value={api}>{children}</ApiContext.Provider>
