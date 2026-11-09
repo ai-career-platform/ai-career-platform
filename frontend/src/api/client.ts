@@ -1,8 +1,20 @@
 import { env } from '../config/env';
-import { resolveMock } from '../mocks/handlers';
+import { createMockFetch } from '../mocks/mockFetch';
 import { ApiError } from './errors';
+import { createHttpClient, type HttpClient, type HttpMethod } from './http';
 
 export { ApiError };
+
+/** env 설정(VITE_API_MOCK)에 따라 mock fetch 또는 전역 fetch. 호출 시점에 판단합니다. */
+export const appFetch: typeof fetch = (input, init) =>
+  (env.mockEnabled ? createMockFetch(env.apiBaseUrl) : globalThis.fetch)(input, init);
+
+/** 로그인 토큰 없이 쓰는 앱 기본 클라이언트 (공개 API). */
+export const publicHttp: HttpClient = createHttpClient({ baseUrl: env.apiBaseUrl, fetch: appFetch });
+
+// ---------------------------------------------------------------------------
+// 아래는 기존 호출을 위한 호환 래퍼입니다. 새 코드는 http.ts 의 HttpClient 를 쓰세요.
+// ---------------------------------------------------------------------------
 
 export interface ApiClientOptions {
   baseUrl?: string;
@@ -11,51 +23,21 @@ export interface ApiClientOptions {
 }
 
 export interface ApiRequestOptions extends ApiClientOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method?: HttpMethod;
   body?: unknown;
   /** access token. 메모리에만 두고 Authorization 헤더로만 보냅니다. */
   token?: string | null;
 }
 
-/**
- * 모든 Backend 호출은 이 함수를 통해 같은 Origin의 /api 아래로 보냅니다.
- * path는 Backend 기준 경로(예: '/health', '/v1/jobs')입니다.
- * refresh 쿠키(HttpOnly)가 /v1/auth 로 가도록 credentials 를 same-origin 으로 둡니다.
- */
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, token } = options;
-  const mockEnabled = options.mockEnabled ?? env.mockEnabled;
-  if (mockEnabled) {
-    return resolveMock<T>(path, { method, body, token });
-  }
-
+/** 호환 래퍼 — 남은 호출을 옮긴 뒤 제거합니다. 새 코드는 createHttpClient / publicHttp. */
+export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { method, body, token = null } = options;
   const baseUrl = options.baseUrl ?? env.apiBaseUrl;
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const url = `${baseUrl.replace(/\/$/, '')}${path}`;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: 'no-store',
-      credentials: 'same-origin',
-    });
-  } catch (error) {
-    throw new ApiError(0, path, error instanceof Error ? error.message : 'Network error');
-  }
-
-  if (!response.ok) {
-    const problem = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
-    throw new ApiError(response.status, path, undefined, problem?.code, problem?.message);
-  }
-  // 204 No Content 등 본문이 없는 성공 응답
-  return (await response.json().catch(() => undefined)) as T;
+  const mockEnabled = options.mockEnabled ?? env.mockEnabled;
+  const fetchImpl = mockEnabled ? createMockFetch(baseUrl) : options.fetchImpl;
+  return createHttpClient({ baseUrl, fetch: fetchImpl }).request<T>(path, { method, body, token });
 }
 
+/** 호환 래퍼 — 새 코드는 publicHttp.request. */
 export const apiGet = <T>(path: string, options: ApiClientOptions = {}) =>
   apiRequest<T>(path, options);
