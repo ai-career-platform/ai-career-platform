@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getDbHealth, getHealth, getVersion } from '../api/health';
+import { useApi } from '../api/ApiContext';
+import { useQuery } from '../api/useQuery';
 import { env } from '../config/env';
 
 type Status =
@@ -11,23 +11,17 @@ type Status =
  * 실제 서비스 홈 화면은 기능 일감(T20~T24)에서 교체합니다.
  */
 export function HomePage() {
-  const [status, setStatus] = useState<Status>({ state: 'loading' });
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.allSettled([getHealth(), getVersion(), getDbHealth()]).then(([health, version, db]) => {
-      if (cancelled) return;
-      setStatus({
-        state: 'ready',
-        backend: health.status === 'fulfilled' && health.value.status === 'ok',
-        database: db.status === 'fulfilled' && db.value.status === 'ok',
-        version: version.status === 'fulfilled' ? version.value.version : null,
-      });
-    });
-    return () => {
-      cancelled = true;
+  const { system } = useApi();
+  // 세 API 중 일부가 실패해도 나머지 결과는 보여 줍니다(allSettled).
+  const checks = useQuery(['system-status'], async (signal) => {
+    const [health, version, db] = await Promise.allSettled([system.health(signal), system.version(signal), system.dbHealth(signal)]);
+    return {
+      backend: health.status === 'fulfilled' && health.value.status === 'ok',
+      database: db.status === 'fulfilled' && db.value.status === 'ok',
+      version: version.status === 'fulfilled' ? version.value.version : null,
     };
-  }, []);
+  });
+  const status: Status = checks.status === 'ready' ? { state: 'ready', ...checks.data } : { state: 'loading' };
 
   const operational = status.state === 'ready' && status.backend && status.database;
 

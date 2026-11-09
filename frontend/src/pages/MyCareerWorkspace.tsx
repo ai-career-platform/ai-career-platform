@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { useState } from 'react';
+import { useApi } from '../api/ApiContext';
+import type { JobRoleRef } from '../api/catalog';
+import type { TargetRole } from '../api/me';
+import { useQuery } from '../api/useQuery';
 import './MyCareerWorkspace.css';
 
-type Role = { job_role_id: string; code: string; name: string };
-type TargetRole = { job_role: Role; priority: number };
-type Experience = { experience_id: string; organization: string; title: string; description: string | null };
-type Project = { project_id: string; title: string; summary: string | null };
-type Posting = { job_posting_id: string; title: string; status: 'published' | 'closed'; company: { name: string } };
-type Page<T> = { items: T[]; next_cursor: string | null };
+type Role = JobRoleRef;
+
+const byPriority = (items: TargetRole[]) => [...items].sort((a, b) => a.priority - b.priority).map((x) => x.job_role);
 
 function Feedback({ loading, error, empty }: { loading: boolean; error: string; empty?: string }) {
   if (loading) return <p role="status">불러오는 중…</p>;
@@ -16,41 +16,37 @@ function Feedback({ loading, error, empty }: { loading: boolean; error: string; 
 }
 
 export function TargetRolesPage() {
-  const { request } = useAuth();
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [selected, setSelected] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
+  const api = useApi();
+  const catalog = useQuery(['role-options'], (signal) => api.jobRoles.list({ limit: 100 }, signal));
+  const targets = useQuery(['me-target-roles'], (signal) => api.me.targetRoles.list(signal));
+  // 화면에서 고친 선택(저장 전). null 이면 서버에 저장된 값을 그대로 보여 줍니다.
+  const [draft, setDraft] = useState<Role[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const load = useCallback(async () => {
-    setLoading(true); setMessage('');
-    try {
-      const [catalog, targets] = await Promise.all([
-        request<Page<Role>>('/v1/job-roles?limit=100'), request<TargetRole[]>('/v1/me/target-roles'),
-      ]);
-      setRoles(catalog.items); setSelected(targets.sort((a, b) => a.priority - b.priority).map((x) => x.job_role));
-    } catch { setMessage('목표 직무를 불러오지 못했습니다.'); } finally { setLoading(false); }
-  }, [request]);
-  // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
-  useEffect(() => { void load(); }, [load]);
+
+  const roles = catalog.status === 'ready' ? catalog.data.items : [];
+  const selected = draft ?? (targets.status === 'ready' ? byPriority(targets.data) : []);
+  const loading = catalog.status === 'loading' || targets.status === 'loading';
+  const loadError = catalog.status === 'error' || targets.status === 'error' ? '목표 직무를 불러오지 못했습니다.' : '';
+
   const toggle = (role: Role) => {
-    if (selected.some((x) => x.job_role_id === role.job_role_id)) return setSelected(selected.filter((x) => x.job_role_id !== role.job_role_id));
+    if (selected.some((x) => x.job_role_id === role.job_role_id)) return setDraft(selected.filter((x) => x.job_role_id !== role.job_role_id));
     if (selected.length >= 3) return setMessage('목표 직무는 최대 3개까지 선택할 수 있습니다.');
-    setSelected([...selected, role]); setMessage('');
+    setDraft([...selected, role]); setMessage('');
   };
   const move = (index: number, direction: number) => {
     const next = [...selected], target = index + direction;
     if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target]!, next[index]!]; setSelected(next);
+    [next[index], next[target]] = [next[target]!, next[index]!]; setDraft(next);
   };
   const save = async () => {
     setSaving(true); setMessage('');
     try {
-      const saved = await request<TargetRole[]>('/v1/me/target-roles', { method: 'PUT', body: { items: selected.map((role, index) => ({ job_role_id: role.job_role_id, priority: index + 1 })) } });
-      setSelected(saved.sort((a, b) => a.priority - b.priority).map((x) => x.job_role)); setMessage('목표 직무를 저장했습니다.');
+      const saved = await api.me.targetRoles.replace({ items: selected.map((role, index) => ({ job_role_id: role.job_role_id, priority: index + 1 })) });
+      targets.setData(() => saved); setDraft(null); setMessage('목표 직무를 저장했습니다.');
     } catch { setMessage('저장하지 못했습니다. 다시 시도해 주세요.'); } finally { setSaving(false); }
   };
-  const loadError = !loading && message.includes('불러오지') ? message : '';
+
   return <main className="career-workspace"><h1>목표 직무 관리</h1><p>최대 3개를 선택하고 우선순위를 정하세요.</p>
     <Feedback loading={loading} error={loadError} />
     {!loading && !loadError && <><div className="career-options">{roles.map((role) => <button key={role.job_role_id} aria-pressed={selected.some((x) => x.job_role_id === role.job_role_id)} onClick={() => toggle(role)}>{role.name}</button>)}</div>
@@ -60,22 +56,43 @@ export function TargetRolesPage() {
 }
 
 export function CareerHistoryPage() {
-  const { request } = useAuth();
-  const [experiences, setExperiences] = useState<Experience[]>([]); const [projects, setProjects] = useState<Project[]>([]);
+  const api = useApi();
+  const history = useQuery(['me-career-history'], async (signal) => {
+    const [experiences, projects] = await Promise.all([api.me.experiences.list(signal), api.me.projects.list(signal)]);
+    return { experiences, projects };
+  });
   const [kind, setKind] = useState<'experience' | 'project'>('experience'); const [title, setTitle] = useState(''); const [organization, setOrganization] = useState('');
-  const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const load = useCallback(async () => { setLoading(true); setError(''); try { const [e, p] = await Promise.all([request<Experience[]>('/v1/me/experiences'), request<Project[]>('/v1/me/projects')]); setExperiences(e); setProjects(p); } catch { setError('경력 정보를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [request]);
-  // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
-  useEffect(() => { void load(); }, [load]);
+  const [actionError, setActionError] = useState('');
+
+  const loading = history.status === 'loading';
+  const error = history.status === 'error' ? '경력 정보를 불러오지 못했습니다.' : actionError;
+  const experiences = history.status === 'ready' ? history.data.experiences : [];
+  const projects = history.status === 'ready' ? history.data.projects : [];
+
   const add = async () => {
-    if (!title.trim() || (kind === 'experience' && !organization.trim())) return setError('필수 항목을 입력해 주세요.');
+    if (!title.trim() || (kind === 'experience' && !organization.trim())) return setActionError('필수 항목을 입력해 주세요.');
     try {
-      if (kind === 'experience') { const item = await request<Experience>('/v1/me/experiences', { method: 'POST', body: { organization, title } }); setExperiences([...experiences, item]); }
-      else { const item = await request<Project>('/v1/me/projects', { method: 'POST', body: { title, summary: organization || null, skill_ids: [] } }); setProjects([...projects, item]); }
-      setTitle(''); setOrganization(''); setError('');
-    } catch { setError('등록하지 못했습니다.'); }
+      if (kind === 'experience') {
+        const item = await api.me.experiences.create({ organization, title });
+        history.setData((d) => ({ ...d, experiences: [...d.experiences, item] }));
+      } else {
+        const item = await api.me.projects.create({ title, summary: organization || null, skill_ids: [] });
+        history.setData((d) => ({ ...d, projects: [...d.projects, item] }));
+      }
+      setTitle(''); setOrganization(''); setActionError('');
+    } catch { setActionError('등록하지 못했습니다.'); }
   };
-  const remove = async (type: 'experiences' | 'projects', id: string) => { try { await request<void>(`/v1/me/${type}/${id}`, { method: 'DELETE' }); if (type === 'experiences') setExperiences(experiences.filter((x) => x.experience_id !== id)); else setProjects(projects.filter((x) => x.project_id !== id)); } catch { setError('삭제하지 못했습니다.'); } };
+  const remove = async (type: 'experiences' | 'projects', id: string) => {
+    try {
+      if (type === 'experiences') {
+        await api.me.experiences.remove(id);
+        history.setData((d) => ({ ...d, experiences: d.experiences.filter((x) => x.experience_id !== id) }));
+      } else {
+        await api.me.projects.remove(id);
+        history.setData((d) => ({ ...d, projects: d.projects.filter((x) => x.project_id !== id) }));
+      }
+    } catch { setActionError('삭제하지 못했습니다.'); }
+  };
   const empty = !loading && !error && experiences.length === 0 && projects.length === 0;
   return <main className="career-workspace"><h1>경력·프로젝트</h1><Feedback loading={loading} error={error} empty={empty ? '등록한 경력이나 프로젝트가 없습니다.' : undefined} />
     {!loading && <><div className="career-form"><label>유형<select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="experience">경력</option><option value="project">프로젝트</option></select></label><label>{kind === 'experience' ? '회사·기관' : '프로젝트 요약'}<input value={organization} onChange={(e) => setOrganization(e.target.value)} /></label><label>{kind === 'experience' ? '직무' : '프로젝트명'}<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><button className="primary" onClick={() => void add()}>추가</button></div>
@@ -84,11 +101,18 @@ export function CareerHistoryPage() {
 }
 
 export function BookmarksPage() {
-  const { request } = useAuth(); const [items, setItems] = useState<Posting[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const load = useCallback(async () => { try { const page = await request<Page<Posting>>('/v1/me/bookmarks'); setItems(page.items); } catch { setError('저장한 공고를 불러오지 못했습니다.'); } finally { setLoading(false); } }, [request]);
-  // oxlint-disable-next-line react/set-state-in-effect -- 최초 API 동기화
-  useEffect(() => { void load(); }, [load]);
-  const remove = async (id: string) => { try { await request<void>(`/v1/me/bookmarks/${id}`, { method: 'DELETE' }); setItems(items.filter((x) => x.job_posting_id !== id)); } catch { setError('저장을 해제하지 못했습니다.'); } };
+  const api = useApi();
+  const bookmarks = useQuery(['me-bookmarks'], (signal) => api.me.bookmarks.list(signal));
+  const [actionError, setActionError] = useState('');
+  const loading = bookmarks.status === 'loading';
+  const error = bookmarks.status === 'error' ? '저장한 공고를 불러오지 못했습니다.' : actionError;
+  const items = bookmarks.status === 'ready' ? bookmarks.data.items : [];
+  const remove = async (id: string) => {
+    try {
+      await api.me.bookmarks.remove(id);
+      bookmarks.setData((page) => ({ ...page, items: page.items.filter((x) => x.job_posting_id !== id) }));
+    } catch { setActionError('저장을 해제하지 못했습니다.'); }
+  };
   return <main className="career-workspace"><h1>저장한 채용공고</h1><Feedback loading={loading} error={error} empty={!loading && !error && items.length === 0 ? '저장한 공고가 없습니다.' : undefined} />
     <ul>{items.map((item) => <li key={item.job_posting_id}><span><strong>{item.title}</strong> · {item.company.name}{item.status === 'closed' && <em> 마감된 공고</em>}</span><button onClick={() => void remove(item.job_posting_id)}>저장 해제</button></li>)}</ul>
   </main>;
