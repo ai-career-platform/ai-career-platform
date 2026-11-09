@@ -3,7 +3,7 @@
 Never point T15_TEST_DATABASE_URL to Staging. Reuses the isolated T05 fixture.
 """
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import text, select
 from sqlalchemy.orm import Session
@@ -48,6 +48,7 @@ def test_recommendation_run_postgres_store_read_owner_and_expiry(pg_client, engi
     assert generated.status_code == 201, generated.text
     body = generated.json()
     run_id = body["recommendation_run_id"]
+    run_uuid = UUID(run_id)
     ids = {v["job_posting"]["job_posting_id"] for v in body["items"]}
     assert str(live) in ids and str(expired) not in ids
     assert body["status"] == "completed"
@@ -60,7 +61,7 @@ def test_recommendation_run_postgres_store_read_owner_and_expiry(pg_client, engi
     assert pg_client.post(API + "/recommendation-runs", json={"limit": 20}).status_code == 401
     with Session(engine) as db:
         assert db.scalar(select(runs.c.recommendation_run_id).where(
-            runs.c.recommendation_run_id == run_id)) is not None
+            runs.c.recommendation_run_id == run_uuid)) is not None
         assert db.scalar(select(model_versions.c.model_code).where(
             model_versions.c.version == "skill-overlap-draft-v2")) == "skill_overlap_baseline"
-        assert db.execute(select(items.c.rank).where(items.c.recommendation_run_id == run_id)).all()
+        assert db.execute(select(items.c.rank).where(items.c.recommendation_run_id == run_uuid)).all()
