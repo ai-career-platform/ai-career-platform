@@ -156,6 +156,70 @@ class MemoryAuthRepository:
         self._state = copy.deepcopy(self._committed)
 
 
+class MemoryRecommendationFeedbackRepository:
+    """T47 테스트용 메모리 저장소. SqlRecommendationFeedbackRepository와 같은 의미(추가만, 트랜잭션 포함)로 동작한다.
+
+    T45는 추천 실행 저장소의 메모리 구현을 제공하지 않으므로(T45 테스트는 서비스 단위 MemoryRuns만 씀)
+    소유권 확인용 실행·항목은 `add_run()`으로 직접 넣는다. 실제 T45 저장소와의 연동은
+    `test_t47_recommendation_feedback_t45_postgres.py`(T45 E2E)가 확인한다.
+    """
+
+    def __init__(self) -> None:
+        self.runs: dict[uuid.UUID, dict] = {}  # run_id -> {"user_id", "job_posting_ids"}
+        self._committed: dict[str, list] = {"feedback": [], "audit": []}
+        self._state = copy.deepcopy(self._committed)
+        self.locks: list[tuple[uuid.UUID, uuid.UUID]] = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    # ---- helpers for tests
+    def add_run(self, user_id: uuid.UUID, job_posting_ids: list[uuid.UUID]) -> uuid.UUID:
+        run_id = uuid.uuid4()
+        self.runs[run_id] = {"user_id": user_id, "job_posting_ids": list(job_posting_ids)}
+        return run_id
+
+    def feedback_rows(self) -> list:
+        return list(self._committed["feedback"])
+
+    def audit_rows(self) -> list:
+        return list(self._committed["audit"])
+
+    # ---- RecommendationFeedbackRepository
+    def lock_feedback(self, user_id: uuid.UUID, job_posting_id: uuid.UUID) -> None:
+        self.locks.append((user_id, job_posting_id))
+
+    def is_recommended_to(self, user_id, job_posting_id, recommendation_run_id) -> bool:
+        return any(
+            run["user_id"] == user_id and job_posting_id in run["job_posting_ids"]
+            and (recommendation_run_id is None or run_id == recommendation_run_id)
+            for run_id, run in self.runs.items()
+        )
+
+    def latest_feedback(self, user_id, job_posting_ids) -> dict:
+        latest: dict = {}
+        for row in self._state["feedback"]:
+            if row.user_id != user_id or row.job_posting_id not in job_posting_ids:
+                continue
+            best = latest.get(row.job_posting_id)
+            if best is None or (row.created_at, row.feedback_id) > (best.created_at, best.feedback_id):
+                latest[row.job_posting_id] = row
+        return latest
+
+    def insert_feedback(self, record) -> None:
+        self._state["feedback"].append(record)
+
+    def record_audit(self, event) -> None:
+        self._state["audit"].append(event)
+
+    def commit(self) -> None:
+        self._committed = copy.deepcopy(self._state)
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self._state = copy.deepcopy(self._committed)
+        self.rollbacks += 1
+
+
 def override_auth_repository(app, repo) -> None:
     """인증 의존성(`get_auth_service`)이 저장소만 바꾼 AuthService를 쓰게 한다.
 
