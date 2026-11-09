@@ -20,20 +20,9 @@ afterEach(() => {
 });
 
 describe('routing and home page', () => {
-  it('renders the T36 target-role workspace', () => {
+  it('protects the career workspace routes', async () => {
     renderAt('/me/target-roles');
-    expect(screen.getByRole('heading', { name: '목표 직무 관리' })).toBeInTheDocument();
-    expect(screen.getByText('1순위 · 백엔드 개발자')).toBeInTheDocument();
-  });
-
-  it('renders the T38 empty history state', () => {
-    renderAt('/me/career-history');
-    expect(screen.getByText('등록한 경력이나 프로젝트가 없습니다.')).toBeInTheDocument();
-  });
-
-  it('renders T40 bookmark expiration state', () => {
-    renderAt('/me/bookmarks');
-    expect(screen.getByText('마감된 공고')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
   });
   it('shows Operational when all health APIs succeed', async () => {
     mockFetch({
