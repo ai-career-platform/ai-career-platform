@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/errors';
+import { AuthContext } from '../auth/useAuth';
+import type { AuthContextValue, AuthState } from '../auth/useAuth';
+import type { RequestFn } from '../test/api';
 import { WithApi } from '../test/WithApi';
 import { JobPostingsPage } from './JobPostingsPage';
 
@@ -48,11 +52,27 @@ function serve(handlers: Handlers) {
 }
 const listCalls = () => get.mock.calls.map(([path]) => path).filter((path) => path.startsWith('/v1/job-postings?'));
 function Where() { const location = useLocation(); return <output data-testid="where">{location.search}</output>; }
-function renderPage(url = '/job-postings') {
-  return render(<WithApi request={(path) => get(path)}><MemoryRouter initialEntries={[url]}><JobPostingsPage /><Where /></MemoryRouter></WithApi>);
+// 로그인 사용자 요청(적합도 계산 POST /v1/matches)은 따로 받습니다.
+const post = vi.fn<RequestFn>();
+const MEMBER: AuthState = { status: 'authenticated', token: 't', user: { email: 'a@example.com', displayName: '테스터', roles: [] } };
+function MatchLanding() { return <h1>결과 {useParams().matchId}</h1>; }
+function renderPage(url = '/job-postings', state: AuthState = { status: 'anonymous' }) {
+  const auth: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
+  return render(
+    <AuthContext.Provider value={auth}>
+      <WithApi request={(path, init) => (path === '/v1/matches' ? post(path, init) : get(path))}>
+        <MemoryRouter initialEntries={[url]}>
+          <Routes>
+            <Route path="/job-postings" element={<><JobPostingsPage /><Where /></>} />
+            <Route path="/matches/:matchId" element={<MatchLanding />} />
+          </Routes>
+        </MemoryRouter>
+      </WithApi>
+    </AuthContext.Provider>,
+  );
 }
 
-beforeEach(() => { get.mockReset(); });
+beforeEach(() => { get.mockReset(); post.mockReset(); });
 
 describe('job postings (T18 API)', () => {
   it('shows postings with status, company, role, location, type and deadline', async () => {
@@ -221,5 +241,55 @@ describe('paging after filter changes', () => {
     expect(await screen.findByText('첫 공고')).toBeInTheDocument();
     expect(listCalls().at(-1)).toBe('/v1/job-postings?limit=20&sort=-published_at&include_closed=false');
     expect(screen.getByText('1 페이지')).toBeInTheDocument();
+  });
+});
+
+describe('적합도 계산 버튼 (T42 → T41 POST /v1/matches)', () => {
+  const MATCH_ID = '99999999-9999-4999-8999-999999999999';
+
+  it('비로그인이면 계산 버튼 대신 로그인 안내를 보여 주고 API를 부르지 않는다', async () => {
+    serve({});
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    expect(await screen.findByRole('link', { name: '로그인' })).toHaveAttribute('href', '/login');
+    expect(screen.queryByRole('button', { name: '내 적합도 계산' })).not.toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('로그인 사용자가 누르면 공고 ID 하나만 보내고 결과 화면으로 이동한다', async () => {
+    serve({});
+    post.mockResolvedValue({ match_id: MATCH_ID });
+    renderPage('/job-postings', MEMBER);
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '내 적합도 계산' }));
+    expect(await screen.findByRole('heading', { name: `결과 ${MATCH_ID}` })).toBeInTheDocument();
+    expect(post).toHaveBeenCalledWith('/v1/matches', expect.objectContaining({ method: 'POST', body: { job_posting_id: 'p1' } }));
+  });
+
+  it.each([
+    [new ApiError(400, '/v1/matches', undefined, 'NO_USER_SKILLS'), '등록된 보유 기술이 없어 적합도를 계산할 수 없습니다.', true],
+    [new ApiError(503, '/v1/matches', undefined, 'DEPENDENCY_UNAVAILABLE'), '적합도 계산 기준이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.', false],
+    [new ApiError(404, '/v1/matches', undefined, 'NOT_FOUND'), '공개된 공고·직무가 아니어서 적합도를 계산할 수 없습니다.', false],
+    [new ApiError(0, '/v1/matches'), '서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.', false],
+  ])('실패하면 화면에 머물며 이유를 알려 준다 (%#)', async (error, message, needsSkills) => {
+    serve({});
+    post.mockRejectedValue(error);
+    renderPage('/job-postings', MEMBER);
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '내 적합도 계산' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByRole('link', { name: '보유 기술 등록하기' }) !== null).toBe(needsSkills);
+    expect(screen.getByRole('button', { name: '내 적합도 계산' })).toBeEnabled();
+  });
+
+  it('계산 중에는 버튼을 막아 중복 요청을 보내지 않는다', async () => {
+    serve({});
+    post.mockReturnValue(new Promise(() => {}));
+    renderPage('/job-postings', MEMBER);
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '내 적합도 계산' }));
+    expect(await screen.findByRole('button', { name: '계산 중…' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '계산 중…' }));
+    expect(post).toHaveBeenCalledTimes(1);
   });
 });

@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
+import { MatchAction } from './MatchAction';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 import './JobPostingsPage.css';
 
@@ -279,6 +280,7 @@ export function JobPostingsPage() {
                     ))}
                   </ul>
                 )}
+              <MatchAction target={{ job_posting_id: detail.data.job_posting_id }} targetName={detail.data.title} />
 
               <h4>기업 소개</h4>
               {companyDetail.status === 'loading' && <p role="status">기업 정보를 불러오는 중입니다.</p>}
