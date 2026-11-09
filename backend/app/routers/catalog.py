@@ -13,8 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
-from app.db import get_db
-from app.dependencies.catalog_auth import get_optional_catalog_user
+from app.dependencies.catalog_auth import get_catalog_db, get_optional_catalog_user
 from app.repositories.catalog import SqlCatalogRepository
 from app.schemas.catalog import (
     JobRoleDetail, JobRolePage, JobRoleQuery, SkillQuery, SkillSearchResult,
@@ -22,7 +21,7 @@ from app.schemas.catalog import (
 from app.services.catalog import CatalogService
 
 
-def get_catalog_service(db: Annotated[Session, Depends(get_db)]) -> CatalogService:
+def get_catalog_service(db: Annotated[Session, Depends(get_catalog_db)]) -> CatalogService:
     cursor_key = os.environ.get("T17_CURSOR_KEY", "").encode("utf-8")
     if len(cursor_key) < 32:
         raise AppError(

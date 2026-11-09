@@ -118,3 +118,4 @@ def test_openapi_marks_catalog_auth_as_optional(auth_case):
         assert {} in operation["security"]
         assert {"HTTPBearer": []} in operation["security"]
         assert "401" in operation["responses"]
+        assert "503" in operation["responses"]

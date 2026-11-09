@@ -83,6 +83,7 @@ def test_http_validation(client, path, params):
 
 
 def test_cursor_rejection(client):
+    assert_problem(client.get("/api/v1/job-roles?cursor="), 400, "INVALID_CURSOR")
     assert_problem(client.get("/api/v1/job-roles?cursor=bad"), 400, "INVALID_CURSOR")
     token = client.get("/api/v1/job-roles?limit=1").json()["next_cursor"]
     assert_problem(client.get("/api/v1/job-roles", params={"q": "changed", "cursor": token}),
@@ -114,7 +115,7 @@ def test_openapi_catalog_contract(client):
     parameters = {p["name"]: p for p in operation["parameters"]}
     assert parameters["limit"]["schema"]["maximum"] == 100
     assert parameters["limit"]["schema"]["default"] == 20
-    for status in ["400", "422", "503"]:
+    for status in ["400", "401", "422", "503"]:
         content = operation["responses"][status]["content"]
         assert set(content) == {"application/json"}
     skills = spec["paths"]["/api/v1/skills"]["get"]

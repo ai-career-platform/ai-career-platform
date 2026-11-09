@@ -5,7 +5,8 @@ user t17_test, T05 validation schema and T10 Seed. Never points to staging.
 """
 
 import os
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.main import create_app
+from app.core.security import issue_access_token
 from app.core.config import get_settings
 from app.repositories.catalog import SqlCatalogRepository
 from app.routers.catalog import get_catalog_service
@@ -47,10 +49,11 @@ def service(session):
     )
 
 
-def test_seed_full_pagination_and_unicode_search(service):
+@pytest.mark.parametrize("limit", [1, 7, 9, 20, 100])
+def test_seed_full_pagination_and_unicode_search(service, limit):
     ids, cursor = [], None
-    for _ in range(20):
-        page = service.list_job_roles(JobRoleQuery(limit=7, cursor=cursor))
+    for _ in range(31):
+        page = service.list_job_roles(JobRoleQuery(limit=limit, cursor=cursor))
         ids.extend(r.job_role_id for r in page.items)
         cursor = page.next_cursor
         if cursor is None:
@@ -131,3 +134,53 @@ def test_t14_runtime_provider_without_overrides(monkeypatch):
         assert app.state.db_session_factory is None
     finally:
         get_settings.cache_clear()
+
+
+def test_postgres_renamed_anchor_rejected(session, service):
+    first = service.list_job_roles(JobRoleQuery(limit=1))
+    session.execute(text("UPDATE career.job_roles SET name=:name WHERE job_role_id=:id"),
+                    {"name": "Zzz renamed anchor", "id": first.items[0].job_role_id})
+    with pytest.raises(AppError) as exc:
+        service.list_job_roles(JobRoleQuery(cursor=first.next_cursor))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR
+
+
+def test_authenticated_catalog_with_single_connection_pool(monkeypatch):
+    """Real auth and catalog queries must not compete for a second connection."""
+    url = "postgresql://t17_test@127.0.0.1:25437/postgres"
+    engine = create_engine(url.replace("postgresql://", "postgresql+psycopg://"))
+    sid = uuid4()
+    key = "T17-local-postgres-auth-test-key-only-0123456"
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setenv("DB_POOL_SIZE", "1")
+    monkeypatch.setenv("DB_TIMEOUT_SECONDS", "1")
+    monkeypatch.setenv("JWT_SECRET", key)
+    monkeypatch.setenv("T17_CURSOR_KEY", "T17-local-postgres-cursor-test-key-only-0123456")
+    get_settings.cache_clear()
+    try:
+        now = datetime.now(timezone.utc)
+        with engine.begin() as connection:
+            owner = connection.scalar(text("SELECT user_id FROM career.users WHERE status='active' ORDER BY user_id LIMIT 1"))
+            assert owner is not None
+            connection.execute(text(
+                "INSERT INTO career.auth_sessions "
+                "(session_id,user_id,refresh_token_hash,created_at,expires_at) "
+                "VALUES (:sid,:owner,:hash,:now,:expires)"
+            ), {"sid": sid, "owner": owner, "hash": "test-only-" + sid.hex,
+                "now": now, "expires": now + timedelta(hours=1)})
+        token = issue_access_token(key, owner, sid, [], 900)
+        app = create_app()
+        with TestClient(app) as client:
+            for path in ["/api/v1/job-roles?limit=1", "/api/v1/skills?q=python"]:
+                response = client.get(path, headers={"Authorization": f"Bearer {token}"})
+                assert response.status_code == 200, response.text
+            role_id = client.get("/api/v1/job-roles?limit=1").json()["items"][0]["job_role_id"]
+            assert client.get(f"/api/v1/job-roles/{role_id}", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    finally:
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM career.auth_sessions WHERE session_id=:sid"), {"sid": sid})
+        finally:
+            engine.dispose()
+            get_settings.cache_clear()

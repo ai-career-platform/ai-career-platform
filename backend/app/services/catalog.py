@@ -39,12 +39,14 @@ class CatalogService:
             raw = base64.b64decode(
                 token + "=" * (-len(token) % 4), altchars=b"-_", validate=True
             )
+            if base64.urlsafe_b64encode(raw).decode().rstrip("=") != token:
+                raise ValueError
             signature, payload = raw[:32], raw[32:]
             expected = hmac.digest(self._cursor_key, payload, "sha256")
             if not hmac.compare_digest(signature, expected):
                 raise ValueError
             version, saved_q, name_hash, role_id = json.loads(payload)
-            if version != 1 or saved_q != self._digest(q):
+            if type(version) is not int or version != 1 or saved_q != self._digest(q):
                 raise ValueError
             anchor = self.repository.get_job_role(UUID(role_id))
             if anchor is None or name_hash != self._digest(anchor.name):

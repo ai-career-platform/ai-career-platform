@@ -173,3 +173,22 @@ def test_cursor_long_unicode_and_changed_anchor(service):
     with pytest.raises(AppError) as exc:
         service.list_job_roles(JobRoleQuery(q=q, cursor=page.next_cursor))
     assert exc.value.code == ErrorCode.INVALID_CURSOR
+
+
+def test_noncanonical_cursor_rejected(service):
+    token = service.list_job_roles(JobRoleQuery(limit=1)).next_cursor
+    with pytest.raises(AppError) as exc:
+        service.list_job_roles(JobRoleQuery(cursor=token + "="))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR
+
+
+def test_renamed_anchor_rejected_instead_of_silently_skipping(service):
+    first = service.list_job_roles(JobRoleQuery(limit=1))
+    anchor = first.items[0]
+    service.repository.roles = [
+        row.model_copy(update={"name": "Zzz"}) if row.job_role_id == anchor.job_role_id else row
+        for row in service.repository.roles
+    ]
+    with pytest.raises(AppError) as exc:
+        service.list_job_roles(JobRoleQuery(cursor=first.next_cursor))
+    assert exc.value.code == ErrorCode.INVALID_CURSOR

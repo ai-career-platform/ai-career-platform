@@ -11,6 +11,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 
 from app.core.auth_config import AuthSettings
 from app.core.security import AccessClaims
@@ -33,17 +34,36 @@ def get_optional_catalog_claims(
     return get_access_claims(credentials, settings)
 
 
-def get_optional_catalog_auth_repository(
+def get_optional_catalog_session(
     request: Request,
     claims: Annotated[AccessClaims | None, Depends(get_optional_catalog_claims)],
-) -> Iterator[AuthRepository | None]:
+) -> Iterator[Session | None]:
     if claims is None:
         yield None
         return
     # Only authenticated requests acquire an auth DB session. T14 still owns
     # exception translation and cleanup on success and error.
     with contextmanager(get_db)(request) as session:
-        yield get_auth_repository(session)
+        yield session
+
+
+def get_optional_catalog_auth_repository(
+    session: Annotated[Session | None, Depends(get_optional_catalog_session)],
+) -> AuthRepository | None:
+    return get_auth_repository(session) if session is not None else None
+
+
+def get_catalog_db(
+    request: Request,
+    authenticated_session: Annotated[Session | None, Depends(get_optional_catalog_session)],
+) -> Iterator[Session]:
+    # FastAPI caches the optional-session dependency within one request, so
+    # authenticated reads reuse the session which performed the T15 checks.
+    if authenticated_session is not None:
+        yield authenticated_session
+        return
+    with contextmanager(get_db)(request) as session:
+        yield session
 
 
 def get_optional_catalog_user(
