@@ -4,7 +4,7 @@ import { ApiError, apiRequest } from '../api/client';
 import type { ApiRequestOptions } from '../api/client';
 import { forgetSession, rememberSession, shouldKeepSession } from './loginPreferences';
 import { AuthContext } from './useAuth';
-import type { AuthState } from './useAuth';
+import type { AuthState, AuthUser } from './useAuth';
 
 interface TokenResponse {
   access_token: string;
@@ -72,6 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
+  const updateUser = useCallback((changes: Partial<AuthUser>) => {
+    setState((prev) =>
+      prev.status === 'authenticated' ? { ...prev, user: { ...prev.user, ...changes } } : prev,
+    );
+  }, []);
+
   const request = useCallback(
     async <T,>(path: string, options: ApiRequestOptions = {}) => {
       try {
@@ -84,6 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
-  const value = useMemo(() => ({ state, login, logout, request }), [state, login, logout, request]);
+  const value = useMemo(
+    () => ({ state, login, logout, updateUser, request }),
+    [state, login, logout, updateUser, request],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -20,6 +20,7 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: Req
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
     logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
+    updateUser: vi.fn<AuthContextValue['updateUser']>(),
     request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
   };
   const view = render(<AuthContext.Provider value={value}><MemoryRouter initialEntries={['/me/skills']}>

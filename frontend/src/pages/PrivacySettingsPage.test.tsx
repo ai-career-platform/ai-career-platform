@@ -16,7 +16,7 @@ function show(anonymous = false, customRequest?: AuthContextValue['request']) {
   const value: AuthContextValue = {
     state: anonymous ? { status: 'anonymous' } : { status: 'authenticated', token: 'mock-access-user@example.com',
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
-    login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined), logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
+    login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
   };
   render(<AuthContext.Provider value={value}><MemoryRouter initialEntries={['/account/privacy']}>
     <Routes><Route element={<Outlet />}><Route element={<RequireAuth />}>

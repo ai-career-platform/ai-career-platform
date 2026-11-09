@@ -7,7 +7,7 @@ import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './MyCareerWor
 
 const role = { job_role_id: '11111111-1111-4111-8111-111111111111', code: 'backend', name: '백엔드 개발자' };
 function renderPage(page: React.ReactNode, request: AuthContextValue['request']) {
-  const value: AuthContextValue = { state: { status: 'authenticated', token: 'token', user: { email: 'user@example.com', displayName: '사용자', roles: ['job_seeker'] } }, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), request };
+  const value: AuthContextValue = { state: { status: 'authenticated', token: 'token', user: { email: 'user@example.com', displayName: '사용자', roles: ['job_seeker'] } }, login: vi.fn<AuthContextValue['login']>(), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>(), request };
   return render(<AuthContext.Provider value={value}>{page}</AuthContext.Provider>);
 }
 
