@@ -160,6 +160,12 @@ describe('recommendations mock', () => {
     await expect(post({ feedback: 'liked' })).rejects.toMatchObject({ status: 422 });
     await expect(post({ job_posting_id: posting, feedback: 'liked', user_id: 'x' })).rejects.toMatchObject({ status: 422 });
     await expect(post({ recommendation_run_id: null, job_posting_id: posting, feedback: 'liked' })).rejects.toMatchObject({ status: 422 });
+    // OpenAPI Uuid 형식이 아니면 소유권 확인(404) 전에 422 (T47 pydantic UUID 와 같게)
+    await expect(post({ job_posting_id: 'x', feedback: 'liked' })).rejects.toMatchObject({ status: 422, code: 'VALIDATION_FAILED' });
+    await expect(post({ recommendation_run_id: 'x', job_posting_id: posting, feedback: 'liked' })).rejects.toMatchObject({
+      status: 422,
+      code: 'VALIDATION_FAILED',
+    });
     await expect(post({ job_posting_id: '00000000-0000-4000-8000-000000000999', feedback: 'liked' })).rejects.toMatchObject({ status: 404 });
     await expect(
       post({ recommendation_run_id: '00000000-0000-4000-8000-000000000fff', job_posting_id: posting, feedback: 'liked' }),

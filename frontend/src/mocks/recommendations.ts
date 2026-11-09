@@ -65,8 +65,11 @@ export interface RecommendationMockScenario {
   latest: 'personalized' | 'none' | 'fallback' | 'error' | 'unauthorized';
   /** POST 응답: 맞춤 추천 / 기준 추천 / 계산 실패 / 서버 오류(500) */
   create: 'completed' | 'fallback' | 'failed' | 'error';
-  /** POST /recommendation-feedback 응답: 저장(201) / 서버 오류(500) / 세션 만료(401) (T48) */
-  feedback: 'saved' | 'error' | 'unauthorized';
+  /**
+   * POST /recommendation-feedback 응답: 저장(201) / 서버 오류(500) / 세션 만료(401)
+   * / 내 추천에 없는 공고(404 NOT_FOUND) / 입력값 오류(422 VALIDATION_FAILED) (T48)
+   */
+  feedback: 'saved' | 'error' | 'unauthorized' | 'notFound' | 'invalid';
   /** GET /recommendation-runs/{id} 응답: 정상 / 서버 오류(500). 피드백 저장 후 재조회 실패 검증용 (T48) */
   runById: 'ok' | 'error';
 }
@@ -167,6 +170,10 @@ function createFor(email: string, body: unknown): RecommendationRun {
   return withFeedback(email, created);
 }
 
+/** OpenAPI `Uuid` (format: uuid). T47 Backend 는 pydantic UUID 로 검증해 형식이 틀리면 422 입니다. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (value: unknown): value is string => typeof value === 'string' && UUID_PATTERN.test(value);
+
 const FEEDBACK_KEYS = new Set(['recommendation_run_id', 'job_posting_id', 'feedback']);
 const FEEDBACK_VALUES: readonly RecommendationFeedbackChoice[] = ['liked', 'not_interested', 'cleared'];
 
@@ -176,12 +183,15 @@ function createFeedbackFor(email: string, body: unknown): RecommendationFeedback
   const input = body as Record<string, unknown>;
   if (Object.keys(input).some((key) => !FEEDBACK_KEYS.has(key))) return validationFailed();
   const { recommendation_run_id: runId, job_posting_id: postingId, feedback } = input;
-  if (typeof postingId !== 'string' || postingId === '') return validationFailed();
+  // 형식 검증(422)은 소유권·존재 확인(404)보다 먼저 합니다.
+  if (!isUuid(postingId)) return validationFailed();
   if (!FEEDBACK_VALUES.includes(feedback as RecommendationFeedbackChoice)) return validationFailed();
-  if ('recommendation_run_id' in input && typeof runId !== 'string') return validationFailed();
+  if ('recommendation_run_id' in input && !isUuid(runId)) return validationFailed();
 
   if (scenario.feedback === 'unauthorized') throw new ApiError(401, '', undefined, 'UNAUTHENTICATED');
   if (scenario.feedback === 'error') throw new ApiError(500, '');
+  if (scenario.feedback === 'invalid') return validationFailed();
+  if (scenario.feedback === 'notFound') return notFound();
 
   // 내 추천 실행에 있던 공고에만 남깁니다. 다른 사람 실행·없는 공고는 모두 404 (API_CONTRACT §1.3).
   const runs = visibleRuns(email);

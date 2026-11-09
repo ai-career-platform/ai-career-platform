@@ -22,6 +22,11 @@
   box-shadow: 0 20px 40px rgb(15 23 42 / 20%);
 }
 
+/* 안쪽 글자를 눌러 대화상자(tabIndex=-1)가 초점을 받을 때 테두리를 그리지 않습니다. */
+.recommendation-dialog:focus {
+  outline: none;
+}
+
 .recommendation-dialog-head {
   display: flex;
   align-items: flex-start;

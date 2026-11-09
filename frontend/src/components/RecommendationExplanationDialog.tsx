@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
-import type { KeyboardEvent, RefObject } from 'react';
+import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { RecommendationItem, RecommendationRun } from '../api/recommendations';
 import { Button } from './Button';
@@ -24,6 +24,8 @@ type RecommendationExplanationDialogProps = {
 /**
  * 추천 설명 대화상자 (F-018, UI-017). 추천 이유·계산 기준·점수 의미·부족 역량 안내를 보여줍니다.
  * - 열리면 닫기 버튼으로 초점을 옮기고, Tab 은 대화상자 안에서만 돕니다. Esc·바깥 클릭·닫기로 닫힙니다.
+ *   키 처리는 document 에 걸어 두어, 안쪽 글자를 눌러 초점이 대화상자 밖(body)으로 나가도 Esc·Tab 가두기가 유지됩니다.
+ *   대화상자 자체도 tabIndex=-1 이라 안쪽을 누르면 초점이 대화상자에 머뭅니다.
  * - 닫히면 대화상자를 연 버튼으로 초점을 돌려줍니다.
  * - 부족 역량은 RecommendationItem 계약에 항목이 없으므로 만들어 내지 않고 "추후 제공" 상태로 표시합니다.
  */
@@ -39,25 +41,42 @@ export function RecommendationExplanationDialog({ item, run, onClose, returnFocu
     return () => opener?.focus();
   }, [returnFocusRef]);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab' || !dialogRef.current) return;
-    const focusables = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
+  // 최신 onClose 를 document 리스너에서 쓰기 위해 ref 로 둡니다(리스너를 매번 다시 걸지 않도록).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      const active = document.activeElement;
+      // 초점이 대화상자 밖(body 등)이나 대화상자 자체에 있으면 안쪽 처음/마지막 요소로 되돌립니다.
+      if (!(active instanceof HTMLElement) || active === dialog || !dialog.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const personalized = run.status === 'completed';
   const title = item.job_posting.title;
@@ -77,7 +96,7 @@ export function RecommendationExplanationDialog({ item, run, onClose, returnFocu
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        onKeyDown={handleKeyDown}
+        tabIndex={-1}
       >
         <header className="recommendation-dialog-head">
           <h2 id={titleId}>{title} 추천 설명</h2>

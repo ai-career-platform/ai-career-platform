@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ApiError } from '../api/errors';
 import {
   applyFeedbackToRun,
   createRecommendationFeedback,
@@ -24,6 +25,12 @@ const savedMessages: Record<RecommendationFeedbackChoice, string> = {
   cleared: '피드백을 취소했어요.',
 };
 
+/** 저장 실패 상태. retryable=false 는 같은 본문을 다시 보내도 실패하는 경우(404·422)입니다. */
+type FeedbackFailure = { choice: RecommendationFeedbackChoice; retryable: boolean };
+
+/** 404 NOT_FOUND(내 추천에 없는 공고·실행)·422 VALIDATION_FAILED 는 다시 보내도 같은 결과라 다시 시도를 주지 않습니다. */
+const isRetryable = (error: unknown) => !(error instanceof ApiError && (error.status === 404 || error.status === 422));
+
 type RecommendationFeedbackActionsProps = {
   item: RecommendationItem;
   run: RecommendationRun;
@@ -37,13 +44,14 @@ type RecommendationFeedbackActionsProps = {
  *   눌린 버튼을 다시 누르거나 "피드백 취소"를 누르면 cleared 를 보내 정정합니다.
  * - 저장 중에는 버튼을 막아 중복 전송을 막고, 저장 후 GET /recommendation-runs/{id} 로 다시 조회해 저장된 상태를 보여줍니다.
  *   재조회만 실패하면 저장 응답으로 화면을 맞춥니다.
+ * - 저장 실패: 5xx·네트워크 오류는 다시 시도를 주고, 404·422 는 다시 보내도 실패하므로 새 추천을 받도록 안내만 합니다.
  * - 피드백은 내 다음 추천을 개선하는 데에만 씁니다.
  */
 export function RecommendationFeedbackActions({ item, run, onRunChange }: RecommendationFeedbackActionsProps) {
   const { request } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, setPending] = useState<RecommendationFeedbackChoice | null>(null);
-  const [failed, setFailed] = useState<RecommendationFeedbackChoice | null>(null);
+  const [failed, setFailed] = useState<FeedbackFailure | null>(null);
   const [message, setMessage] = useState('');
   // 상태 갱신 전에 빠르게 두 번 눌러도 한 번만 보내도록 ref 로도 막습니다.
   const inFlight = useRef(false);
@@ -72,8 +80,8 @@ export function RecommendationFeedbackActions({ item, run, onRunChange }: Recomm
       }
       onRunChange(next);
       setMessage(savedMessages[saved.feedback]);
-    } catch {
-      setFailed(choice);
+    } catch (error) {
+      setFailed({ choice, retryable: isRetryable(error) });
     } finally {
       inFlight.current = false;
       setPending(null);
@@ -123,10 +131,21 @@ export function RecommendationFeedbackActions({ item, run, onRunChange }: Recomm
 
       {failed !== null && (
         <div className="recommendation-feedback-error" role="alert">
-          <span>피드백을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</span>
-          <button type="button" className="recommendation-feedback-retry" onClick={() => void submit(failed)} disabled={pending !== null}>
-            다시 시도
-          </button>
+          {failed.retryable ? (
+            <>
+              <span>피드백을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</span>
+              <button
+                type="button"
+                className="recommendation-feedback-retry"
+                onClick={() => void submit(failed.choice)}
+                disabled={pending !== null}
+              >
+                다시 시도
+              </button>
+            </>
+          ) : (
+            <span>이 공고에는 피드백을 남길 수 없습니다. 추천을 새로 받아 주세요.</span>
+          )}
         </div>
       )}
 

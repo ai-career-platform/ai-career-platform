@@ -130,6 +130,24 @@ describe('추천 피드백 버튼 (T48, FR-ANL-004)', () => {
     expect(feedbackPosts().map((entry) => (entry.body as { feedback: string }).feedback)).toEqual(['not_interested', 'not_interested']);
   });
 
+  it.each([
+    ['notFound', 404],
+    ['invalid', 422],
+  ] as const)('shows a non-retryable message without a retry button when saving answers %s (%i)', async (feedback, _status) => {
+    setRecommendationMockScenario({ feedback });
+    await openRecommendations();
+
+    fireEvent.click(toggle(TITLE_1, '관심 있음'));
+    const alert = await card(TITLE_1).findByRole('alert');
+    expect(alert).toHaveTextContent('이 공고에는 피드백을 남길 수 없습니다. 추천을 새로 받아 주세요.');
+    expect(alert).not.toHaveTextContent('잠시 후 다시 시도해 주세요');
+    expect(card(TITLE_1).queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+    expect(toggle(TITLE_1, '관심 있음')).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle(TITLE_1, '관심 있음')).toBeEnabled();
+    expect(feedbackPosts()).toHaveLength(1);
+    expect(runGets()).toHaveLength(0);
+  });
+
   it('falls back to the saved response when only the re-fetch fails', async () => {
     setRecommendationMockScenario({ runById: 'error' });
     await openRecommendations();
@@ -213,6 +231,36 @@ describe('추천 설명 대화상자 (T48, F-018)', () => {
     expect(footerClose).toHaveFocus();
     fireEvent.keyDown(dialog, { key: 'Tab' });
     expect(close).toHaveFocus();
+  });
+
+  it('keeps Escape and the Tab trap working after focus leaves to the body (clicking plain text)', async () => {
+    await openRecommendations();
+    const { trigger, dialog } = openDialog();
+    const close = within(dialog).getByRole('button', { name: '추천 설명 닫기' });
+    const footerClose = within(dialog).getByRole('button', { name: '닫기' });
+
+    // 대화상자는 tabIndex=-1 이라 안쪽 글자를 눌러도 초점을 받을 수 있다
+    expect(dialog).toHaveAttribute('tabindex', '-1');
+
+    // 초점이 body 로 빠져도 Tab·Shift+Tab 은 대화상자 안으로 되돌아온다
+    close.blur();
+    expect(document.body).toHaveFocus();
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    expect(close).toHaveFocus();
+    close.blur();
+    fireEvent.keyDown(document.body, { key: 'Tab', shiftKey: true });
+    expect(footerClose).toHaveFocus();
+
+    // 대화상자 자체에 초점이 있을 때도 Tab 은 첫 요소로 간다
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(close).toHaveFocus();
+
+    // body 에서 Esc 를 눌러도 닫히고 연 버튼으로 초점이 돌아온다
+    close.blur();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it('closes with the close button and with a backdrop click', async () => {
