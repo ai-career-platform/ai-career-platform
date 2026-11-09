@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { useApi } from '../api/ApiContext';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
@@ -99,7 +100,8 @@ function TextArea({ label, error, ...props }: { label: string; error?: string } 
 
 /** 내 프로필 보기·수정 화면 (UI-003). 항상 로그인한 본인의 /me 만 다루고 사용자 ID 는 받지 않습니다. */
 export function ProfilePage() {
-  const { request, updateUser } = useAuth();
+  const { updateUser } = useAuth();
+  const { me: { profile } } = useApi();
   const [email, setEmail] = useState('');
   const [saved, setSaved] = useState<FormValues | null>(null);
   const [values, setValues] = useState<FormValues | null>(null);
@@ -119,13 +121,13 @@ export function ProfilePage() {
 
   useEffect(() => {
     let cancelled = false;
-    request<Me>('/v1/me')
+    profile.get()
       .then((me) => !cancelled && apply(me))
       .catch(() => !cancelled && setLoadFailed(true));
     return () => {
       cancelled = true;
     };
-  }, [request, apply]);
+  }, [profile, apply]);
 
   if (loadFailed) {
     return (
@@ -138,7 +140,7 @@ export function ProfilePage() {
             actionLabel="다시 시도"
             onAction={() => {
               setLoadFailed(false);
-              request<Me>('/v1/me').then(apply, () => setLoadFailed(true));
+              profile.get().then(apply, () => setLoadFailed(true));
             }}
           />
         </div>
@@ -191,8 +193,8 @@ export function ProfilePage() {
 
     setSaving(true);
     try {
-      await request('/v1/me', { method: 'PATCH', body: patch });
-      const fresh = await request<Me>('/v1/me'); // 저장 후 서버 값으로 다시 조회
+      await profile.update(patch);
+      const fresh = await profile.get(); // 저장 후 서버 값으로 다시 조회
       apply(fresh);
       updateUser({ displayName: fresh.display_name });
       setEditing(false);

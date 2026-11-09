@@ -10,11 +10,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { ApiError } from '../api/client';
+import { useApi } from '../api/ApiContext';
 import {
-  MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, listMySkills, proficiencyLabels, replaceMySkills, searchSkills,
+  MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, proficiencyLabels,
   type Proficiency, type Skill, type UserSkill,
 } from '../api/skills';
-import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
 import { env } from '../config/env';
@@ -35,7 +35,7 @@ const sameSkills = (a: UserSkill[], b: UserSkill[]) =>
   a.length === b.length && a.every((x, i) => x.skill.skill_id === b[i]!.skill.skill_id && x.proficiency === b[i]!.proficiency);
 
 export function MySkillsPage() {
-  const { request } = useAuth();
+  const api = useApi();
   const [saved, setSaved] = useState<UserSkill[]>([]);
   const [draft, setDraft] = useState<UserSkill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,10 +53,10 @@ export function MySkillsPage() {
   const listboxId = useId();
   const inputId = useId();
 
-  const load = useCallback(() => listMySkills(request).then(
+  const load = useCallback(() => api.me.skills.list().then(
     list => { setSaved(list); setDraft(list); setLoadError(''); },
     e => { setLoadError(errorMessage(e, '내 기술을 불러오지 못했습니다.')); },
-  ).finally(() => setLoading(false)), [request]);
+  ).finally(() => setLoading(false)), [api]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -69,7 +69,7 @@ export function MySkillsPage() {
     // 검색어가 바뀌면 이전 요청은 폐기한다. 이미 보낸 요청이 늦게 돌아와도(성공·실패 모두) 상태를 덮어쓰지 않는다.
     const obsolete = new AbortController();
     const timer = setTimeout(() => {
-      searchSkills(request, trimmed).then(
+      api.skills.search({ q: trimmed, limit: 10 }, obsolete.signal).then(
         r => {
           if (obsolete.signal.aborted) return;
           setSearch({ q: trimmed, items: r.items, failed: false }); setActive(r.items.length ? 0 : -1);
@@ -78,7 +78,7 @@ export function MySkillsPage() {
       );
     }, SEARCH_DELAY_MS);
     return () => { clearTimeout(timer); obsolete.abort(); };
-  }, [request, trimmed, searchable]);
+  }, [api, trimmed, searchable]);
   const current = search.q === trimmed ? search : null;
   const results = current?.items ?? [];
   const searchStatus: 'idle' | 'loading' | 'done' | 'error' =
@@ -129,7 +129,7 @@ export function MySkillsPage() {
     if (saving || !dirty) return;
     setSaving(true); setError(''); setNotice('');
     try {
-      const result = await replaceMySkills(request, {
+      const result = await api.me.skills.replace({
         items: draft.map(s => ({ skill_id: s.skill.skill_id, proficiency: s.proficiency })),
       });
       setSaved(result); setDraft(result); setHint('');

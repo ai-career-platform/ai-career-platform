@@ -3,26 +3,29 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '../auth/useAuth';
 import { RequireAuth } from '../auth/RequireAuth';
-import { apiRequest, type ApiRequestOptions } from '../api/client';
+import { mockHttp, type RequestFn } from '../test/api';
+import { WithApi } from '../test/WithApi';
 import { resetPrivacyMocks } from '../mocks/privacy';
 import { PrivacySettingsPage } from './PrivacySettingsPage';
 
 const mode = vi.hoisted(() => ({ mock: true }));
 vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', get mockEnabled() { return mode.mock; } } }));
 
-function show(anonymous = false, customRequest?: AuthContextValue['request']) {
-  const request = vi.fn<(path: string, options?: ApiRequestOptions) => Promise<unknown>>(customRequest ?? (<T,>(path: string, options: ApiRequestOptions = {}) =>
-    apiRequest<T>(path, { ...options, token: 'mock-access-user@example.com', mockEnabled: true })));
+const user = mockHttp('mock-access-user@example.com');
+const viaMock: RequestFn = (path, options) => user.request(path, options);
+
+function show(anonymous = false, customRequest?: RequestFn) {
+  const request = vi.fn<RequestFn>(customRequest ?? viaMock);
   const value: AuthContextValue = {
     state: anonymous ? { status: 'anonymous' } : { status: 'authenticated', token: 'mock-access-user@example.com',
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
-    login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
+    login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
   };
-  render(<AuthContext.Provider value={value}><MemoryRouter initialEntries={['/account/privacy']}>
+  render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/account/privacy']}>
     <Routes><Route element={<Outlet />}><Route element={<RequireAuth />}>
       <Route path="/account/privacy" element={<PrivacySettingsPage />} />
     </Route><Route path="/login" element={<h1>로그인 필요</h1>} /></Route></Routes>
-  </MemoryRouter></AuthContext.Provider>);
+  </MemoryRouter></WithApi></AuthContext.Provider>);
   return request;
 }
 
@@ -85,7 +88,7 @@ describe('T32 privacy settings (Mock, not PostgreSQL evidence)', () => {
   });
 
   it('shows pending request and supports cancellation only in Mock mode', async () => {
-    await apiRequest('/v1/me/deletion-request', { method: 'POST', body: { confirmation: 'DELETE' }, token: 'mock-access-user@example.com', mockEnabled: true });
+    await user.request('/v1/me/deletion-request', { method: 'POST', body: { confirmation: 'DELETE' } });
     const request = show(); await ready();
     fireEvent.click(screen.getByRole('button', { name: '요청 취소 (Mock)' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '취소 확인' }));
@@ -95,16 +98,16 @@ describe('T32 privacy settings (Mock, not PostgreSQL evidence)', () => {
 
   it('does not expose an unsupported real cancellation button', async () => {
     mode.mock = false;
-    await apiRequest('/v1/me/deletion-request', { method: 'POST', body: { confirmation: 'DELETE' }, token: 'mock-access-user@example.com', mockEnabled: true });
+    await user.request('/v1/me/deletion-request', { method: 'POST', body: { confirmation: 'DELETE' } });
     show(); await ready();
     expect(screen.queryByRole('button', { name: /요청 취소/ })).not.toBeInTheDocument();
     expect(screen.getByText(/현재 실제 탈퇴 취소는 지원하지 않습니다/)).toBeInTheDocument();
   });
 
   it('keeps confirmation input and existing cards when a mutation fails', async () => {
-    show(false, <T,>(path: string, options: ApiRequestOptions = {}) => options.method === 'POST'
+    show(false, (path, options = {}) => options.method === 'POST'
       ? Promise.reject(new Error('synthetic failure'))
-      : apiRequest<T>(path, { ...options, token: 'mock-access-user@example.com', mockEnabled: true }));
+      : viaMock(path, options));
     await ready();
     fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴 요청' }));
     fireEvent.change(screen.getByLabelText('확인 문구'), { target: { value: 'DELETE' } });
@@ -122,9 +125,9 @@ describe('T32 privacy settings (Mock, not PostgreSQL evidence)', () => {
 
   it('keeps focus inside a pending modal with no enabled controls', async () => {
     let finish!: (value: unknown) => void;
-    show(false, <T,>(path: string, options: ApiRequestOptions = {}) => options.method === 'POST'
-      ? new Promise<T>(resolve => { finish = resolve as (value: unknown) => void; })
-      : apiRequest<T>(path, { ...options, token: 'mock-access-user@example.com', mockEnabled: true }));
+    show(false, (path, options = {}) => options.method === 'POST'
+      ? new Promise(resolve => { finish = resolve; })
+      : viaMock(path, options));
     await ready();
     fireEvent.click(within(screen.getByRole('article', { name: 'AI 처리' })).getByRole('button'));
     fireEvent.click(screen.getByRole('button', { name: '변경 확인' }));
@@ -137,9 +140,9 @@ describe('T32 privacy settings (Mock, not PostgreSQL evidence)', () => {
   });
 
   it('keeps Mock users isolated and rejects anonymous access', async () => {
-    await apiRequest('/v1/me/consents', { method: 'POST', body: { policy_code: 'llm_processing', policy_version: '2026-11', granted: false }, token: 'mock-access-user@example.com', mockEnabled: true });
-    const admin = await apiRequest<Array<{policy_code:string;granted:boolean}>>('/v1/me/consents', { token: 'mock-access-admin@example.com', mockEnabled: true });
+    await user.request('/v1/me/consents', { method: 'POST', body: { policy_code: 'llm_processing', policy_version: '2026-11', granted: false } });
+    const admin = await mockHttp('mock-access-admin@example.com').request<Array<{policy_code:string;granted:boolean}>>('/v1/me/consents');
     expect(admin.find(c => c.policy_code === 'llm_processing')?.granted).toBe(true);
-    await expect(apiRequest('/v1/me/consents', { mockEnabled: true })).rejects.toMatchObject({ status: 401 });
+    await expect(mockHttp().request('/v1/me/consents')).rejects.toMatchObject({ status: 401 });
   });
 });

@@ -3,15 +3,16 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '../auth/useAuth';
 import { RequireAuth } from '../auth/RequireAuth';
-import { ApiError, apiRequest, type ApiRequestOptions } from '../api/client';
+import { ApiError } from '../api/client';
+import { createHttpClient } from '../api/http';
+import { mockHttp, type RequestFn } from '../test/api';
+import { WithApi } from '../test/WithApi';
 import { resetSkillsMocks } from '../mocks/skills';
 import { MySkillsPage } from './MySkillsPage';
 
 vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true } }));
 
-type RequestFn = (path: string, options?: ApiRequestOptions) => Promise<unknown>;
-const viaMock: RequestFn = (path, options = {}) =>
-  apiRequest(path, { ...options, token: 'mock-access-user@example.com', mockEnabled: true });
+const viaMock: RequestFn = (path, options = {}) => mockHttp('mock-access-user@example.com').request(path, options);
 
 function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: RequestFn } = {}) {
   const request = vi.fn<RequestFn>(custom ?? viaMock);
@@ -19,15 +20,13 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: Req
     state: anonymous ? { status: 'anonymous' } : { status: 'authenticated', token: 'mock-access-user@example.com',
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
-    logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
-    updateUser: vi.fn<AuthContextValue['updateUser']>(),
-    request: <T,>(path: string, options?: ApiRequestOptions) => request(path, options) as Promise<T>,
+    updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
   };
-  const view = render(<AuthContext.Provider value={value}><MemoryRouter initialEntries={['/me/skills']}>
+  const view = render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/me/skills']}>
     <Routes><Route element={<Outlet />}><Route element={<RequireAuth />}>
       <Route path="/me/skills" element={<MySkillsPage />} />
     </Route><Route path="/login" element={<h1>로그인 필요</h1>} /></Route></Routes>
-  </MemoryRouter></AuthContext.Provider>);
+  </MemoryRouter></WithApi></AuthContext.Provider>);
   return { request, view };
 }
 
@@ -254,7 +253,8 @@ describe('API client — PUT과 오류 문구', () => {
       { status: 422, headers: { 'Content-Type': 'application/json' } },
     ));
     const body = { items: [{ skill_id: 'a', proficiency: 2 }] };
-    await expect(apiRequest('/v1/me/skills', { method: 'PUT', body, token: 't', mockEnabled: false, fetchImpl }))
+    const http = createHttpClient({ baseUrl: '/api', fetch: fetchImpl, getToken: () => 't' });
+    await expect(http.request('/v1/me/skills', { method: 'PUT', body }))
       .rejects.toMatchObject({ status: 422, code: 'DUPLICATE_SKILL', userMessage: '같은 기술이 중복으로 들어 있습니다.' });
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(url).toBe('/api/v1/me/skills');

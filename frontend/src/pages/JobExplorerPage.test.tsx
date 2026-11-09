@@ -1,26 +1,24 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet } from '../api/client';
+import { ApiError } from '../api/client';
+import { WithApi } from '../test/WithApi';
 import { AuthContext } from '../auth/useAuth';
 import type { AuthContextValue, AuthState } from '../auth/useAuth';
 import { JobExplorerPage } from './JobExplorerPage';
 
-vi.mock('../api/client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/client')>()),
-  apiGet: vi.fn<typeof apiGet>(),
-}));
-const get = vi.mocked(apiGet);
+// 화면이 보낸 요청은 "경로 + 쿼리스트링" 한 줄로 받습니다. 공개 API 는 get, 내 정보(/v1/me) 는 request.
+const get = vi.fn<(path: string) => Promise<unknown>>();
 const request = vi.fn<(path: string) => Promise<unknown>>();
 
 const ANON: AuthState = { status: 'anonymous' };
 const MEMBER: AuthState = { status: 'authenticated', token: 't', user: { email: 'a@example.com', displayName: '테스터', roles: [] } };
 
 function renderPage(state: AuthState = ANON, url = '/job-roles') {
-  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>(), request: request as unknown as AuthContextValue['request'] };
+  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), updateUser: vi.fn<AuthContextValue['updateUser']>(), logout: vi.fn<AuthContextValue['logout']>() };
   return render(
     <MemoryRouter initialEntries={[url]}>
-      <AuthContext.Provider value={value}><JobExplorerPage /></AuthContext.Provider>
+      <AuthContext.Provider value={value}><WithApi request={(path) => (path.startsWith('/v1/me') ? request(path) : get(path))}><JobExplorerPage /></WithApi></AuthContext.Provider>
     </MemoryRouter>,
   );
 }
@@ -142,7 +140,7 @@ describe('my skills comparison (T33 /me/skills)', () => {
 describe('paging after search changes', () => {
   it('starts from page 1 again when the search returns to an earlier term', async () => {
     get.mockImplementation(((path: string) => Promise.resolve(path.includes('cursor=')
-      ? page([role('2', '둘째 쪽')]) : path.includes('q=') ? page([]) : page([role('1', '첫 직무')], 'next'))) as typeof apiGet);
+      ? page([role('2', '둘째 쪽')]) : path.includes('q=') ? page([]) : page([role('1', '첫 직무')], 'next'))) as typeof get);
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: '다음' }));
     expect(await screen.findByText('둘째 쪽')).toBeInTheDocument();

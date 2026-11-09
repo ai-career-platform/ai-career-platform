@@ -13,6 +13,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "oxlint --deny-warnings",
+    "api:tools": "npm ci --prefix tools/openapi",
+    "gen:api": "tools/openapi/node_modules/.bin/openapi-typescript ../docs/api/openapi.yaml -o src/api/schema.gen.ts",
+    "check:api": "tools/openapi/node_modules/.bin/openapi-typescript ../docs/api/openapi.yaml -o src/api/schema.gen.ts --check",
     "test": "vitest run",
     "test:watch": "vitest"
   },
