@@ -39,14 +39,13 @@ export function JobPostingsPage() {
 
   useEffect(() => {
     let active = true;
-    void attempt; // Retry is an explicit request trigger.
     const params = new URLSearchParams({ limit: '20', sort, include_closed: String(includeClosed) });
     if (query) params.set('q', query);
     if (companyId) params.set('company_id', companyId);
     if (roleId) params.set('job_role_id', roleId);
     const cursor = cursors[cursors.length - 1];
     if (cursor) params.set('cursor', cursor);
-    apiGet<Page>(`/v1/job-postings?${params}`).then(
+    Promise.resolve(attempt).then(() => apiGet<Page>(`/v1/job-postings?${params}`)).then(
       data => { if (active) { setPage(data); setError(false); } },
       () => { if (active) setError(true); },
     );
@@ -56,8 +55,7 @@ export function JobPostingsPage() {
     let active = true;
     const params = new URLSearchParams({ limit: '20' });
     if (companyQuery.trim()) params.set('q', companyQuery.trim());
-    void optionsAttempt; // Retry is an explicit request trigger.
-    apiGet<Options<Company>>(`/v1/companies?${params}`).then(
+    Promise.resolve(optionsAttempt).then(() => apiGet<Options<Company>>(`/v1/companies?${params}`)).then(
       data => { if (active) setCompanies(data); },
       () => { if (active) setCompanyError(true); },
     );
@@ -67,8 +65,7 @@ export function JobPostingsPage() {
     let active = true;
     const params = new URLSearchParams({ limit: '20' });
     if (roleQuery.trim()) params.set('q', roleQuery.trim());
-    void optionsAttempt; // Retry is an explicit request trigger.
-    apiGet<Options<Role>>(`/v1/job-roles?${params}`).then(
+    Promise.resolve(optionsAttempt).then(() => apiGet<Options<Role>>(`/v1/job-roles?${params}`)).then(
       data => { if (active) setRoles(data); },
       () => { if (active) setRoleError(true); },
     );
@@ -76,9 +73,8 @@ export function JobPostingsPage() {
   }, [roleQuery, optionsAttempt]);
   useEffect(() => {
     if (!selected) return;
-    void detailAttempt; // Retry is an explicit request trigger.
     let active = true;
-    apiGet<Detail>(`/v1/job-postings/${encodeURIComponent(selected)}`).then(
+    Promise.resolve(detailAttempt).then(() => apiGet<Detail>(`/v1/job-postings/${encodeURIComponent(selected)}`)).then(
       data => { if (active) { setDetail(data); setDetailError(false); } },
       () => { if (active) setDetailError(true); },
     );
