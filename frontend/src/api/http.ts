@@ -16,6 +16,8 @@ export interface HttpRequest {
    * null을 넘기면 토큰 없이 보냅니다 (로그인·refresh 처럼).
    */
   token?: string | null;
+  /** 'blob'이면 성공 응답 본문을 Blob 으로 돌려줍니다(인증된 파일 다운로드). 기본 'json' */
+  responseType?: 'json' | 'blob';
 }
 
 export interface HttpClient {
@@ -60,12 +62,14 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
   const baseUrl = config.baseUrl.replace(/\/$/, '');
 
   async function request<T>(path: string, init: HttpRequest = {}): Promise<T> {
-    const { method = 'GET', query, body, signal } = init;
+    const { method = 'GET', query, body, signal, responseType = 'json' } = init;
     const token = init.token !== undefined ? init.token : config.getToken?.();
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    // FormData(파일 업로드)는 브라우저가 boundary 를 포함한 multipart Content-Type 을 정하도록 직접 지정하지 않습니다.
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    const headers: Record<string, string> = { Accept: responseType === 'blob' ? '*/*' : 'application/json' };
     // CSRF 보호(OWASP custom-header): 외부 페이지의 HTML form 은 이 헤더를 보낼 수 없습니다. 비밀값이 아닙니다.
     if (method !== 'GET') headers[CSRF_HEADER] = '1';
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const fetchImpl = config.fetch ?? globalThis.fetch;
@@ -74,7 +78,7 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
       response = await fetchImpl(`${baseUrl}${path}${buildQuery(query)}`, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
         cache: 'no-store',
         credentials: 'same-origin',
         signal,
@@ -92,6 +96,14 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
       );
       if (response.status === 401) config.onUnauthorized?.(error);
       throw error;
+    }
+    if (responseType === 'blob') {
+      try {
+        return (await response.blob()) as T;
+      } catch (error) {
+        if (isAbort(error)) throw error;
+        throw new ApiError(0, path, 'Network error');
+      }
     }
     // 204 No Content 등 본문이 없는 성공 응답
     return (await response.json().catch(() => undefined)) as T;
