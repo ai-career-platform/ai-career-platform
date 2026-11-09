@@ -163,19 +163,20 @@ describe('RecommendationsPage (UI-017)', () => {
   it('filters cards by my feedback state on the client', async () => {
     await openRecommendations();
     await list();
+    const filters = within(screen.getByRole('group', { name: '피드백 상태로 거르기' }));
 
-    fireEvent.click(screen.getByRole('button', { name: '좋아요' }));
+    fireEvent.click(filters.getByRole('button', { name: '관심 있음' }));
     let items = await cards();
     expect(items).toHaveLength(1);
-    expect(within(at(items, 0)).getByText('좋아요 표시함')).toBeInTheDocument();
+    expect(within(at(items, 0)).getByText('관심 있음 표시함')).toBeInTheDocument();
     expect(screen.getByText('3개 중 1개 표시')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '피드백 없음' }));
+    fireEvent.click(filters.getByRole('button', { name: '피드백 없음' }));
     items = await cards();
     expect(items).toHaveLength(1);
     expect(within(at(items, 0)).getByText(/1위/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '전체' }));
+    fireEvent.click(filters.getByRole('button', { name: '전체' }));
     expect(await cards()).toHaveLength(3);
   });
 

@@ -10,37 +10,25 @@ import {
   findLatestRecommendationRun,
   RECOMMENDATION_LIMIT_DEFAULT,
 } from '../api/recommendations';
-import type { ModelKind, RecommendationItem, RecommendationRun, RecommendationRunStatus } from '../api/recommendations';
+import type { RecommendationItem, RecommendationRun } from '../api/recommendations';
+import {
+  feedbackButtonLabels,
+  formatModelVersion,
+  generatedAtFormat,
+  recommendationStatusLabels as statusLabels,
+} from '../components/recommendationLabels';
 import './RecommendationsPage.css';
-
-const statusLabels: Record<RecommendationRunStatus, string> = {
-  completed: '맞춤 추천',
-  fallback: '기준 추천 (개인화 아님)',
-  failed: '추천 실패',
-};
-
-const kindLabels: Record<ModelKind, string> = {
-  rule: '규칙 기반',
-  ml: '머신러닝 모델',
-  llm: '언어 모델',
-};
 
 type FeedbackFilter = 'all' | 'liked' | 'none' | 'not_interested';
 const filterOptions: { value: FeedbackFilter; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'liked', label: '좋아요' },
+  { value: 'liked', label: feedbackButtonLabels.liked },
   { value: 'none', label: '피드백 없음' },
-  { value: 'not_interested', label: '관심 없음' },
+  { value: 'not_interested', label: feedbackButtonLabels.not_interested },
 ];
 
 const matchesFilter = (item: RecommendationItem, filter: FeedbackFilter) =>
   filter === 'all' || (filter === 'none' ? item.feedback === null : item.feedback === filter);
-
-const generatedAtFormat = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Seoul',
-});
 
 type RecommendationsPageProps = {
   /**
@@ -97,6 +85,11 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
       setCreating(false);
     }
   };
+
+  // 피드백 저장 후 다시 조회한 추천을 반영합니다. 그 사이 새 추천을 받았다면 이전 실행 결과로 덮어쓰지 않습니다.
+  const applyRunChange = useCallback((next: RecommendationRun) => {
+    setRun((current) => (current && current.recommendation_run_id === next.recommendation_run_id ? next : current));
+  }, []);
 
   const visibleItems = run ? run.items.filter((item) => matchesFilter(item, filter)) : [];
 
@@ -161,7 +154,7 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
             <div>
               <dt>계산 기준</dt>
               <dd>
-                {run.model_version.model_code} v{run.model_version.version} ({kindLabels[run.model_version.kind]})
+                {formatModelVersion(run.model_version)}
               </dd>
             </div>
             <div>
@@ -219,7 +212,7 @@ export function RecommendationsPage({ renderItemActions }: RecommendationsPagePr
                       <RecommendationCard
                         item={item}
                         personalized={run.status === 'completed'}
-                        actions={renderItemActions?.(item, run, setRun)}
+                        actions={renderItemActions?.(item, run, applyRunChange)}
                       />
                     </li>
                   ))}

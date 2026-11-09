@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
+import { RecommendationFeedbackActions } from './components/RecommendationFeedbackActions';
 import { AppLayout } from './layouts/AppLayout';
 import { AccountPage } from './pages/AccountPage';
 import { HomePage } from './pages/HomePage';
@@ -32,7 +33,17 @@ export const routes: RouteObject[] = [
         children: [
           { path: 'account', element: <AccountPage /> },
           // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
-          { path: 'recommendations', element: <RecommendationsPage /> },
+          // 카드별 추천 설명 대화상자·피드백 버튼(F-018)은 T48 RecommendationFeedbackActions 로 연결합니다.
+          {
+            path: 'recommendations',
+            element: (
+              <RecommendationsPage
+                renderItemActions={(item, run, onRunChange) => (
+                  <RecommendationFeedbackActions item={item} run={run} onRunChange={onRunChange} />
+                )}
+              />
+            ),
+          },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

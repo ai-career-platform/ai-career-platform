@@ -1,0 +1,66 @@
+.recommendation-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.recommendation-feedback-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recommendation-feedback-toggle,
+.recommendation-feedback-clear,
+.recommendation-feedback-retry {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.recommendation-feedback-toggle[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: #eaf1ff;
+  font-weight: 700;
+}
+
+.recommendation-feedback-clear {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.recommendation-feedback-toggle:disabled,
+.recommendation-feedback-clear:disabled,
+.recommendation-feedback-retry:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.recommendation-feedback-status,
+.recommendation-feedback-note {
+  width: 100%;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.recommendation-feedback-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  color: var(--color-danger);
+  font-size: 13px;
+}

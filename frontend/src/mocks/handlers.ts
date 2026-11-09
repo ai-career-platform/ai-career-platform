@@ -64,7 +64,7 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
 
 /** 로그인이 필요한 도메인 Mock. 경로가 맞으면 먼저 토큰을 확인합니다(없으면 401). */
 function resolveAuthed(path: string, { method, body, token }: MockRequest): unknown {
-  if (path.startsWith('/v1/recommendation-runs')) {
+  if (path.startsWith('/v1/recommendation-runs') || path === '/v1/recommendation-feedback') {
     return resolveRecommendationMock(path, method, body, authedUser(token).email);
   }
   return null;

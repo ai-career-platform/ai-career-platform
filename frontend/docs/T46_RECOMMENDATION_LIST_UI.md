@@ -13,7 +13,7 @@
 - 추천 상태 표시: `completed`=맞춤 추천, `fallback`=기준 추천(개인화 아님) 배지와 원인 중립 안내 문구(계약상 fallback은 계산 실패 전반에서 생길 수 있음), `failed`=추천 실패와 다시 추천 받기 버튼
 - 접근성: 카드 제목은 `h2`(페이지 `h1` > 카드 `h2` > JobCard `h3`). 점수 숫자는 `aria-hidden`이고 스크린리더에는 `적합 점수 100점 만점에 N점`(공통 `.sr-only`, `src/styles/global.css`)으로 읽힌다. 고용 형태·마감 표시는 `관련 기술`이 아니라 `공고 정보` 목록으로 읽힌다(`JobCard`에 `tagsLabel` prop 추가, tags가 비면 목록을 그리지 않음)
 - 계산 기준(`model_code vversion (규칙 기반 등)`)과 생성 시각을 항상 표시한다. "AI의 확정 판단이 아님" 안내 문구를 함께 둔다
-- 클라이언트 필터: 피드백 상태(전체/좋아요/피드백 없음/관심 없음)
+- 클라이언트 필터: 피드백 상태(전체/관심 있음/피드백 없음/관심 없음. T48에서 `좋아요`를 `관심 있음`으로 바꿈)
 - 확장 지점: `RecommendationCard`의 `actions` 슬롯과 `RecommendationsPage`의 `renderItemActions(item, run, onRunChange)`. T48에서 설명 모달과 피드백 버튼을 여기에 연결한다
 
 ## 계약 매핑 (docs/api/openapi.yaml)

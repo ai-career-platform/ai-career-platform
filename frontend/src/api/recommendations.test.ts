@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MOCK_PASSWORD } from '../mocks/handlers';
+import { resetRecommendationMock } from '../mocks/recommendations';
 import { apiRequest } from './client';
 import type { ApiRequestOptions } from './client';
 import {
+  applyFeedbackToRun,
+  createRecommendationFeedback,
   createRecommendationRun,
   findLatestRecommendationRun,
   getRecommendationRun,
   jobPostingDetailPath,
 } from './recommendations';
-import type { AuthedRequest } from './recommendations';
+import type { AuthedRequest, RecommendationRun } from './recommendations';
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -65,6 +68,60 @@ describe('recommendations API client (OpenAPI contract)', () => {
     expect(fetchImpl.mock.calls[1]?.[0]).toBe('/api/v1/recommendation-runs/a%2Fb');
     expect(jobPostingDetailPath('x y')).toBe('/job-postings/x%20y');
   });
+
+  it('POST /api/v1/recommendation-feedback with RecommendationFeedbackInput (T48)', async () => {
+    const saved = {
+      feedback_id: '00000000-0000-4000-8000-000000000c01',
+      job_posting_id: '00000000-0000-4000-8000-000000000101',
+      feedback: 'liked',
+      created_at: '2026-11-09T02:01:00Z',
+    };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(201, saved));
+    const body = {
+      recommendation_run_id: run.recommendation_run_id,
+      job_posting_id: saved.job_posting_id,
+      feedback: 'liked',
+    } as const;
+    await expect(createRecommendationFeedback(requesterFor(fetchImpl), body)).resolves.toEqual(saved);
+
+    const [url, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(url).toBe('/api/v1/recommendation-feedback');
+    expect(init).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: expect.objectContaining({ Authorization: 'Bearer test-token', 'Content-Type': 'application/json' }),
+    });
+  });
+
+  it('applyFeedbackToRun updates only the matching posting and maps cleared to null', () => {
+    const item = (id: string, feedback: 'liked' | null) => ({
+      rank: 1,
+      score: 50,
+      reason: '테스트',
+      feedback,
+      job_posting: {
+        job_posting_id: id,
+        title: '가상 공고',
+        status: 'published' as const,
+        company: { company_id: 'c', name: '가상 회사' },
+        job_role: null,
+        employment_type: null,
+        location_text: null,
+        published_at: null,
+        expires_at: null,
+      },
+    });
+    const source: RecommendationRun = {
+      recommendation_run_id: run.recommendation_run_id,
+      status: 'completed',
+      model_version: { model_code: 'match_rule', version: '1', kind: 'rule' },
+      generated_at: run.generated_at,
+      items: [item('p1', 'liked'), item('p2', 'liked')],
+    };
+    const next = applyFeedbackToRun(source, { job_posting_id: 'p1', feedback: 'cleared' });
+    expect(next.items.map((entry) => entry.feedback)).toEqual([null, 'liked']);
+    expect(source.items[0]?.feedback).toBe('liked');
+  });
 });
 
 describe('recommendations mock', () => {
@@ -83,5 +140,35 @@ describe('recommendations mock', () => {
     await expect(
       apiRequest('/v1/recommendation-runs', { mockEnabled: true, method: 'POST', body: { limit: 51 }, token }),
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('validates feedback input (422) and hides postings outside my runs (404)', async () => {
+    resetRecommendationMock();
+    const login = await apiRequest<{ access_token: string }>('/v1/auth/login', {
+      mockEnabled: true,
+      method: 'POST',
+      body: { email: 'user@example.com', password: MOCK_PASSWORD },
+    });
+    const post = (body: unknown) =>
+      apiRequest('/v1/recommendation-feedback', { mockEnabled: true, method: 'POST', body, token: login.access_token });
+    const posting = '00000000-0000-4000-8000-000000000101';
+
+    await expect(
+      apiRequest('/v1/recommendation-feedback', { mockEnabled: true, method: 'POST', body: { job_posting_id: posting, feedback: 'liked' } }),
+    ).rejects.toMatchObject({ status: 401 });
+    await expect(post({ job_posting_id: posting, feedback: 'LIKED' })).rejects.toMatchObject({ status: 422, code: 'VALIDATION_FAILED' });
+    await expect(post({ feedback: 'liked' })).rejects.toMatchObject({ status: 422 });
+    await expect(post({ job_posting_id: posting, feedback: 'liked', user_id: 'x' })).rejects.toMatchObject({ status: 422 });
+    await expect(post({ recommendation_run_id: null, job_posting_id: posting, feedback: 'liked' })).rejects.toMatchObject({ status: 422 });
+    await expect(post({ job_posting_id: '00000000-0000-4000-8000-000000000999', feedback: 'liked' })).rejects.toMatchObject({ status: 404 });
+    await expect(
+      post({ recommendation_run_id: '00000000-0000-4000-8000-000000000fff', job_posting_id: posting, feedback: 'liked' }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+
+    const first = await post({ job_posting_id: posting, feedback: 'liked' });
+    expect(first).toMatchObject({ job_posting_id: posting, feedback: 'liked' });
+    // 같은 값을 다시 보내면 같은 기록을 돌려준다 (멱등)
+    await expect(post({ job_posting_id: posting, feedback: 'liked' })).resolves.toEqual(first);
+    resetRecommendationMock();
   });
 });

@@ -105,3 +105,42 @@ export const getRecommendationRun = (request: AuthedRequest, recommendationRunId
  * API 경로 GET /api/v1/job-postings/{job_posting_id} 와 같은 이름으로 맞춥니다.
  */
 export const jobPostingDetailPath = (jobPostingId: string) => `/job-postings/${encodeURIComponent(jobPostingId)}`;
+
+/** POST 로 보낼 수 있는 피드백 값. cleared 는 이전 피드백 취소(정정)이며 조회 응답에서는 null 로 바뀝니다. */
+export type RecommendationFeedbackChoice = RecommendationFeedbackValue | 'cleared';
+
+/** OpenAPI RecommendationFeedbackInput (additionalProperties: false) */
+export interface RecommendationFeedbackInput {
+  recommendation_run_id?: string;
+  job_posting_id: string;
+  feedback: RecommendationFeedbackChoice;
+}
+
+/** OpenAPI RecommendationFeedback (201) */
+export interface RecommendationFeedback {
+  feedback_id: string;
+  job_posting_id: string;
+  feedback: RecommendationFeedbackChoice;
+  created_at: string;
+}
+
+/**
+ * POST /api/v1/recommendation-feedback — 추천 공고 피드백을 이력으로 추가합니다(201, T47).
+ * 피드백은 내 다음 추천을 개선하는 데에만 쓰입니다.
+ */
+export const createRecommendationFeedback = (request: AuthedRequest, body: RecommendationFeedbackInput) =>
+  request<RecommendationFeedback>('/v1/recommendation-feedback', { method: 'POST', body });
+
+/** 저장한 피드백을 추천 결과에 반영합니다(재조회에 실패했을 때의 보정). cleared 는 null 로 바꿉니다. */
+export function applyFeedbackToRun(
+  run: RecommendationRun,
+  saved: Pick<RecommendationFeedback, 'job_posting_id' | 'feedback'>,
+): RecommendationRun {
+  const feedback = saved.feedback === 'cleared' ? null : saved.feedback;
+  return {
+    ...run,
+    items: run.items.map((item) =>
+      item.job_posting.job_posting_id === saved.job_posting_id ? { ...item, feedback } : item,
+    ),
+  };
+}

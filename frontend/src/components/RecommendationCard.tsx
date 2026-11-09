@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { jobPostingDetailPath } from '../api/recommendations';
 import type { EmploymentType, RecommendationItem } from '../api/recommendations';
 import { JobCard, type CardTone, type JobCardData } from './JobCard';
+import { feedbackStateLabels } from './recommendationLabels';
 import './RecommendationCard.css';
 
 const tones: readonly CardTone[] = ['blue', 'purple', 'green', 'orange'];
@@ -14,7 +15,6 @@ const employmentLabels: Record<EmploymentType, string> = {
   part_time: '파트타임',
 };
 
-const feedbackLabels = { liked: '좋아요 표시함', not_interested: '관심 없음 표시함' } as const;
 
 /** 추천 항목의 공고 요약을 공통 JobCard 형태로 바꿉니다. tags 는 기술이 아닌 공고 정보(고용 형태·마감)라 '공고 정보' 목록으로 표시합니다. */
 function toJobCard(item: RecommendationItem): JobCardData {
@@ -40,7 +40,7 @@ type RecommendationCardProps = {
   /** 기준 추천(fallback)이면 개인화 점수 대신 안내를 보여줍니다. */
   personalized: boolean;
   /**
-   * 카드 아래쪽 확장 영역. T48(추천 설명 모달·피드백 버튼)이 여기에 버튼을 넣습니다.
+   * 카드 아래쪽 확장 영역. T48 의 추천 설명 대화상자·피드백 버튼(RecommendationFeedbackActions)이 들어갑니다.
    * 피드백은 다음 추천 개선에만 쓰이며 기업에 제공되지 않습니다.
    */
   actions?: ReactNode;
@@ -83,7 +83,7 @@ export function RecommendationCard({ item, personalized, actions }: Recommendati
       </div>
 
       <footer className="recommendation-card-foot">
-        {item.feedback && <span className="recommendation-feedback">{feedbackLabels[item.feedback]}</span>}
+        {item.feedback && <span className="recommendation-feedback">{feedbackStateLabels[item.feedback]}</span>}
         <Link
           className="recommendation-detail-link"
           to={jobPostingDetailPath(item.job_posting.job_posting_id)}
