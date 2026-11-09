@@ -147,6 +147,9 @@ BEGIN
         END IF;
     END LOOP;
 
+    -- Serialize collection and consent changes for this user. Hold the same row
+    -- lock until commit so withdrawal cannot miss an uncommitted event insert.
+    PERFORM 1 FROM behavior_mock.users WHERE user_id = p_user_id FOR UPDATE;
     SELECT * INTO cons FROM behavior_mock.current_consent(p_user_id, cat.required_policy_code);
     IF NOT FOUND OR cons.granted IS NOT TRUE THEN
         RETURN 'blocked_no_consent';
@@ -169,6 +172,8 @@ DECLARE
     pol     behavior_mock.consent_policies%ROWTYPE;
     removed bigint := 0;
 BEGIN
+    -- Same lock/order as record_behavior_event; also coordinates user deletion.
+    PERFORM 1 FROM behavior_mock.users WHERE user_id = p_user_id FOR UPDATE;
     SELECT * INTO pol FROM behavior_mock.consent_policies
     WHERE policy_code = p_policy_code AND effective_at <= now()
     ORDER BY effective_at DESC LIMIT 1;

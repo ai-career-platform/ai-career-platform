@@ -159,3 +159,17 @@ D1_TEST_ONLY=YES bash database/tests/test_behavior_contract.sh
 8. T31 완료 후 실제 Migration(T08/T09 절차)과 수집 API(T72) 연동
 
 **판정:** `T71_STATUS=PARTIAL` — T05 F07/B01/B09 기준 계약·mock 검증 PASS(로컬 41항목), 허용 이벤트 매트릭스 PM 승인 전, T31 미완료로 실연동 HOLD.
+
+## 2026-11-09 concurrency regression review
+
+Collection and consent changes acquire the same user-row lock before reading or changing consent. The lock lasts until transaction completion. A collection that started first is committed before withdrawal deletes its events; a withdrawal that started first is visible before a waiting collection checks consent. Account deletion uses the same user row.
+
+Two synchronized, separate-connection regression cases failed on the previous mock (one event remained after withdrawal) and passed after this change. The original behavior-contract DB test body also passed on isolated native PostgreSQL 18 / Windows. No shared Staging changes were made. The contract remains DRAFT/PARTIAL pending integration and policy approvals.
+
+To reproduce after loading the mock SQL in a disposable DB, put `psql` on PATH, set `PGHOST`, `PGPORT`, `PGUSER`, and `PGDATABASE`, then run:
+
+```bash
+D1_TEST_ONLY=YES python -B -m unittest discover -s database/tests -p test_behavior_concurrency.py -v
+```
+
+`PGDATABASE` must identify a disposable test/ci/local/tmp/dev database and must not contain staging/prod/live. The test skips without this explicit opt-in. Local PASS does not establish Docker-wrapper or CI success. Use the default READ COMMITTED isolation for the mock; higher isolation levels require application retry handling and are not verified here.
