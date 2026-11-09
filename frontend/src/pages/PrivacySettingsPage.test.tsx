@@ -111,6 +111,10 @@ describe('T32 privacy settings (Mock, not PostgreSQL evidence)', () => {
     fireEvent.click(screen.getByRole('button', { name: '탈퇴 요청 접수' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('처리하지 못했습니다');
     expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('처리하지 못했습니다');
+    const failedDialog = screen.getByRole('dialog');
+    failedDialog.focus();
+    fireEvent.keyDown(failedDialog, { key: 'Tab', shiftKey: true });
+    expect(within(failedDialog).getByRole('button', { name: '돌아가기' })).toHaveFocus();
     expect(screen.getByLabelText('확인 문구')).toHaveValue('DELETE');
     expect(screen.getByRole('article', { name: 'AI 처리' })).toBeInTheDocument();
   });

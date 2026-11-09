@@ -29,7 +29,7 @@ function ConfirmDialog({ title, children, pending, onClose }: {
     const controls = box.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)');
     if (!controls?.length) { e.preventDefault(); box.current?.focus(); return; }
     const first = controls?.[0]; const last = controls?.[controls.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === box.current)) { e.preventDefault(); last?.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
   }
   return <div className="privacy-overlay"><div ref={box} className="privacy-dialog" role="dialog" tabIndex={-1}
