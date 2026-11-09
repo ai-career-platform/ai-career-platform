@@ -13,6 +13,7 @@ export function AccountPage() {
         {state.user.displayName} ({state.user.email})
       </p>
       <p><Link to="/account/privacy">개인정보 설정·동의 관리</Link></p>
+      <p><Link to="/me/skills">나의 기술 관리</Link></p>
       <p>역할: {state.user.roles.join(', ')}</p>
       <Button variant="outline" onClick={() => void logout()}>
         로그아웃

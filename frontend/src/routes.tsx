@@ -6,9 +6,12 @@ import { AccountPage } from './pages/AccountPage';
 import { PrivacySettingsPage } from './pages/PrivacySettingsPage';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
+import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
+import { MySkillsPage } from './pages/MySkillsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
+import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
 
 /**
@@ -26,7 +29,9 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
+      { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
+      { path: 'job-postings', element: <JobPostingsPage /> },
       { path: 'login', element: <LoginPage /> },
       { element: <RequireAuth />, children: [
         { path: 'account', element: <AccountPage /> },
@@ -34,6 +39,7 @@ export const routes: RouteObject[] = [
         { path: 'me/target-roles', element: <TargetRolesPage /> },
         { path: 'me/career-history', element: <CareerHistoryPage /> },
         { path: 'me/bookmarks', element: <BookmarksPage /> },
+        { path: 'me/skills', element: <MySkillsPage /> },
       ] },
       { path: '*', element: <NotFoundPage /> },
     ],
