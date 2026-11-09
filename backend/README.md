@@ -83,6 +83,9 @@ Set-Location "$HOME\projects\ai-career-platform\backend"
 
 ## 현재 API
 
+T49 문서 API와 전용 디렉터리 설정·워커 실행 방법은
+[문서 보관 가이드](DOCUMENT_STORAGE.md)를 참고하세요.
+
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/health` | 앱 상태 `{"status":"ok","service":"ai-career-backend"}` |

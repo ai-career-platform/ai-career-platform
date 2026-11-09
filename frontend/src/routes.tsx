@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
+import { MySkillsPage } from './pages/MySkillsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
@@ -38,6 +39,7 @@ export const routes: RouteObject[] = [
         { path: 'me/target-roles', element: <TargetRolesPage /> },
         { path: 'me/career-history', element: <CareerHistoryPage /> },
         { path: 'me/bookmarks', element: <BookmarksPage /> },
+        { path: 'me/skills', element: <MySkillsPage /> },
       ] },
       { path: '*', element: <NotFoundPage /> },
     ],
