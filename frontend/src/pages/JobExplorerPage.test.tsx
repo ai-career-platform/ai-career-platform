@@ -1,16 +1,18 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet } from '../api/client';
+import { ApiError } from '../api/client';
+import { buildQuery, type HttpRequest } from '../api/http';
 import { AuthContext } from '../auth/useAuth';
 import type { AuthContextValue, AuthState } from '../auth/useAuth';
 import { JobExplorerPage } from './JobExplorerPage';
 
+// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 바꿔 get 으로 받습니다.
+const get = vi.hoisted(() => vi.fn<(path: string) => Promise<unknown>>());
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
-  apiGet: vi.fn<typeof apiGet>(),
+  publicHttp: { request: (path: string, init?: HttpRequest) => get(`${path}${buildQuery(init?.query)}`) },
 }));
-const get = vi.mocked(apiGet);
 const request = vi.fn<(path: string) => Promise<unknown>>();
 
 const ANON: AuthState = { status: 'anonymous' };
@@ -142,7 +144,7 @@ describe('my skills comparison (T33 /me/skills)', () => {
 describe('paging after search changes', () => {
   it('starts from page 1 again when the search returns to an earlier term', async () => {
     get.mockImplementation(((path: string) => Promise.resolve(path.includes('cursor=')
-      ? page([role('2', '둘째 쪽')]) : path.includes('q=') ? page([]) : page([role('1', '첫 직무')], 'next'))) as typeof apiGet);
+      ? page([role('2', '둘째 쪽')]) : path.includes('q=') ? page([]) : page([role('1', '첫 직무')], 'next'))) as typeof get);
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: '다음' }));
     expect(await screen.findByText('둘째 쪽')).toBeInTheDocument();

@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { apiGet } from '../api/client';
-import { useApiResource } from '../api/useApiResource';
+import { publicHttp } from '../api/client';
+import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
@@ -30,30 +30,19 @@ export function JobExplorerPage() {
   if (cursorState.query !== query) setCursorState({ query, stack: [null] });
   const stack = cursorState.query === query ? cursorState.stack : [null];
   const cursor = stack[stack.length - 1];
-  const [attempt, setAttempt] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const [detailAttempt, setDetailAttempt] = useState(0);
-  const [skillsAttempt, setSkillsAttempt] = useState(0);
   const auth = useAuth();
 
-  const listPath = (() => {
-    const searchParams = new URLSearchParams({ limit: String(PAGE_SIZE) });
-    if (query) searchParams.set('q', query);
-    if (cursor) searchParams.set('cursor', cursor);
-    return `/v1/job-roles?${searchParams}`;
-  })();
-  const listFetcher = useCallback(() => apiGet<RolePage>(listPath), [listPath]);
-  const list = useApiResource<RolePage>(listPath, attempt, listFetcher);
+  const list = useQuery(['job-roles', query, cursor], (signal) =>
+    publicHttp.request<RolePage>('/v1/job-roles', { query: { limit: PAGE_SIZE, q: query, cursor }, signal }));
 
-  const detailPath = selected ? `/v1/job-roles/${encodeURIComponent(selected)}` : null;
-  const detailFetcher = useCallback(() => apiGet<RoleDetail>(detailPath ?? ''), [detailPath]);
-  const detail = useApiResource<RoleDetail>(detailPath, detailAttempt, detailFetcher);
+  const detail = useQuery(selected !== null && ['job-role', selected], (signal) =>
+    publicHttp.request<RoleDetail>(`/v1/job-roles/${encodeURIComponent(selected ?? '')}`, { signal }));
 
   // 내 보유 기술은 로그인했을 때만 불러옵니다(T33 `GET /me/skills`, 인증 필요).
-  const request = auth.request;
-  const skillsKey = auth.state.status === 'authenticated' ? `me-skills:${auth.state.user.email}` : null;
-  const skillsFetcher = useCallback(() => request<UserSkillItem[]>('/v1/me/skills'), [request]);
-  const mySkills = useApiResource<UserSkillItem[]>(skillsKey, skillsAttempt, skillsFetcher);
+  const member = auth.state.status === 'authenticated' ? auth.state.user.email : null;
+  const mySkills = useQuery(member !== null && ['me-skills', member], () =>
+    auth.request<UserSkillItem[]>('/v1/me/skills'));
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +99,7 @@ export function JobExplorerPage() {
           {list.status === 'error' && (
             <StatePanel variant="error" title="직무 목록을 불러오지 못했습니다"
               description="네트워크 또는 서버 상태를 확인한 뒤 다시 시도해 주세요."
-              actionLabel="다시 시도" onAction={() => setAttempt((n) => n + 1)} />
+              actionLabel="다시 시도" onAction={list.retry} />
           )}
           {list.status === 'ready' && list.data.items.length === 0 && (
             <StatePanel variant="empty" title="검색 결과가 없습니다"
@@ -163,7 +152,7 @@ export function JobExplorerPage() {
           {selected && detail.status === 'loading' && <StatePanel variant="loading" title="상세 정보를 불러오는 중입니다" />}
           {selected && detail.status === 'error' && (
             <StatePanel variant="error" title="상세 정보를 불러오지 못했습니다"
-              actionLabel="다시 시도" onAction={() => setDetailAttempt((n) => n + 1)} />
+              actionLabel="다시 시도" onAction={detail.retry} />
           )}
           {selected && detail.status === 'ready' && (
             <div className="role-explorer-profile">
@@ -195,7 +184,7 @@ export function JobExplorerPage() {
               {auth.state.status === 'authenticated' && mySkills.status === 'loading' && <p role="status">내 보유 기술을 불러오는 중입니다.</p>}
               {auth.state.status === 'authenticated' && mySkills.status === 'error' && (
                 <StatePanel variant="error" title="내 보유 기술을 불러오지 못했습니다"
-                  actionLabel="다시 시도" onAction={() => setSkillsAttempt((n) => n + 1)} />
+                  actionLabel="다시 시도" onAction={mySkills.retry} />
               )}
               {comparison && detail.data.required_skills.length > 0 && (
                 <>

@@ -1,14 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiGet } from '../api/client';
+import { buildQuery, type HttpRequest } from '../api/http';
 import { JobPostingsPage } from './JobPostingsPage';
 
+// 화면이 보낸 요청을 "경로 + 쿼리스트링" 한 줄로 바꿔 get 으로 받습니다.
+const get = vi.hoisted(() => vi.fn<(path: string) => Promise<unknown>>());
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
-  apiGet: vi.fn<typeof apiGet>(),
+  publicHttp: { request: (path: string, init?: HttpRequest) => get(`${path}${buildQuery(init?.query)}`) },
 }));
-const get = vi.mocked(apiGet);
 
 const C1 = '11111111-1111-4111-8111-111111111111';
 const C2 = '22222222-2222-4222-8222-222222222222';
@@ -47,7 +48,7 @@ function serve(handlers: Handlers) {
             : path.startsWith('/v1/job-roles?') ? 'roles' : null;
     if (!kind) return Promise.reject(new Error(`unexpected ${path}`));
     try { return Promise.resolve((handlers[kind] ?? defaults[kind])(path)); } catch (error) { return Promise.reject(error); }
-  }) as typeof apiGet);
+  }) as typeof get);
 }
 const listCalls = () => get.mock.calls.map(([path]) => path).filter((path) => path.startsWith('/v1/job-postings?'));
 function Where() { const location = useLocation(); return <output data-testid="where">{location.search}</output>; }
@@ -187,7 +188,7 @@ describe('job postings (T18 API)', () => {
     get.mockImplementation(((path: string) => {
       if (path.endsWith('/p1')) return new Promise<unknown>((resolve) => { resolveSlow = resolve; });
       return base?.(path);
-    }) as typeof apiGet);
+    }) as typeof get);
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: '가 상세 보기' }));
     fireEvent.click(screen.getByRole('button', { name: '나 상세 보기' }));
