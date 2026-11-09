@@ -32,3 +32,7 @@
 
 ## 현황 확인
 GitHub PR, Actions, Redmine, Ubuntu의 실행 상태는 각각 별도로 확인합니다. 이 문서는 실시간 상태표가 아닙니다.
+
+## 필수 일감 종료 게이트 (모든 T01~T150 및 신규 개발 일감)
+
+**[Auto-CD → Staging QA → Redmine CLOSED 공통 규정](WORK_ITEM_CLOSURE_GATE.md)**을 개별 작업지시서의 DoD와 함께 반드시 적용합니다. `main` 병합 후 **기존 자동 배포가 실제 해당 기능을 포함했는지 → 게시/Ubuntu Pull 성공 → 실제 실행 SHA 및 Staging 기능 테스트 → Evidence → Redmine 100% CLOSED** 순서를 확인합니다. **MERGED, CI SUCCESS, PoC Health PASS만으로 CLOSED 금지**. 미대상 기능은 배포되었다고 가정하지 않으며 `DEPLOY_SCOPE_GAP/HOLD` 처리합니다. 문서 전용 작업은 PM/JM이 명시적으로 승인한 N/A 대체 검증을 따릅니다.

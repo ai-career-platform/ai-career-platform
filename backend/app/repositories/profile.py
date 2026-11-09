@@ -1,15 +1,14 @@
-"""T16 persistence, injected connection compatible with T14 psycopg proposal.
-
-No pool, credentials, migrations, or fixtures are created here.
-"""
-
-from collections.abc import Mapping, Sequence
-from contextlib import AbstractContextManager
-from datetime import datetime, timezone
-from typing import Any, Protocol
+"""T16 persistence using the existing request-scoped T14 SQLAlchemy Session."""
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID
-
-from app.core.profile_problems import ProfileProblem
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+from app.core.errors import AppError, ErrorCode
+from app.models.auth import User, UserProfile
+from app.repositories.auth import SqlAuthRepository
 from app.schemas.profile import Me, Profile
 
 
@@ -18,76 +17,56 @@ class ProfileRepository(Protocol):
     def patch(self, user_id: UUID, changes: Mapping[str, str | None]) -> Me | None: ...
 
 
-class Cursor(Protocol):
-    def fetchone(self) -> Sequence[Any] | None: ...
-
-
-class Connection(Protocol):
-    def execute(self, query: str, params: Sequence[Any]) -> Cursor: ...
-    def transaction(self) -> AbstractContextManager: ...
-    def commit(self) -> None: ...
-
-
 class PostgresProfileRepository:
-    """Use psycopg's default tuple row factory; T14 owns connection lifetime."""
-
     PROFILE_FIELDS = ("headline", "bio", "location_text")
 
-    def __init__(self, connection: Connection):
-        self.connection = connection
+    def __init__(self, session: Session):
+        self.session = session
 
     def get(self, user_id: UUID) -> Me | None:
         try:
-            row = self.connection.execute(
-                "SELECT u.user_id, u.email, u.display_name, u.status, u.created_at, "
-                "p.headline, p.bio, p.location_text "
-                "FROM users AS u LEFT JOIN user_profiles AS p ON p.user_id = u.user_id "
-                "WHERE u.user_id = %s AND u.status = 'active'", (str(user_id),)
-            ).fetchone()
-            if row is None:
+            row = SqlAuthRepository(self.session).get_user(user_id)
+            if row is None or row.status != "active":
                 return None
-            return Me(user_id=row[0], email=row[1], display_name=row[2], status=row[3],
-                      created_at=row[4], profile=Profile(headline=row[5], bio=row[6], location_text=row[7]))
-        except Exception:
-            raise ProfileProblem(503, "DEPENDENCY_UNAVAILABLE", "Profile storage unavailable") from None
+            return Me(user_id=row.user_id, email=row.email, display_name=row.display_name,
+                      status=row.status, created_at=row.created_at,
+                      profile=Profile(headline=row.headline, bio=row.bio, location_text=row.location_text))
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail=type(exc).__name__) from None
 
     def patch(self, user_id: UUID, changes: Mapping[str, str | None]) -> Me | None:
         if not changes or set(changes) - {"display_name", *self.PROFILE_FIELDS}:
             raise ValueError("Unsupported profile fields")
-        now = datetime.now(timezone.utc)
         try:
-            # Both users and user_profiles change atomically. Updating users also
-            # serializes concurrent PATCHes and rechecks active status at write time.
-            with self.connection.transaction():
-                assignments = ["updated_at = %s"]
-                params: list[Any] = [now]
-                if "display_name" in changes:
-                    assignments.append("display_name = %s")
-                    params.append(changes["display_name"])
-                params.append(str(user_id))
-                row = self.connection.execute(
-                    "UPDATE users SET " + ", ".join(assignments) +
-                    " WHERE user_id = %s AND status = 'active' RETURNING user_id", params
-                ).fetchone()
-                if row is None:
-                    return None
-                fields = [field for field in self.PROFILE_FIELDS if field in changes]
-                if fields:
-                    # Identifiers come only from the static allowlist above.
-                    columns = ["user_id", *fields, "updated_at"]
-                    values = [str(user_id), *(changes[field] for field in fields), now]
-                    updates = [f"{field} = EXCLUDED.{field}" for field in [*fields, "updated_at"]]
-                    self.connection.execute(
-                        "INSERT INTO user_profiles (" + ", ".join(columns) + ") VALUES (" +
-                        ", ".join(["%s"] * len(columns)) + ") ON CONFLICT (user_id) DO UPDATE SET " +
-                        ", ".join(updates), values
-                    )
-                result = self.get(user_id)
-            # T14 makes the caller commit successful writes. An auth dependency
-            # may have opened an outer transaction, making the block a savepoint.
-            self.connection.commit()
+            # Auth SELECTs may already have started this Session transaction.
+            # Lock the parent first, including when a profile row does not yet exist.
+            user = self.session.scalar(select(User).where(
+                User.user_id == user_id, User.status == "active"
+            ).with_for_update().execution_options(populate_existing=True))
+            if user is None:
+                self.session.rollback()
+                return None
+            now = datetime.now(UTC)
+            user.updated_at = now
+            if "display_name" in changes:
+                user.display_name = changes["display_name"]
+            fields = [f for f in self.PROFILE_FIELDS if f in changes]
+            if fields:
+                profile = self.session.get(UserProfile, user_id, populate_existing=True)
+                if profile is None:
+                    profile = UserProfile(user_id=user_id, created_at=now)
+                    self.session.add(profile)
+                for field in fields:
+                    setattr(profile, field, changes[field])
+                profile.updated_at = now
+            self.session.flush()
+            result = self.get(user_id)
+            self.session.commit()
             return result
-        except ProfileProblem:
-            raise
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail=type(exc).__name__) from None
         except Exception:
-            raise ProfileProblem(503, "DEPENDENCY_UNAVAILABLE", "Profile storage unavailable") from None
+            self.session.rollback()
+            raise

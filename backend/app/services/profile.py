@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.core.profile_problems import ProfileProblem
+from app.core.errors import AppError, ErrorCode
 from app.repositories.profile import ProfileRepository
 from app.schemas.profile import Me, MePatch
 
@@ -12,7 +12,7 @@ class ProfileService:
     @staticmethod
     def require_user(result: Me | None) -> Me:
         if result is None:
-            raise ProfileProblem(404, "NOT_FOUND", "Profile not found")
+            raise AppError(ErrorCode.NOT_FOUND)
         return result
 
     def get(self, user_id: UUID) -> Me:

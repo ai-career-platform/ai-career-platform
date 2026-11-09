@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Career crawler DB dispatcher (activation requires PM approval)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=kant
+Group=kant
+WorkingDirectory=/home/kant/ai-career-staging-poc
+ExecStart=/usr/bin/flock --nonblock /home/kant/ai-career-staging-poc/.crawler-dispatch.lock /usr/bin/docker compose --project-name ai-career-staging-poc exec -T backend python -m crawler.jobs.dispatcher dispatch
+TimeoutStartSec=180
+KillMode=control-group
+NoNewPrivileges=true

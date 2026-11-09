@@ -26,6 +26,9 @@ jobs:
           --health-cmd "pg_isready -U t16_test_admin -d t16_profile_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      APP_ENV: test
+      T15_TEST_DATABASE_URL: postgresql://t16_test_admin:synthetic-ci-only@127.0.0.1:5432/t16_profile_test
+      T15_SCHEMA_SQL: ../database/migrations/0001_initial_schema.sql
       T16_ISOLATED_DB_TEST: 'YES'
       T16_TEST_ADMIN_URL: postgresql://t16_test_admin:synthetic-ci-only@127.0.0.1:5432/t16_profile_test
     steps:

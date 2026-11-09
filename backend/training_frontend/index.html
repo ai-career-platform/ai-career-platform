@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>합성 채용공고 조회 실습 | AI Career Platform</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, "Malgun Gothic", sans-serif; background: #f4f7fb; color: #192536; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 880px; margin: 52px auto; padding: 0 20px 64px; }
+    .eyebrow { color: #3563a7; font-size: 13px; font-weight: 750; letter-spacing: .05em; }
+    h1 { margin: 10px 0 8px; font-size: clamp(25px, 5vw, 35px); }
+    .intro { color: #596679; line-height: 1.7; margin-bottom: 25px; }
+    .filters { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 22px; }
+    .field { display: grid; gap: 7px; font-size: 13px; color: #425169; }
+    .field input, .field select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 11px; background: white; font: inherit; color: #192536; }
+    @media (max-width: 700px) { .filters { grid-template-columns: 1fr 1fr; } .filters .field:first-child { grid-column: 1 / -1; } }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 25px 0 16px; }
+    button { background: #2055a2; border: 0; border-radius: 9px; color: white; padding: 11px 17px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .65; cursor: progress; }
+    button:focus-visible { outline: 3px solid #fb9d3a; outline-offset: 3px; }
+    #status { color: #4d5d74; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 15px; }
+    .job { background: white; border: 1px solid #dfe6ef; border-radius: 14px; padding: 23px; box-shadow: 0 4px 18px rgba(25,37,54,.04); }
+    .job h2 { font-size: 19px; line-height: 1.5; margin: 12px 0; }
+    .pill { background: #eaf1fd; color: #28518d; border-radius: 20px; padding: 5px 10px; font-size: 12px; font-weight: 700; display: inline-block; }
+    .job p { color: #506075; margin: 9px 0; }
+    .job .id { color: #76849a; font-size: 12px; margin-top: 17px; overflow-wrap: anywhere; }
+    .notice { padding: 16px; background: #fff; border: 1px solid #dfe6ef; border-radius: 10px; color: #425169; }
+    .error { border-color: #ffc3c3; background: #fff8f8; color: #9c2c2c; }
+    footer { margin-top: 30px; font-size: 13px; color: #758296; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">AI CAREER PLATFORM · LOCAL TRAINING</div>
+  <h1>합성 채용공고 조회 실습</h1>
+  <p class="intro">PostgreSQL → FastAPI → JavaScript → 카드 화면<br>
+    실제 잡코리아 데이터가 아닌 <strong>가상 공고</strong>만 표시하는 로컬 학습용 페이지입니다.</p>
+  <label class="field">데이터 출처<select id="dataset"><option value="synthetic">합성 공고</option><option value="collected">수집 / 가져온 HTML (라이브 검증과 구분)</option></select></label>
+  <form id="filters" class="filters">
+    <label class="field">제목 검색
+      <input id="title-search" type="search" maxlength="80" placeholder="예: Python 또는 데이터">
+    </label>
+    <label class="field">지역
+      <select id="location-filter">
+        <option value="">전체</option>
+        <option value="서울">서울</option>
+        <option value="경기">경기</option>
+      </select>
+    </label>
+    <label class="field">고용형태
+      <select id="employment-filter">
+        <option value="">전체</option>
+        <option value="full_time">정규직</option>
+        <option value="contract">계약직</option>
+      </select>
+    </label>
+    <button type="submit">검색</button>
+  </form>
+  <div class="toolbar">
+    <strong>채용공고 목록</strong>
+    <button id="reload" type="button">다시 조회</button>
+  </div>
+  <p id="status" role="status" aria-live="polite">조회 준비 중</p>
+  <section id="jobs" class="grid" aria-label="합성 채용공고 목록"></section>
+  <footer>조회 전용 · DB 변경 없음 · 실사이트 요청 없음 · <a href="./docs">Swagger API 문서</a></footer>
+</main>
+<script>
+  "use strict";
+  const container = document.getElementById("jobs");
+  const status = document.getElementById("status");
+  const reload = document.getElementById("reload");
+  const filters = document.getElementById("filters");
+  const dataset = document.getElementById("dataset");
+  const apiPrefix = window.location.pathname.startsWith("/api/") ? "/api" : "";
+  let requestSequence = 0;
+  const employment = { full_time: "정규직", contract: "계약직", intern: "인턴", part_time: "시간제" };
+
+  function element(tag, className, value) {
+    const item = document.createElement(tag);
+    if (className) item.className = className;
+    item.textContent = value == null ? "정보 없음" : String(value);
+    return item;
+  }
+
+  function draw(jobs) {
+    container.replaceChildren();
+    for (const job of jobs) {
+      const card = document.createElement("article");
+      card.className = "job";
+      card.append(
+        element("span", "pill", employment[job.employment_type] || job.employment_type || "고용형태 미상"),
+        element("h2", "", job.title),
+        element("p", "", "기업 · " + (job.company_name || "정보 없음")),
+        element("p", "", "지역 · " + (job.location_text || "정보 없음")),
+        element("div", "id", job.external_posting_id)
+      );
+      if (job.evidence) {
+        card.append(element("p", "", job.evidence === "live_http" ? "출처 · HTTP 수집" : "출처 · 가져온 HTML (라이브 Fetch 미검증)"));
+        card.append(element("p", "", "DB 갱신 시각 · " + job.collected_at));
+        try {
+          const url = new URL(job.source_url);
+          if (url.protocol === "https:" && ["www.jobkorea.co.kr", "jobkorea.co.kr"].includes(url.hostname) && /^\/Recruit\/GI_Read\/\d+$/i.test(url.pathname) && !url.username && !url.password && !url.port && !url.search && !url.hash) {
+            const link = element("a", "", "잡코리아 원본 공고");
+            link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+            card.append(link);
+          }
+        } catch (_) {}
+      }
+      container.append(card);
+    }
+  }
+
+  async function load() {
+    const requestId = ++requestSequence;
+    reload.disabled = true;
+    status.textContent = "채용공고를 조회하고 있습니다…";
+    container.replaceChildren();
+    try {
+      const params = new URLSearchParams({ limit: "20" });
+      const title = document.getElementById("title-search").value.trim();
+      const location = document.getElementById("location-filter").value;
+      const employmentType = document.getElementById("employment-filter").value;
+      if (title) params.set("title", title);
+      if (location) params.set("location", location);
+      if (employmentType) params.set("employment_type", employmentType);
+      const response = dataset.value === "collected"
+        ? await fetch(apiPrefix + "/jobs/collected?" + params.toString(), { cache: "no-store" })
+        : await fetch(apiPrefix + "/jobs?" + params.toString(), { cache: "no-store" });
+      if (!response.ok) throw new Error("API " + response.status);
+      const jobs = await response.json();
+      if (requestId !== requestSequence) return;
+      if (!Array.isArray(jobs)) throw new Error("Unexpected response");
+      draw(jobs);
+      status.textContent = jobs.length ? "조회 완료 · " + jobs.length + "건" : "조회 결과가 없습니다.";
+      if (!jobs.length) container.append(element("p", "notice", "선택한 출처의 공고가 없습니다."));
+    } catch (_error) {
+      if (requestId !== requestSequence) return;
+      status.textContent = "조회 실패";
+      container.append(element("p", "notice error", "조회에 실패했습니다. 학습용 DB 연결 상태와 서버 로그를 확인하세요."));
+    } finally {
+      if (requestId === requestSequence) reload.disabled = false;
+    }
+  }
+
+  dataset.addEventListener("change", () => {
+    document.querySelector("h1").textContent = dataset.value === "collected" ? "수집 / 가져온 채용공고" : "합성 채용공고 조회 실습";
+    document.querySelector(".intro").textContent = dataset.value === "collected" ? "HTTP 수집 결과와 가져온 HTML을 카드별로 구분합니다. 가져온 HTML은 실제 사이트 검증을 의미하지 않습니다." : "실제 잡코리아 데이터가 아닌 가상 공고를 표시합니다.";
+    container.setAttribute("aria-label", "채용공고 목록");
+    load();
+  });
+  reload.addEventListener("click", load);
+  filters.addEventListener("submit", (event) => { event.preventDefault(); load(); });
+  load();
+</script>
+</body>
+</html>

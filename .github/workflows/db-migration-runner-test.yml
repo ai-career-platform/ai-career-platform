@@ -1,0 +1,49 @@
+name: DB migration runner test (T08)
+
+on:
+  pull_request:
+    paths:
+      - 'database/**'
+      - '.github/workflows/db-migration-runner-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-runner:
+    name: Lint + disposable PostgreSQL 18.1 migration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        # Disposable CI-only database. Never Staging.
+        image: postgres:18.1
+        env:
+          POSTGRES_USER: t08ci
+          POSTGRES_PASSWORD: t08ci-disposable-only
+          POSTGRES_DB: t08ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U t08ci -d t08ci"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: t08ci
+      PGPASSWORD: t08ci-disposable-only
+      MIGRATION_TEST_ADMIN_PSQL: psql
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Server version
+        run: psql -X -d t08ci -Atc 'SELECT version();'
+      - name: Lint repository migrations
+        run: python3 -B database/migrate.py lint
+      - name: Unit + integration tests
+        run: python3 -B -m unittest discover -s database/tests -p 'test_migration_runner.py' -v

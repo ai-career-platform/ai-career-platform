@@ -178,3 +178,20 @@ git push -u origin HEAD
 - [ ] pytest 재현 결과
 - [ ] CRUD는 별도 로컬 DB에서만, Staging 변경 없음
 - [ ] 계층/API/CORS 설계와 PR/CI/Slack/Redmine 증빙
+
+
+## 부록 — 정식 Backend 테스트 기준 (현행 main 보완)
+
+기존 STEP 03 및 STEP 09는 **PoC용** 경로입니다. 정식 FastAPI 개발은 `backend/` 디렉터리에서 진행하며, `backend/requirements-dev.txt`에는 pytest/httpx와 실행용 `requirements.txt`가 포함됩니다. 운영 PoC `poc/staging/backend/requirements.txt`의 패키지 버전과 다를 수 있습니다.
+
+```powershell
+Set-Location "$HOME\projects\ai-career-platform\backend"
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest --collect-only -q
+New-Item -ItemType Directory -Force .\test-results | Out-Null
+.\.venv\Scripts\python.exe -m pytest -q --junitxml=test-results\pytest-junit.xml
+$LASTEXITCODE
+```
+
+세부 절차는 [PYTEST_GUIDE.md](../testing/PYTEST_GUIDE.md), [테스트 보고 양식](../testing/TEST_REPORT_TEMPLATE.md)을 따릅니다. 이 명령은 로컬 전용이며 Staging DB에 쓰기 작업을 실행하지 않습니다.

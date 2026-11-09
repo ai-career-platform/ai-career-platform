@@ -1,0 +1,7 @@
+일감 ID	개발 영역	작업 제목	우선순위	선행 일감	GitHub 작업지시서	신청자 이름	GitHub ID	GitHub 이메일	진행 상태	PR URL	redmine URL	시작일	완료예정일	비고
+T151	DB/Backend	AX 2기 검색어·수집 작업 관리	P1	T61,T62,T63,T64	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T151.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD
+T152	Crawler/DB	목록·상세 HTML 원본 수집·보관	P1	T151,T62,T61	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T152.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD
+T153	Backend/DB	독립 파싱·검증·후처리 파이프라인	P1	T152,T63	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T153.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD
+T154	Backend/DevOps	증분 수집·분할 스케줄링·안전 재개	P1	T151,T152,T153,T64	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T154.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD
+T155	Backend/보안	크롤러 관리자 API 및 권한 연동	P1	T151,T152,T153,T154,T15	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T155.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD
+T156	Frontend/QA	크롤러 관리자 웹 UI 및 통합 QA	P1	T155,T20,T21	https://github.com/ai-career-platform/ai-career-platform/blob/main/docs/work-orders/crawler-enhancement/T156.md				신청 가능					신규 상위 Feature 연결; Fixture 우선·Live HOLD

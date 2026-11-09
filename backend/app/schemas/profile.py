@@ -1,27 +1,10 @@
 """T16 DTOs, matching docs/api/openapi.yaml (Me, Profile, MePatch)."""
 
-from datetime import datetime
-from typing import Literal, Self
-from uuid import UUID
+from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-class Profile(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    headline: str | None = Field(max_length=200)
-    bio: str | None = Field(max_length=5000)
-    location_text: str | None = Field(max_length=120)
-
-
-class Me(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    user_id: UUID
-    email: str
-    display_name: str
-    status: Literal["active", "disabled"]
-    profile: Profile
-    created_at: datetime
+from app.schemas.auth import Me, Profile
 
 
 class MePatch(BaseModel):
