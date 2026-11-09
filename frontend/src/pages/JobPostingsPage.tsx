@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
-import { apiGet } from '../api/client';
-import { useApiResource } from '../api/useApiResource';
+import { useApi } from '../api/ApiContext';
+import { useQuery } from '../api/useQuery';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
 import { StatePanel } from '../components/StatePanel';
@@ -10,23 +10,6 @@ import { TextField } from '../components/TextField';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 import './JobPostingsPage.css';
 
-type Company = { company_id: string; name: string };
-type Role = { job_role_id: string; name: string };
-type Options<T> = { items: T[]; next_cursor: string | null };
-type Posting = {
-  job_posting_id: string; title: string; status: 'published' | 'closed';
-  company: Company; job_role: Role | null; employment_type: string | null;
-  location_text: string | null; published_at: string | null; expires_at: string | null;
-};
-type PostingPage = { items: Posting[]; next_cursor: string | null };
-type PostingDetail = Posting & {
-  description: string | null; source_url: string | null;
-  required_skills: { skill: { skill_id: string; name: string }; required_level: number | null; is_required: boolean }[];
-};
-type CompanyDetail = {
-  company_id: string; name: string; website_url: string | null; description: string | null;
-  open_posting_count: number; source: string;
-};
 type Sort = '-published_at' | 'expires_at';
 
 const PAGE_SIZE = 20;
@@ -39,6 +22,7 @@ const STATUS_OPTIONS = [
 
 /** 이 화면이 쓰는 공고 조회는 T18 정식 API(`/v1/job-postings`, `/v1/companies`)입니다. 별도 수집 API 데이터는 섞지 않습니다. */
 export function JobPostingsPage() {
+  const api = useApi();
   const [params, setParams] = useSearchParams();
   const query = (params.get('q') ?? '').trim().slice(0, 100);
   const companyId = uuidOrEmpty(params.get('company'));
@@ -53,37 +37,26 @@ export function JobPostingsPage() {
   if (cursorState.key !== filterKey) setCursorState({ key: filterKey, stack: [null] });
   const stack = cursorState.key === filterKey ? cursorState.stack : [null];
   const cursor = stack[stack.length - 1];
-  const [attempt, setAttempt] = useState(0);
-  const [optionsAttempt, setOptionsAttempt] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const [detailAttempt, setDetailAttempt] = useState(0);
-  const [companyAttempt, setCompanyAttempt] = useState(0);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
 
-  const listPath = (() => {
-    const searchParams = new URLSearchParams({ limit: String(PAGE_SIZE), sort, include_closed: String(includeClosed) });
-    if (query) searchParams.set('q', query);
-    if (companyId) searchParams.set('company_id', companyId);
-    if (roleId) searchParams.set('job_role_id', roleId);
-    if (cursor) searchParams.set('cursor', cursor);
-    return `/v1/job-postings?${searchParams}`;
-  })();
-  const listFetcher = useCallback(() => apiGet<PostingPage>(listPath), [listPath]);
-  const list = useApiResource<PostingPage>(listPath, attempt, listFetcher);
+  const list = useQuery(['job-postings', filterKey, cursor], (signal) =>
+    api.jobPostings.list(
+      { limit: PAGE_SIZE, sort, include_closed: includeClosed, q: query, company_id: companyId, job_role_id: roleId, cursor },
+      signal,
+    ));
 
-  const companiesFetcher = useCallback(() => apiGet<Options<Company>>(`/v1/companies?limit=${OPTION_LIMIT}`), []);
-  const companies = useApiResource<Options<Company>>('companies', optionsAttempt, companiesFetcher);
-  const rolesFetcher = useCallback(() => apiGet<Options<Role>>(`/v1/job-roles?limit=${OPTION_LIMIT}`), []);
-  const roles = useApiResource<Options<Role>>('roles', optionsAttempt, rolesFetcher);
+  const companies = useQuery(['company-options'], (signal) =>
+    api.companies.list({ limit: OPTION_LIMIT }, signal));
+  const roles = useQuery(['role-options'], (signal) =>
+    api.jobRoles.list({ limit: OPTION_LIMIT }, signal));
 
-  const detailPath = selected ? `/v1/job-postings/${encodeURIComponent(selected)}` : null;
-  const detailFetcher = useCallback(() => apiGet<PostingDetail>(detailPath ?? ''), [detailPath]);
-  const detail = useApiResource<PostingDetail>(detailPath, detailAttempt, detailFetcher);
+  const detail = useQuery(selected !== null && ['job-posting', selected], (signal) =>
+    api.jobPostings.get(selected ?? '', signal));
 
   const detailCompanyId = detail.status === 'ready' ? detail.data.company.company_id : null;
-  const companyPath = detailCompanyId ? `/v1/companies/${encodeURIComponent(detailCompanyId)}` : null;
-  const companyFetcher = useCallback(() => apiGet<CompanyDetail>(companyPath ?? ''), [companyPath]);
-  const companyDetail = useApiResource<CompanyDetail>(companyPath, companyAttempt, companyFetcher);
+  const companyDetail = useQuery(detailCompanyId !== null && ['company', detailCompanyId], (signal) =>
+    api.companies.get(detailCompanyId ?? '', signal));
 
   function change(patch: Record<string, string>) {
     const next = new URLSearchParams(params);
@@ -133,7 +106,7 @@ export function JobPostingsPage() {
         {companies.status === 'loading' && <StatePanel variant="loading" title="기업을 불러오는 중입니다" />}
         {companies.status === 'error' && (
           <StatePanel variant="error" title="기업 목록을 불러오지 못했습니다"
-            actionLabel="다시 시도" onAction={() => setOptionsAttempt((n) => n + 1)} />
+            actionLabel="다시 시도" onAction={companies.retry} />
         )}
         {companies.status === 'ready' && companyItems.length === 0 && (
           <StatePanel variant="empty" title="등록된 기업이 없습니다" description="기업이 등록되면 이곳에 표시됩니다." />
@@ -196,7 +169,7 @@ export function JobPostingsPage() {
           </div>
         </div>
         {roles.status === 'error' && (
-          <p role="alert" className="t24-hint">직무 목록을 불러오지 못했습니다. <button type="button" className="t24-link" onClick={() => setOptionsAttempt((n) => n + 1)}>다시 시도</button></p>
+          <p role="alert" className="t24-hint">직무 목록을 불러오지 못했습니다. <button type="button" className="t24-link" onClick={roles.retry}>다시 시도</button></p>
         )}
         {roles.status === 'ready' && roles.data.next_cursor && <p className="t24-hint">직무가 많아 일부만 표시합니다.</p>}
         <div className="t24-controls-bottom">
@@ -221,7 +194,7 @@ export function JobPostingsPage() {
           {list.status === 'error' && (
             <StatePanel variant="error" title="채용공고를 불러오지 못했습니다"
               description="네트워크 또는 서버 상태를 확인한 뒤 다시 시도해 주세요."
-              actionLabel="다시 시도" onAction={() => setAttempt((n) => n + 1)} />
+              actionLabel="다시 시도" onAction={list.retry} />
           )}
           {list.status === 'ready' && list.data.items.length === 0 && (
             <StatePanel variant="empty" title="조건에 맞는 공고가 없습니다"
@@ -278,7 +251,7 @@ export function JobPostingsPage() {
           {selected && detail.status === 'loading' && <StatePanel variant="loading" title="상세 정보를 불러오는 중입니다" />}
           {selected && detail.status === 'error' && (
             <StatePanel variant="error" title="상세 정보를 불러오지 못했습니다"
-              actionLabel="다시 시도" onAction={() => setDetailAttempt((n) => n + 1)} />
+              actionLabel="다시 시도" onAction={detail.retry} />
           )}
           {selected && detail.status === 'ready' && (
             <div className="t24-detail-content">
@@ -311,7 +284,7 @@ export function JobPostingsPage() {
               {companyDetail.status === 'loading' && <p role="status">기업 정보를 불러오는 중입니다.</p>}
               {companyDetail.status === 'error' && (
                 <StatePanel variant="error" title="기업 정보를 불러오지 못했습니다"
-                  actionLabel="다시 시도" onAction={() => setCompanyAttempt((n) => n + 1)} />
+                  actionLabel="다시 시도" onAction={companyDetail.retry} />
               )}
               {companyDetail.status === 'ready' && (() => {
                 const site = safeExternalUrl(companyDetail.data.website_url);

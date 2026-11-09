@@ -1,17 +1,13 @@
 import { useRef, useState } from 'react';
+import { useApi } from '../api/ApiContext';
 import { ApiError } from '../api/errors';
-import {
-  applyFeedbackToRun,
-  createRecommendationFeedback,
-  getRecommendationRun,
-} from '../api/recommendations';
+import { applyFeedbackToRun } from '../api/recommendations';
 import type {
   RecommendationFeedbackChoice,
   RecommendationFeedbackValue,
   RecommendationItem,
   RecommendationRun,
 } from '../api/recommendations';
-import { useAuth } from '../auth/useAuth';
 import './Button.css';
 import { RecommendationExplanationDialog } from './RecommendationExplanationDialog';
 import { FEEDBACK_USAGE_NOTE, feedbackButtonLabels } from './recommendationLabels';
@@ -48,7 +44,7 @@ type RecommendationFeedbackActionsProps = {
  * - 피드백은 내 다음 추천을 개선하는 데에만 씁니다.
  */
 export function RecommendationFeedbackActions({ item, run, onRunChange }: RecommendationFeedbackActionsProps) {
-  const { request } = useAuth();
+  const { recommendations } = useApi();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, setPending] = useState<RecommendationFeedbackChoice | null>(null);
   const [failed, setFailed] = useState<FeedbackFailure | null>(null);
@@ -67,14 +63,14 @@ export function RecommendationFeedbackActions({ item, run, onRunChange }: Recomm
     setFailed(null);
     setMessage('');
     try {
-      const saved = await createRecommendationFeedback(request, {
+      const saved = await recommendations.sendFeedback({
         recommendation_run_id: run.recommendation_run_id,
         job_posting_id: posting.job_posting_id,
         feedback: choice,
       });
       let next: RecommendationRun;
       try {
-        next = await getRecommendationRun(request, run.recommendation_run_id);
+        next = await recommendations.get(run.recommendation_run_id);
       } catch {
         next = applyFeedbackToRun(run, saved);
       }

@@ -5,13 +5,14 @@
 import { env as processEnv } from 'node:process';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { env } from '../config/env';
-import { ApiError, apiRequest } from './client';
+import { ApiError } from './client';
+import { createHttpClient } from './http';
 import type { ConsentPolicy } from './privacy';
 
 const origin = processEnv.T29_REAL_API_ORIGIN;
 
 describe.skipIf(!origin)('T32 read-only real API contract (no credentials or DB mutations)', () => {
-  const options = { baseUrl: `${origin}/api`, mockEnabled: false };
+  const http = createHttpClient({ baseUrl: `${origin}/api` });
 
   beforeAll(() => {
     const url = new URL(origin!);
@@ -24,9 +25,9 @@ describe.skipIf(!origin)('T32 read-only real API contract (no credentials or DB 
   });
 
   it('exposes the merged T31 API operations and explicit cancellation HOLD', async () => {
-    const spec = await apiRequest<{ paths: Record<string, Record<string, {
+    const spec = await http.request<{ paths: Record<string, Record<string, {
       'x-implementation-status'?: string
-    }>> }>('/openapi.json', options);
+    }>> }>('/openapi.json');
     expect(spec.paths['/api/v1/me/consents']).toHaveProperty('get');
     expect(spec.paths['/api/v1/me/consents']).toHaveProperty('post');
     expect(spec.paths['/api/v1/me/deletion-request']).toHaveProperty('get');
@@ -35,7 +36,7 @@ describe.skipIf(!origin)('T32 read-only real API contract (no credentials or DB 
   });
 
   it('reads consent policy metadata without modifying PostgreSQL', async () => {
-    const policies = await apiRequest<ConsentPolicy[]>('/v1/consent-policies', options);
+    const policies = await http.request<ConsentPolicy[]>('/v1/consent-policies');
     expect(Array.isArray(policies)).toBe(true);
     for (const policy of policies) {
       expect(policy).toEqual(expect.objectContaining({
@@ -48,7 +49,7 @@ describe.skipIf(!origin)('T32 read-only real API contract (no credentials or DB 
 
   it.each(['/v1/me/consents', '/v1/me/deletion-request'])(
     'rejects unauthenticated GET %s with HTTP 401', async path => {
-      const error = await apiRequest(path, options).catch((caught: unknown) => caught);
+      const error = await http.request(path).catch((caught: unknown) => caught);
       expect(error).toBeInstanceOf(ApiError);
       expect(error).toMatchObject({ status: 401, path });
     },

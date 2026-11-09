@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react';
-import type { ApiRequestOptions } from '../api/client';
 
 export interface AuthUser {
   email: string;
@@ -12,12 +11,11 @@ export type AuthState =
   | { status: 'anonymous' }
   | { status: 'authenticated'; token: string; user: AuthUser };
 
+/** 로그인 상태와 동작. API 호출은 useApi() 로 합니다(로그인 중이면 토큰이 자동으로 붙음). */
 export interface AuthContextValue {
   state: AuthState;
   login: (email: string, password: string, autoLogin?: boolean) => Promise<void>;
   logout: () => Promise<void>;
-  /** 로그인 토큰을 붙여 호출하고, 401이면 세션을 비워 로그인 화면으로 돌려보냅니다. */
-  request: <T>(path: string, options?: ApiRequestOptions) => Promise<T>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
