@@ -78,6 +78,33 @@ def test_empty_candidate_fallback_returns_empty():
     assert result.status == "fallback" and result.items == []
 
 
+def test_global_tie_break_is_deterministic_across_batches_and_input_order():
+    # 120 equal-score candidates span three T27 batches of 50; order must be global by ID.
+    cands = tuple(candidate(n) for n in range(120, 0, -1))
+    runs = [RecommendationService(MemoryRuns(Inputs(("PYTHON",), {}, order, frozenset())),
+                                  clock=lambda: NOW).create(UUID(int=7), limit=50)
+            for order in (cands, tuple(reversed(cands)))]
+    ids = [[i.job_posting.job_posting_id for i in run.items] for run in runs]
+    assert ids[0] == ids[1] == [UUID(int=n) for n in range(1, 51)]
+    assert [i.rank for i in runs[0].items] == list(range(1, 51))
+    assert len(set(ids[0])) == 50
+
+
+def test_skills_without_comparable_postings_fall_back_to_latest():
+    repo = MemoryRuns(Inputs(("PYTHON",), {}, (candidate(5, ()), candidate(4, ())), frozenset()))
+    result = RecommendationService(repo, clock=lambda: NOW).create(UUID(int=2), limit=1)
+    assert result.status == "fallback"
+    assert [(i.job_posting.job_posting_id, i.score) for i in result.items] == [(UUID(int=5), None)]
+    assert "최신 공고" in result.items[0].reason
+
+
+def test_not_interested_excluded_from_scored_ranking():
+    repo = MemoryRuns(Inputs(("PYTHON",), {}, (candidate(1), candidate(2)), frozenset({UUID(int=1)})))
+    result = RecommendationService(repo, clock=lambda: NOW).create(UUID(int=2))
+    assert result.status == "completed"
+    assert [i.job_posting.job_posting_id for i in result.items] == [UUID(int=2)]
+
+
 @pytest.mark.parametrize("limit", [0, 51, True, 1.2])
 def test_invalid_service_limits(limit):
     with pytest.raises(AppError) as err:

@@ -65,3 +65,51 @@ def test_recommendation_run_postgres_store_read_owner_and_expiry(pg_client, engi
         assert db.scalar(select(model_versions.c.model_code).where(
             model_versions.c.version == "skill-overlap-draft-v2")) == "skill_overlap_baseline"
         assert db.execute(select(items.c.rank).where(items.c.recommendation_run_id == run_uuid)).all()
+
+
+def test_recommendation_run_postgres_feedback_latest_wins_and_get_is_read_only(pg_client, engine):
+    signup = pg_client.post(API + "/auth/signup", json=signup_body("t45-feedback@example.com"))
+    assert signup.status_code == 201
+    user = bearer(signup.json()["access_token"])
+    user_id = UUID(pg_client.get(API + "/me", headers=user).json()["user_id"])
+    now = datetime.now(UTC)
+    hidden, cleared = uuid4(), uuid4()
+
+    with Session(engine) as db, db.begin():
+        skill_id = db.scalar(text("SELECT skill_id FROM career.skills WHERE code = 'PYTHON'"))
+        company_id = db.scalar(text("SELECT company_id FROM career.companies LIMIT 1"))
+        source_id = db.scalar(text("SELECT source_id FROM career.data_sources WHERE code='synthetic_seed'"))
+        for posting_id in (hidden, cleared):
+            db.execute(text("""INSERT INTO career.job_postings
+                (job_posting_id, company_id, source_id, title, status, published_at, expires_at)
+                VALUES (:id, :company, :source, :title, 'published', :published, NULL)"""),
+                {"id": posting_id, "company": company_id, "source": source_id,
+                 "title": f"합성 피드백 공고 {posting_id}", "published": now - timedelta(days=1)})
+            db.execute(text("""INSERT INTO career.job_posting_skills
+                (job_posting_id, skill_id, is_required, required_level)
+                VALUES (:id, :skill, true, 3)"""), {"id": posting_id, "skill": skill_id})
+        # Latest feedback wins: hidden stays not_interested, cleared is re-included.
+        for posting_id, action, age in ((hidden, "not_interested", 2), (cleared, "not_interested", 2),
+                                        (cleared, "cleared", 1)):
+            db.execute(text("""INSERT INTO career.recommendation_feedback
+                (user_id, job_posting_id, feedback, created_at) VALUES (:u, :p, :f, :t)"""),
+                {"u": user_id, "p": posting_id, "f": action, "t": now - timedelta(minutes=age)})
+
+    assert pg_client.put(API + "/me/skills", headers=user,
+        json={"items": [{"skill_id": str(skill_id), "proficiency": 3}]}).status_code == 200
+    created = pg_client.post(API + "/recommendation-runs", headers=user)
+    assert created.status_code == 201, created.text
+    body = created.json()
+    ids = {v["job_posting"]["job_posting_id"] for v in body["items"]}
+    assert str(cleared) in ids and str(hidden) not in ids
+    assert all(v["feedback"] is None for v in body["items"] if v["job_posting"]["job_posting_id"] == str(cleared))
+
+    def counts():
+        with Session(engine) as db:
+            return (db.scalar(text("SELECT count(*) FROM career.recommendation_runs")),
+                    db.scalar(text("SELECT count(*) FROM career.recommendation_items")))
+    before = counts()
+    for _ in range(2):
+        assert pg_client.get(API + "/recommendation-runs/latest", headers=user).json() == body
+        assert pg_client.get(created.headers["location"], headers=user).json() == body
+    assert counts() == before == (1, len(body["items"]))
