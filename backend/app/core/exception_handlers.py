@@ -40,7 +40,8 @@ def error_response(request: Request, code: ErrorCode, headers: dict[str, str] | 
     spec = ERROR_CATALOG[code]
     body = ErrorResponse(code=code, status=spec.status, message=spec.message)
     headers = dict(headers or {})
-    if request.url.path.rstrip("/") == "/api/v1/me":
+    if (request.url.path.rstrip("/") == "/api/v1/me"
+        or request.url.path.startswith("/api/v1/me/")):
         headers["Cache-Control"] = "no-store"
     # 500은 RequestIdMiddleware 바깥(ServerErrorMiddleware)에서 응답되므로 헤더를 여기서도 넣는다
     return JSONResponse(

@@ -9,13 +9,22 @@ import type {
 } from '../api/recommendations';
 
 /**
- * 맞춤 추천 Mock (UI-017). T45 추천 실행 API 머지 전까지만 사용합니다.
+ * 맞춤 추천 Mock (UI-017). 개발 서버(VITE_API_MOCK=true)와 화면 테스트에서 사용합니다.
+ * 응답 모양·문구는 T45에서 머지된 Backend(app/services/recommendation_runs.py,
+ * app/repositories/recommendation_runs.py)에 맞춥니다.
  * 회사·공고는 모두 가상 데이터이며 실제 개인정보·운영 데이터를 넣지 않습니다.
  * Mock 성공은 실제 서비스 PASS가 아닙니다.
  */
 
-export const MOCK_RULE_MODEL = { model_code: 'match_rule', version: '1', kind: 'rule' } as const;
-export const MOCK_FALLBACK_MODEL = { model_code: 'latest_postings', version: '1', kind: 'rule' } as const;
+/**
+ * T45 규칙 기준선 버전(career.model_versions). T45는 completed·fallback 모두 같은 버전을 기록합니다.
+ * MOCK_FALLBACK_MODEL 은 기존 import 호환을 위해 남겨 둔 같은 값입니다.
+ */
+export const MOCK_RULE_MODEL = { model_code: 'skill_overlap_baseline', version: 'skill-overlap-draft-v2', kind: 'rule' } as const;
+export const MOCK_FALLBACK_MODEL = MOCK_RULE_MODEL;
+
+/** T45 fallback 항목의 reason 문구 (score=null). */
+export const MOCK_FALLBACK_REASON = '보유 기술 또는 공고의 요구 기술 정보가 부족하여 최신 공고를 표시합니다.';
 
 const posting = (
   n: number,
@@ -46,15 +55,16 @@ const postings: [JobPostingSummary, JobPostingSummary, JobPostingSummary, JobPos
 ];
 
 const personalizedItems: RecommendationItem[] = [
-  { rank: 1, score: 82, reason: '목표 직무(백엔드 개발)와 일치하고 Python·SQL 요구 기술을 보유하고 있습니다.', feedback: null, job_posting: postings[0] },
-  { rank: 2, score: 67.5, reason: 'Python 요구를 충족합니다. Docker 경험은 부족 역량으로 확인됩니다.', feedback: 'liked', job_posting: postings[1] },
-  { rank: 3, score: 41, reason: 'SQL 요구를 충족하지만 목표 직무와 다른 직무입니다.', feedback: 'not_interested', job_posting: postings[2] },
+  // T45 reason = T27 문구 + (목표 직무 공고이면) " 목표 직무에 포함됩니다."
+  { rank: 1, score: 75, reason: '요구 기술 4개 중 3개가 일치합니다. 목표 직무에 포함됩니다.', feedback: null, job_posting: postings[0] },
+  { rank: 2, score: 66.67, reason: '요구 기술 3개 중 2개가 일치합니다. 목표 직무에 포함됩니다.', feedback: 'liked', job_posting: postings[1] },
+  { rank: 3, score: 50, reason: '요구 기술 2개 중 1개가 일치합니다.', feedback: 'not_interested', job_posting: postings[2] },
 ];
 
 const fallbackItems: RecommendationItem[] = postings.map((job_posting, index) => ({
   rank: index + 1,
   score: null,
-  reason: '맞춤 추천을 준비하지 못해 최근 게시된 공고를 보여 드립니다.',
+  reason: MOCK_FALLBACK_REASON,
   feedback: null,
   job_posting,
 }));
@@ -63,8 +73,11 @@ const fallbackItems: RecommendationItem[] = postings.map((job_posting, index) =>
 export interface RecommendationMockScenario {
   /** GET latest 응답: 기존 추천 있음 / 없음(404) / 기준 추천(fallback) / 서버 오류(500) / 세션 만료(401) */
   latest: 'personalized' | 'none' | 'fallback' | 'error' | 'unauthorized';
-  /** POST 응답: 맞춤 추천 / 기준 추천 / 계산 실패 / 서버 오류(500) */
-  create: 'completed' | 'fallback' | 'failed' | 'error';
+  /**
+   * POST 응답: 맞춤 추천 / 기준 추천 / 공개 공고가 없는 기준 추천(빈 items) / 계산 실패 / 서버 오류(500) / DB 연결 실패(503).
+   * failed 는 계약(openapi.yaml)에만 있고 T45 Backend는 현재 만들지 않습니다(화면 방어용).
+   */
+  create: 'completed' | 'fallback' | 'fallback_empty' | 'failed' | 'error' | 'unavailable';
   /**
    * POST /recommendation-feedback 응답: 저장(201) / 서버 오류(500) / 세션 만료(401)
    * / 내 추천에 없는 공고(404 NOT_FOUND) / 입력값 오류(422 VALIDATION_FAILED) (T48)
@@ -106,7 +119,7 @@ export function resetRecommendationMock() {
 const run = (id: string, status: RecommendationRun['status'], items: RecommendationItem[], generatedAt: string): RecommendationRun => ({
   recommendation_run_id: id,
   status,
-  model_version: status === 'fallback' ? { ...MOCK_FALLBACK_MODEL } : { ...MOCK_RULE_MODEL },
+  model_version: { ...MOCK_RULE_MODEL },
   generated_at: generatedAt,
   items,
 });
@@ -152,20 +165,25 @@ function createFor(email: string, body: unknown): RecommendationRun {
     return validationFailed();
   }
   if (scenario.create === 'error') throw new ApiError(500, '');
+  if (scenario.create === 'unavailable') throw new ApiError(503, '', undefined, 'DEPENDENCY_UNAVAILABLE');
   runSequence += 1;
   const id = `00000000-0000-4000-8000-000000000b${String(runSequence).padStart(2, '0')}`;
   const generatedAt = new Date(Date.UTC(2026, 10, 9, 1, runSequence)).toISOString();
   // FR-ANL-004: 최신 피드백이 not_interested 인 공고는 다음 추천에서 제외합니다.
-  const personalized = personalizedItems
-    .filter((item) => currentFeedback(email, item) !== 'not_interested')
-    .slice(0, limit)
-    .map((item, index) => ({ ...item, rank: index + 1 }));
-  const created =
-    scenario.create === 'failed'
-      ? run(id, 'failed', [], generatedAt)
-      : scenario.create === 'fallback'
-        ? run(id, 'fallback', fallbackItems.slice(0, limit), generatedAt)
-        : run(id, 'completed', personalized, generatedAt);
+  // T45 Backend 는 후보(eligible)에서 먼저 빼므로 맞춤 추천·기준 추천(fallback) 모두에 적용됩니다.
+  const withoutNotInterested = (items: RecommendationItem[]) =>
+    items
+      .filter((item) => currentFeedback(email, item) !== 'not_interested')
+      .slice(0, limit)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  const createdByScenario: Record<'completed' | 'fallback' | 'fallback_empty' | 'failed', () => RecommendationRun> = {
+    completed: () => run(id, 'completed', withoutNotInterested(personalizedItems), generatedAt),
+    fallback: () => run(id, 'fallback', withoutNotInterested(fallbackItems), generatedAt),
+    // T45: 공개 공고 자체가 없으면 fallback + 빈 items
+    fallback_empty: () => run(id, 'fallback', [], generatedAt),
+    failed: () => run(id, 'failed', [], generatedAt),
+  };
+  const created = createdByScenario[scenario.create]();
   createdRuns.set(email, created);
   return withFeedback(email, created);
 }

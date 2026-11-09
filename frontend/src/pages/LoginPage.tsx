@@ -21,7 +21,8 @@ function messageFor(error: unknown): string {
 export function LoginPage() {
   const { state, login } = useAuth();
   const navigate = useNavigate();
-  const from = (useLocation().state as { from?: string } | null)?.from ?? '/account';
+  const locationState = useLocation().state as { from?: string; privacyNotice?: string } | null;
+  const from = locationState?.from ?? '/account';
   const [savedEmail] = useState(getSavedEmail);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +58,7 @@ export function LoginPage() {
         <h1 id="login-title" className="login-title">
           로그인
         </h1>
+        {locationState?.privacyNotice && <p role="status">{locationState.privacyNotice}</p>}
         <form onSubmit={onSubmit} className="login-form">
           <TextField
             label="이메일"

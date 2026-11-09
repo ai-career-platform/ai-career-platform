@@ -1,0 +1,158 @@
+{
+  "generated_at": "2026-11-09T07:23:07.078299+00:00",
+  "scope": "disposable local HTTP server; no Staging access",
+  "python": "3.14.4",
+  "postgresql": "18.1",
+  "antivirus_enabled": false,
+  "mock_dependencies": false,
+  "backend_suite": {
+    "passed": 333,
+    "skipped": 98,
+    "failed": 0,
+    "seconds": 21.18
+  },
+  "document_unit_tests": {
+    "passed": 20
+  },
+  "upload_e2e": {
+    "passed": 24,
+    "failed": 0,
+    "checks": [
+      {
+        "name": "test_live_pdf_docx_lifecycle_and_cascade",
+        "result": "PASS",
+        "seconds": 1.603
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[php-webshell]",
+        "result": "PASS",
+        "seconds": 0.046
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[php-disguised-as-pdf]",
+        "result": "PASS",
+        "seconds": 0.046
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[shell-script]",
+        "result": "PASS",
+        "seconds": 0.048
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[executable-double-extension]",
+        "result": "PASS",
+        "seconds": 0.05
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[pe-disguised-as-pdf]",
+        "result": "PASS",
+        "seconds": 0.051
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[svg-disguised-as-pdf]",
+        "result": "PASS",
+        "seconds": 0.048
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[mismatched-mime]",
+        "result": "PASS",
+        "seconds": 0.048
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[posix-traversal]",
+        "result": "PASS",
+        "seconds": 0.049
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[windows-traversal]",
+        "result": "PASS",
+        "seconds": 0.049
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[empty-file]",
+        "result": "PASS",
+        "seconds": 0.048
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[file-too-large]",
+        "result": "PASS",
+        "seconds": 0.096
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[corrupt-docx]",
+        "result": "PASS",
+        "seconds": 0.052
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[zip-slip]",
+        "result": "PASS",
+        "seconds": 0.049
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[macro]",
+        "result": "PASS",
+        "seconds": 0.045
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[zip-bomb]",
+        "result": "PASS",
+        "seconds": 0.048
+      },
+      {
+        "name": "test_live_upload_attacks_rejected[xxe]",
+        "result": "PASS",
+        "seconds": 0.046
+      },
+      {
+        "name": "test_live_ownership_auth",
+        "result": "PASS",
+        "seconds": 1.001
+      },
+      {
+        "name": "test_live_shell_execution_attempts",
+        "result": "PASS",
+        "seconds": 1.208
+      },
+      {
+        "name": "test_live_duplicate_fields_and_chunked_limit",
+        "result": "PASS",
+        "seconds": 0.097
+      },
+      {
+        "name": "test_live_symlink_read_and_overwrite_protection",
+        "result": "PASS",
+        "seconds": 0.925
+      },
+      {
+        "name": "test_live_verify_delete_race",
+        "result": "PASS",
+        "seconds": 0.925
+      },
+      {
+        "name": "test_live_private_permissions_random_names_and_no_leak",
+        "result": "PASS",
+        "seconds": 1.577
+      },
+      {
+        "name": "test_live_directory_configuration_and_header_input",
+        "result": "PASS",
+        "seconds": 0.232
+      }
+    ]
+  },
+  "storage_invariants": {
+    "file_mode": "0600",
+    "execute_bits": "000",
+    "directory_mode": "0700",
+    "storage_key": "secrets.token_hex(32); 256 random bits; 64 hex characters",
+    "same_filename_uploads": 12,
+    "all_storage_keys_unique": true,
+    "storage_keys_exposed_in_responses": false,
+    "storage_path_exposed_in_responses": false
+  },
+  "shell_probes": {
+    "execution_marker_created": false,
+    "loopback_callback_received": false,
+    "interactive_shell_opened": false
+  }
+}

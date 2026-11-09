@@ -202,10 +202,10 @@ describe('추천 설명 대화상자 (T48, F-018)', () => {
     expect(within(dialog).getByRole('button', { name: '추천 설명 닫기' })).toHaveFocus();
 
     const view = within(dialog);
-    expect(view.getByText(/Python·SQL 요구 기술을 보유/)).toBeInTheDocument();
-    expect(view.getByText('match_rule v1 (규칙 기반)')).toBeInTheDocument();
+    expect(view.getByText('요구 기술 4개 중 3개가 일치합니다. 목표 직무에 포함됩니다.')).toBeInTheDocument();
+    expect(view.getByText('skill_overlap_baseline · skill-overlap-draft-v2 (규칙 기반)')).toBeInTheDocument();
     expect(view.getByText('맞춤 추천')).toBeInTheDocument();
-    expect(view.getByText('82 / 100')).toBeInTheDocument();
+    expect(view.getByText('75 / 100')).toBeInTheDocument();
     expect(view.getByText(/합격 가능성\(확률\)이 아닙니다/)).toBeInTheDocument();
     expect(view.getByText(/부족 역량 정보 없음/)).toHaveTextContent('추후 제공');
     expect(view.getByText('피드백은 내 추천 개선에만 사용돼요.')).toBeInTheDocument();
@@ -285,8 +285,10 @@ describe('추천 설명 대화상자 (T48, F-018)', () => {
 
     expect(view.getByRole('note')).toHaveTextContent('기준 추천(개인화 아님)');
     expect(view.getByText('기준 추천 (개인화 아님)')).toBeInTheDocument();
-    expect(view.getByText('latest_postings v1 (규칙 기반)')).toBeInTheDocument();
+    // T45 는 fallback 에도 같은 규칙 버전을 기록한다 (계약 예시의 별도 fallback 모델 없음)
+    expect(view.getByText('skill_overlap_baseline · skill-overlap-draft-v2 (규칙 기반)')).toBeInTheDocument();
     expect(view.getByText('점수 없음')).toBeInTheDocument();
+    expect(view.getByText('보유 기술 또는 공고의 요구 기술 정보가 부족하여 최신 공고를 표시합니다.')).toBeInTheDocument();
     expect(view.getByRole('heading', { name: '표시 이유' })).toBeInTheDocument();
     expect(view.queryByText(/합격 가능성/)).not.toBeInTheDocument();
   });

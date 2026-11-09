@@ -1,0 +1,22 @@
+# T26 Skill Gap 계산 초안
+
+Redmine #1530. `app/services/skill_gap.py`는 외부 API·DB와 연결되지 않은 순수 계산 함수다. T04 FR-ANL-002의 검토 중 요구사항을 기준으로 `max(요구 - 보유, 0)`을 사용하며, 미입력 계산은 0으로 하되 원본 `None`과 미등록/미기재 구분을 결과에 남긴다. 필수·선택은 표기만 하며 가중치에 영향을 주지 않는다. 동점은 코드순으로 정한다. 모두 팀 승인 전 제안이다.
+
+값은 1~5 정수, 코드 중복·빈 코드 등은 거부한다. 결과는 자기평가 기반이며 합격 확률이 아니다. 사용자 인증·권한, 실제 코드 정규화, 직무·사용자 데이터 조회, API·DB·이력 저장, 합의된 DTO 및 CI는 구현하지 않았다. T05/T06/T17/T25의 최신 계약이 필요하다. 예제만으로 전체 기능 완료를 주장하지 않는다.
+
+백엔드 폴더에서 `python -m pytest tests/test_skill_gap.py -q`를 실행한다.
+
+## T05 병합본과 대조 (2026-11-06)
+
+T05 PR #17은 main `a004efb`에 병합됐다. 데이터 사전은 아직 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `user_skills.proficiency`는 NULL을 허용하고 계산 시 0으로 취급한다. `skill_gap_items.observed_level`은 NULL이 아닌 0~5 계산 스냅샷이다. 현재 함수는 원본 수준을 `None`으로 보존하므로 DB 저장용 0과 직접 동일시하면 안 된다. 저장 변환과 미등록/미입력 표시의 DTO 연결은 미구현·확인 필요다. `model_versions.kind='rule'`이며 `approved_at`이 NULL이면 서비스 사용 금지다. T06 PR #29는 병합됐고 실제 API 구현은 별도다.
+
+`to_snapshot_example`은 결과의 미입력 `None`을 계산 스냅샷의 0으로 바꾸는 가상 변환이며 원본은 변경하지 않는다. `skill_code`는 예제 식별자이고 실제 DB의 UUID·assessment_id 매핑, 저장 및 권한 검사는 포함하지 않는다.
+
+## T06 병합 계약 대조 (2026-11-06)
+
+T06 PR #29는 main `d1fae3a`에 병합됐다. SkillGapItem의 observed_level은 0~5이고 0은 미입력을 뜻한다. 응답에는 skill 객체(UUID·code·name)가 필수이며 현재 가상 스냅샷의 skill_code만으로는 DTO가 완성되지 않는다. SkillGap 응답은 assessment_id, job_role, model_version, is_stale, evaluated_at이 필요하고 이 함수는 해당 조회·조립을 제공하지 않는다. 응답 items 설명의 빈 배열 처리와 함수가 gap=0 항목도 반환하는 차이는 API 담당자와 협의한다. 0은 미입력 표시 근거가 될 수 있지만 미등록과 미기재의 차이를 별도 전달하는 필드는 없다.
+
+
+## PM 검토 범위 (2026-11-09)
+
+이번 작업은 순수 Skill Gap 계산과 단위 테스트에 한정한다. 원본 `user_skills.proficiency=NULL`을 변경하지 않고 계산 스냅샷에서만 `observed_level=0`으로 변환한다. 현재 `skill_code`는 합성 식별자로 실제 UUID 또는 T06 응답 DTO가 아니다. `gap=0` 반환과 미등록/미기재 표현의 API 연결은 후속 결정이며 DB·API 통합은 FOLLOW_UP이다.

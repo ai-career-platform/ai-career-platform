@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MOCK_PASSWORD } from '../mocks/handlers';
-import { resetRecommendationMock } from '../mocks/recommendations';
+import {
+  MOCK_FALLBACK_REASON,
+  MOCK_RULE_MODEL,
+  resetRecommendationMock,
+  setRecommendationMockScenario,
+} from '../mocks/recommendations';
 import { apiRequest } from './client';
 import type { ApiRequestOptions } from './client';
 import {
@@ -24,7 +29,8 @@ const requesterFor = (fetchImpl: typeof fetch): AuthedRequest =>
 const run = {
   recommendation_run_id: '00000000-0000-4000-8000-000000000a01',
   status: 'completed',
-  model_version: { model_code: 'match_rule', version: '1', kind: 'rule' },
+  // T45 실제 규칙 기준선 버전 (backend/app/repositories/recommendation_runs.py)
+  model_version: { model_code: 'skill_overlap_baseline', version: 'skill-overlap-draft-v2', kind: 'rule' },
   generated_at: '2026-11-06T03:10:00Z',
   items: [],
 };
@@ -114,7 +120,7 @@ describe('recommendations API client (OpenAPI contract)', () => {
     const source: RecommendationRun = {
       recommendation_run_id: run.recommendation_run_id,
       status: 'completed',
-      model_version: { model_code: 'match_rule', version: '1', kind: 'rule' },
+      model_version: { ...MOCK_RULE_MODEL },
       generated_at: run.generated_at,
       items: [item('p1', 'liked'), item('p2', 'liked')],
     };
@@ -175,6 +181,67 @@ describe('recommendations mock', () => {
     expect(first).toMatchObject({ job_posting_id: posting, feedback: 'liked' });
     // 같은 값을 다시 보내면 같은 기록을 돌려준다 (멱등)
     await expect(post({ job_posting_id: posting, feedback: 'liked' })).resolves.toEqual(first);
+    resetRecommendationMock();
+  });
+
+  it('excludes not_interested postings from the next run in both completed and fallback runs (T45 + T47)', async () => {
+    resetRecommendationMock();
+    const login = await apiRequest<{ access_token: string }>('/v1/auth/login', {
+      mockEnabled: true,
+      method: 'POST',
+      body: { email: 'user@example.com', password: MOCK_PASSWORD },
+    });
+    const token = login.access_token;
+    const create = () =>
+      apiRequest<RecommendationRun>('/v1/recommendation-runs', { mockEnabled: true, method: 'POST', body: {}, token });
+    const posting = '00000000-0000-4000-8000-000000000101';
+
+    setRecommendationMockScenario({ create: 'fallback' });
+    const before = await create();
+    expect(before.items.map((entry) => entry.job_posting.job_posting_id)).toContain(posting);
+    await apiRequest('/v1/recommendation-feedback', {
+      mockEnabled: true,
+      method: 'POST',
+      body: { recommendation_run_id: before.recommendation_run_id, job_posting_id: posting, feedback: 'not_interested' },
+      token,
+    });
+
+    const fallback = await create();
+    expect(fallback.items.map((entry) => entry.job_posting.job_posting_id)).not.toContain(posting);
+    expect(fallback.items.map((entry) => entry.rank)).toEqual(fallback.items.map((_, index) => index + 1));
+
+    setRecommendationMockScenario({ create: 'completed' });
+    const completed = await create();
+    expect(completed.items.map((entry) => entry.job_posting.job_posting_id)).not.toContain(posting);
+    resetRecommendationMock();
+  });
+
+  it('follows the T45 response shape: same rule model for completed and fallback, fallback reason, empty fallback, 503', async () => {
+    resetRecommendationMock();
+    const login = await apiRequest<{ access_token: string }>('/v1/auth/login', {
+      mockEnabled: true,
+      method: 'POST',
+      body: { email: 'user@example.com', password: MOCK_PASSWORD },
+    });
+    const token = login.access_token;
+    const create = () =>
+      apiRequest<RecommendationRun>('/v1/recommendation-runs', { mockEnabled: true, method: 'POST', body: { limit: 20 }, token });
+
+    const completed = await create();
+    expect(completed.status).toBe('completed');
+    expect(completed.model_version).toEqual(MOCK_RULE_MODEL);
+    expect(completed.items.every((item) => item.feedback !== 'not_interested')).toBe(true);
+
+    setRecommendationMockScenario({ create: 'fallback' });
+    const fallback = await create();
+    expect(fallback.model_version).toEqual(MOCK_RULE_MODEL);
+    expect(fallback.items.every((item) => item.score === null && item.reason === MOCK_FALLBACK_REASON)).toBe(true);
+
+    setRecommendationMockScenario({ create: 'fallback_empty' });
+    await expect(create()).resolves.toMatchObject({ status: 'fallback', items: [] });
+
+    setRecommendationMockScenario({ create: 'unavailable' });
+    await expect(create()).rejects.toMatchObject({ status: 503, code: 'DEPENDENCY_UNAVAILABLE' });
     resetRecommendationMock();
   });
 });

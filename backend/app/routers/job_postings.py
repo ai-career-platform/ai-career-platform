@@ -17,12 +17,10 @@ from app.core.auth_config import AuthSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
-from app.dependencies.auth import (
-    CurrentUser, get_access_claims, get_auth_repository, get_auth_settings, get_current_user,
-)
-from app.repositories.auth import AuthRepository
+from app.dependencies.auth import CurrentUser, get_access_claims, get_auth_service, get_auth_settings
 from app.repositories.job_postings import PostingFilter, SqlJobPostingRepository
 from app.schemas.job_postings import CompanyDetail, CompanyPage, JobPostingDetail, JobPostingPage, PostingSort
+from app.services.auth import AuthService
 from app.services.job_postings import JobPostingService, ListCursor, derive_cursor_key
 
 _optional_bearer = HTTPBearer(auto_error=False)
@@ -39,17 +37,17 @@ def _current_user_or_none(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_optional_bearer)],
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
-    repo: Annotated[AuthRepository, Depends(get_auth_repository)],
+    auth: Annotated[AuthService, Depends(get_auth_service)],
 ) -> CurrentUser | None:
     """헤더가 없으면 비로그인(None). 있으면 T15와 같은 검증(서명·만료·세션·사용자 상태)을 거치고,
     인증 실패(만료·변조·세션 종료)는 비로그인(None)으로 본다. 그 밖의 오류(DB 장애 등)는 그대로 낸다.
 
-    get_auth_repository는 요청당 하나인 get_db 세션을 같이 쓰므로 DB 연결이 늘지 않는다.
+    get_auth_service는 요청당 하나인 get_db 세션을 같이 쓰므로 DB 연결이 늘지 않는다.
     """
     if request.headers.get("Authorization") is None:
         return None
     try:
-        return get_current_user(get_access_claims(credentials, settings), repo)
+        return auth.authenticate(get_access_claims(credentials, settings))
     except AppError as exc:
         if exc.code in (ErrorCode.UNAUTHENTICATED, ErrorCode.TOKEN_EXPIRED):
             return None

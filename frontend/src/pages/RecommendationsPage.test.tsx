@@ -5,7 +5,7 @@ import { MOCK_PASSWORD } from '../mocks/handlers';
 import { resetRecommendationMock, setRecommendationMockScenario } from '../mocks/recommendations';
 import { routes } from '../routes';
 
-// T45 추천 실행 API 머지 전이므로 모든 호출을 Mock 으로 처리한다 (PARTIAL).
+// 화면 테스트는 T45 Backend 응답 모양에 맞춘 Mock(mocks/recommendations.ts)으로 처리한다. 실제 API 연결 검증은 아니다.
 vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true } }));
 
 const setup = (path: string) => {
@@ -59,17 +59,17 @@ describe('RecommendationsPage (UI-017)', () => {
     const first = at(items, 0);
     expect(within(first).getByText(/1위 · 백엔드 개발자 \(신입\)/)).toBeInTheDocument();
     expect(within(first).getByRole('heading', { level: 2, name: '1위 · 백엔드 개발자 (신입)' })).toBeInTheDocument();
-    expect(within(first).getByText('적합 점수 100점 만점에 82점')).toHaveClass('sr-only');
-    expect(within(first).getByText('82').closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(within(first).getByText('적합 점수 100점 만점에 75점')).toHaveClass('sr-only');
+    expect(within(first).getByText('75').closest('[aria-hidden="true"]')).not.toBeNull();
     const info = within(first).getByRole('list', { name: '공고 정보' });
     expect(within(info).getByText('정규직')).toBeInTheDocument();
     expect(within(first).queryByRole('list', { name: '관련 기술' })).not.toBeInTheDocument();
     expect(within(first).getByText(/합격 가능성\(확률\)이 아닙니다/)).toBeInTheDocument();
-    expect(within(first).getByText(/Python·SQL 요구 기술을 보유/)).toBeInTheDocument();
+    expect(within(first).getByText('요구 기술 4개 중 3개가 일치합니다. 목표 직무에 포함됩니다.')).toBeInTheDocument();
     expect(within(first).getByText('예시 테크', { selector: '.job-company' })).toBeInTheDocument();
 
     expect(screen.getByText('맞춤 추천', { selector: '.recommendations-badge' })).toHaveClass('recommendations-badge--completed');
-    expect(screen.getByText('match_rule v1 (규칙 기반)')).toBeInTheDocument();
+    expect(screen.getByText('skill_overlap_baseline · skill-overlap-draft-v2 (규칙 기반)')).toBeInTheDocument();
     expect(screen.getByText(/AI의 확정 판단이 아니므로/)).toBeInTheDocument();
     expect(document.querySelector('time')).toHaveAttribute('datetime', '2026-11-06T03:10:00Z');
   });
@@ -121,10 +121,23 @@ describe('RecommendationsPage (UI-017)', () => {
     expect(screen.getByText('기준 추천 (개인화 아님)')).toHaveClass('recommendations-badge--fallback');
     expect(screen.getByRole('note')).toHaveTextContent('맞춤 추천을 계산하지 못해');
     expect(screen.getByRole('note')).not.toHaveTextContent('입력하면 맞춤 추천을 받을 수 있습니다');
-    expect(screen.getByText('latest_postings v1 (규칙 기반)')).toBeInTheDocument();
+    expect(screen.getByText('skill_overlap_baseline · skill-overlap-draft-v2 (규칙 기반)')).toBeInTheDocument();
     expect(within(at(items, 0)).getByText('점수 없음')).toBeInTheDocument();
     expect(within(at(items, 0)).getByText('기준 추천이라 개인 적합 점수를 계산하지 않았습니다.')).toBeInTheDocument();
     expect(screen.queryByText(/적합 점수 100점 만점에/)).not.toBeInTheDocument();
+  });
+
+  it('shows the T45 fallback reason, and an empty state when a fallback run has no published postings', async () => {
+    setRecommendationMockScenario({ latest: 'fallback' });
+    await openRecommendations();
+    const items = await cards();
+    expect(within(at(items, 0)).getByText('보유 기술 또는 공고의 요구 기술 정보가 부족하여 최신 공고를 표시합니다.')).toBeInTheDocument();
+
+    setRecommendationMockScenario({ create: 'fallback_empty' });
+    fireEvent.click(screen.getByRole('button', { name: '새 추천 받기' }));
+    expect(await screen.findByText('추천할 공고가 없습니다')).toBeInTheDocument();
+    expect(screen.getByText('기준 추천 (개인화 아님)')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: '추천 공고 목록' })).not.toBeInTheDocument();
   });
 
   it('shows a failed run clearly with a retry action', async () => {

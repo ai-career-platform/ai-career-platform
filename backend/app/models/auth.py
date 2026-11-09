@@ -144,3 +144,15 @@ class UserConsent(Base):
     policy_version: Mapped[str] = mapped_column(String(40))
     granted: Mapped[bool] = mapped_column(Boolean)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), **_NOW)
+
+
+class AccountDeletionRequest(Base):
+    __tablename__ = "account_deletion_requests"
+    __table_args__ = {"schema": SCHEMA}
+
+    request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), **_UUID_PK)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), _fk("users.user_id", "SET NULL"))
+    status: Mapped[str] = mapped_column(String(20), server_default=text("'requested'"))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), **_NOW)
+    scheduled_purge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

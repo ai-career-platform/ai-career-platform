@@ -18,9 +18,12 @@ export const modelKindLabels: Record<ModelKind, string> = {
   llm: '언어 모델',
 };
 
-/** 계산 기준 표시: "match_rule v1 (규칙 기반)" */
+/**
+ * 계산 기준 표시: "skill_overlap_baseline · skill-overlap-draft-v2 (규칙 기반)".
+ * T45 실제 version 문자열에는 v 접두사가 없으므로 붙이지 않습니다 (T46 표시 형식과 같음).
+ */
 export const formatModelVersion = (model: ModelVersionRef) =>
-  `${model.model_code} v${model.version} (${modelKindLabels[model.kind]})`;
+  `${model.model_code} · ${model.version} (${modelKindLabels[model.kind]})`;
 
 export const generatedAtFormat = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'medium',

@@ -8,6 +8,7 @@ from app.core.auth_config import AuthSettings
 from app.core.errors import AppError, ErrorCode
 from app.core.rate_limit import AttemptLimiter
 from app.core.security import (
+    AccessClaims,
     canonical_email,
     hash_password,
     hash_token,
@@ -16,11 +17,19 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
-from app.repositories.auth import AuthRepository, EmailTaken, NewUser, SessionRecord
+from app.repositories.auth import AuthRepository, EmailTaken, NewUser, SessionRecord, UserRecord
 from app.schemas.auth import ConsentPolicy, LoginRequest, SignupRequest
 
 DEFAULT_ROLE = "job_seeker"
 USER_AGENT_MAX = 300
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    user_id: uuid.UUID
+    session_id: uuid.UUID
+    roles: frozenset[str]
+    permissions: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -202,6 +211,25 @@ class AuthService:
         except Exception:
             self.repo.rollback()
             raise
+
+    # ---------------------------------------------------------------- current user
+    def authenticate(self, claims: AccessClaims) -> CurrentUser:
+        """서명이 확인된 토큰의 세션·사용자 상태·역할을 DB에서 다시 읽는다 (토큰 안의 roles는 신뢰하지 않음)."""
+        session = self.repo.get_session(claims.session_id)
+        if not is_session_active(session, _now()) or session.user_id != claims.user_id:
+            raise _unauthenticated("session revoked, expired or mismatched")
+        user = self.repo.get_user(claims.user_id)
+        if user is None or user.status != "active":
+            raise _unauthenticated("user missing or disabled")
+        return CurrentUser(
+            user_id=claims.user_id,
+            session_id=claims.session_id,
+            roles=frozenset(self.repo.role_codes(claims.user_id)),
+            permissions=frozenset(self.repo.permission_codes(claims.user_id)),
+        )
+
+    def get_user(self, user_id: uuid.UUID) -> UserRecord | None:
+        return self.repo.get_user(user_id)
 
     # ---------------------------------------------------------------- my sessions
     def list_sessions(self, user_id: uuid.UUID) -> list[SessionRecord]:
