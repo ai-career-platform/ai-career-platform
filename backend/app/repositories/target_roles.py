@@ -19,7 +19,7 @@ class TargetRoleRepository(Protocol):
     def replace(self, user_id: UUID, items: Sequence[TargetRoleItem]) -> list[TargetRole] | None: ...
 
 
-class PostgresTargetRoleRepository:
+class SqlTargetRoleRepository:
     def __init__(self, session: Session):
         self.session = session
 
