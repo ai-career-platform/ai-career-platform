@@ -1,11 +1,15 @@
 """애플리케이션 설정. 환경변수만 읽으며 .env는 자동으로 로드하지 않습니다."""
 
 import os
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from psycopg import ProgrammingError
-from psycopg.conninfo import conninfo_to_dict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+# '%' 뒤에 16진수 두 자리가 오지 않는 잘못된 퍼센트 인코딩 (예: '%xx')
+_BAD_PERCENT = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 APP_NAME = "ai-career-platform"
 API_V1_PREFIX = "/api/v1"
@@ -34,11 +38,15 @@ class DatabaseSettings:
             return None
         if not url.startswith(("postgresql://", "postgres://")):
             raise ValueError("DATABASE_URL must be a PostgreSQL URL")
+        # SQLAlchemy URL 파서로 검사한다 (DB 드라이버 라이브러리를 직접 참조하지 않음).
+        # 오류 메시지에는 URL 값(자격정보)을 넣지 않는다.
+        if _BAD_PERCENT.search(url):
+            raise ValueError("DATABASE_URL is invalid")
         try:
-            options = conninfo_to_dict(url)
-        except ProgrammingError:
+            parsed = make_url(url)
+        except (ArgumentError, ValueError):
             raise ValueError("DATABASE_URL is invalid") from None
-        if not all(options.get(key) for key in ("host", "user", "dbname")):
+        if not (parsed.host and parsed.username and parsed.database):
             raise ValueError("DATABASE_URL requires a host, user and database")
         return cls(
             url=url,
