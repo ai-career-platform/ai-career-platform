@@ -1,7 +1,11 @@
 import type { RouteObject } from 'react-router';
+import { AuthProvider } from './auth/AuthContext';
+import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layouts/AppLayout';
+import { AccountPage } from './pages/AccountPage';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
+import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -13,7 +17,11 @@ import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCar
 export const routes: RouteObject[] = [
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
+    ),
     children: [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
@@ -21,6 +29,8 @@ export const routes: RouteObject[] = [
       { path: 'me/target-roles', element: <TargetRolesPage /> },
       { path: 'me/career-history', element: <CareerHistoryPage /> },
       { path: 'me/bookmarks', element: <BookmarksPage /> },
+      { path: 'login', element: <LoginPage /> },
+      { element: <RequireAuth />, children: [{ path: 'account', element: <AccountPage /> }] },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
