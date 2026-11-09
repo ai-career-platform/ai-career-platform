@@ -1,36 +1,13 @@
-# T23 직무·기술 탐색 UI — React Mock
+# T23 — 직무·기술 탐색
 
-상태: **T23_STATUS=PARTIAL / review requested**. Redmine #1496. 과거 독립 HTML 시안은 팀에서 닫은 PR #30에 보존한다. 이번 구현은 T20 병합 후 최신 main을 기준으로 만든 별도 React 화면이다.
+상태: **PARTIAL / Draft 검토**. 경로 `/job-roles`, Redmine #1496.
 
-- 사용자 화면 경로: /job-roles
-- 재사용: T20 AppLayout, Button, FilterChips, TextField, StatePanel 및 기본 디자인 토큰
-- 기능: 직무/기술 검색, 분야 필터, 이름·분야 정렬, 페이지 이동, 직무 상세, 합성 요구 기술·수준 표시
-- 상태: 기본/로딩/빈 결과/오류/재시도 및 검색 초기화
-- 모바일에서는 목록과 상세를 세로로 배치한다.
-- 직무 8개 및 요구 수준은 고정된 합성 데이터이다. T17 API 연결과 개인 보유 기술·Skill Gap 분석 결과는 구현하지 않았다.
+팀 T17 API로 직무 이름 검색, 목록·커서 이동, 선택 직무의 설명과 요구 기술을 조회한다. 로딩·빈 결과·오류와 재시도를 제공한다. 기술 검색, 분야 필터, 정렬, 내 기술과의 비교는 현재 화면에 제공하지 않는다. 서버가 지원하지 않는 검색·정렬과 합성 기술 수준을 실제 결과처럼 표시하지 않는다.
 
-## 구조
+## 실행 및 검증
 
-- src/pages/JobExplorerPage.tsx: React 상태 관리/공통 UI
-- src/pages/JobExplorerPage.css: 모바일 대응 화면 스타일
-- src/pages/jobExplorerData.ts: 합성 데이터 및 순수 검색/정렬/페이지 함수
-- src/pages/JobExplorerPage.test.tsx: 사용자 상호작용·오류/재시도·페이지 단위 테스트
-- src/routes.tsx: /job-roles 라우트 추가
-- src/layouts/AppLayout.tsx: 사이드 메뉴의 직무·기술 탐색 링크 추가
+`frontend`에서 `npm ci`, `npm test`, `npm run build`. `npm run dev`는 같은 Origin `/api` 경유 실제 Backend를 사용하며, `DEV_API_PROXY_TARGET`으로 허용된 테스트 서버를 선택할 수 있다. 비밀값을 VITE 변수에 넣지 않는다. 현재 화면에 맞는 T17 Mock 핸들러는 없으므로 `dev:mock`은 실 API 검증 방법이 아니다.
 
-## 실행 / 확인 (frontend 디렉터리)
+스테이징 목록은 브라우저에서 확인했고 단위 테스트는 가상 응답으로 검색·커서·상세·오류를 검사한다. 실사용자 기술 비교, 실제 데이터 출처 확인, 상세 화면의 실 API E2E, 모바일·키보드 QA, 최신 CI·리뷰는 남아 있다. 별도 수집 공고는 이 직무 API의 데이터 출처를 증명하지 않는다.
 
-    npm ci
-    npm run lint
-    npm run typecheck
-    npm test
-    npm run build
-    npm run dev:mock
-
-브라우저에서 http://127.0.0.1:5173/job-roles 로 확인한다. 팀 자동 CI는 .github/workflows/t23-frontend.yml 이다. 이 작업은 GitHub 기반으로 진행했으므로 실제 Windows 로컬 실행을 확인했다고 주장하지 않는다.
-
-## 남은 사항
-
-T17 PR #117은 Draft/HOLD 상태이므로 T17의 최종 목록·상세·검색 DTO 및 cursor 페이지네이션이 승인된 다음 API client를 src/api에 작성해야 한다. T33/T34 보유 기술 비교, T26 Skill Gap 분석, 실제 인증/권한, 실 DB, Staging/배포와 시각·접근성 수동 QA는 별도 선행·승인 후 작업한다. Mock 테스트 PASS는 서비스 완료가 아니다.
-
-운영 API, 팀 공용 DB, 인증, Staging, 공용 main 직접 수정 없음.
+T24와 `routes.tsx` 및 메뉴를 각각 변경하므로 한 PR 병합 후 다른 PR에서 두 경로를 모두 보존해야 한다. 공유 DB·배포 변경은 없다.
