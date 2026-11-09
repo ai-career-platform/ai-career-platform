@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { useApi } from '../api/ApiContext';
+import { useQuery } from '../api/useQuery';
 import {
   ACCEPT, MAX_FILE_BYTES, documentErrorMessage, formatBytes, isAbortError, isPending, kindNames, saveDocument,
   statusNames, validateFile,
@@ -54,9 +55,15 @@ function ConfirmDelete({ doc, pending, error, onCancel, onConfirm }: {
 
 export function MyDocumentsPage() {
   const { documents } = useApi();
-  const [docs, setDocs] = useState<UserDocument[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
+  // 첫 페이지를 불러온 뒤의 목록(더 보기·업로드·삭제·상태 확인 결과)은 setData 로 같은 데이터에 반영합니다.
+  const listing = useQuery(['me-documents'], (signal) => documents.list(undefined, signal));
+  const { setData: setListing, retry: reloadList } = listing;
+  const phase: 'loading' | 'ready' | 'error' = listing.status === 'ready' ? 'ready' : listing.status === 'error' ? 'error' : 'loading';
+  const loaded = listing.status === 'ready' ? listing.data : null;
+  const docs = useMemo(() => loaded?.items ?? [], [loaded]);
+  const cursor = loaded?.next_cursor ?? null;
+  const setDocs = useCallback((update: (items: UserDocument[]) => UserDocument[]) =>
+    setListing(page => ({ ...page, items: update(page.items) })), [setListing]);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [kind, setKind] = useState<UploadKind>('resume');
@@ -75,22 +82,6 @@ export function MyDocumentsPage() {
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const mock = env.mockEnabled;
-
-  const loadFirstPage = useCallback((isActive: () => boolean = () => true) => documents.list().then(
-    page => { if (isActive()) { setDocs(page.items); setCursor(page.next_cursor); setPhase('ready'); } },
-    () => { if (isActive()) setPhase('error'); },
-  ), [documents]);
-
-  useEffect(() => {
-    let active = true;
-    void loadFirstPage(() => active);
-    return () => { active = false; };
-  }, [loadFirstPage]);
-
-  function reloadList() {
-    setPhase('loading');
-    void loadFirstPage();
-  }
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -115,7 +106,7 @@ export function MyDocumentsPage() {
         }
       }
     }));
-  }, [docs, documents]);
+  }, [docs, documents, setDocs]);
 
   const hasPending = docs.some(d => isPending(d.status));
   useEffect(() => {
@@ -129,8 +120,10 @@ export function MyDocumentsPage() {
     setLoadingMore(true); setRowError('');
     try {
       const page = await documents.list(cursor);
-      setDocs(previous => [...previous, ...page.items.filter(i => !previous.some(p => p.document_id === i.document_id))]);
-      setCursor(page.next_cursor);
+      setListing(previous => ({
+        items: [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.document_id === i.document_id))],
+        next_cursor: page.next_cursor,
+      }));
     } catch (error) {
       setRowError(documentErrorMessage(error, 'list'));
     } finally { setLoadingMore(false); }
@@ -154,8 +147,9 @@ export function MyDocumentsPage() {
     try {
       const created = await documents.upload(file, kind, ctrl.signal);
       if (ctrl.signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
-      setDocs(previous => [created, ...previous.filter(d => d.document_id !== created.document_id)]);
-      setPhase('ready');
+      // 목록을 아직 못 불러왔다면(오류) 새 문서가 포함되도록 다시 불러옵니다.
+      if (listing.status === 'ready') setDocs(previous => [created, ...previous.filter(d => d.document_id !== created.document_id)]);
+      else reloadList();
       setNotice('업로드를 접수했습니다. 파일을 확인하는 중입니다.');
       setFile(null);
       if (fileInput.current) fileInput.current.value = '';
