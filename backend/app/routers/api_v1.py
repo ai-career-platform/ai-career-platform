@@ -22,3 +22,5 @@ api_router.include_router(bookmarks.router)
 api_router.include_router(crawler_admin.router)
 api_router.include_router(job_postings.router)
 api_router.include_router(catalog.router)
+
+api_router.include_router(privacy.router)
