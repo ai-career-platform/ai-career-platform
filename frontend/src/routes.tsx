@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { AppLayout } from './layouts/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
+import { JobExplorerPage } from './pages/JobExplorerPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 
@@ -17,6 +18,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
+      { path: 'job-roles', element: <JobExplorerPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
