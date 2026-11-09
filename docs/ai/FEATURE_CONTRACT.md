@@ -44,7 +44,7 @@ Feature(피처)는 계산이나 모델에 넣는 정보다. 예를 들어 `Pytho
 
 ## 4. Skill Gap 예시와 결정 필요 항목
 
-직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. 병합된 T05 데이터 사전은 `user_skills.proficiency`의 NULL을 보존하고, `skill_gap_items.observed_level`에는 계산용 0을 기록하는 안이다. 데이터 사전에는 DRAFT·PM/DB 리뷰 대기 상태가 표시되어 있다. 원본 `미입력`과 실제 입력값을 구분해 보존하는 방법과 계산 시 변환은 별도로 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
+직무의 Python 요구 수준 3, 사용자의 자기평가 수준 1이라는 **가상 예시**에서 차이는 2다. 병합된 T04 문서 `FR-PRF-001`과 `FR-ANL-002`는 1~5 척도, 미입력 시 계산에 0 사용 및 화면에 미입력 표시를 제안한다. 병합된 T05 데이터 사전은 `user_skills.proficiency`의 NULL을 보존하고, `skill_gap_items.observed_level`에는 계산용 0을 기록하는 안이다. 데이터 사전에는 DRAFT·PM/DB 리뷰 대기 상태가 표시되어 있다. PM 결정에 따라 원본 `미입력` NULL과 계산 시 변환된 0은 구분해 보존한다. 실제 이력·화면 표시 방식은 별도 검토한다. 실제 구현은 필수·선택 기술, 범위, 누락 값, 점수/설명, 이력과 동의에 대한 합의가 필요하다.
 
 ## 5. 시점·분할·출처·개인정보
 
@@ -103,7 +103,7 @@ DB 초안의 `model_versions` 및 `model_evaluations`와 모델 코드/버전, �
 | 평가 | `model_evaluations`: 필수 `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | boolean 하나로 누수 부재를 증명할 수 없다. 데이터/피처 버전, 분할·검사 방법·증빙 저장 위치는 별도 협의 |
 | 삭제 | 사용자 원본·관련 행의 삭제 규칙과 문서 원본·인덱스 정리는 별도 책임 | 데이터셋·파생 feature·학습된 모델의 삭제/재학습 정책은 미확정 |
 
-T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 병합된 계약 문서다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. PR #26 CI는 `d82a29d`에서 workflow가 실행할 job 없이 종료되어 T25 테스트를 실행하지 않았다. 이후 커밋의 CI는 별도 확인한다.
+T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)의 OpenAPI는 병합된 계약 문서다. 그 형식에 맞춘 실제 API 연결은 승인·담당자 협의 후 검증한다. 과거 `d82a29d` CI는 job 없이 종료됐으나 이후 `28f1c5a`의 T25 전용 CI가 24건 통과했다. 각 후속 변경의 CI는 해당 커밋에서 별도 확인한다.
 
 ## 12. 병합된 T06 계약과 후속 확인 (2026-11-06)
 
@@ -157,7 +157,7 @@ T06 [PR #29](https://github.com/ai-career-platform/ai-career-platform/pull/29)�
 | 실행 버전 | `model_versions.model_version_id`, `model_code`, `version`, `kind`, `approved_at` | `SkillGap.model_version`은 ModelVersionRef | 규칙 `kind=rule`도 등록 대상. 승인 전의 합성 버전 문자열을 실제 승인 모델처럼 반환하지 않음 |
 | 평가 | `model_evaluations.model_version_id`, `dataset_ref`, `metric_code`, `metric_value`, `leakage_checked`, `evaluated_at` | 별도 관리자 평가 조회 DTO | 검사 범위·데이터셋/스플릿·라벨 시점 증빙이 `leakage_checked` 하나로 확보되지는 않음 |
 | 출처·기준 시각 | 합성 메타데이터의 `source_id`, `available_at`, `decision_time`과 직접 동일한 DB 컬럼 계약 미확인 | 모든 AI 응답에 이 메타데이터가 동일하게 실리는 계약 아님 | 별도 lineage/snapshot 저장 위치·출처 권리·동의/삭제 전파 책임 결정을 요구 |
-| RAG 접근·삭제 | 사용자 문서·청크·검색 결과의 실제 인가/정리 동작 미검증 | `askKnowledge` 설명은 검색을 Q&A 내부에서만 사용 | T54 지시서의 검색 API 표현과 공개 경계 불일치; T15/T49/T53/T54/API·PM 담당자 확인 전 HOLD |
+| RAG 접근·삭제 | 사용자 문서·청크·검색 결과의 실제 인가/정리 동작 미검증 | `askKnowledge` 설명은 검색을 Q&A 내부에서만 사용 | PM 결정: 별도 외부 검색 API 없이 askKnowledge 내부 검색. T15 인증 재사용 및 조회 전·반환 전 검사. 인가 구현과 색인 정리 지연·재시도 검증은 HOLD |
 
 ## 16. 리뷰 결정 대기 목록 및 작업 경계
 
