@@ -174,6 +174,69 @@ describe('T34 나의 기술 (Mock — 실제 PostgreSQL 증빙 아님)', () => {
     await loaded();
   });
 
+  it('[리뷰 회귀] 늦게 도착한 이전 검색 응답이 최신 결과를 덮어쓰지 않는다', async () => {
+    const pending = new Map<string, (v: unknown) => void>();
+    show({ custom: (path, options) => {
+      if (!path.startsWith('/v1/skills')) return viaMock(path, options);
+      const q = new URLSearchParams(path.split('?')[1]).get('q')!;
+      return new Promise(resolve => pending.set(q, resolve));
+    } });
+    const box = await loaded();
+    fireEvent.change(box, { target: { value: 'py' } });
+    await waitFor(() => expect(pending.has('py')).toBe(true)); // py 요청 전송됨(응답 대기)
+    fireEvent.change(box, { target: { value: 'java' } });
+    await waitFor(() => expect(pending.has('java')).toBe(true));
+    const skill = (name: string, i: number) => ({ skill_id: `00000000-0000-4000-8000-${String(90 + i).padStart(12, '0')}`, code: name.toUpperCase(), name });
+    pending.get('java')!({ items: [skill('Java', 1), skill('JavaScript', 2)] }); // 최신 응답 먼저
+    expect(await screen.findByRole('option', { name: 'Java' })).toBeInTheDocument();
+    pending.get('py')!({ items: [skill('Python', 3)] }); // 이전 응답이 나중에 도착
+    await new Promise(r => setTimeout(r, 50));
+    expect(screen.getByRole('option', { name: 'Java' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Python' })).not.toBeInTheDocument();
+    expect(screen.queryByText('검색 중…')).not.toBeInTheDocument();
+  });
+
+  it('[리뷰 회귀] 늦게 실패한 이전 검색이 최신 결과를 오류로 바꾸지 않는다', async () => {
+    const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
+    show({ custom: (path, options) => {
+      if (!path.startsWith('/v1/skills')) return viaMock(path, options);
+      const q = new URLSearchParams(path.split('?')[1]).get('q')!;
+      return new Promise((resolve, reject) => pending.set(q, { resolve, reject }));
+    } });
+    const box = await loaded();
+    fireEvent.change(box, { target: { value: 'py' } });
+    await waitFor(() => expect(pending.has('py')).toBe(true));
+    fireEvent.change(box, { target: { value: 'sql' } });
+    await waitFor(() => expect(pending.has('sql')).toBe(true));
+    pending.get('sql')!.resolve({ items: [{ skill_id: '00000000-0000-4000-8000-000000000099', code: 'SQL', name: 'SQL' }] });
+    expect(await screen.findByRole('option', { name: 'SQL' })).toBeInTheDocument();
+    pending.get('py')!.reject(new ApiError(503, '/v1/skills'));
+    await new Promise(r => setTimeout(r, 50));
+    expect(screen.getByRole('option', { name: 'SQL' })).toBeInTheDocument();
+    expect(screen.queryByText(/검색하지 못했습니다/)).not.toBeInTheDocument();
+  });
+
+  it('[리뷰 회귀] 저장 중에는 검색 결과를 골라 추가할 수 없어 저장 후 사라지는 일이 없다', async () => {
+    let finishPut: (() => void) | undefined;
+    show({ custom: (path, options = {}) => options.method === 'PUT'
+      ? new Promise(resolve => { finishPut = () => resolve(viaMock(path, options)); })
+      : viaMock(path, options) });
+    await searchAndPick('py', /^Python/);
+    const box = screen.getByRole('combobox', { name: '기술 검색' });
+    fireEvent.change(box, { target: { value: 'sql' } });
+    const option = await screen.findByRole('option', { name: /^SQL/ });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(finishPut).toBeDefined());
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument(); // 저장 중 목록 닫힘
+    fireEvent.click(option); // 닫히기 직전 요소를 클릭해도
+    fireEvent.keyDown(box, { key: 'Enter' }); // 키보드로 골라도
+    expect(rowNames()).toEqual(['Python']);
+    finishPut!();
+    await screen.findByText('저장했습니다.');
+    expect(rowNames()).toEqual(['Python']);
+    expect(screen.queryByText('저장하지 않은 변경이 있습니다.')).not.toBeInTheDocument();
+  });
+
   it('Mock 서버도 Backend와 같은 규칙으로 중복·범위 밖 숙련도를 거부한다', async () => {
     const id = '00000000-0000-4000-8000-000000000001';
     const call = (body: unknown) => viaMock('/v1/me/skills', { method: 'PUT', body });

@@ -66,14 +66,18 @@ export function MySkillsPage() {
   const searchable = trimmed.length >= SEARCH_MIN_LENGTH;
   useEffect(() => {
     if (!searchable) return undefined;
-    // 늦게 온 이전 검색 응답은 q가 달라서 화면에 쓰이지 않는다
+    // 검색어가 바뀌면 이전 요청은 폐기한다. 이미 보낸 요청이 늦게 돌아와도(성공·실패 모두) 상태를 덮어쓰지 않는다.
+    const obsolete = new AbortController();
     const timer = setTimeout(() => {
       searchSkills(request, trimmed).then(
-        r => { setSearch({ q: trimmed, items: r.items, failed: false }); setActive(r.items.length ? 0 : -1); },
-        () => setSearch({ q: trimmed, items: [], failed: true }),
+        r => {
+          if (obsolete.signal.aborted) return;
+          setSearch({ q: trimmed, items: r.items, failed: false }); setActive(r.items.length ? 0 : -1);
+        },
+        () => { if (!obsolete.signal.aborted) setSearch({ q: trimmed, items: [], failed: true }); },
       );
     }, SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); obsolete.abort(); };
   }, [request, trimmed, searchable]);
   const current = search.q === trimmed ? search : null;
   const results = current?.items ?? [];
@@ -85,6 +89,8 @@ export function MySkillsPage() {
   const full = draft.length >= MAX_SKILLS;
 
   function add(skill: Skill) {
+    // 저장 중에 추가하면 PUT 응답으로 목록을 바꿀 때 사라지므로 막는다
+    if (saving) return;
     setNotice(''); setError('');
     if (owned.has(skill.skill_id)) { setHint(`${skill.name}은(는) 이미 추가한 기술입니다.`); return; }
     if (full) { setHint(`기술은 최대 ${MAX_SKILLS}개까지 등록할 수 있습니다.`); return; }
@@ -101,6 +107,7 @@ export function MySkillsPage() {
       setActive(i => (i + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length);
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      if (saving) return;
       const pick = open && active >= 0 ? results[active] : undefined;
       if (pick) add(pick);
       else if (searchable) setHint('목록에 있는 기술만 추가할 수 있습니다. 검색 결과에서 골라 주세요.');
@@ -134,7 +141,7 @@ export function MySkillsPage() {
 
   function revert() { setDraft(saved); setError(''); setHint(''); setNotice('저장된 상태로 되돌렸습니다.'); }
 
-  const showList = open && searchable;
+  const showList = open && searchable && !saving;
   const activeId = showList && active >= 0 && results[active] ? `${listboxId}-${results[active]!.skill_id}` : undefined;
 
   return <section className="skills-page" aria-labelledby="skills-title">
