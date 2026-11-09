@@ -34,6 +34,8 @@ export interface HttpClientConfig {
 }
 
 export const REQUEST_ID_HEADER = 'X-Request-ID';
+/** 상태를 바꾸는 요청(GET 외)에 항상 붙이는 CSRF 헤더. Backend auth 라우터가 검사합니다 (docs/SECURITY.md). */
+export const CSRF_HEADER = 'X-CSRF-TOKEN';
 
 /** { q: 'a b', page: 2, empty: '' } → '?q=a+b&page=2' (값이 없으면 '') */
 export function buildQuery(query?: Query): string {
@@ -61,6 +63,8 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
     const { method = 'GET', query, body, signal } = init;
     const token = init.token !== undefined ? init.token : config.getToken?.();
     const headers: Record<string, string> = { Accept: 'application/json' };
+    // CSRF 보호(OWASP custom-header): 외부 페이지의 HTML form 은 이 헤더를 보낼 수 없습니다. 비밀값이 아닙니다.
+    if (method !== 'GET') headers[CSRF_HEADER] = '1';
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = `Bearer ${token}`;
 
