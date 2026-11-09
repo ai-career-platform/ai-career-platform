@@ -159,9 +159,9 @@ def test_cannot_revoke_other_users_session(client, seeker, admin):
 
 def test_unauthenticated_request_does_not_touch_database(client, app):
     def explode():
-        raise AssertionError("repository must not be created for anonymous requests")
+        raise AssertionError("auth service (DB session) must not be created for anonymous requests")
 
-    from app.dependencies.auth import get_auth_repository
+    from app.dependencies.auth import get_auth_service
 
-    app.dependency_overrides[get_auth_repository] = explode
+    app.dependency_overrides[get_auth_service] = explode
     assert_status(client.get(ME), 401, "UNAUTHENTICATED")

@@ -1,0 +1,20 @@
+# T27 추천 계산 초안
+
+Redmine #1531. `app/services/recommendation_baseline.py`는 실제 API/DB에 연결되지 않은 순수 함수다. 가상의 공고 요구 기술 중 보유 기술과 일치하는 비율을 0~100 정수로 환산(반올림)하고, 같은 점수면 공고 ID순으로 정렬한다. 마감일 당일은 포함하고 게시 전·마감·제외된 공고와 요구 기술이 없는 공고는 제외한다. 중복 공고 ID나 기술 코드는 거부한다. 입력 출처·규칙 버전·가상의 입력 해시를 포함한다.
+
+이 기준은 **팀 승인 전 가안**이다. 직무·공고 기술 가중치, 필수/우대, 점수·동점·만료 경계, 중복 출처 및 사용권은 T17/T18/T25 계약을 확인해야 한다. 점수는 단순 비교이며 채용 성공 확률이나 ML 성능이 아니다. 해시는 개인정보 익명화 수단이 아니며 기록·공유·권한 정책은 별도 검토가 필요하다. 데이터 소유권·접근 제어, API·DB·추천 저장, 실제 데이터 및 CI는 구현하지 않았다.
+
+백엔드 폴더에서 `python -m pytest tests/test_recommendation_baseline.py -q`를 실행한다.
+
+## T05 병합본과 대조 (2026-11-06)
+
+T05 PR #17이 main `a004efb`에 병합됐으나 데이터 사전은 DRAFT/PM·DB 리뷰 대기이며 DDL 미적용이다. `recommendation_runs`는 `model_version_id`가 필수이고 `recommendation_items`는 1부터의 순위와 비어 있지 않은 이유(`reason`)를 요구한다. 현재 함수는 버전 문자열과 일치·누락 목록을 반환하지만 DB 모델 ID 및 저장을 구현하지 않는다. T05는 미관심 최신 피드백을 다음 추천에서 제외하도록 제안한다. 현재 `excluded_ids`는 호출자가 전달하는 가상 입력이며 실제 피드백 조회는 없다. T06 PR #29는 병합됐고 실제 API 구현은 별도다.
+
+## T06 병합 계약 반영 (2026-11-06)
+
+T06 PR #29가 main `d1fae3a`에 병합됐다. RecommendationRunRequest의 limit 기본 20, 범위 1~50과 RecommendationItem의 빈 값이 아닌 reason에 맞춰 가상 계산 결과를 제한하고 기술 일치 개수로 이유를 만든다. 정렬 후 제한하며 limit도 가상 입력 해시에 포함한다. API 응답의 rank, feedback, job_posting과 model_version 등은 실제 DTO 조립·조회가 없어 미구현이다. 설명은 단순 기술 일치이며 개인화 품질을 증명하지 않는다. T06 PR 작성자는 CI 미연결로 PARTIAL을 보고했고 구현이 병합된 것은 아니다.
+
+
+## PM 검토 범위 (2026-11-09)
+
+이번 작업은 독립 추천 계산 함수와 단위 테스트에 한정한다. `Posting.expires_on`은 현재 필수 날짜이고 요구 기술이 빈 공고는 제외한다. T18 실제 공고의 마감일 NULL(상시채용) 처리 방식은 정식 연동 시 결정한다. 일치하는 기술이 없어 점수가 0인 공고도 결과에 포함될 수 있다. 점수는 채용 성공 확률이 아니며 `input_hash`는 익명화·비식별화 수단이 아니다. T06 rank, job_posting, feedback, model_version 조립과 DB·API 통합은 FOLLOW_UP이다.

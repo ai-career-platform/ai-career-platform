@@ -113,8 +113,8 @@ def client(monkeypatch, fake):
     get_settings.cache_clear()
     app = create_app()
     auth_repo = MemoryAuthRepository()
-    from app.dependencies.auth import get_auth_repository
-    app.dependency_overrides[get_auth_repository] = lambda: auth_repo
+    from tests.fakes import override_auth_repository
+    override_auth_repository(app, auth_repo)
     app.dependency_overrides[get_job_posting_service] = (
         lambda: JobPostingService(fake, ListCursor(KEY), clock=lambda: NOW))
     with TestClient(app, base_url="https://testserver") as c:
