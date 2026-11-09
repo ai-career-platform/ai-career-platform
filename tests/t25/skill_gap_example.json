@@ -1,0 +1,10 @@
+{
+  "description": "가상 Skill Gap 입력: 실제 사용자·직무 기준 아님",
+  "job_role_code": "synthetic-data-analyst",
+  "skill_code": "synthetic-python",
+  "required_level": 3,
+  "observed_level": null,
+  "observation_kind": "self_reported",
+  "source_id": "synthetic-fixture",
+  "feature_version": "draft-1"
+}
