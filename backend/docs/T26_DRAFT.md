@@ -15,3 +15,8 @@ T05 PR #17은 main `a004efb`에 병합됐다. 데이터 사전은 아직 DRAFT/P
 ## T06 병합 계약 대조 (2026-11-06)
 
 T06 PR #29는 main `d1fae3a`에 병합됐다. SkillGapItem의 observed_level은 0~5이고 0은 미입력을 뜻한다. 응답에는 skill 객체(UUID·code·name)가 필수이며 현재 가상 스냅샷의 skill_code만으로는 DTO가 완성되지 않는다. SkillGap 응답은 assessment_id, job_role, model_version, is_stale, evaluated_at이 필요하고 이 함수는 해당 조회·조립을 제공하지 않는다. 응답 items 설명의 빈 배열 처리와 함수가 gap=0 항목도 반환하는 차이는 API 담당자와 협의한다. 0은 미입력 표시 근거가 될 수 있지만 미등록과 미기재의 차이를 별도 전달하는 필드는 없다.
+
+
+## PM 검토 범위 (2026-11-09)
+
+이번 작업은 순수 Skill Gap 계산과 단위 테스트에 한정한다. 원본 `user_skills.proficiency=NULL`을 변경하지 않고 계산 스냅샷에서만 `observed_level=0`으로 변환한다. 현재 `skill_code`는 합성 식별자로 실제 UUID 또는 T06 응답 DTO가 아니다. `gap=0` 반환과 미등록/미기재 표현의 API 연결은 후속 결정이며 DB·API 통합은 FOLLOW_UP이다.
