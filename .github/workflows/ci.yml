@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - main
+      - task/t15-auth
   push:
     branches:
       - main
@@ -32,3 +33,20 @@ jobs:
 
       - name: Run automation unit tests
         run: python3 -B -m unittest discover -s poc/staging/automation/tests -v
+
+  backend-pytest:
+    name: Backend pytest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        working-directory: backend
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run T15 and T155 tests
+        working-directory: backend
+        env:
+          APP_ENV: test
+        run: python -m pytest -q
