@@ -53,7 +53,7 @@ psql -X -v ON_ERROR_STOP=1 -d <로컬_test_DB> -f /tmp/synth.sql
 |---|---|
 | `--target-env` 허용 목록 | `local`/`ci`/`test` 외에는 파일을 만들지 않고 종료 코드 2 |
 | `CAREER_ENV` 환경변수 | `staging`·`stage`·`prod`·`production`·`live` 가 들어 있으면 거부 |
-| SQL 첫 줄 가드 | DB 이름에 `test`/`ci`/`local`/`tmp`/`dev` 가 없거나 `staging`/`prod`/`live` 가 있으면 SQL 이 스스로 중단 |
+| SQL 첫 줄 가드 | DB 이름에 `test`/`ci`/`local`/`tmp`/`dev` 가 **독립된 단어**(앞뒤가 시작·끝·`_`·`-`·숫자)로 없거나 `staging`/`prod`/`live` 가 있으면 SQL 이 스스로 중단. `career_social`·`device_db` 처럼 글자만 들어간 이름은 거부 |
 | 생성 직후 검증 | T05 규칙(유일·FK·상태값·숙련도 1~5·published 날짜·비교용 이메일)을 Python 에서 먼저 확인 |
 | 민감정보 검사 | `example.test` 외 이메일, 휴대전화번호, 주민등록번호, 카드번호 형태가 하나라도 있으면 실패 (UUID 안의 숫자는 제외) |
 | 재실행 | `ON CONFLICT DO NOTHING` 이라 두 번 넣어도 그대로 |
