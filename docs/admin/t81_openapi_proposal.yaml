@@ -1,0 +1,263 @@
+# T81 OpenAPI 제안 조각 — PROPOSED / 미승인 (docs/admin/T81_IMPLEMENTATION_READINESS.md §5)
+#
+# 이 파일은 docs/api/openapi.yaml 에 병합되지 않았습니다. 확정 계약이 아닙니다.
+# docs/admin/test_t81_contract_readiness.py 가 이 조각을 메모리에서 openapi.yaml 과 합쳐
+# docs/api/check_openapi.py(문법·$ref·예시·계약 규칙·추적)로 검사합니다. 그때 제안된 T04 ID(FR-ADM-007, UI-027)와
+# T05 테이블(moderation_cases, moderation_case_events)을 검사기에만 임시로 추가합니다.
+# 재사용: parameters Limit·Cursor, responses Unauthorized·Forbidden·NotFound·Conflict·ValidationFailed·BadCursor,
+#         schemas Uuid·Timestamp·NextCursor (모두 기존 openapi.yaml).
+paths:
+  /admin/moderation-cases:
+    get:
+      tags: [admin]
+      operationId: listModerationCases
+      summary: 운영 콘텐츠 검수 큐 (PROPOSED)
+      description: >-
+        정렬은 priority 오름차순 → due_at 오름차순 → case_id 오름차순으로 고정한다. cursor 는 기존 목록과 같은 서버 서명
+        불투명 문자열이며 필터 값에 묶인다(필터를 바꾸고 같은 cursor 를 보내면 400 INVALID_CURSOR).
+        overdue=true 는 열린 상태(PENDING·IN_REVIEW·APPEALED)이면서 due_at 이 서버 현재 시각보다 이른 건만,
+        overdue=false 는 그 밖의 건만 돌려준다. 응답 항목에는 신고자 정보·관리자 메모·비공개 원문이 없다.
+      x-requirements: [FR-ADM-007]
+      x-screens: [UI-027]
+      x-tables: [moderation_cases]
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ModerationStatus' } }
+        - { name: target_type, in: query, schema: { $ref: '#/components/schemas/ModerationTargetType' } }
+        - { name: priority, in: query, schema: { type: integer, enum: [1, 2, 3] } }
+        - { name: overdue, in: query, schema: { type: boolean } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 검수 건 목록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModerationCasePage' }
+              example:
+                items:
+                  - case_id: 0f7d1c3e-4a5b-4c6d-8e9f-000000000001
+                    target_type: job_posting
+                    target_id: 0f7d1c3e-4a5b-4c6d-8e9f-0000000000d1
+                    target_summary: '[합성] 백엔드 신입 채용공고'
+                    trigger: REPORT
+                    status: PENDING
+                    priority: 1
+                    assignee_id: null
+                    due_at: '2026-11-10T03:00:00Z'
+                    overdue: true
+                    flags: [PII_PATTERN]
+                    report_count: 3
+                    version: 1
+                    created_at: '2026-11-09T01:00:00Z'
+                next_cursor: null
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/moderation-cases/{case_id}:
+    get:
+      tags: [admin]
+      operationId: getModerationCase
+      summary: 검수 건 상세 + 처리 이력 (PROPOSED)
+      description: 열람은 감사 기록(admin.content.review)에 남긴다. 관리자 메모(reviewer_note)는 응답에 포함하지 않는다.
+      x-requirements: [FR-ADM-007]
+      x-screens: [UI-027]
+      x-tables: [moderation_cases, moderation_case_events, audit_events]
+      parameters:
+        - { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 상세
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModerationCaseDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/moderation-cases/{case_id}/assignment:
+    post:
+      tags: [admin]
+      operationId: assignModerationCase
+      summary: 담당 시작 — 요청한 관리자 본인에게 배정 (PROPOSED, 상태 모델 T02·T09)
+      description: >-
+        PENDING → IN_REVIEW, 또는 APPEALED → IN_REVIEW(재검토, 최초 결정자 불가). 자기 콘텐츠면 403.
+        이미 IN_REVIEW 이거나 version 이 다르면 409 CONFLICT, 결정·종료된 건이면 409 APPROVAL_CLOSED.
+        다른 관리자에게 넘기기(T03)·해제(T04·T05)는 이번 범위 밖이다(T81_IMPLEMENTATION_READINESS §5.6).
+      x-requirements: [FR-ADM-007]
+      x-screens: [UI-027]
+      x-tables: [moderation_cases, moderation_case_events, audit_events]
+      parameters:
+        - { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModerationAssignmentRequest' }
+            example: { version: 1 }
+      responses:
+        '200':
+          description: 배정됨 — 갱신된 상세
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModerationCaseDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /admin/moderation-cases/{case_id}/decision:
+    post:
+      tags: [admin]
+      operationId: decideModerationCase
+      summary: 승인·반려 — 담당자만 (PROPOSED, 상태 모델 T06·T07)
+      description: >-
+        IN_REVIEW 이고 요청자가 담당자일 때만. 자기 콘텐츠·재검토 단계의 최초 결정자는 403.
+        REJECT 는 reason_code 필수, reason_code=OTHER 면 note 필수(1~500자). APPROVE 에 reason_code·note 를 보내면 422.
+        note 는 관리자 전용으로 저장하고 응답·감사 기록에 넣지 않는다.
+      x-requirements: [FR-ADM-007]
+      x-screens: [UI-027]
+      x-tables: [moderation_cases, moderation_case_events, audit_events]
+      parameters:
+        - { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModerationDecisionRequest' }
+            example: { version: 2, decision: REJECT, reason_code: OTHER, note: '합성 설명' }
+      responses:
+        '200':
+          description: 결정됨 — 갱신된 상세
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModerationCaseDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+components:
+  schemas:
+    ModerationTargetType:
+      type: string
+      enum: [job_posting, company, shared_document, document_analysis, retrieval_run, agent_run, match_evaluation, recommendation_run]
+    ModerationStatus:
+      type: string
+      description: T80 상태 모델. CLOSED 는 PROPOSED 신규 상태
+      enum: [PENDING, IN_REVIEW, APPROVED, REJECTED, APPEALED, CLOSED]
+    ModerationTrigger:
+      type: string
+      description: API 필드 이름은 trigger, DB 컬럼은 review_trigger
+      enum: [PRE_PUBLISH, REPORT, EXPIRY, SOURCE_CHANGE]
+    ModerationReasonCode:
+      type: string
+      enum: [RIGHTS_UNCLEAR, INACCURATE, PERSONAL_DATA, HARMFUL, DISCRIMINATORY, DUPLICATE, EXPIRED, MALWARE, OTHER]
+    ModerationFlag:
+      type: string
+      enum: [PII_PATTERN, DUPLICATE_SUSPECT, BANNED_TERM]
+    ModerationCaseSummary:
+      type: object
+      additionalProperties: false
+      required: [case_id, target_type, target_id, target_summary, trigger, status, priority, assignee_id, due_at, overdue,
+                 flags, report_count, version, created_at]
+      properties:
+        case_id: { $ref: '#/components/schemas/Uuid' }
+        target_type: { $ref: '#/components/schemas/ModerationTargetType' }
+        target_id: { $ref: '#/components/schemas/Uuid' }
+        target_summary:
+          type: [string, 'null']
+          maxLength: 200
+          description: 서버가 만드는 공개 가능한 대상 요약(공고·기업 이름, 공용 자료 제목). AI 결과는 원문 대신 유형 이름. 대상이 지워졌으면 null
+        trigger: { $ref: '#/components/schemas/ModerationTrigger' }
+        status: { $ref: '#/components/schemas/ModerationStatus' }
+        priority: { type: integer, enum: [1, 2, 3] }
+        assignee_id: { type: [string, 'null'], format: uuid }
+        due_at: { $ref: '#/components/schemas/Timestamp' }
+        overdue: { type: boolean, description: 열린 상태이면서 due_at 이 지났는지 (서버 계산, 자동 처리 없음) }
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ModerationFlag' }
+        report_count: { type: integer, minimum: 0 }
+        version: { type: integer, minimum: 1 }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+    ModerationCaseEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, event, from_status, to_status, actor_user_id, reason_code, occurred_at]
+      properties:
+        event_id: { $ref: '#/components/schemas/Uuid' }
+        event:
+          type: string
+          enum: [SUBMIT, ASSIGN, REASSIGN, RELEASE, RELEASE_APPEAL, APPROVE, REJECT, APPEAL, WITHDRAW_APPEAL, CLOSE]
+        from_status:
+          oneOf:
+            - { $ref: '#/components/schemas/ModerationStatus' }
+            - { type: 'null' }
+        to_status: { $ref: '#/components/schemas/ModerationStatus' }
+        actor_user_id: { type: [string, 'null'], format: uuid, description: null 이면 system (AuditEvent 와 같은 이름) }
+        reason_code: { type: [string, 'null'] }
+        occurred_at: { $ref: '#/components/schemas/Timestamp' }
+    ModerationCaseDetail:
+      description: 목록 항목(ModerationCaseSummary)의 모든 필드 + 아래 필드. allOf 대신 펼쳐 써서 additionalProperties false 와 충돌하지 않게 한다
+      type: object
+      additionalProperties: false
+      required: [case_id, target_type, target_id, target_summary, trigger, status, priority, assignee_id, due_at, overdue,
+                 flags, report_count, version, created_at, content_owner_id, submitted_by, first_decider_id, decided_by,
+                 decided_at, reason_code, appeal_count, close_reason, events]
+      properties:
+        case_id: { $ref: '#/components/schemas/Uuid' }
+        target_type: { $ref: '#/components/schemas/ModerationTargetType' }
+        target_id: { $ref: '#/components/schemas/Uuid' }
+        target_summary: { type: [string, 'null'], maxLength: 200 }
+        trigger: { $ref: '#/components/schemas/ModerationTrigger' }
+        status: { $ref: '#/components/schemas/ModerationStatus' }
+        priority: { type: integer, enum: [1, 2, 3] }
+        assignee_id: { type: [string, 'null'], format: uuid }
+        due_at: { $ref: '#/components/schemas/Timestamp' }
+        overdue: { type: boolean }
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/ModerationFlag' }
+        report_count: { type: integer, minimum: 0 }
+        version: { type: integer, minimum: 1 }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+        content_owner_id: { type: [string, 'null'], format: uuid }
+        submitted_by: { type: [string, 'null'], format: uuid }
+        first_decider_id: { type: [string, 'null'], format: uuid }
+        decided_by: { type: [string, 'null'], format: uuid }
+        decided_at: { type: [string, 'null'], format: date-time }
+        reason_code:
+          oneOf:
+            - { $ref: '#/components/schemas/ModerationReasonCode' }
+            - { type: 'null' }
+        appeal_count: { type: integer, enum: [0, 1] }
+        close_reason: { type: [string, 'null'], enum: [WITHDRAWN, TARGET_DELETED, SUPERSEDED, null] }
+        events:
+          type: array
+          description: 처리 이력, occurred_at 오름차순
+          items: { $ref: '#/components/schemas/ModerationCaseEvent' }
+    ModerationCasePage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ModerationCaseSummary' }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    ModerationAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    ModerationDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [version, decision]
+      properties:
+        version: { type: integer, minimum: 1 }
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason_code: { $ref: '#/components/schemas/ModerationReasonCode' }
+        note: { type: string, minLength: 1, maxLength: 500 }
