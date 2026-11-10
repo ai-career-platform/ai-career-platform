@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-11-10T15:24:17.601613+00:00",
+  "server_version": "18.6",
+  "pg_dump_version": "pg_dump (PostgreSQL) 18.6",
+  "dump_s": 0.136,
+  "dump_bytes": 203825,
+  "dump_sha256": "0108e3f1093aa1c17f09e2ea075b328bc5ebb059368e32b0da62cc903d65cda0",
+  "archive_toc_entries": 321,
+  "restore_s": 0.46,
+  "tables": 51,
+  "total_rows": 2058,
+  "table_mismatches": [],
+  "missing_tables": [],
+  "objects_source": {
+    "constraints": 458,
+    "indexes": 138,
+    "functions": 0,
+    "triggers": 0,
+    "foreign_keys": 78
+  },
+  "objects_restore": {
+    "constraints": 458,
+    "indexes": 138,
+    "functions": 0,
+    "triggers": 0,
+    "foreign_keys": 78
+  },
+  "objects_equal": true,
+  "app_smoke": {
+    "health_db": 200,
+    "job_roles": 200,
+    "job_roles_items": 5
+  },
+  "verdict": "PASS"
+}
