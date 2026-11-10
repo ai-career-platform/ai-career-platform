@@ -208,3 +208,41 @@ def test_cli_end_to_end(engine, monkeypatch, capsys):
     assert "MARKET_AGGREGATION=APPLIED source=t65_fixture period=week range=[2026-10-05,2026-11-09)" in out
     assert "postgresql://" not in out
     assert stored(engine) == expected(1)
+
+
+def test_verify_detects_missing_zero_role_and_skill_rows(engine):
+    run(engine, as_of=AS_OF_S2, backfill_from=date(2026, 10, 5))
+    with engine.begin() as conn:
+        # 3주차: 성공 수집 0건 관측. 1주차: 직무/기술 행.
+        conn.execute(text(
+            "DELETE FROM career.market_observations WHERE source_id = :source AND period = 'week' "
+            "AND ((observed_on = '2026-10-19' AND job_role_id IS NULL AND metric_code = 'posting_count') "
+            "OR (observed_on = '2026-10-05' AND job_role_id IS NOT NULL AND metric_code = 'posting_count') "
+            "OR (observed_on = '2026-10-05' AND skill_id IS NOT NULL AND metric_code = 'skill_demand_share'))"
+        ), {"source": source_id(engine)})
+    mismatches = verify(engine, range_start=date(2026, 10, 5), range_end=date(2026, 11, 9), as_of=AS_OF_S2)
+    names = {r.check_name for r in mismatches}
+    assert "missing_bucket" in names
+    assert "missing_skill_share" in names
+    assert any(r.check_name == "missing_bucket" and r.observed_on == date(2026, 10, 19)
+               and r.recomputed_value == 0 for r in mismatches)
+    run(engine, as_of=AS_OF_S2, backfill_from=date(2026, 10, 5))
+    assert verify(engine, range_start=date(2026, 10, 5), range_end=date(2026, 11, 9), as_of=AS_OF_S2) == []
+
+
+def test_concurrent_aggregation_keeps_single_result_per_key(engine):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    barrier = Barrier(2)
+    def worker():
+        with Session(engine) as session, session.begin():
+            barrier.wait(timeout=10)
+            return agg.aggregate(session, source_code=SOURCE, period="week", as_of=AS_OF_S2,
+                                 backfill_from=date(2026, 10, 5))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(worker) for _ in range(2)]
+        outputs = [f.result(timeout=30) for f in futures]
+    assert all(x.inserted == len(EXPECTED["scenarios"][1]["rows"]) for x in outputs)
+    assert stored(engine) == expected(1)
+    assert count_rows(engine) == len(EXPECTED["scenarios"][1]["rows"])
+    assert verify(engine, range_start=date(2026, 10, 5), range_end=date(2026, 11, 9), as_of=AS_OF_S2) == []

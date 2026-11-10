@@ -57,4 +57,19 @@ describe('useQuery', () => {
     await waitFor(() => expect(result.current).toMatchObject({ status: 'ready', data: 'ok' }));
     expect(fn).toHaveBeenCalledTimes(2);
   });
+
+  it('replaces ready data in place with setData, without refetching', async () => {
+    const fn = vi.fn<(signal: AbortSignal) => Promise<string[]>>().mockResolvedValue(['a']);
+    const { result } = renderHook(() => useQuery(['list'], fn));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => result.current.setData((items) => [...items, 'b']));
+    expect(result.current).toMatchObject({ status: 'ready', data: ['a', 'b'] });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores setData while there is no data yet', () => {
+    const { result } = renderHook(() => useQuery(['pending'], () => new Promise<string>(() => {})));
+    act(() => result.current.setData(() => 'x'));
+    expect(result.current.status).toBe('loading');
+  });
 });

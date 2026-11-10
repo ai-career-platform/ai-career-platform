@@ -30,7 +30,7 @@ cd backend
 | 동시 실행 | 같은 출처·기간 종류는 `pg_advisory_xact_lock`으로 하나씩 실행 |
 | 늦게 들어온 공고 | 창 안이면 다음 실행에 반영된다. 창 밖이면 고정 값이 유지되고, 검산 SQL이 차이를 보고하면 운영자가 `--backfill-from`으로 다시 계산한다 |
 | 게시 취소(draft로 되돌림)·삭제 | 창 안이면 다음 실행에서 빠진다. 마감(`closed`)은 게시 이력이므로 계속 센다 (계약 §3.1) |
-| 안전장치 | `APP_ENV`가 `local-dev`/`test`가 아니면 `--approval <승인번호>` 없이는 쓰지 않는다 (`--dry-run`은 가능) |
+| 안전장치 | 쓰기는 `APP_ENV=local-dev/test`를 명시하고 DB 호스트가 loopback일 때만 가능. 미설정 및 공유 환경은 `--approval` 문자열 유무와 관계없이 거부. Staging 적재는 별도 운영 절차 필요 (`--dry-run`은 가능) |
 | 로그 | 출처 코드·구간·건수만 남긴다. 공고 내용·URL·DB 접속 정보는 출력하지 않는다 |
 
 ## 검산
@@ -42,7 +42,8 @@ cd backend
 | `duplicate_key` | 같은 키가 두 번 이상 저장됨 (NULL 직무 포함) |
 | `posting_count_mismatch` | 저장된 공고 수 ≠ 원천 공고 수 |
 | `skill_share_mismatch` | 저장된 기술 비율 ≠ 원천 계산, 또는 표본 5건 미만인데 저장됨 |
-| `missing_bucket` | 원천에 공고가 있는 완료 구간인데 전체 시장 공고 수 행이 없음 |
+| `missing_bucket` | 공고 수 행이 누락됨 (직무별 및 성공 수집 0건 구간 포함) |
+| `missing_skill_share` | 표본 조건을 충족하는 기술별 비율 행이 누락됨 |
 
 ## 테스트
 

@@ -59,3 +59,24 @@ def test_cli_refuses_shared_env_writes_without_approval(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging-poc")
     with pytest.raises(SystemExit, match="--approval"):
         agg.main(["--source", "jobkorea", "--period", "week"])
+
+
+def test_cli_fails_closed_when_app_env_unset_even_with_approval(monkeypatch):
+    monkeypatch.delenv("APP_ENV", raising=False)
+    with pytest.raises(SystemExit, match="--approval alone"):
+        agg.main(["--source", "jobkorea", "--approval", "UNVERIFIED"])
+
+
+def test_cli_rejects_shared_env_even_with_arbitrary_approval(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging-poc")
+    with pytest.raises(SystemExit, match="--approval alone"):
+        agg.main(["--source", "jobkorea", "--approval", "ANY-TEXT"])
+
+
+def test_cli_rejects_remote_db_even_when_env_is_local(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setattr("app.core.config.get_settings", lambda: SimpleNamespace(
+        database=SimpleNamespace(url="postgresql://test:dummy@db.example.invalid:5432/example")))
+    with pytest.raises(SystemExit, match="loopback only"):
+        agg.main(["--source", "jobkorea"])

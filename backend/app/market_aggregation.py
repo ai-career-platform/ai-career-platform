@@ -12,6 +12,7 @@
 - 다시 계산하는 구간의 기존 행을 (출처, 기간 종류, 구간 범위) 단위로 지우고 같은 트랜잭션에서 다시 넣는다.
   전체 시장(job_role_id NULL) 행은 DB UNIQUE가 중복을 막지 못하므로 ON CONFLICT를 쓰지 않는다(계약 §5).
 - 같은 출처·기간 종류에 대한 동시 실행은 트랜잭션 advisory lock으로 직렬화한다.
+- CLI의 쓰기는 명시적인 APP_ENV=local-dev/test 및 loopback DB에서만 허용한다. 공유 환경은 별도 운영 실행 절차 필요.
 - 로그에는 출처 코드·구간·건수만 남긴다. 공고 내용·URL·DB 접속 정보는 남기지 않는다.
 """
 
@@ -25,6 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -155,7 +157,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--min-sample", type=int, default=MIN_SAMPLE)
     parser.add_argument("--dry-run", action="store_true", help="계산만 하고 쓰지 않는다")
     parser.add_argument("--approval", default=None,
-                        help="APP_ENV가 local-dev/test가 아닐 때 필요한 승인 번호 (예: REDMINE-1598)")
+                        help="호환용 메타데이터만 허용. 공유 환경 쓰기 승인을 대체하지 않음")
     return parser.parse_args(argv)
 
 
@@ -166,14 +168,18 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     args = _parse_args(argv)
     as_of = args.as_of or datetime.now(timezone.utc)
-    app_env = os.environ.get("APP_ENV", "local-dev")
-    if app_env not in SAFE_ENVS and not args.dry_run and not args.approval:
-        # 공유 Staging·운영 DB 쓰기는 승인 후에만 (작업지시서 §5: 무승인 Staging 정기 작업 금지)
-        raise SystemExit(f"APP_ENV={app_env}: writing requires --approval (or use --dry-run)")
-
+    # 쓰기는 명시적인 로컬 개발/테스트 환경에서만. 미설정·공유 환경은 fail closed.
+    # --approval 문자열만으로 Staging/운영 쓰기를 허용하지 않는다.
+    app_env = os.environ.get("APP_ENV")
+    if not args.dry_run and app_env not in SAFE_ENVS:
+        raise SystemExit("Shared or unset APP_ENV: --approval alone cannot authorize writes; use --dry-run")
     settings = get_settings()
     if settings.database is None:
         raise SystemExit("DATABASE_URL is required")
+    if not args.dry_run:
+        url = make_url(settings.database.url)
+        if url.get_backend_name() != "postgresql" or url.host not in ("localhost", "127.0.0.1", "::1"):
+            raise SystemExit("Writes require an explicit local PostgreSQL target (loopback only)")
     engine = create_db_engine(settings.database)
     try:
         with create_session_factory(engine)() as session:

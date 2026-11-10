@@ -24,7 +24,7 @@ src AS (
            (p.published_at AT TIME ZONE 'Asia/Seoul')::date AS published_day
     FROM career.job_postings p, params prm
     WHERE p.source_id = prm.source_id
-      AND p.status <> 'draft'
+      AND p.status IN ('published', 'closed')
       AND p.published_at IS NOT NULL
       AND p.published_at <= prm.as_of
       AND p.created_at <= prm.as_of
@@ -33,6 +33,52 @@ src AS (
 stored_span AS (
     SELECT s.*, (s.observed_on + ('1 ' || s.period)::interval)::date AS span_end
     FROM stored s
+),
+-- 성공 수집 또는 게시 공고가 있는, 완료된 구간만 관측 대상으로 간주한다.
+covered AS (
+    SELECT g::date AS bucket, (g + ('1 ' || prm.period)::interval)::date AS bucket_end
+    FROM params prm,
+         generate_series(date_trunc(prm.period, prm.range_start::timestamp),
+                         prm.range_end::timestamp - interval '1 day',
+                         ('1 ' || prm.period)::interval) AS g
+    WHERE g::date >= prm.range_start AND g::date < prm.range_end
+      AND (g + ('1 ' || prm.period)::interval)::date <= (prm.as_of AT TIME ZONE 'Asia/Seoul')::date
+      AND (
+          EXISTS (SELECT 1 FROM src WHERE src.published_day >= g::date
+                    AND src.published_day < (g + ('1 ' || prm.period)::interval)::date)
+          OR EXISTS (
+              SELECT 1 FROM career.ingestion_runs r
+              WHERE r.source_id = prm.source_id AND r.status = 'succeeded'
+                AND r.ended_at IS NOT NULL AND r.ended_at <= prm.as_of
+                AND (r.ended_at AT TIME ZONE 'Asia/Seoul')::date >= g::date
+                AND (r.ended_at AT TIME ZONE 'Asia/Seoul')::date < (g + ('1 ' || prm.period)::interval)::date
+          )
+      )
+),
+scopes AS (
+    SELECT NULL::uuid AS job_role_id
+    UNION
+    SELECT DISTINCT job_role_id FROM src WHERE job_role_id IS NOT NULL
+),
+expected_counts AS (
+    SELECT c.bucket, s.job_role_id, count(src.job_posting_id) AS n
+    FROM covered c CROSS JOIN scopes s
+    LEFT JOIN src ON src.published_day >= c.bucket AND src.published_day < c.bucket_end
+      AND (s.job_role_id IS NULL OR src.job_role_id = s.job_role_id)
+    GROUP BY c.bucket, s.job_role_id
+),
+expected_skills AS (
+    SELECT c.bucket, c.job_role_id, ps.skill_id,
+           round(count(DISTINCT src.job_posting_id)::numeric / c.n, 4) AS v
+    FROM expected_counts c
+    CROSS JOIN params prm
+    JOIN covered b ON b.bucket = c.bucket
+    JOIN src ON src.published_day >= b.bucket AND src.published_day < b.bucket_end
+      AND (c.job_role_id IS NULL OR src.job_role_id = c.job_role_id)
+    JOIN career.job_posting_skills ps ON ps.job_posting_id = src.job_posting_id
+      AND ps.created_at <= prm.as_of
+    WHERE c.n >= prm.min_sample
+    GROUP BY c.bucket, c.job_role_id, ps.skill_id, c.n
 )
 -- 1) 같은 키가 두 번 이상 저장됨 (NULL 직무 포함, 계약 §5)
 SELECT 'duplicate_key' AS check_name, s.observed_on, s.job_role_id, s.skill_id, s.metric_code,
@@ -69,7 +115,7 @@ FROM (
           AND (s.job_role_id IS NULL OR src.job_role_id = s.job_role_id)
     ) d
     CROSS JOIN LATERAL (
-        SELECT count(*) AS k FROM src
+        SELECT count(DISTINCT src.job_posting_id) AS k FROM src
         JOIN career.job_posting_skills ps ON ps.job_posting_id = src.job_posting_id
         WHERE ps.skill_id = s.skill_id AND ps.created_at <= prm.as_of
           AND src.published_day >= s.observed_on AND src.published_day < s.span_end
@@ -80,15 +126,23 @@ FROM (
 WHERE x.recomputed IS DISTINCT FROM x.metric_value OR x.n < prm.min_sample
 
 UNION ALL
--- 4) 원천에 공고가 있는 완료 구간인데 전체 시장 공고 수 행이 없음 (누락)
-SELECT 'missing_bucket', b.bucket, NULL::uuid, NULL::uuid, 'posting_count', NULL::numeric, b.n::numeric
-FROM (
-    SELECT date_trunc(prm.period, src.published_day::timestamp)::date AS bucket, count(*) AS n
-    FROM src, params prm
-    GROUP BY 1
-) b, params prm
-WHERE b.bucket >= prm.range_start AND b.bucket < prm.range_end
-  AND (b.bucket + ('1 ' || prm.period)::interval)::date <= (prm.as_of AT TIME ZONE 'Asia/Seoul')::date
-  AND NOT EXISTS (SELECT 1 FROM stored s
-                  WHERE s.observed_on = b.bucket AND s.metric_code = 'posting_count' AND s.job_role_id IS NULL)
+-- 4) 실제 공고가 없지만 성공 수집이 있던 0 구간 및 직무별 구간까지 누락 검사
+SELECT 'missing_bucket', e.bucket, e.job_role_id, NULL::uuid, 'posting_count', NULL::numeric, e.n::numeric
+FROM expected_counts e
+WHERE NOT EXISTS (
+    SELECT 1 FROM stored st
+    WHERE st.observed_on = e.bucket
+      AND st.job_role_id IS NOT DISTINCT FROM e.job_role_id
+      AND st.skill_id IS NULL AND st.metric_code = 'posting_count'
+)
+UNION ALL
+-- 5) 분모 표본이 충분한 기술별 관측값 누락 확인
+SELECT 'missing_skill_share', e.bucket, e.job_role_id, e.skill_id, 'skill_demand_share', NULL::numeric, e.v::numeric
+FROM expected_skills e
+WHERE NOT EXISTS (
+    SELECT 1 FROM stored st
+    WHERE st.observed_on = e.bucket
+      AND st.job_role_id IS NOT DISTINCT FROM e.job_role_id
+      AND st.skill_id = e.skill_id AND st.metric_code = 'skill_demand_share'
+)
 ORDER BY 1, 2
