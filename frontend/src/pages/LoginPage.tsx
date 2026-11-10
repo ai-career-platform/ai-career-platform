@@ -83,7 +83,7 @@ export function LoginPage() {
           <Button type="submit" disabled={submitting}>
             {submitting ? '로그인 중…' : '로그인'}
           </Button>
-          {/* 비밀번호 찾기·회원가입 화면은 아직 없어(T94 등) 누르면 "페이지를 찾을 수 없음"이 보입니다. */}
+          {/* 비밀번호 찾기는 T94 화면(/password-reset). 회원가입 화면은 아직 없어 누르면 "페이지를 찾을 수 없음"이 보입니다. */}
           <div className="login-options">
             <label className="login-check">
               <input type="checkbox" name="saveEmail" defaultChecked={savedEmail !== ''} />

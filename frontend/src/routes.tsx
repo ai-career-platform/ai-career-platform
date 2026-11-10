@@ -10,6 +10,7 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
+import { PasswordResetPage } from './pages/PasswordResetPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { MarketTrendsPage } from './pages/MarketTrendsPage';
@@ -73,6 +74,8 @@ export const buildRoutes = (
       { path: 'ui-preview', element: <UiPreviewPage /> },
       { path: 'job-postings', element: <JobPostingsPage /> },
       { path: 'login', element: <LoginPage /> },
+      // UI-N03 계정 복구 (T94). Mock 모드에서만 동작. 실제 API(T93 PR 195)는 미병합이라 일반 빌드는 '준비 중' 안내
+      { path: 'password-reset', element: <PasswordResetPage /> },
       { element: <RequireAuth />, children: [
         { path: 'account', element: <AccountPage /> },
         { path: 'account/privacy', element: <PrivacySettingsPage /> },
