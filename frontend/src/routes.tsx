@@ -20,12 +20,28 @@ import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
 import { ModerationCasePage } from './pages/admin/ModerationCasePage';
 import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
+import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
+import { AiUsagePage } from './pages/admin/AiUsagePage';
+import { AuditEventsPage } from './pages/admin/AuditEventsPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean };
+
+/**
+ * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
+ * 켜져 있어도 admin 역할만 들어갑니다. 권한(admin.audit.read) 회수는 서버 403 으로 화면에 표시합니다.
+ */
+const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminAuditUi ? [
+  { element: <RequireAuth roles={['admin']} />, children: [
+    { element: <AdminAuditServiceProvider />, children: [
+      { path: 'admin/audit-events', element: <AuditEventsPage /> },
+      { path: 'admin/ai-usage', element: <AiUsagePage /> },
+    ] },
+  ] },
+] : []);
 
 /**
  * UI-027 관리자 검수(T82)는 기능 플래그가 켜졌을 때만 경로·메뉴가 생깁니다(기본 꺼짐, Mock 모드 전용 — env.ts).
@@ -40,12 +56,14 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
   ] },
 ] : []);
 
-export const buildRoutes = (features: Features = { adminModerationUi: env.adminModerationUi }): RouteObject[] => [
+export const buildRoutes = (
+  features: Features = { adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi },
+): RouteObject[] => [
   {
     path: '/',
     element: (
       <AuthProvider>
-        <AppLayout adminModerationUi={features.adminModerationUi} />
+        <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -69,6 +87,7 @@ export const buildRoutes = (features: Features = { adminModerationUi: env.adminM
         { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
       ...adminRoutes(features),
+      ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },
     ],
   },
