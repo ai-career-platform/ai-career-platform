@@ -22,12 +22,15 @@ export function createMockFetch(baseUrl: string): typeof fetch {
     const path = url.startsWith(prefix) ? url.slice(prefix.length) : url;
     const headers = new Headers(init.headers);
     const token = headers.get('Authorization')?.replace(/^Bearer /, '') ?? null;
-    const body = typeof init.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
+    const body = typeof init.body === 'string' ? (JSON.parse(init.body) as unknown)
+      : init.body instanceof FormData ? init.body : undefined;
     const signal = init.signal ?? undefined;
     if (signal?.aborted) throw abortError();
 
     const result = resolveMock<unknown>(path, { method: init.method ?? 'GET', body, token }).then(
-      (data) => json(200, data),
+      async (data) => data instanceof Blob
+        ? new Response(await data.arrayBuffer(), { status: 200, headers: { 'Content-Type': data.type } })
+        : json(200, data),
       (error: unknown) => {
         if (!(error instanceof ApiError)) throw error;
         return json(error.status, error.code ? { code: error.code, status: error.status, message: error.userMessage } : undefined);

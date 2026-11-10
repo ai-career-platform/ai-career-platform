@@ -7,10 +7,12 @@
  * - 화면에서 고친 내용은 "저장"을 눌러야 한 번에 반영된다(PUT 전체 교체).
  *   저장에 실패하면 서버 데이터는 그대로이고, 화면의 수정 내용은 유지해 다시 시도하거나 되돌릴 수 있다.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { ApiError } from '../api/client';
 import { useApi } from '../api/ApiContext';
+import { useQuery } from '../api/useQuery';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, proficiencyLabels,
   type Proficiency, type Skill, type UserSkill,
@@ -36,16 +38,19 @@ const sameSkills = (a: UserSkill[], b: UserSkill[]) =>
 
 export function MySkillsPage() {
   const api = useApi();
-  const [saved, setSaved] = useState<UserSkill[]>([]);
-  const [draft, setDraft] = useState<UserSkill[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const mine = useQuery(['me-skills'], (signal) => api.me.skills.list(signal));
+  const saved = useMemo(() => (mine.status === 'ready' ? mine.data : []), [mine]);
+  // 화면에서 고친 목록(저장 전). null 이면 서버에 저장된 목록을 그대로 보여 줍니다.
+  const [edits, setEdits] = useState<UserSkill[] | null>(null);
+  const draft = edits ?? saved;
+  const setDraft = (update: (current: UserSkill[]) => UserSkill[]) => setEdits((e) => update(e ?? saved));
+  const loading = mine.status === 'loading';
+  const loadError = mine.status === 'error' ? errorMessage(mine.error, '내 기술을 불러오지 못했습니다.') : '';
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   const [query, setQuery] = useState('');
-  const [search, setSearch] = useState<{ q: string; items: Skill[]; failed: boolean }>({ q: '', items: [], failed: false });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [hint, setHint] = useState('');
@@ -53,36 +58,19 @@ export function MySkillsPage() {
   const listboxId = useId();
   const inputId = useId();
 
-  const load = useCallback(() => api.me.skills.list().then(
-    list => { setSaved(list); setDraft(list); setLoadError(''); },
-    e => { setLoadError(errorMessage(e, '내 기술을 불러오지 못했습니다.')); },
-  ).finally(() => setLoading(false)), [api]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  function retry() { setLoading(true); setLoadError(''); void load(); }
-
   const trimmed = query.trim();
   const searchable = trimmed.length >= SEARCH_MIN_LENGTH;
-  useEffect(() => {
-    if (!searchable) return undefined;
-    // 검색어가 바뀌면 이전 요청은 폐기한다. 이미 보낸 요청이 늦게 돌아와도(성공·실패 모두) 상태를 덮어쓰지 않는다.
-    const obsolete = new AbortController();
-    const timer = setTimeout(() => {
-      api.skills.search({ q: trimmed, limit: 10 }, obsolete.signal).then(
-        r => {
-          if (obsolete.signal.aborted) return;
-          setSearch({ q: trimmed, items: r.items, failed: false }); setActive(r.items.length ? 0 : -1);
-        },
-        () => { if (!obsolete.signal.aborted) setSearch({ q: trimmed, items: [], failed: true }); },
-      );
-    }, SEARCH_DELAY_MS);
-    return () => { clearTimeout(timer); obsolete.abort(); };
-  }, [api, trimmed, searchable]);
-  const current = search.q === trimmed ? search : null;
-  const results = current?.items ?? [];
+  // 입력이 SEARCH_DELAY_MS 동안 멈추면 검색합니다. 검색어가 바뀌면 useQuery 가 이전 요청을 취소하고,
+  // 늦게 돌아온 이전 응답(성공·실패 모두)은 화면을 덮어쓰지 않습니다.
+  const settledQuery = useDebouncedValue(trimmed, SEARCH_DELAY_MS);
+  const found = useQuery(searchable && settledQuery === trimmed && ['skill-search', trimmed], async (signal) => {
+    const result = await api.skills.search({ q: trimmed, limit: 10 }, signal);
+    if (!signal.aborted) setActive(result.items.length ? 0 : -1);
+    return result;
+  });
+  const results: Skill[] = found.status === 'ready' ? found.data.items : [];
   const searchStatus: 'idle' | 'loading' | 'done' | 'error' =
-    !searchable ? 'idle' : !current ? 'loading' : current.failed ? 'error' : 'done';
+    !searchable ? 'idle' : found.status === 'error' ? 'error' : found.status === 'ready' ? 'done' : 'loading';
 
   const owned = useMemo(() => new Set(draft.map(s => s.skill.skill_id)), [draft]);
   const dirty = !sameSkills(draft, saved);
@@ -132,14 +120,14 @@ export function MySkillsPage() {
       const result = await api.me.skills.replace({
         items: draft.map(s => ({ skill_id: s.skill.skill_id, proficiency: s.proficiency })),
       });
-      setSaved(result); setDraft(result); setHint('');
+      mine.setData(() => result); setEdits(null); setHint('');
       setNotice('저장했습니다.');
     } catch (e) {
       setError(`${errorMessage(e, '저장하지 못했습니다.')} 저장되지 않았고, 화면의 수정 내용은 그대로 남아 있습니다.`);
     } finally { setSaving(false); }
   }
 
-  function revert() { setDraft(saved); setError(''); setHint(''); setNotice('저장된 상태로 되돌렸습니다.'); }
+  function revert() { setEdits(null); setError(''); setHint(''); setNotice('저장된 상태로 되돌렸습니다.'); }
 
   const showList = open && searchable && !saving;
   const activeId = showList && active >= 0 && results[active] ? `${listboxId}-${results[active]!.skill_id}` : undefined;
@@ -151,7 +139,7 @@ export function MySkillsPage() {
 
     {loading ? <StatePanel variant="loading" title="내 기술을 불러오는 중" />
       : loadError ? <StatePanel variant="error" title="내 기술을 불러오지 못했습니다" description={loadError}
-        actionLabel="다시 시도" onAction={retry} />
+        actionLabel="다시 시도" onAction={mine.retry} />
       : <>
         <div className="skills-search">
           <label htmlFor={inputId}>기술 검색</label>
