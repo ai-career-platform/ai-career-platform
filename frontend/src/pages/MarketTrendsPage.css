@@ -1,0 +1,143 @@
+.market-trends {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.market-trends-heading h1 {
+  margin: 0 0 8px;
+}
+
+.market-trends-intro {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.market-trends-disclaimer {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 4px solid var(--color-warning);
+  border-radius: 4px;
+  background: #fff7ed;
+  color: var(--color-text);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.market-trends-filters,
+.market-trends-definition,
+.market-trends-result {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.market-trends-filter {
+  display: grid;
+  gap: 6px;
+}
+
+.market-trends-label {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.market-trends-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.market-trends-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.market-trends-field :is(input, select) {
+  min-height: 44px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.market-trends-field [aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.market-trends :is(button, input, select):focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.market-trends-invalid {
+  margin: 0;
+  color: var(--color-danger);
+}
+
+.market-trends-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.market-trends-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.market-trends-definition h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.market-trends-definition p {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.market-trends-basis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0;
+}
+
+.market-trends-basis dt {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.market-trends-basis dd {
+  margin: 4px 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .market-trends-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .market-trends-filters,
+  .market-trends-definition,
+  .market-trends-result {
+    padding: 12px;
+  }
+}

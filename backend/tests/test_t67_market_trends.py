@@ -228,3 +228,23 @@ def test_response_matches_openapi_contract(http, market_repo):
     assert {p["name"] for p in operation["parameters"]} == {
         "metric_code", "from", "to", "period", "job_role_id", "skill_id", "source"}
     assert set(operation["responses"]) == {"200", "401", "404", "422"}
+
+
+def test_schema_not_migrated_returns_503_without_querying_trends():
+    from unittest.mock import Mock
+    from app.routers.market_trends import get_market_trend_service
+    from app.core.errors import AppError, ErrorCode
+    session = Mock()
+    session.execute.return_value.scalar_one.return_value = 0
+    with pytest.raises(AppError) as exc:
+        get_market_trend_service(session)
+    assert exc.value.code == ErrorCode.DEPENDENCY_UNAVAILABLE
+    assert exc.value.status == 503
+
+
+def test_schema_migration_ready_allows_repository_creation():
+    from unittest.mock import Mock
+    from app.routers.market_trends import get_market_trend_service
+    session = Mock()
+    session.execute.return_value.scalar_one.return_value = 2
+    assert isinstance(get_market_trend_service(session), MarketTrendService)

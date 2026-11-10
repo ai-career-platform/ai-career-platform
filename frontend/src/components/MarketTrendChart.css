@@ -1,0 +1,70 @@
+.market-chart {
+  position: relative;
+  min-width: 0;
+  padding: 8px 0 0;
+  border-radius: 8px;
+}
+
+.market-chart:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 4px;
+}
+
+.market-chart svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.market-chart-grid line {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.market-chart-grid text {
+  fill: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.market-chart-series path {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.market-chart-marker {
+  fill: var(--color-primary);
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+
+.market-chart-marker--hidden {
+  opacity: 0;
+}
+
+.market-chart-crosshair {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+}
+
+.market-chart-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.market-chart-readout {
+  min-height: 1.5em;
+  margin: 4px 0 0;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+@media (forced-colors: active) {
+  .market-chart-series path { stroke: CanvasText; }
+  .market-chart-marker { fill: CanvasText; }
+}

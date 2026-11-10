@@ -99,7 +99,7 @@ CommonUi.test.tsx에서 확인:
 | Button | variant(primary/outline), disabled, onClick 및 기본 button 속성. 기본 type=button |
 | SectionHeading | id, title, eyebrow, aside. 제목과 우측 부가 정보 |
 | FilterChips | label, options(value/label), value, onChange. 선택 상태는 부모에서 관리 |
-| JobCard | job: JobCardData. 공고의 제목·기업·기술 표시 |
+| JobCard | job: JobCardData, tagsLabel(기본 `관련 기술`). 공고의 제목·기업·태그 표시. tags가 비면 목록을 그리지 않음 |
 | CompanyCard | company: CompanyCardData. 기업명·설명·톤 표시 |
 
 각 컴포넌트는 자신의 CSS를 직접 import하며 LandingPage.css에 의존하지 않습니다.

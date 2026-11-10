@@ -8,8 +8,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
@@ -19,6 +21,15 @@ from app.services.market_trends import MarketTrendService
 
 
 def get_market_trend_service(session: Annotated[Session, Depends(get_db)]) -> MarketTrendService:
+    # Staging에 T65 migration 0003이 없는 기간에는 SQL의 undefined_column(500)을
+    # 유발하지 않고, 이 엔드포인트만 안전하게 503으로 응답한다.
+    found = session.execute(text(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_schema = 'career' AND table_name IN ('market_observations', 'market_forecasts') "
+        "AND column_name = 'skill_id'"
+    )).scalar_one()
+    if found != 2:
+        raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="T67 requires migration 0003")
     return MarketTrendService(SqlMarketTrendRepository(session))
 
 

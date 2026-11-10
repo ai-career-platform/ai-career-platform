@@ -865,12 +865,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * 채용시장 지표 관측값 + 예측값
-         * @description 지표 정의·단위·구간 규칙은 docs/data/MARKET_METRICS_CONTRACT.md (T65).
-         *     관측이 없는 구간은 observations에 넣지 않는다(0으로 채우지 않음). 관측값은 출처별로만 준다.
-         *     기간 상한: day 366일, week 157주, month 60개월. 넘으면 422.
-         */
+        /** 채용시장 지표 관측값 + 예측값 */
         get: operations["getMarketTrends"];
         put?: never;
         post?: never;

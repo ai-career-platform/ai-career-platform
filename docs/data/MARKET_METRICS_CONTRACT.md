@@ -137,10 +137,7 @@ PYTHON 5건 → 5/7 = **0.7143**, JAVA 2건 → **0.2857**, TYPESCRIPT 1건 → 
 - 필터: `metric_code`(필수), `from`·`to`(필수), `job_role_id`(없으면 전체 시장), `skill_id`(`skill_demand_share`면 필수), `period`(기본 `week`).
 - 응답에 `source`(출처 코드·이름), `period`, 단위, 관측/예측을 분리해 담는다 (OpenAPI `MarketTrend`).
 - 행이 없는 구간은 응답에서 빼거나 `null`로 둔다. **0으로 채우지 않는다** (§3.4).
-- 출처: `source`(출처 코드)를 주면 그 출처만, 안 주면 관측값이 있는 출처가 하나일 때 자동 선택하고 둘 이상이면 422로 지정을 요구한다(출처를 섞지 않음).
-- 기간 상한: `day` 366일, `week` 157주, `month` 60개월. 시계열이라 cursor 대신 기간으로 나눠 조회한다.
-- 예측은 조건에 맞는 예측 중 가장 최근에 만든 모델 버전 하나의 값만 준다.
-- 구현: `backend/app/routers/market_trends.py` (T67). `skill_id`·`period`·`source` 파라미터와 응답 `unit`·`job_role`·`skill`은 T67에서 OpenAPI에 추가했다.
+- `skill_id` 쿼리 파라미터는 OpenAPI에 아직 없다. T67에서 추가한다.
 
 ## 9. 검증 방법과 결과
 

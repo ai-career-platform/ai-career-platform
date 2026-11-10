@@ -1,6 +1,9 @@
 import { ApiError } from '../api/errors';
+import { resolveDocumentsMock } from './documents';
+import { resolveMarketTrendsMock } from './marketTrends';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
+import { resolveRecommendationMock } from './recommendations';
 import { resolveSkillsMock } from './skills';
 
 /**
@@ -64,11 +67,27 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
   return null;
 }
 
+/** 로그인이 필요한 도메인 Mock. 경로가 맞으면 먼저 토큰을 확인합니다(없으면 401). */
+function resolveAuthed(path: string, { method, body, token }: MockRequest): unknown {
+  if (path.startsWith('/v1/recommendation-runs')) {
+    return resolveRecommendationMock(path, method, body, authedUser(token).email);
+  }
+  if (path.startsWith('/v1/market-trends')) {
+    authedUser(token);
+    return resolveMarketTrendsMock(path);
+  }
+  return null;
+}
+
 /** Backend 카탈로그(app/core/errors.py ERROR_CATALOG)와 같은 사용자 문구 — Mock에서도 화면 문구를 실제와 맞춘다 */
 const mockMessages: Record<string, string> = {
   UNAUTHENTICATED: '로그인이 필요합니다.',
   VALIDATION_FAILED: '입력값을 확인해 주세요.',
   DUPLICATE_SKILL: '같은 기술이 중복으로 들어 있습니다.',
+  NOT_FOUND: '요청한 정보를 찾을 수 없습니다.',
+  DOCUMENT_NOT_READY: '문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요.',
+  FILE_TOO_LARGE: '파일은 10MB 이하만 올릴 수 있습니다.',
+  UNSUPPORTED_FILE_TYPE: 'PDF 또는 DOCX 파일만 올릴 수 있습니다.',
 };
 
 const MOCK_DELAY_MS = 150;
@@ -79,6 +98,11 @@ export async function resolveMock<T>(
 ): Promise<T> {
   await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
   try {
+    if (path === '/v1/documents' || path.startsWith('/v1/documents?') || path.startsWith('/v1/documents/')) {
+      const result = resolveDocumentsMock(path, request, authedUser(request.token).email);
+      if (result instanceof Blob) return result as T;
+      if (result !== null) return structuredClone(result) as T;
+    }
     if (['/v1/me/consents', '/v1/me/deletion-request', '/v1/consent-policies'].includes(path)) {
       const userKey = path === '/v1/consent-policies' ? null : authedUser(request.token).email;
       return structuredClone(resolvePrivacyMock(path, request, userKey)) as T;
@@ -95,6 +119,8 @@ export async function resolveMock<T>(
     }
     const authResult = resolveAuth(path, request);
     if (authResult !== null) return structuredClone(authResult) as T;
+    const authedResult = resolveAuthed(path, request);
+    if (authedResult !== null) return structuredClone(authedResult) as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw new ApiError(error.status, path, undefined, error.code, error.code ? mockMessages[error.code] : undefined);

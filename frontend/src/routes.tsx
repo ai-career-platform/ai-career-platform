@@ -9,7 +9,10 @@ import { LandingPage } from './pages/LandingPage';
 import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
 import { MySkillsPage } from './pages/MySkillsPage';
+import { MyDocumentsPage } from './pages/MyDocumentsPage';
+import { MarketTrendsPage } from './pages/MarketTrendsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -40,6 +43,11 @@ export const routes: RouteObject[] = [
         { path: 'me/career-history', element: <CareerHistoryPage /> },
         { path: 'me/bookmarks', element: <BookmarksPage /> },
         { path: 'me/skills', element: <MySkillsPage /> },
+        { path: 'me/documents', element: <MyDocumentsPage /> },
+        // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+        { path: 'recommendations', element: <RecommendationsPage /> },
+        // UI-024 채용시장 추세 (F-024). T67 GET /api/v1/market-trends 는 로그인 사용자만 조회합니다.
+        { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
       { path: '*', element: <NotFoundPage /> },
     ],
