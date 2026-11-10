@@ -1,0 +1,1042 @@
+{
+ "T01": {
+  "title": "T01 — DB 개발환경 세팅 가이드",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T01.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T02": {
+  "title": "T02 — Backend 개발환경 세팅 가이드",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T02.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T03": {
+  "title": "T03 — Frontend 개발환경 세팅 가이드",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T03.md",
+  "state": "MERGED",
+  "merged": [
+   19
+  ],
+  "open": []
+ },
+ "T04": {
+  "title": "T04 — 전체 기능·화면 요구사항 기준선 확정",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T04.md",
+  "state": "MERGED",
+  "merged": [
+   13
+  ],
+  "open": []
+ },
+ "T05": {
+  "title": "T05 — 전체 DB ERD 및 테이블 계약 확정",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T05.md",
+  "state": "MERGED",
+  "merged": [
+   47,
+   37,
+   36,
+   35,
+   34,
+   17
+  ],
+  "open": []
+ },
+ "T06": {
+  "title": "T06 — 전체 API·DTO 계약 확정",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T06.md",
+  "state": "MERGED",
+  "merged": [
+   41,
+   29
+  ],
+  "open": []
+ },
+ "T07": {
+  "title": "T07 — DB 계정·권한·접근 제한 검증",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T07.md",
+  "state": "MERGED",
+  "merged": [
+   46
+  ],
+  "open": []
+ },
+ "T08": {
+  "title": "T08 — PostgreSQL Migration 체계 구축",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T08.md",
+  "state": "MERGED",
+  "merged": [
+   39
+  ],
+  "open": []
+ },
+ "T09": {
+  "title": "T09 — 전체 DB Schema 생성 SQL 작성",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T09.md",
+  "state": "MERGED",
+  "merged": [
+   45,
+   22
+  ],
+  "open": []
+ },
+ "T10": {
+  "title": "T10 — 초기 Seed·Fixture 데이터 제작",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T10.md",
+  "state": "MERGED",
+  "merged": [
+   34
+  ],
+  "open": [
+   154
+  ]
+ },
+ "T11": {
+  "title": "T11 — DB 제약조건·인덱스·권한 테스트",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T11.md",
+  "state": "MERGED",
+  "merged": [
+   49
+  ],
+  "open": []
+ },
+ "T12": {
+  "title": "T12 — 승인된 Staging Migration·Seed 적용",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T12.md",
+  "state": "MERGED",
+  "merged": [
+   125
+  ],
+  "open": []
+ },
+ "T13": {
+  "title": "T13 — FastAPI 애플리케이션 골격 구축",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T13.md",
+  "state": "MERGED",
+  "merged": [
+   14
+  ],
+  "open": []
+ },
+ "T14": {
+  "title": "T14 — PostgreSQL DB 연결·세션 수명주기",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T14.md",
+  "state": "MERGED",
+  "merged": [
+   126,
+   40,
+   25
+  ],
+  "open": []
+ },
+ "T15": {
+  "title": "T15 — 인증·인가 API 구현",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T15.md",
+  "state": "MERGED",
+  "merged": [
+   126,
+   124,
+   121,
+   48,
+   40
+  ],
+  "open": []
+ },
+ "T16": {
+  "title": "T16 — 사용자 프로필 CRUD API",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T16.md",
+  "state": "MERGED",
+  "merged": [
+   126,
+   40
+  ],
+  "open": []
+ },
+ "T17": {
+  "title": "T17 — 직무·기술 조회·검색 API",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T17.md",
+  "state": "MERGED",
+  "merged": [
+   148,
+   117
+  ],
+  "open": []
+ },
+ "T18": {
+  "title": "T18 — 기업·채용공고 조회·검색 API",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T18.md",
+  "state": "MERGED",
+  "merged": [
+   150,
+   128
+  ],
+  "open": []
+ },
+ "T19": {
+  "title": "T19 — Frontend 프로젝트 기본 구조·실행",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T19.md",
+  "state": "MERGED",
+  "merged": [
+   24
+  ],
+  "open": []
+ },
+ "T20": {
+  "title": "T20 — Frontend 공통 레이아웃·UI 컴포넌트",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T20.md",
+  "state": "MERGED",
+  "merged": [
+   43
+  ],
+  "open": []
+ },
+ "T21": {
+  "title": "T21 — 로그인·사용자 인증 UI",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T21.md",
+  "state": "MERGED",
+  "merged": [
+   127
+  ],
+  "open": []
+ },
+ "T22": {
+  "title": "T22 — 사용자 프로필 조회·수정 UI",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T22.md",
+  "state": "MERGED",
+  "merged": [
+   131
+  ],
+  "open": [
+   167
+  ]
+ },
+ "T23": {
+  "title": "T23 — 직무·기술 탐색 UI",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T23.md",
+  "state": "MERGED",
+  "merged": [
+   148
+  ],
+  "open": []
+ },
+ "T24": {
+  "title": "T24 — 기업·채용공고 탐색 UI",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T24.md",
+  "state": "MERGED",
+  "merged": [
+   150
+  ],
+  "open": []
+ },
+ "T25": {
+  "title": "T25 — AI·ML 공통 데이터·Feature 계약",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T25.md",
+  "state": "MERGED",
+  "merged": [
+   155,
+   26
+  ],
+  "open": []
+ },
+ "T26": {
+  "title": "T26 — Skill Gap 규칙 기반 Baseline",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T26.md",
+  "state": "MERGED",
+  "merged": [
+   27
+  ],
+  "open": []
+ },
+ "T27": {
+  "title": "T27 — 직무 적합도·추천 규칙 기반 Baseline",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T27.md",
+  "state": "MERGED",
+  "merged": [
+   153
+  ],
+  "open": []
+ },
+ "T28": {
+  "title": "T28 — PR·CI·QA 기본 정책 검증 강화",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T28.md",
+  "state": "MERGED",
+  "merged": [
+   133
+  ],
+  "open": []
+ },
+ "T29": {
+  "title": "T29 — Frontend↔Backend 통합 API 회귀 테스트",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T29.md",
+  "state": "MERGED",
+  "merged": [
+   135
+  ],
+  "open": []
+ },
+ "T30": {
+  "title": "T30 — 1차 Staging 통합 배포·운영 검증",
+  "features": [],
+  "file": "docs/work-orders/initial-30/T30.md",
+  "state": "MERGED",
+  "merged": [
+   136
+  ],
+  "open": []
+ },
+ "T31": {
+  "title": "T31 — 개인정보 동의·탈퇴 요청 Backend API",
+  "features": [
+   "F-005"
+  ],
+  "file": "docs/work-orders/next-30/T31.md",
+  "state": "MERGED",
+  "merged": [
+   139
+  ],
+  "open": []
+ },
+ "T32": {
+  "title": "T32 — 개인정보 설정·동의 UI",
+  "features": [
+   "F-005"
+  ],
+  "file": "docs/work-orders/next-30/T32.md",
+  "state": "MERGED",
+  "merged": [
+   141,
+   140
+  ],
+  "open": []
+ },
+ "T33": {
+  "title": "T33 — 내 보유 기술·숙련도 API",
+  "features": [
+   "F-008"
+  ],
+  "file": "docs/work-orders/next-30/T33.md",
+  "state": "MERGED",
+  "merged": [
+   148,
+   138
+  ],
+  "open": []
+ },
+ "T34": {
+  "title": "T34 — 내 기술·숙련도 관리 UI",
+  "features": [
+   "F-008"
+  ],
+  "file": "docs/work-orders/next-30/T34.md",
+  "state": "MERGED",
+  "merged": [
+   146
+  ],
+  "open": []
+ },
+ "T35": {
+  "title": "T35 — 목표 직무 관리 API",
+  "features": [
+   "F-009"
+  ],
+  "file": "docs/work-orders/next-30/T35.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   137
+  ],
+  "open": []
+ },
+ "T36": {
+  "title": "T36 — 목표 직무 선택 UI",
+  "features": [
+   "F-009"
+  ],
+  "file": "docs/work-orders/next-30/T36.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   142,
+   137
+  ],
+  "open": []
+ },
+ "T37": {
+  "title": "T37 — 개인 경력·프로젝트 이력 API",
+  "features": [
+   "F-010"
+  ],
+  "file": "docs/work-orders/next-30/T37.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   137
+  ],
+  "open": []
+ },
+ "T38": {
+  "title": "T38 — 경력·프로젝트 편집 UI",
+  "features": [
+   "F-010"
+  ],
+  "file": "docs/work-orders/next-30/T38.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   142,
+   137
+  ],
+  "open": []
+ },
+ "T39": {
+  "title": "T39 — 관심 채용공고 북마크 API",
+  "features": [
+   "F-013"
+  ],
+  "file": "docs/work-orders/next-30/T39.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   137
+  ],
+  "open": []
+ },
+ "T40": {
+  "title": "T40 — 저장한 채용공고 UI",
+  "features": [
+   "F-013"
+  ],
+  "file": "docs/work-orders/next-30/T40.md",
+  "state": "MERGED",
+  "merged": [
+   147,
+   142,
+   137
+  ],
+  "open": []
+ },
+ "T41": {
+  "title": "T41 — 직무·공고 적합도 평가 API",
+  "features": [
+   "F-015"
+  ],
+  "file": "docs/work-orders/next-30/T41.md",
+  "state": "MERGED",
+  "merged": [
+   163
+  ],
+  "open": []
+ },
+ "T42": {
+  "title": "T42 — 직무 적합도 결과 UI",
+  "features": [
+   "F-015"
+  ],
+  "file": "docs/work-orders/next-30/T42.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   173
+  ]
+ },
+ "T43": {
+  "title": "T43 — Skill Gap 분석 API",
+  "features": [
+   "F-016"
+  ],
+  "file": "docs/work-orders/next-30/T43.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   151
+  ]
+ },
+ "T44": {
+  "title": "T44 — Skill Gap 결과 UI",
+  "features": [
+   "F-016"
+  ],
+  "file": "docs/work-orders/next-30/T44.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   149
+  ]
+ },
+ "T45": {
+  "title": "T45 — 개인화 직무·공고 추천 API",
+  "features": [
+   "F-017"
+  ],
+  "file": "docs/work-orders/next-30/T45.md",
+  "state": "MERGED",
+  "merged": [
+   156,
+   152
+  ],
+  "open": []
+ },
+ "T46": {
+  "title": "T46 — 개인화 추천 목록 UI",
+  "features": [
+   "F-017"
+  ],
+  "file": "docs/work-orders/next-30/T46.md",
+  "state": "MERGED",
+  "merged": [
+   161
+  ],
+  "open": [
+   162
+  ]
+ },
+ "T47": {
+  "title": "T47 — 추천 설명·피드백 API",
+  "features": [
+   "F-018"
+  ],
+  "file": "docs/work-orders/next-30/T47.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   162,
+   160
+  ]
+ },
+ "T48": {
+  "title": "T48 — 추천 설명·피드백 UI",
+  "features": [
+   "F-018"
+  ],
+  "file": "docs/work-orders/next-30/T48.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   162
+  ]
+ },
+ "T49": {
+  "title": "T49 — 개인 문서 업로드·보관 API",
+  "features": [
+   "F-019"
+  ],
+  "file": "docs/work-orders/next-30/T49.md",
+  "state": "MERGED",
+  "merged": [
+   159
+  ],
+  "open": []
+ },
+ "T50": {
+  "title": "T50 — 개인 문서 관리 UI",
+  "features": [
+   "F-019"
+  ],
+  "file": "docs/work-orders/next-30/T50.md",
+  "state": "MERGED",
+  "merged": [
+   168
+  ],
+  "open": [
+   169
+  ]
+ },
+ "T51": {
+  "title": "T51 — LLM 기반 이력서 분석 Pipeline·API",
+  "features": [
+   "F-020"
+  ],
+  "file": "docs/work-orders/next-30/T51.md",
+  "state": "MERGED",
+  "merged": [
+   164
+  ],
+  "open": []
+ },
+ "T52": {
+  "title": "T52 — 이력서 분석 결과 UI",
+  "features": [
+   "F-020"
+  ],
+  "file": "docs/work-orders/next-30/T52.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T53": {
+  "title": "T53 — RAG 문서 청킹·색인·권한 동기화",
+  "features": [
+   "F-021"
+  ],
+  "file": "docs/work-orders/next-30/T53.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T54": {
+  "title": "T54 — 권한 기반 RAG 검색 API",
+  "features": [
+   "F-021"
+  ],
+  "file": "docs/work-orders/next-30/T54.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T55": {
+  "title": "T55 — 근거 기반 지식 검색 UI",
+  "features": [
+   "F-021"
+  ],
+  "file": "docs/work-orders/next-30/T55.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T56": {
+  "title": "T56 — RAG Q&A API·인용 근거 검증",
+  "features": [
+   "F-022"
+  ],
+  "file": "docs/work-orders/next-30/T56.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   176
+  ]
+ },
+ "T57": {
+  "title": "T57 — 커리어 Q&A 채팅 UI",
+  "features": [
+   "F-022"
+  ],
+  "file": "docs/work-orders/next-30/T57.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T58": {
+  "title": "T58 — Agent 승인 기반 실행·감사 API",
+  "features": [
+   "F-023"
+  ],
+  "file": "docs/work-orders/next-30/T58.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T59": {
+  "title": "T59 — Agent 실행·승인 이력 UI",
+  "features": [
+   "F-023"
+  ],
+  "file": "docs/work-orders/next-30/T59.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T60": {
+  "title": "T60 — AI 모델 버전·평가·사용량 운영 API",
+  "features": [
+   "F-026",
+   "F-028"
+  ],
+  "file": "docs/work-orders/next-30/T60.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T61": {
+  "title": "T61 — 크롤러 데이터 출처·수집 정책·라이선스 관리",
+  "features": [],
+  "file": "docs/work-orders/remaining-30/T61.md",
+  "state": "MERGED",
+  "merged": [
+   51
+  ],
+  "open": []
+ },
+ "T62": {
+  "title": "T62 — 채용공고 크롤러 Adapter·독립 Batch Worker 개발",
+  "features": [],
+  "file": "docs/work-orders/remaining-30/T62.md",
+  "state": "MERGED",
+  "merged": [
+   51
+  ],
+  "open": []
+ },
+ "T63": {
+  "title": "T63 — 크롤링 데이터 정규화·중복·만료·품질 검증",
+  "features": [],
+  "file": "docs/work-orders/remaining-30/T63.md",
+  "state": "MERGED",
+  "merged": [
+   51
+  ],
+  "open": []
+ },
+ "T64": {
+  "title": "T64 — 크롤러 스케줄러·실행 관리·장애 복구",
+  "features": [],
+  "file": "docs/work-orders/remaining-30/T64.md",
+  "state": "MERGED",
+  "merged": [
+   51
+  ],
+  "open": []
+ },
+ "T65": {
+  "title": "T65 — 채용시장 지표·관측 데이터 계약",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T65.md",
+  "state": "MERGED",
+  "merged": [
+   171
+  ],
+  "open": []
+ },
+ "T66": {
+  "title": "T66 — 시장 관측 지표 집계 Pipeline",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T66.md",
+  "state": "MERGED",
+  "merged": [
+   172
+  ],
+  "open": []
+ },
+ "T67": {
+  "title": "T67 — 채용시장 추세 조회 API",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T67.md",
+  "state": "MERGED",
+  "merged": [
+   174
+  ],
+  "open": []
+ },
+ "T68": {
+  "title": "T68 — 채용시장 추세 대시보드 UI",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T68.md",
+  "state": "MERGED",
+  "merged": [
+   177
+  ],
+  "open": []
+ },
+ "T69": {
+  "title": "T69 — 채용시장 추세 예측 Baseline",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T69.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   175
+  ]
+ },
+ "T70": {
+  "title": "T70 — 시장 예측·불확실성 시각화",
+  "features": [
+   "F-024"
+  ],
+  "file": "docs/work-orders/remaining-30/T70.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T71": {
+  "title": "T71 — 서비스 행동 이벤트·동의 계약",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T71.md",
+  "state": "MERGED",
+  "merged": [
+   36
+  ],
+  "open": [
+   129
+  ]
+ },
+ "T72": {
+  "title": "T72 — 동의 기반 행동 이벤트 수집 API/클라이언트",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T72.md",
+  "state": "MERGED",
+  "merged": [
+   179
+  ],
+  "open": []
+ },
+ "T73": {
+  "title": "T73 — 행동 데이터 품질·보존·삭제 검증",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T73.md",
+  "state": "MERGED",
+  "merged": [
+   180
+  ],
+  "open": []
+ },
+ "T74": {
+  "title": "T74 — 사용자 군집 Baseline·품질 평가",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T74.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T75": {
+  "title": "T75 — 사용자 세그먼트 조회 API",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T75.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T76": {
+  "title": "T76 — 세그먼트 관리자 대시보드",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T76.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T77": {
+  "title": "T77 — 이상탐지 Baseline 및 오탐 평가",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T77.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T78": {
+  "title": "T78 — 이상 이벤트 조회·상태 관리 API",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T78.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T79": {
+  "title": "T79 — 이상탐지 관리자 모니터링 UI",
+  "features": [
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T79.md",
+  "state": "NO_PR",
+  "merged": [],
+  "open": []
+ },
+ "T80": {
+  "title": "T80 — 운영 콘텐츠 검수 정책·상태 모델",
+  "features": [
+   "F-027"
+  ],
+  "file": "docs/work-orders/remaining-30/T80.md",
+  "state": "MERGED",
+  "merged": [
+   181,
+   145
+  ],
+  "open": []
+ },
+ "T81": {
+  "title": "T81 — 관리자 검수 큐·조치 API",
+  "features": [
+   "F-027"
+  ],
+  "file": "docs/work-orders/remaining-30/T81.md",
+  "state": "MERGED",
+  "merged": [
+   184
+  ],
+  "open": []
+ },
+ "T82": {
+  "title": "T82 — 운영 관리자 검수 UI",
+  "features": [
+   "F-027"
+  ],
+  "file": "docs/work-orders/remaining-30/T82.md",
+  "state": "MERGED",
+  "merged": [
+   182
+  ],
+  "open": [
+   183
+  ]
+ },
+ "T83": {
+  "title": "T83 — 감사 이벤트·보존·변조 방지 계약",
+  "features": [
+   "F-028"
+  ],
+  "file": "docs/work-orders/remaining-30/T83.md",
+  "state": "MERGED",
+  "merged": [
+   35
+  ],
+  "open": [
+   129
+  ]
+ },
+ "T84": {
+  "title": "T84 — 운영 감사·사용량 조회 API",
+  "features": [
+   "F-028"
+  ],
+  "file": "docs/work-orders/remaining-30/T84.md",
+  "state": "MERGED",
+  "merged": [
+   186,
+   185
+  ],
+  "open": []
+ },
+ "T85": {
+  "title": "T85 — 운영 감사·AI 비용 대시보드",
+  "features": [
+   "F-028"
+  ],
+  "file": "docs/work-orders/remaining-30/T85.md",
+  "state": "MERGED",
+  "merged": [
+   187
+  ],
+  "open": []
+ },
+ "T86": {
+  "title": "T86 — 권한·API 보안 회귀 테스트 확장",
+  "features": [
+   "F-004",
+   "F-005",
+   "F-019",
+   "F-023",
+   "F-027",
+   "F-028"
+  ],
+  "file": "docs/work-orders/remaining-30/T86.md",
+  "state": "MERGED",
+  "merged": [
+   188
+  ],
+  "open": []
+ },
+ "T87": {
+  "title": "T87 — 동의 철회·탈퇴·보존 E2E 검증",
+  "features": [
+   "F-005",
+   "F-019",
+   "F-021",
+   "F-025"
+  ],
+  "file": "docs/work-orders/remaining-30/T87.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   189
+  ]
+ },
+ "T88": {
+  "title": "T88 — API/DB/AI 성능·부하 기준선",
+  "features": [
+   "F-015",
+   "F-016",
+   "F-022",
+   "F-030"
+  ],
+  "file": "docs/work-orders/remaining-30/T88.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   190
+  ]
+ },
+ "T89": {
+  "title": "T89 — 웹 접근성·크로스브라우저 회귀 검사",
+  "features": [
+   "F-001",
+   "F-012",
+   "F-016",
+   "F-022",
+   "F-027"
+  ],
+  "file": "docs/work-orders/remaining-30/T89.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   191
+  ]
+ },
+ "T90": {
+  "title": "T90 — 최종 릴리스·백업복원·운영 인수인계",
+  "features": [
+   "F-030"
+  ],
+  "file": "docs/work-orders/remaining-30/T90.md",
+  "state": "OPEN_PR",
+  "merged": [],
+  "open": [
+   192
+  ]
+ }
+}
