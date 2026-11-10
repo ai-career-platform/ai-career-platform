@@ -1,0 +1,77 @@
+{
+  "_comment": "T65 fixture(t65_fixture.sql)에 reference_metrics.sql을 돌렸을 때의 정답. 손으로 계산한 값이며 근거는 docs/data/MARKET_METRICS_CONTRACT.md §6.",
+  "source_code": "t65_fixture",
+  "min_sample": 5,
+  "columns": ["observed_on", "metric_code", "job_role_code", "skill_code", "metric_value"],
+  "scenarios": [
+    {
+      "name": "S1 weekly, as_of before late posting p9 was collected",
+      "period": "week",
+      "range_start": "2026-10-05",
+      "range_end": "2026-11-02",
+      "as_of": "2026-11-02T09:00:00+09:00",
+      "rows": [
+        ["2026-10-05", "posting_count", null, null, "7"],
+        ["2026-10-05", "posting_count", "BACKEND_ENGINEER", null, "5"],
+        ["2026-10-05", "posting_count", "FRONTEND_ENGINEER", null, "1"],
+        ["2026-10-05", "skill_demand_share", null, "JAVA", "0.2857"],
+        ["2026-10-05", "skill_demand_share", null, "PYTHON", "0.7143"],
+        ["2026-10-05", "skill_demand_share", null, "TYPESCRIPT", "0.1429"],
+        ["2026-10-05", "skill_demand_share", "BACKEND_ENGINEER", "JAVA", "0.4000"],
+        ["2026-10-05", "skill_demand_share", "BACKEND_ENGINEER", "PYTHON", "0.8000"],
+        ["2026-10-12", "posting_count", null, null, "2"],
+        ["2026-10-12", "posting_count", "BACKEND_ENGINEER", null, "0"],
+        ["2026-10-12", "posting_count", "FRONTEND_ENGINEER", null, "1"],
+        ["2026-10-19", "posting_count", null, null, "0"],
+        ["2026-10-19", "posting_count", "BACKEND_ENGINEER", null, "0"],
+        ["2026-10-19", "posting_count", "FRONTEND_ENGINEER", null, "0"]
+      ]
+    },
+    {
+      "name": "S2 weekly, recomputed after p9 arrived; earlier weeks unchanged",
+      "period": "week",
+      "range_start": "2026-10-05",
+      "range_end": "2026-11-09",
+      "as_of": "2026-11-10T09:00:00+09:00",
+      "rows": [
+        ["2026-10-05", "posting_count", null, null, "7"],
+        ["2026-10-05", "posting_count", "BACKEND_ENGINEER", null, "5"],
+        ["2026-10-05", "posting_count", "FRONTEND_ENGINEER", null, "1"],
+        ["2026-10-05", "skill_demand_share", null, "JAVA", "0.2857"],
+        ["2026-10-05", "skill_demand_share", null, "PYTHON", "0.7143"],
+        ["2026-10-05", "skill_demand_share", null, "TYPESCRIPT", "0.1429"],
+        ["2026-10-05", "skill_demand_share", "BACKEND_ENGINEER", "JAVA", "0.4000"],
+        ["2026-10-05", "skill_demand_share", "BACKEND_ENGINEER", "PYTHON", "0.8000"],
+        ["2026-10-12", "posting_count", null, null, "2"],
+        ["2026-10-12", "posting_count", "BACKEND_ENGINEER", null, "0"],
+        ["2026-10-12", "posting_count", "FRONTEND_ENGINEER", null, "1"],
+        ["2026-10-19", "posting_count", null, null, "0"],
+        ["2026-10-19", "posting_count", "BACKEND_ENGINEER", null, "0"],
+        ["2026-10-19", "posting_count", "FRONTEND_ENGINEER", null, "0"],
+        ["2026-10-26", "posting_count", null, null, "1"],
+        ["2026-10-26", "posting_count", "BACKEND_ENGINEER", null, "1"],
+        ["2026-10-26", "posting_count", "FRONTEND_ENGINEER", null, "0"],
+        ["2026-11-02", "posting_count", null, null, "2"],
+        ["2026-11-02", "posting_count", "BACKEND_ENGINEER", null, "1"],
+        ["2026-11-02", "posting_count", "FRONTEND_ENGINEER", null, "1"]
+      ]
+    },
+    {
+      "name": "S3 monthly October",
+      "period": "month",
+      "range_start": "2026-10-01",
+      "range_end": "2026-11-01",
+      "as_of": "2026-11-10T09:00:00+09:00",
+      "rows": [
+        ["2026-10-01", "posting_count", null, null, "10"],
+        ["2026-10-01", "posting_count", "BACKEND_ENGINEER", null, "6"],
+        ["2026-10-01", "posting_count", "FRONTEND_ENGINEER", null, "2"],
+        ["2026-10-01", "skill_demand_share", null, "JAVA", "0.2000"],
+        ["2026-10-01", "skill_demand_share", null, "PYTHON", "0.5000"],
+        ["2026-10-01", "skill_demand_share", null, "TYPESCRIPT", "0.2000"],
+        ["2026-10-01", "skill_demand_share", "BACKEND_ENGINEER", "JAVA", "0.3333"],
+        ["2026-10-01", "skill_demand_share", "BACKEND_ENGINEER", "PYTHON", "0.6667"]
+      ]
+    }
+  ]
+}

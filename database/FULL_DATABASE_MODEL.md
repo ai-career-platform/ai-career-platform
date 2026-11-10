@@ -98,8 +98,8 @@
 | F02 | `agent_tool_approvals` | `approval_id uuid`, `agent_run_id uuid`, `approver_user_id uuid?`, `tool_code varchar(100)`, `decision varchar(24)` | FK → agent_runs, users; 승인 시점·유효범위 필요 | F-023 |
 | F03 | `agent_tool_calls` | `tool_call_id uuid`, `agent_run_id uuid`, `approval_id uuid?`, `tool_code varchar(100)`, `status varchar(24)`, `started_at timestamptz` | FK → agent_runs, agent_tool_approvals; 사용자 동의·재시도 기록 | F-023 |
 | F04 | `model_evaluations` | `model_evaluation_id uuid`, `model_version_id uuid`, `dataset_ref text`, `metric_code varchar(80)`, `metric_value numeric?`, `evaluated_at timestamptz` | FK → model_versions; 누수검사/검증분할 메타데이터 | F-026 |
-| F05 | `market_observations` | `observation_id uuid`, `source_id uuid`, `job_role_id uuid?`, `observed_on date`, `metric_code varchar(80)`, `metric_value numeric` | FK → data_sources, job_roles; 단위·집계기간 계약 | F-024 |
-| F06 | `market_forecasts` | `forecast_id uuid`, `model_version_id uuid`, `job_role_id uuid?`, `forecast_for date`, `metric_code varchar(80)`, `predicted_value numeric` | FK → model_versions, job_roles; 기간/신뢰도 계약 | F-024 |
+| F05 | `market_observations` | `observation_id uuid`, `source_id uuid`, `job_role_id uuid?`, `skill_id uuid?`, `observed_on date`, `metric_code varchar(80)`, `metric_value numeric` | FK → data_sources, job_roles, skills; 단위·집계기간 계약 [T65](../docs/data/MARKET_METRICS_CONTRACT.md) | F-024 |
+| F06 | `market_forecasts` | `forecast_id uuid`, `model_version_id uuid`, `job_role_id uuid?`, `skill_id uuid?`, `forecast_for date`, `metric_code varchar(80)`, `predicted_value numeric` | FK → model_versions, job_roles, skills; 기간/신뢰도 계약 | F-024 |
 | F07 | `behavior_events` | `event_id uuid`, `user_id uuid?`, `event_code varchar(80)`, `event_at timestamptz`, `metadata jsonb?` | FK → users; 동의·최소수집·보존 필수 | F-025 |
 | F08 | `user_segments` | `segment_id uuid`, `model_version_id uuid`, `segment_code varchar(80)`, `label varchar(160)` | FK → model_versions; 군집 의미/공정성 평가 | F-025 |
 | F09 | `user_segment_assignments` | `user_id uuid`, `segment_id uuid`, `assigned_at timestamptz` | 복합 PK 후보; FK → users, user_segments; 배정 이력 정책 | F-025 |
