@@ -12,6 +12,7 @@ from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
 from app.routers import api_v1, system
+from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.state.db_session_factory = None
     app.state.auth_settings = AuthSettings.from_env(settings.app_env)
     app.state.attempt_limiter = AttemptLimiter()
+    app.state.behavior_event_settings = BehaviorEventSettings.from_env()
     app.add_middleware(RequestIdMiddleware)
     register_exception_handlers(app)
     app.include_router(system.router)

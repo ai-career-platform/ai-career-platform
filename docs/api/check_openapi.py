@@ -36,7 +36,6 @@ SCREEN_EXEMPT: dict[str, str] = {}
 TABLE_EXEMPT = {
     "job_posting_external_refs": "외부 공고 수집 배치 전용 (T62). 사용자 API 없음",
     "ingestion_runs": "외부 공고 수집 배치 전용 (T64). 사용자 API 없음",
-    "behavior_events": "이용 기록 수집 API는 이벤트 계약 확정 후 추가 (T71·T72)",
 }
 
 

@@ -246,6 +246,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/behavior-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 동의 기반 행동 이벤트 1건 수집 (T72)
+         * @description behavior_tracking 최신 동의가 true인 사용자의 허용 이벤트만 저장한다(T71 계약). 서버 수집 스위치는 기본 꺼짐(collection_disabled). personalization 3종은 미승인 제안이라 형식만 검사하고 저장하지 않는다 (blocked_policy_pending). 같은 event_id 재전송은 저장하지 않고 duplicate. 이벤트 발생 시각이 최신 동의 시각보다 이르면 blocked_no_consent. 사용자 식별은 토큰으로만 하며 user_id를 받지 않는다.
+         */
+        post: operations["recordMyBehaviorEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/dashboard": {
         parameters: {
             query?: never;
@@ -1190,6 +1210,29 @@ export interface components {
             scheduled_purge_at: string | null;
             /** Format: date-time */
             completed_at: string | null;
+        };
+        /** @description T71 계약 이벤트 1건. metadata 키는 event_code별 허용 목록만, 값은 숫자·true/false·공백 없는 ID/코드 (^[A-Za-z0-9_.:-]{1,64}$)만 허용한다. 중첩 객체·배열·null·문장(검색어 원문)은 거부하고 1KB 이하. event_at은 시간대가 있어야 하며 서버 시각 기준 5분 넘는 미래·7일 넘는 과거는 422. */
+        BehaviorEventInput: {
+            /**
+             * Format: uuid
+             * @description 클라이언트 중복 요청 식별자 (UUID v4). 재시도 때 같은 값을 보낸다
+             */
+            event_id: string;
+            /** @enum {string} */
+            event_code: "page.view" | "search.submit" | "posting.view" | "role.view" | "skill_gap.view" | "posting.bookmark" | "recommendation.click" | "recommendation.dismiss";
+            event_at: components["schemas"]["Timestamp"];
+            metadata?: {
+                [key: string]: number | boolean | string;
+            } | null;
+        };
+        BehaviorEventResult: {
+            /**
+             * Format: uuid
+             * @description 요청한 클라이언트 event_id
+             */
+            event_id: string;
+            /** @enum {string} */
+            status: "recorded" | "duplicate" | "blocked_no_consent" | "blocked_policy_pending" | "collection_disabled";
         };
         Dashboard: {
             profile_completeness: number;
@@ -2434,6 +2477,75 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    recordMyBehaviorEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                 *       "event_code": "posting.view",
+                 *       "event_at": "2026-11-10T03:00:00Z",
+                 *       "metadata": {
+                 *         "job_posting_id": "jp_123",
+                 *         "list_position": 3
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["BehaviorEventInput"];
+            };
+        };
+        responses: {
+            /** @description 저장하지 않음 (duplicate, blocked_no_consent, blocked_policy_pending, collection_disabled) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                     *       "status": "blocked_no_consent"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BehaviorEventResult"];
+                };
+            };
+            /** @description 저장됨 (status=recorded) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                     *       "status": "recorded"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BehaviorEventResult"];
+                };
+            };
+            /** @description JSON 형식 오류 (code=MALFORMED_JSON) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["TooManyRequests"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

@@ -2,6 +2,7 @@
 from datetime import UTC, datetime
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.errors import AppError, ErrorCode
+from app.schemas.behavior_events import TRACKING_EVENTS, TRACKING_POLICY
 
 class PrivacyService:
     def __init__(self, repo):
@@ -31,6 +32,9 @@ class PrivacyService:
                 result = self.repo.consent_dto(latest, False)
             else:
                 result = self.repo.add_consent(user_id, body, now)
+            if body.policy_code == TRACKING_POLICY and not body.granted:
+                # T72/T71 §6: 같은 사용자 행 잠금 안에서, 같은 트랜잭션으로 수집 이벤트를 지운다.
+                self.repo.delete_behavior_events(user_id, TRACKING_EVENTS)
             self.repo.commit()
             return result
         except AppError:
