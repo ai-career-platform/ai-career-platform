@@ -139,6 +139,12 @@ class OpenApiProposalTest(unittest.TestCase):
                       "actor_user_id_masked", "AiUsageReport", "unpriced_request_count"):
             self.assertIn(token, section)
 
+    def test_cost_status_header_is_in_the_proposal_but_not_in_the_confirmed_contract(self):
+        header = self.usage["responses"]["200"]["headers"]["X-AI-Cost-Status"]
+        self.assertEqual(header["schema"]["enum"], ["unverified"])
+        self.assertNotIn("headers", self.base["paths"][USAGE]["get"]["responses"]["200"])
+        self.assertNotIn("400", self.base["paths"][AUDIT]["get"]["responses"], "still missing in the confirmed contract")
+
     def test_reuses_existing_pagination_and_error_components(self):
         refs = [p.get("$ref") for p in self.audit["parameters"]]
         self.assertIn("#/components/parameters/Limit", refs)
@@ -271,13 +277,28 @@ class RepositoryFactsTest(unittest.TestCase):
         self.assertIn("min(to, as_of)", section)
         self.assertIn("PM 승인 전까지 PROPOSED", section)
 
+    def test_cursor_guarantees_do_not_claim_snapshot_isolation(self):
+        section = READINESS.split("## 9.", 1)[1].split("## 10.", 1)[0]
+        self.assertIn("스냅샷 격리는 없습니다", section)
+        for case in ("| A.", "| B-1.", "| B-2.", "| B-3.", "| B-4.", "| B-5."):
+            self.assertIn(case, section)
+        self.assertIn("Migration 없이 가능한 완화책", section)
+        self.assertNotRegex(READINESS, r"스냅샷[^.]{0,20}보장합니다")
+        self.assertIn("스냅샷 격리가 아닙니다", READINESS.split("## 11.", 1)[1].split("## 12.", 1)[0])
+
+    def test_confirmed_and_future_cost_responses_are_distinguished(self):
+        section = READINESS.split("## 10.", 1)[1].split("## 11.", 1)[0]
+        for token in ("현재 확정", "미래 제안", "X-AI-Cost-Status: unverified", "0으로 바꾸지 않음", "USD"):
+            self.assertIn(token, section)
+        self.assertIn("최소 변경", READINESS.split("## 12.", 1)[1].split("## 13.", 1)[0])
+
     def test_implementation_plan_has_18_steps(self):
         section = READINESS.split("## 14.", 1)[1].split("## 15.", 1)[0]
         self.assertEqual(re.findall(r"^\| (\d+) \|", section, re.M), [str(i) for i in range(1, 19)])
 
     def test_readiness_is_marked_unapproved_and_implementation_on_hold(self):
         self.assertIn("**PROPOSED / 미승인", READINESS)
-        self.assertIn("T84 실제 API 구현 착수는 **HOLD**", READINESS)
+        self.assertIn("미승인 정책(D1~D5)의 운영 적용은 **HOLD**", READINESS)
         self.assertNotRegex(READINESS, r"(정책|계약|스키마) 승인: 완료")
 
 

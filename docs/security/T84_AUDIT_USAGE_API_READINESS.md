@@ -1,7 +1,8 @@
 # T84 — 감사 기록·AI 사용량 조회 API 계약 준비
 
 > 상태: **PROPOSED / 미승인** — 계약 준비 문서입니다. 실제 API·DB·Migration 변경은 없습니다.
-> T84 실제 API 구현 착수는 **HOLD** — 비용 컬럼 결정(D2), 마스킹·감사 조회 기록 방침(D3·D4), 기간 한도(D5) 승인이 필요합니다.
+> 미승인 정책(D1~D5)의 운영 적용은 **HOLD** — 비용 컬럼 결정(D2), 마스킹·감사 조회 기록 방침(D3·D4), 기간 한도(D5) 승인이 필요합니다.
+> 확정 계약 범위의 구현은 Draft PR #186에 있습니다(미승인 정책은 운영 경로에서 꺼짐). 이 문서는 계약만 다룹니다.
 > 확인일 2026-11-10 · 기준 main `9320707` · 방식: T81 PR #184와 같음 (제안 조각 + 실제 계약에 메모리 병합 검증)
 > 근거: [작업지시서 T84](../work-orders/remaining-30/T84.md), [T83 감사 계약](AUDIT_EVENT_CONTRACT.md) (DRAFT), [OpenAPI](../api/openapi.yaml) `listAuditEvents`·`getAiUsage`, [데이터 사전](../../database/DATA_DICTIONARY.md) F11·F12, `database/migrations/0001_initial_schema.sql`, [ADMIN 요구사항](../requirements/functional/ADMIN.md) FR-ADM-004·005
 
@@ -16,7 +17,7 @@ T83_AUDIT_CONTRACT=DRAFT (PR #35 merged, "DRAFT / NOT APPROVED / NOT MIGRATED"; 
 OPENAPI_PATHS=EXIST (/admin/audit-events, /admin/ai-usage — T06 확정 계약)
 DB_TABLES=EXIST_IN_0001 (audit_events 7컬럼, ai_usage_records 10컬럼)
 CONTRACT_PROPOSAL=READY (이 문서 + t84_openapi_proposal.yaml)
-T84_IMPLEMENTATION=HOLD
+T84_IMPLEMENTATION=DRAFT_PR_186 (confirmed contract only; D1-D5 not active)
 ```
 
 ## 1. 선행조건 (FACT/PROPOSED/OPEN)
@@ -139,7 +140,20 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 - 위치 = `(occurred_at, audit_event_id)`. `sort_key`에 `occurred_at`을 **마이크로초까지** UTC ISO 문자열로, `last_id`에 `audit_event_id`를 넣습니다. 정밀도를 줄이면 같은 초의 행이 누락됩니다. 같은 `sort_key`에 첫 페이지의 `as_of`(§11 3단계)도 함께 서명해 넣어 상한을 고정합니다.
 - SQL: `WHERE occurred_at >= :from AND occurred_at < :to [AND 필터] AND (occurred_at, audit_event_id) < (:t, :id) ORDER BY occurred_at DESC, audit_event_id DESC LIMIT :limit + 1` — `limit + 1`번째 행이 있을 때만 `next_cursor`를 만듭니다.
 - 변조·다른 조건·다른 버전이면 400 `INVALID_CURSOR`.
-- **기록 유실 분석**: 순회 시점에 있던 행은 동률 기준 덕분에 중복·누락이 없습니다. 다만 `occurred_at`은 트랜잭션 시작 시각(`now()`)이라, 긴 트랜잭션이 늦게 커밋하면 이미 지나간 위치에 행이 생길 수 있습니다. 같은 cursor 순회에서는 안 보이고 새 조회에서는 보입니다. T83의 `recorded_at`·`audit_seq`가 Migration되면 해결됩니다. 그 전에는 화면이 조회 시작 시각을 `to`로 고정하고 "새로 조회"를 제공합니다(OPEN D5).
+- **보장 범위 (STEP 05 보완)** — 페이지마다 별도 요청·별도 트랜잭션(READ COMMITTED)이므로 순회 전체에 대한 **스냅샷 격리는 없습니다.** `as_of` 상한은 "조회 시작 뒤의 시각을 가진 행"만 막을 뿐입니다.
+
+| 조건 | 보장 | 근거 |
+|---|---|---|
+| A. 순회 중 데이터가 변하지 않음 | 중복 0, 누락 0 | `(occurred_at, audit_event_id)` 전순서 + keyset `<` |
+| B-1. `occurred_at >= as_of` 인 행이 순회 중 생김 (일반적인 새 행) | 순회에 나타나지 않음 | 상한 `occurred_at < as_of` 고정 |
+| B-2. 늦게 커밋된 행, `occurred_at < as_of`, 위치가 **이미 지나간 구간** | **누락** (그 순회에서만, 새 조회에서는 보임) | `occurred_at` = 쓰는 쪽 트랜잭션 시작 시각 |
+| B-3. 같은 행, 위치가 **아직 안 지난 구간** | 다음 페이지에 **나타남** (조회 시작 시점 집합이 아님) | 페이지마다 새 트랜잭션 |
+| B-4. 순회 중 삭제 | 지난 구간은 이미 응답됨, 남은 구간에서는 사라짐. 중복은 없음 | keyset |
+| B-5. 순회 중 `occurred_at` 수정 | 중복 또는 누락 가능 | 0001에는 수정 금지 트리거가 없음(T83 제안). 앱 계정에는 UPDATE·DELETE 권한을 주지 않음 |
+| 공통 | 중복은 B-5 외에는 생기지 않음 | 위치가 엄격히 감소 |
+
+- `as_of`와 정확히 같은 `occurred_at`의 다른 행도 상한에서 빠집니다(마이크로초 단위 동시 시작, 다음 조회에서 보임).
+- Migration 없이 가능한 완화책: (1) 화면은 순회 중 "결과가 조회 시작 시점과 다를 수 있음"을 안내하고 "새로 조회"를 제공, (2) 정밀 조사용 조회는 `to`를 현재보다 충분히 이전(예: 5분 전)으로 지정 — 그 시각 이전에 시작해 아직 커밋되지 않은 트랜잭션만 남음, (3) 서버가 상한을 `min(to, as_of − 지연 여유)`로 두는 안(PROPOSED, 값 미정, D5와 함께 결정). 완전한 해결은 T83 `recorded_at`·`audit_seq`(DB가 커밋 순서에 가깝게 부여) Migration 이후입니다.
 - 인덱스: `(occurred_at DESC)`로 충분합니다. `(occurred_at DESC, audit_event_id DESC)` 복합 인덱스와 `request_id` 인덱스는 성능 후보이며 Migration이 필요하므로 이번에 만들지 않습니다(D6).
 
 ## 10. 비용 집계 규칙 (PROPOSED, D2)
@@ -157,6 +171,15 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
    - NULL 허용 변경은 별도 Migration 승인 후에만 합니다. 이 PR과 T84 구현은 스키마를 바꾸지 않습니다.
 5. 합은 SQL `sum(numeric)` 후 소수 6자리로 반올림해 JSON number로 냅니다. 금액이 커져 정밀도가 문제가 되면 문자열 표기로 바꾸는 것을 D8로 남깁니다.
 6. 실제 사용량 데이터가 없으면(현재 기록 코드 없음) 빈 결과를 돌려줍니다. 시험·Staging에 임의 사용량을 만들지 않습니다.
+7. **현재 확정 응답과 미래 제안 응답의 구분 (STEP 05 보완)**:
+
+| 구분 | 응답 | 비용 값 | 미확인 표시 |
+|---|---|---|---|
+| 현재 확정 (`AiUsageBucket[]`, PR #186 운영 경로) | 배열 | 저장된 추정값의 합(소수 6자리). 새 값을 만들지 않음 | 헤더 `X-AI-Cost-Status: unverified` — 0을 무료로 해석하지 않도록 |
+| 현재 확정, NULL 비용 행이 생긴 경우(D2 이후) | 500 | 0으로 바꾸지 않음 | 계약 교체가 필요하다는 신호 |
+| 미래 제안 (`AiUsageReport`, D2 승인·Migration·T06 이후) | 객체 | 경계 시각 이후의 기록된 비용만 합, 없으면 `null` | `unpriced_request_count`, `cost_is_estimate: true` |
+
+   통화는 USD입니다. 확정 응답은 필드 이름(`estimated_cost_usd`)으로만 표시하고, 제안 응답은 `currency: USD`를 둡니다.
 
 ## 11. 감사 조회 자체의 감사 (PROPOSED, D4)
 
@@ -180,7 +203,9 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 | 6 | 목록 SELECT (4에서 받은 id는 `audit_event_id <> :self` 로 제외) → 커밋 → 응답 | 커밋 실패 시 503 |
 
 - **자기 조회 이벤트는 그 응답에 포함하지 않습니다(권장안).** 같은 트랜잭션의 INSERT는 SELECT에 보이므로 id로 명시적으로 제외합니다.
-- 다음 페이지에서도 나타나지 않습니다: 자기 조회 행의 `occurred_at`은 `as_of`와 같고, 상한이 `occurred_at < as_of`로 고정되기 때문입니다. 조회 시작 뒤에 생긴 다른 행도 같은 이유로 그 순회에 끼어들지 않습니다. 새 조회(첫 페이지)에서는 이전 조회의 행이 보통 행처럼 보입니다.
+- 다음 페이지에서도 나타나지 않습니다: 자기 조회 행의 `occurred_at`은 같은 트랜잭션의 `now()`, 즉 `as_of`와 같고, 상한이 `occurred_at < as_of`로 고정되기 때문입니다. `occurred_at >= as_of`인 다른 행도 같은 이유로 그 순회에 들어오지 않습니다. 새 조회(첫 페이지)에서는 이전 조회의 행이 보통 행처럼 보입니다.
+- 이 상한은 **스냅샷 격리가 아닙니다.** `as_of`보다 이른 시각으로 늦게 커밋된 행은 위치에 따라 빠지거나 나타납니다(§9 표 B-2·B-3).
+- 순서 검증: 상한 고정(3) → INSERT(4) → SELECT(6)가 한 트랜잭션에서 이 순서로 실행됩니다. 2페이지부터는 서명된 cursor의 `as_of`를 쓰고, 조건이 바뀐 cursor는 400입니다.
 - 실패 처리(fail-closed 503)는 **PM 승인 전까지 PROPOSED**입니다. 승인 전 구현은 이 기록 단계를 운영 API에서 켜지 않습니다.
 - DB 계정: 데이터 사전 F11 기준 앱 계정은 `INSERT`·`SELECT`라 한 세션으로 가능합니다. T83의 조회 전용 계정 분리가 Migration되면 쓰기는 앱 계정, 읽기는 조회 계정으로 나눕니다.
 - AI 사용량 조회는 기록하지 않습니다. 개인을 알 수 없는 집계이기 때문입니다(T83 §3 원칙).
@@ -196,10 +221,13 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 | usage 응답 | `AiUsageBucket[]` (배열) | `AiUsageReport` 객체 + `AiUsageAmounts` 합계 | FR-ADM-005 수용 기준 1, 시간대 명시 |
 | usage 비용 | number, 최소 0 | number\|null + `unpriced_request_count` | §10, D2 |
 | usage 응답 코드 | 200·401·403·422 | + `429` | §8 |
+| usage 응답 헤더 | 없음 | + `X-AI-Cost-Status: unverified` | §10.7 — 비용 미확인 표시 |
 | usage x-tables | ai_usage_records, model_versions | ai_usage_records | 조회에서 `model_versions`를 쓰지 않음 |
 | 공통 | 없음 | `MaskedUuid` 스키마 | §7 |
 
-- 영향: Frontend는 생성 타입(`schema.gen.ts`)만 있고 사용하는 화면·호출이 없습니다. Backend 구현도 없습니다. 반영 시 `openapi.yaml` 수정 → `npm run gen:api` → `check:api`가 필요합니다(T06).
+- **D 결정과 무관하게 먼저 반영할 수 있는 최소 변경 (T06 후보, PR #186이 이미 이렇게 동작)**: `listAuditEvents`에 400 BadCursor, `getAiUsage` 200에 `X-AI-Cost-Status` 헤더. 둘 다 기존 응답 모양을 바꾸지 않습니다. 확정 OpenAPI 반영은 계약 승인 후입니다.
+- D 결정에 의존하는 변경: 마스킹(D3), `AiUsageReport`·NULL 비용(D2), 429·503(제한값·D4), 필터 추가.
+- 영향: Frontend는 생성 타입(`schema.gen.ts`)만 있고 사용하는 화면·호출이 없습니다. Backend 구현은 PR #186(확정 계약 기준)입니다. 반영 시 `openapi.yaml` 수정 → `npm run gen:api` → `check:api`가 필요합니다(T06).
 - 바꾸지 않는 것: 경로, `operationId`, `from`·`to` 필수, `group_by` 값, `admin` 태그, 공통 `Limit`·`Cursor`.
 
 ## 13. PM·담당자 결정 필요 (OPEN)
@@ -274,7 +302,7 @@ AI 사용량 (U):
 | `python -B -m unittest docs/security/test_t84_contract_readiness.py -v` — 제안 조각을 실제 `openapi.yaml`에 병합 후 검사기, 깨진 변형 거부, 확정 계약과의 차이, 0001 컬럼·인덱스·CHECK 대조, T83 미적용 컬럼 미사용, 마스킹 패턴, Seed 권한, 오류 코드, 구현·Migration 부재, 18단계 | PR 본문 기록 |
 | T83 mock 계약 (`test_audit_contract.sh`의 공유 본문을 로컬 일회용 PostgreSQL 18.1 클러스터에서 실행, Docker 없음) | 35/35 PASS — CI의 Docker 실행과 별개 |
 | `docs/api/check_openapi.py` (실제 계약, 변경 없음) | PR 본문 기록 |
-| 실제 API·PostgreSQL 통합 (§15) | **NOT_RUN** — 구현 전 |
+| 실제 API·PostgreSQL 통합 (§15) | 이 PR 범위 밖 — PR #186 검증 보고서(`docs/testing/T84_AUDIT_USAGE_API_VALIDATION.md`) |
 
 ## 17. Staging 적용 제한
 

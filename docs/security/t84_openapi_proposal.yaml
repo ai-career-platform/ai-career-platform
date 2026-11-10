@@ -105,6 +105,11 @@ paths:
       responses:
         '200':
           description: 그룹별 합계와 전체 합계. 데이터가 없으면 buckets가 빈 배열
+          headers:
+            X-AI-Cost-Status:
+              description: '비용 검증 상태. D2(비용 NULL 허용) 이전에는 항상 unverified — 0을 무료로 해석하지 않음. 현재 확정 배열 응답에도 같은 헤더를 붙인다(PR #186)'
+              required: true
+              schema: { type: string, enum: [unverified] }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AiUsageReport' }
