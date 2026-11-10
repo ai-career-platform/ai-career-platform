@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from app.behavior_data import (
-    AUDIT_ACTION, DISPOSABLE_FLAG, DISPOSABLE_TOKEN, MARKER_PREFIX, purge_expired, run_quality_check,
+    AUDIT_ACTION, DISPOSABLE_FLAG, DISPOSABLE_SERVER_ADDR, DISPOSABLE_TOKEN, MARKER_PREFIX, purge_expired,
+    run_quality_check,
 )
 from app.core.errors import AppError
 from app.repositories.privacy import SqlPrivacyRepository
@@ -159,8 +160,13 @@ def mark_disposable(monkeypatch, admin, token=None):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv(DISPOSABLE_FLAG, "YES")
     monkeypatch.setenv(DISPOSABLE_TOKEN, token)
-    db = admin.execute("SELECT current_database()").fetchone()[0]
+    db, server_addr = admin.execute("SELECT current_database(), host(inet_server_addr())").fetchone()
     admin.execute(sql.SQL("COMMENT ON DATABASE {} IS {}").format(sql.Identifier(db), sql.Literal(MARKER_PREFIX + token)))
+    # 포트 매핑한 일회용 컨테이너(CI postgres 서비스)는 서버 쪽 주소가 컨테이너 IP다. 운영 절차와 같이 그 주소를 고정한다.
+    if server_addr and not ipaddress.ip_address(server_addr).is_loopback:
+        monkeypatch.setenv(DISPOSABLE_SERVER_ADDR, server_addr)
+    else:
+        monkeypatch.delenv(DISPOSABLE_SERVER_ADDR, raising=False)
     return token
 
 

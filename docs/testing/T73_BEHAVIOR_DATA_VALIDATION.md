@@ -81,12 +81,14 @@
 | | PostgreSQL URL, 호스트 loopback | `UNSAFE_UNKNOWN_TARGET`, `UNSAFE_NON_LOOPBACK` |
 | | DB 이름 `^t[0-9]{2,3}_[a-z0-9_]*test$` 이고 `staging/stage/prod/live/poc/shared/main` 미포함 (`ai_career_poc` 거부) | `UNSAFE_DB_NAME` |
 | 연결 후, 삭제 전 (같은 Session) | `current_database()` = 설정 DB 이름 | `UNSAFE_DB_MISMATCH` |
-| | `inet_server_addr()`가 loopback — 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP | `UNSAFE_SERVER_ADDR` |
+| | `inet_server_addr()`가 loopback — 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP. 포트 매핑한 일회용 컨테이너는 `BEHAVIOR_PURGE_DISPOSABLE_SERVER_ADDR`(사설·loopback IP만)로 **정확히 고정한 주소와 같을 때만** 허용 | `UNSAFE_SERVER_ADDR`, `UNSAFE_SERVER_ADDR_PIN` |
 | | DB 주석 = `ai-career-disposable-test:<토큰>` — 공유 DB에는 이 표식이 없으므로, 원격 서버의 localhost로 터널링한 경우(서버 주소가 loopback으로 보임)도 차단 | `UNSAFE_NO_DISPOSABLE_MARKER` |
 | | 식별 조회 자체가 실패 | `UNSAFE_IDENTITY_CHECK_*` |
 
 - 각 검사는 서로를 보완한다: 이름·localhost만으로는 판단하지 않고, 서버가 본 주소와 DB에 미리 심은 표식까지 맞아야 한다. 표식은 일회용 DB를 만든 사람이 `COMMENT ON DATABASE`로 직접 넣어야 하므로 공유 DB에서 우연히 맞을 수 없다.
 - 검증할 수 없는 Session(바인드 URL 없음 등)은 `UNSAFE_UNKNOWN_TARGET`으로 거부한다.
+- **서버 주소 고정값을 둔 이유 (CI에서 발견):** 첫 보완 push(`0077697`)에서 CI `backend` 작업이 실패했다. CI는 `postgres:18.1` 서비스 컨테이너를 `127.0.0.1:5432`로 포트 매핑하므로 서버 쪽 주소가 컨테이너 IP여서, 정상적인 일회용 DB도 `UNSAFE_SERVER_ADDR`로 차단됐다. 포트 매핑과 SSH 터널은 서버 입장에서 구분할 수 없으므로, 운영자가 주소를 명시적으로 고정하는 방식을 택했다(테스트 전용 분기 아님). 고정값을 써도 승인 플래그·토큰·DB 이름·표식 검사는 그대로다.
+- **약해지는 점(명시):** 고정값을 쓰면 서버 주소 검사는 "그 주소와 일치"로 바뀐다. 공유 DB를 지우려면 그 서버 주소를 일부러 고정하고, 공유 DB에 이번 실행 토큰의 표식을 DDL로 심어야 하므로 우연히는 일어나지 않지만, 의도적 오용은 막지 못한다. 운영 실행 승인 절차에서 다룰 항목이다.
 - 증거를 갖출 수 없는 환경(Staging 등)에서는 실제 삭제가 불가능하며, 운영 실행은 별도 승인 절차가 정해질 때까지 **HOLD**다.
 
 ## 7. 철회 삭제 검증 (T72 경로 직접 검증)
@@ -139,22 +141,23 @@
 | 물리 삭제 | CASCADE·타 사용자 보존·롤백 | PASS |
 | 잘못된 환경 | 실행 차단 (단위 테스트 + CLI) | PASS |
 | **P1-02** 직접 호출: 표식 없음 / 다른 토큰 / 승인 플래그 없음 / `APP_ENV=local-dev` (4건) | `FAIL(UNSAFE_*)`, target 0, 4행 유지, 감사 0 | PASS |
+| CI와 같은 포트 매핑 구조: 로컬 중계기 `127.0.0.1:55499 → <LAN IP>:55473`를 관리자·앱 연결 모두에 사용 (fixture가 관측 주소를 고정) | T73·T72·T31 PostgreSQL 전체 통과 | 46 passed, 1 skipped(터널 테스트 opt-in 미지정) |
 | **P1-01** SSH 터널 모양 연결: 테스트 안의 TCP 중계기 `127.0.0.1:<임의> → <이 PC의 LAN IP>:<PG>` (SSH `-L`과 같은 구조). URL·DB 이름·토큰·표식은 모두 정상 | 서버 주소가 LAN IP라 `UNSAFE_SERVER_ADDR`, 4행 유지 | PASS (opt-in `T73_TUNNEL_TEST=YES`, 실제 실행함) |
 
-단위 테스트(40건)에서 추가로 확인한 것: 연결 전 차단 17종(`ai_career_poc`·`career_dev` localhost 포함)과 CLI가 DB 연결 전에 종료, 직접 호출 차단 10종(서버 주소 `172.18.0.3`/`10.2.0.4`/NULL, 표식 없음·불일치, DB 불일치, 바인드 없는 Session 등)에서 COUNT·DELETE·INSERT 미실행, 프로세스 환경 기본 사용, 식별 조회 실패 시 차단, 증빙에 토큰 미포함.
+단위 테스트(46건)에서 추가로 확인한 것: 서버 주소 고정값 6종(정확히 일치만 허용, 다른 주소·형식 오류·공인 IP 거부, 고정해도 표식 필수), 연결 전 차단 17종(`ai_career_poc`·`career_dev` localhost 포함)과 CLI가 DB 연결 전에 종료, 직접 호출 차단 10종(서버 주소 `172.18.0.3`/`10.2.0.4`/NULL, 표식 없음·불일치, DB 불일치, 바인드 없는 Session 등)에서 COUNT·DELETE·INSERT 미실행, 프로세스 환경 기본 사용, 식별 조회 실패 시 차단, 증빙에 토큰 미포함.
 
 ### 전체 결과
 
 | 범위 | 명령 | 결과 |
 |---|---|---|
-| T73 단위 | `pytest tests/test_behavior_data.py` | **40 passed** (보완 전 17) |
+| T73 단위 | `pytest tests/test_behavior_data.py` | **46 passed** (보완 전 17) |
 | T73 PostgreSQL | `pytest tests/test_behavior_data_postgres.py` (격리 DB, `T73_TUNNEL_TEST=YES`) | **22 passed** (보완 전 17) |
 | T72 단위 + PostgreSQL | `tests/test_behavior_events.py tests/test_behavior_events_postgres.py` | 65 passed (53 + 12, 철회 동시성 포함) |
 | T31 | `tests/test_privacy.py tests/test_privacy_postgres.py` | 29 passed |
 | T71 동시성 | `D1_TEST_ONLY=YES python -m unittest … test_behavior_concurrency.py` | 2 OK |
 | T71 계약 41항목 | `test_behavior_contract.sh` 공용 본문을 로컬 PG 18로 실행 (Docker 없음) | 41/41 PASS |
-| Backend 전체 (격리 DB 포함) | `pytest` | 656 passed, 94 skipped / 실패 1·오류 19 |
-| main 동일 조건 | `pytest` @ `0f771f2` | 594 passed, 94 skipped / 실패 1·오류 19 (**동일**, 차이 = T73 62건) |
+| Backend 전체 (격리 DB 포함) | `pytest` | 662 passed, 94 skipped / 실패 1·오류 19 |
+| main 동일 조건 | `pytest` @ `0f771f2` | 594 passed, 94 skipped / 실패 1·오류 19 (**동일**, 차이 = T73 68건) |
 | Migration 영향 | `python database/migrate.py lint`, `git diff origin/main -- database/migrations` | LINT PASS, 변경 0 |
 | OpenAPI | `python docs/api/check_openapi.py` | PASS (API 변경 없음) |
 
@@ -168,7 +171,8 @@ CI에는 격리 PostgreSQL 테스트·T71 셸 계약 테스트가 포함되지 �
 | 품질 테스트 `no_consent_at_event_time` 기대 3, 실제 2 | 테스트 기대값 오류 (해당 행은 B·동의 30일 전 A 2건) | 기대값 수정. 검사 SQL은 별도 DB에서 행별로 재확인 |
 | 탈퇴 요청 503 (IntegrityError) | 0001만 적용된 DB에선 `scheduled_purge_at NOT NULL` → T31 탈퇴는 migration 0002 전제 | T31 fixture와 같이 테스트에서 0002 적용 |
 | (참고) T72 보고의 PostgreSQL 건수 | T72 보고서는 "T72 13 + T31 12"로 적었으나 실제 T72 12 + T31 13 (합계 25 동일) | 이 보고서에서 정정 |
-| 리뷰 P1-01·P1-02 | 위 §6.1 | 안전장치 보완, 신규 테스트 28건(단위 23 + PostgreSQL 5) |
+| 리뷰 P1-01·P1-02 | 위 §6.1 | 안전장치 보완, 신규 테스트 34건(단위 29 + PostgreSQL 5) |
+| CI `backend` 실패 @ `0077697` | Docker 서비스 포트 매핑 → 서버 주소가 컨테이너 IP → 새 서버 주소 검사가 정상 일회용 DB도 차단 | 서버 주소 고정값(`BEHAVIOR_PURGE_DISPOSABLE_SERVER_ADDR`) 추가, 로컬 포트 매핑 재현으로 확인 (§6.1) |
 
 ## 11. 감사 증빙
 
@@ -213,6 +217,7 @@ T16_ISOLATED_DB_TEST=YES T16_TEST_ADMIN_URL=postgresql://<admin>@127.0.0.1:<port
   python -m pytest tests/test_behavior_data_postgres.py tests/test_behavior_events_postgres.py tests/test_privacy_postgres.py
 # SSH 터널 모양 테스트(선택): 일회용 클러스터가 이 PC의 LAN 주소로도 접속을 받을 때만
 #   listen_addresses=127.0.0.1,<LAN IP> + pg_hba "host all all <LAN IP>/32 ..." (출발지 자기 자신만) 후 T73_TUNNEL_TEST=YES
+# 포트 매핑한 일회용 컨테이너에서 실제 삭제를 할 때: BEHAVIOR_PURGE_DISPOSABLE_SERVER_ADDR=<그 DB의 inet_server_addr()>
 
 # CLI (DATABASE_URL은 일회용 DB, 이름 tNN_*_test)
 python -m app.behavior_data quality --as-of 2026-11-10T00:00:00+00:00
@@ -231,7 +236,7 @@ PGHOST=127.0.0.1 PGPORT=<port> PGUSER=<admin> PGDATABASE=t71_behavior_test D1_TE
 | 파일 | 내용 |
 |---|---|
 | `backend/app/behavior_data.py` | 신규: 품질 검사(읽기 전용)·보존 만료 삭제 job·CLI·감사 기록, **P1 보완: 연결 전·후 일회용 DB 검증(`check_purge_environment`, `verify_connected_target`)과 `purge_expired` 내부 강제** |
-| `backend/tests/test_behavior_data.py` | 신규: 단위 40건 (cutoff, 연결 전 차단 17종, CLI 연결 전 종료, 직접 호출 차단 10종, 실패 롤백, 증빙 형식) |
+| `backend/tests/test_behavior_data.py` | 신규: 단위 46건 (cutoff, 연결 전 차단 17종, CLI 연결 전 종료, 직접 호출 차단 10종, 서버 주소 고정 6종, 실패 롤백, 증빙 형식) |
 | `backend/tests/test_behavior_data_postgres.py` | 신규: PostgreSQL 22건 (직접 호출 차단 4건, SSH 터널 모양 1건 포함) |
 | `docs/testing/T73_BEHAVIOR_DATA_VALIDATION.md` | 신규: 이 보고서 |
 

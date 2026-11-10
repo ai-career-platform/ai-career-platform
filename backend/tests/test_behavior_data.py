@@ -165,6 +165,28 @@ def test_direct_call_with_unverified_target_never_counts_or_deletes(environ, url
     session.rollback.assert_called()
 
 
+CONTAINER = {**SAFE_IDENTITY, "server_addr": "172.18.0.2"}   # 포트 매핑한 일회용 컨테이너(CI 서비스 모양)
+
+
+@pytest.mark.parametrize("pin,identity,expected", [
+    ("172.18.0.2", CONTAINER, None),                                     # 정확히 고정한 주소 → 허용
+    ("172.18.0.3", CONTAINER, "UNSAFE_SERVER_ADDR"),                     # 다른 주소
+    ("172.18.0.2", SAFE_IDENTITY, "UNSAFE_SERVER_ADDR"),                 # 고정값이 있으면 loopback도 정확히 일치해야
+    ("not-an-ip", CONTAINER, "UNSAFE_SERVER_ADDR_PIN"),
+    ("8.8.8.8", {**SAFE_IDENTITY, "server_addr": "8.8.8.8"}, "UNSAFE_SERVER_ADDR_PIN"),   # 공인 주소 고정 거부
+    ("172.18.0.2", {**CONTAINER, "marker": None}, "UNSAFE_NO_DISPOSABLE_MARKER"),         # 고정해도 표식은 필수
+])
+def test_server_address_pin_is_exact_and_does_not_replace_other_evidence(pin, identity, expected):
+    session = _session(target=1, deleted=1, identity=identity)
+    env = {**SAFE_ENV, "BEHAVIOR_PURGE_DISPOSABLE_SERVER_ADDR": pin}
+    result = purge_expired(session, as_of=AS_OF, retention_days=180, dry_run=False, environ=env)
+    if expected is None:
+        assert (result.status, result.deleted) == ("PASS", 1)
+    else:
+        assert (result.status, result.reason_code, result.deleted) == ("FAIL", expected, 0)
+        assert "DELETE" not in _executed(session)
+
+
 def test_direct_call_uses_process_environment_by_default(monkeypatch):
     for key in ("APP_ENV", "BEHAVIOR_PURGE_DISPOSABLE_DB", "BEHAVIOR_PURGE_DISPOSABLE_TOKEN"):
         monkeypatch.delenv(key, raising=False)

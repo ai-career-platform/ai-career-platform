@@ -46,6 +46,9 @@ LOOPBACK = ("localhost", "127.0.0.1", "::1")
 PURGE_APP_ENV = "test"                                  # local-dev(일반 로컬 DB)도 허용하지 않는다
 DISPOSABLE_FLAG = "BEHAVIOR_PURGE_DISPOSABLE_DB"        # 명시적 승인: 값이 정확히 "YES"
 DISPOSABLE_TOKEN = "BEHAVIOR_PURGE_DISPOSABLE_TOKEN"    # 실행마다 정하는 토큰. DB 주석 표식과 같아야 함
+# 선택: 포트 매핑한 일회용 컨테이너(CI 서비스 등)처럼 서버 쪽 주소가 loopback이 아닐 때, 그 주소를 정확히 고정한다.
+# 지정하지 않으면 loopback만 허용. 지정해도 플래그·토큰·DB 이름·표식 검사는 그대로 적용된다.
+DISPOSABLE_SERVER_ADDR = "BEHAVIOR_PURGE_DISPOSABLE_SERVER_ADDR"
 MARKER_PREFIX = "ai-career-disposable-test:"            # COMMENT ON DATABASE <db> IS '<prefix><token>'
 DISPOSABLE_DB_NAME = re.compile(r"^t[0-9]{2,3}_[a-z0-9_]*test$")   # 예: t16_profile_test
 FORBIDDEN_DB_NAME = re.compile(r"staging|stage|prod|live|poc|shared|main")
@@ -233,19 +236,28 @@ def verify_connected_target(session: Session, environ: Mapping[str, str]) -> Non
     """연결 후 검사. 이 Session의 실제 연결이 일회용 테스트 DB인지 확인한다 (DELETE 전에 호출).
 
     - 연결된 DB 이름 = 설정 DB 이름 (다른 DB로 접속됐으면 거부)
-    - 서버가 본 자기 주소가 loopback (SSH 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP)
+    - 서버가 본 자기 주소가 loopback (SSH 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP).
+      포트 매핑한 일회용 컨테이너는 DISPOSABLE_SERVER_ADDR로 그 주소를 정확히 고정해야 한다.
     - DB 주석 표식 = MARKER_PREFIX + 토큰 (공유 DB에는 이 표식이 없다; 원격 서버의 localhost로 터널링해도 차단)
     """
     bind = session.get_bind()
     url = check_purge_environment(getattr(bind, "url", None), environ)
+    pinned = environ.get(DISPOSABLE_SERVER_ADDR)
+    if pinned is not None:
+        try:
+            pin = ipaddress.ip_address(pinned)
+        except ValueError:
+            raise UnsafePurgeTarget("UNSAFE_SERVER_ADDR_PIN") from None
+        if not (pin.is_private or pin.is_loopback):
+            raise UnsafePurgeTarget("UNSAFE_SERVER_ADDR_PIN")
     row = session.execute(_IDENTITY).mappings().one()
     if row["db"] != url.database:
         raise UnsafePurgeTarget("UNSAFE_DB_MISMATCH")
     try:
-        loopback = row["server_addr"] is not None and ipaddress.ip_address(row["server_addr"]).is_loopback
+        server = ipaddress.ip_address(row["server_addr"]) if row["server_addr"] is not None else None
     except ValueError:
-        loopback = False
-    if not loopback:
+        server = None
+    if server is None or (server != pin if pinned is not None else not server.is_loopback):
         raise UnsafePurgeTarget("UNSAFE_SERVER_ADDR")
     if row["marker"] != MARKER_PREFIX + environ[DISPOSABLE_TOKEN]:
         raise UnsafePurgeTarget("UNSAFE_NO_DISPOSABLE_MARKER")
