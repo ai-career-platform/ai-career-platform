@@ -47,12 +47,12 @@ export function TargetRolesPage() {
     } catch { setMessage('저장하지 못했습니다. 다시 시도해 주세요.'); } finally { setSaving(false); }
   };
 
-  return <main className="career-workspace"><h1>목표 직무 관리</h1><p>최대 3개를 선택하고 우선순위를 정하세요.</p>
+  return <section className="career-workspace"><h1>목표 직무 관리</h1><p>최대 3개를 선택하고 우선순위를 정하세요.</p>
     <Feedback loading={loading} error={loadError} />
     {!loading && !loadError && <><div className="career-options">{roles.map((role) => <button key={role.job_role_id} aria-pressed={selected.some((x) => x.job_role_id === role.job_role_id)} onClick={() => toggle(role)}>{role.name}</button>)}</div>
       <ol>{selected.map((role, index) => <li key={role.job_role_id}><strong>{index + 1}순위 · {role.name}</strong><span><button aria-label={`${role.name} 위로`} onClick={() => move(index, -1)}>↑</button><button aria-label={`${role.name} 아래로`} onClick={() => move(index, 1)}>↓</button></span></li>)}</ol>
       <button className="primary" disabled={saving} onClick={() => void save()}>{saving ? '저장 중…' : '저장'}</button>{message && <p role="status">{message}</p>}</>}
-  </main>;
+  </section>;
 }
 
 export function CareerHistoryPage() {
@@ -94,10 +94,10 @@ export function CareerHistoryPage() {
     } catch { setActionError('삭제하지 못했습니다.'); }
   };
   const empty = !loading && !error && experiences.length === 0 && projects.length === 0;
-  return <main className="career-workspace"><h1>경력·프로젝트</h1><Feedback loading={loading} error={error} empty={empty ? '등록한 경력이나 프로젝트가 없습니다.' : undefined} />
+  return <section className="career-workspace"><h1>경력·프로젝트</h1><Feedback loading={loading} error={error} empty={empty ? '등록한 경력이나 프로젝트가 없습니다.' : undefined} />
     {!loading && <><div className="career-form"><label>유형<select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="experience">경력</option><option value="project">프로젝트</option></select></label><label>{kind === 'experience' ? '회사·기관' : '프로젝트 요약'}<input value={organization} onChange={(e) => setOrganization(e.target.value)} /></label><label>{kind === 'experience' ? '직무' : '프로젝트명'}<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><button className="primary" onClick={() => void add()}>추가</button></div>
       <ul>{experiences.map((x) => <li key={x.experience_id}><span><strong>경력</strong> · {x.organization} · {x.title}</span><button onClick={() => void remove('experiences', x.experience_id)}>삭제</button></li>)}{projects.map((x) => <li key={x.project_id}><span><strong>프로젝트</strong> · {x.title}{x.summary && ` · ${x.summary}`}</span><button onClick={() => void remove('projects', x.project_id)}>삭제</button></li>)}</ul></>}
-  </main>;
+  </section>;
 }
 
 export function BookmarksPage() {
@@ -113,7 +113,7 @@ export function BookmarksPage() {
       bookmarks.setData((page) => ({ ...page, items: page.items.filter((x) => x.job_posting_id !== id) }));
     } catch { setActionError('저장을 해제하지 못했습니다.'); }
   };
-  return <main className="career-workspace"><h1>저장한 채용공고</h1><Feedback loading={loading} error={error} empty={!loading && !error && items.length === 0 ? '저장한 공고가 없습니다.' : undefined} />
+  return <section className="career-workspace"><h1>저장한 채용공고</h1><Feedback loading={loading} error={error} empty={!loading && !error && items.length === 0 ? '저장한 공고가 없습니다.' : undefined} />
     <ul>{items.map((item) => <li key={item.job_posting_id}><span><strong>{item.title}</strong> · {item.company.name}{item.status === 'closed' && <em> 마감된 공고</em>}</span><button onClick={() => void remove(item.job_posting_id)}>저장 해제</button></li>)}</ul>
-  </main>;
+  </section>;
 }

@@ -15,6 +15,10 @@ export function AccountPage() {
       <p><Link to="/account/privacy">개인정보 설정·동의 관리</Link></p>
       <p><Link to="/me/skills">나의 기술 관리</Link></p>
       <p><Link to="/me/documents">내 문서 관리</Link></p>
+      {/* T92: 아래 세 화면은 경로만 있고 앱 안에서 들어갈 링크가 없었습니다(추천은 목표 직무가 필요). */}
+      <p><Link to="/me/target-roles">목표 직무 설정</Link></p>
+      <p><Link to="/me/career-history">경력·프로젝트 관리</Link></p>
+      <p><Link to="/me/bookmarks">저장한 공고</Link></p>
       <p>역할: {state.user.roles.join(', ')}</p>
       <Button variant="outline" onClick={() => void logout()}>
         로그아웃
