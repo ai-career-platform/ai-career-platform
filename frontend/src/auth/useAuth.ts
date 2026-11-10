@@ -4,6 +4,8 @@ export interface AuthUser {
   email: string;
   displayName: string;
   roles: string[];
+  /** GET /me 의 user_id. 화면에서 "내 담당·내 콘텐츠" 표시용이며 권한 판단은 서버가 합니다. */
+  userId?: string;
 }
 
 export type AuthState =

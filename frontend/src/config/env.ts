@@ -4,4 +4,9 @@ export const env = {
   mockEnabled: import.meta.env.VITE_API_MOCK === 'true',
   /** T72 행동 이벤트 실제 전송 스위치. 운영 승인 전까지 기본 꺼짐 */
   behaviorTrackingEnabled: import.meta.env.VITE_BEHAVIOR_TRACKING === 'true',
+  /**
+   * T82 관리자 검수 화면. T81 API·T80 정책 승인 전이라 **Mock 모드에서만** 켤 수 있습니다.
+   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드(Mock 아님)에서는 항상 꺼짐.
+   */
+  adminModerationUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_MODERATION_UI === 'true',
 } as const;
