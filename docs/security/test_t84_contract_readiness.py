@@ -254,6 +254,23 @@ class RepositoryFactsTest(unittest.TestCase):
         self.assertIn("최대 90일", T83)
         self.assertIn("admin.audit.view", READINESS)
 
+    def test_d2_historical_zero_cost_is_not_treated_as_free_and_no_bulk_update(self):
+        section = READINESS.split("## 10.", 1)[1].split("## 11.", 1)[0]
+        self.assertIn("실제 무료 사용으로 단정하지 않습니다", section)
+        self.assertIn("일괄 `NULL`로 바꾸는 UPDATE는 하지 않습니다", section)
+        self.assertIn("별도 Migration 승인 후에만", section)
+
+    def test_d4_processing_order_and_self_event_exclusion(self):
+        section = READINESS.split("## 11.", 1)[1].split("## 12.", 1)[0]
+        steps = re.findall(r"^\| (\d) \| ([^|]+)\|", section, re.M)
+        self.assertEqual([n for n, _ in steps], ["1", "2", "3", "4", "5", "6"])
+        for (_, text), word in zip(steps, ("권한", "검증", "범위 확정", "INSERT", "성공 확인", "SELECT")):
+            self.assertIn(word, text)
+        self.assertIn("자기 조회 이벤트는 그 응답에 포함하지 않습니다", section)
+        self.assertIn("audit_event_id <> :self", section)
+        self.assertIn("min(to, as_of)", section)
+        self.assertIn("PM 승인 전까지 PROPOSED", section)
+
     def test_implementation_plan_has_18_steps(self):
         section = READINESS.split("## 14.", 1)[1].split("## 15.", 1)[0]
         self.assertEqual(re.findall(r"^\| (\d+) \|", section, re.M), [str(i) for i in range(1, 19)])

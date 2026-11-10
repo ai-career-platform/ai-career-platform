@@ -136,7 +136,7 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 
 - 기존 서명 cursor `ListCursor`(`backend/app/services/job_postings.py`, HMAC-SHA256, `JWT_SECRET`에서 용도별 파생)를 재사용합니다. 새 비밀값·의존성 없음.
 - kind = `admin-audit-events`, params = 정규화한 검색 조건(`from`·`to`는 UTC ISO 8601, 선택 필터는 없으면 제외). `limit`은 params에 넣지 않아 페이지 크기만 바꿔도 이어집니다.
-- 위치 = `(occurred_at, audit_event_id)`. `sort_key`에 `occurred_at`을 **마이크로초까지** UTC ISO 문자열로, `last_id`에 `audit_event_id`를 넣습니다. 정밀도를 줄이면 같은 초의 행이 누락됩니다.
+- 위치 = `(occurred_at, audit_event_id)`. `sort_key`에 `occurred_at`을 **마이크로초까지** UTC ISO 문자열로, `last_id`에 `audit_event_id`를 넣습니다. 정밀도를 줄이면 같은 초의 행이 누락됩니다. 같은 `sort_key`에 첫 페이지의 `as_of`(§11 3단계)도 함께 서명해 넣어 상한을 고정합니다.
 - SQL: `WHERE occurred_at >= :from AND occurred_at < :to [AND 필터] AND (occurred_at, audit_event_id) < (:t, :id) ORDER BY occurred_at DESC, audit_event_id DESC LIMIT :limit + 1` — `limit + 1`번째 행이 있을 때만 `next_cursor`를 만듭니다.
 - 변조·다른 조건·다른 버전이면 400 `INVALID_CURSOR`.
 - **기록 유실 분석**: 순회 시점에 있던 행은 동률 기준 덕분에 중복·누락이 없습니다. 다만 `occurred_at`은 트랜잭션 시작 시각(`now()`)이라, 긴 트랜잭션이 늦게 커밋하면 이미 지나간 위치에 행이 생길 수 있습니다. 같은 cursor 순회에서는 안 보이고 새 조회에서는 보입니다. T83의 `recorded_at`·`audit_seq`가 Migration되면 해결됩니다. 그 전에는 화면이 조회 시작 시각을 `to`로 고정하고 "새로 조회"를 제공합니다(OPEN D5).
@@ -150,8 +150,13 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
    - **D2-A (권장)**: T05·T09에서 `NULL` 허용·기본값 제거로 바꾸고, 기록 함수(T60)는 단가가 없으면 NULL을 저장. Migration은 별도 승인 후.
    - D2-B: 컬럼은 두고 "승인된 단가표로 계산한 경우에만 행을 쓴다"는 기록 규칙. 단가를 모르는 호출의 토큰까지 빠지므로 권장하지 않음.
    - D2가 정해지기 전에 구현해야 한다면 비용 칸은 항상 `null`, `unpriced_request_count = request_count`로 돌려줍니다(0원을 표시하지 않음).
-4. 합은 SQL `sum(numeric)` 후 소수 6자리로 반올림해 JSON number로 냅니다. 금액이 커져 정밀도가 문제가 되면 문자열 표기로 바꾸는 것을 D8로 남깁니다.
-5. 실제 사용량 데이터가 없으면(현재 기록 코드 없음) 빈 결과를 돌려줍니다. 시험·Staging에 임의 사용량을 만들지 않습니다.
+4. **과거 데이터 해석 제한 (D2 보완)**:
+   - 앞으로는 비용 미기록 = `NULL`, 실제 무료 사용 = `0`으로 구분합니다(D2-A Migration 승인 후).
+   - D2 Migration 이전에 저장된 `0`은 **출처(기록 함수·단가표 버전)가 확인되지 않는 한 실제 무료 사용으로 단정하지 않습니다.** 집계에서는 "비용 미확인"으로 다룹니다(`unpriced_request_count`에 포함, 비용 합에서 제외).
+   - 기존 행을 일괄 `NULL`로 바꾸는 UPDATE는 하지 않습니다. 감사·이력 데이터 변경이고, 진짜 0원 행까지 지울 수 있기 때문입니다. 구분 기준은 Migration 적용 시각(경계 시각)으로 하고, 그 이전 행은 위 해석 제한을 적용합니다.
+   - NULL 허용 변경은 별도 Migration 승인 후에만 합니다. 이 PR과 T84 구현은 스키마를 바꾸지 않습니다.
+5. 합은 SQL `sum(numeric)` 후 소수 6자리로 반올림해 JSON number로 냅니다. 금액이 커져 정밀도가 문제가 되면 문자열 표기로 바꾸는 것을 D8로 남깁니다.
+6. 실제 사용량 데이터가 없으면(현재 기록 코드 없음) 빈 결과를 돌려줍니다. 시험·Staging에 임의 사용량을 만들지 않습니다.
 
 ## 11. 감사 조회 자체의 감사 (PROPOSED, D4)
 
@@ -163,7 +168,20 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 
 안 B의 행 내용(0001 컬럼만): `actor_user_id` = 조회한 관리자, `action_code` = `admin.audit.view`, `resource_type` = `audit_events`, `resource_id` = NULL, `request_id` = 현재 요청 ID. **검색 조건 값은 저장하지 않습니다**(0001에 `metadata`가 없고, 조건에 다른 사람의 사용자 ID가 들어갈 수 있음). T83 `metadata`가 Migration되면 조건의 *이름*만 남기는 안을 검토합니다.
 
-- 실패 처리: 감사 INSERT가 실패하면 결과를 돌려주지 않고 503 `DEPENDENCY_UNAVAILABLE`(fail-closed). T73 purge와 같은 "작업과 감사는 함께" 원칙.
+처리 순서 (D4 보완, 한 DB 트랜잭션):
+
+| 순서 | 단계 | 실패 시 |
+|---|---|---|
+| 1 | 조회 권한 확인 (`admin` + `admin.audit.read`) | 401 / 403, 감사 행 없음 |
+| 2 | 요청 조건 검증 (기간·필터·`limit`·cursor 서명) | 422 / 400, 감사 행 없음 |
+| 3 | 결과 범위 확정 — 첫 페이지에서 DB 시각 `as_of = now()`(트랜잭션 시작 시각)를 읽고 상한을 `min(to, as_of)`(제외)로 고정. `as_of`는 서명된 cursor에 넣어 다음 페이지도 같은 상한을 씀 | — |
+| 4 | 첫 페이지(cursor 없음)면 `admin.audit.view` 1행 INSERT, 생성된 `audit_event_id`를 받음 | 5로 |
+| 5 | INSERT 성공 확인 (`RETURNING audit_event_id`가 1행) | 503 `DEPENDENCY_UNAVAILABLE`(**PROPOSED**, PM 승인 전), 결과 미반환·롤백 |
+| 6 | 목록 SELECT (4에서 받은 id는 `audit_event_id <> :self` 로 제외) → 커밋 → 응답 | 커밋 실패 시 503 |
+
+- **자기 조회 이벤트는 그 응답에 포함하지 않습니다(권장안).** 같은 트랜잭션의 INSERT는 SELECT에 보이므로 id로 명시적으로 제외합니다.
+- 다음 페이지에서도 나타나지 않습니다: 자기 조회 행의 `occurred_at`은 `as_of`와 같고, 상한이 `occurred_at < as_of`로 고정되기 때문입니다. 조회 시작 뒤에 생긴 다른 행도 같은 이유로 그 순회에 끼어들지 않습니다. 새 조회(첫 페이지)에서는 이전 조회의 행이 보통 행처럼 보입니다.
+- 실패 처리(fail-closed 503)는 **PM 승인 전까지 PROPOSED**입니다. 승인 전 구현은 이 기록 단계를 운영 API에서 켜지 않습니다.
 - DB 계정: 데이터 사전 F11 기준 앱 계정은 `INSERT`·`SELECT`라 한 세션으로 가능합니다. T83의 조회 전용 계정 분리가 Migration되면 쓰기는 앱 계정, 읽기는 조회 계정으로 나눕니다.
 - AI 사용량 조회는 기록하지 않습니다. 개인을 알 수 없는 집계이기 때문입니다(T83 §3 원칙).
 
@@ -232,7 +250,7 @@ T83이 제안한 `audit_seq, recorded_at, actor_type, result, reason_code, clien
 - A06 cursor 1바이트 변조 / 다른 필터로 재사용 / 다른 kind cursor → 400
 - A07 필터 4종 각각·조합 일치, 다른 사람 행 섞이지 않음
 - A08 `resource_type = user` 행만 `resource_id` 마스킹, 탈퇴 익명화 행은 null
-- A09 첫 페이지 조회마다 `admin.audit.view` 1행, 다음 페이지는 0행, 조건 값 미저장
+- A09 첫 페이지 조회마다 `admin.audit.view` 1행, 다음 페이지는 0행, 조건 값 미저장, 자기 조회 행은 그 응답·다음 페이지에 없음
 - A10 감사 INSERT 실패 주입 → 503, 결과 미반환
 - A11 61번째 요청 429 + `Retry-After`
 - A12 응답·로그에 이메일·토큰·비밀번호 형식 문자열 없음
@@ -243,7 +261,7 @@ AI 사용량 (U):
 - U02 KST 자정 경계(UTC 15:00 전후) 행이 올바른 날짜로 묶임, `to` 당일 포함
 - U03 `group_by` 3종 합계 = 전체 합계
 - U04 `user_id` NULL 행 포함
-- U05 (D2-A 후) 비용 NULL 행은 합에서 제외, `unpriced_request_count` 증가, 0원 행과 구분
+- U05 (D2-A 후) 비용 NULL 행은 합에서 제외, `unpriced_request_count` 증가, 0원 행과 구분. D2 경계 시각 이전의 0원 행은 미확인으로 셈
 - U06 91일·`to < from` → 422, 권한·인증 경계는 A02·A03과 같음
 - U07 조회 시 `audit_events` 행 증가 0
 
