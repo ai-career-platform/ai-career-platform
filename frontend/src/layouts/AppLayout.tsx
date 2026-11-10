@@ -39,6 +39,9 @@ export function AppLayout() {
               <NavLink to="/recommendations">
                 맞춤 추천
               </NavLink>
+              <NavLink to="/market-trends">
+                채용시장 추세
+              </NavLink>
               <NavLink to="/job-roles">
                 직무·기술 탐색
               </NavLink>

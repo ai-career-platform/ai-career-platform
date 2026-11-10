@@ -1,5 +1,6 @@
 import { ApiError } from '../api/errors';
 import { resolveDocumentsMock } from './documents';
+import { resolveMarketTrendsMock } from './marketTrends';
 import { resolvePrivacyMock } from './privacy';
 import { resolveCareerWorkspaceMock } from './careerWorkspace';
 import { resolveRecommendationMock } from './recommendations';
@@ -70,6 +71,10 @@ function resolveAuth(path: string, { method, body, token }: MockRequest): unknow
 function resolveAuthed(path: string, { method, body, token }: MockRequest): unknown {
   if (path.startsWith('/v1/recommendation-runs')) {
     return resolveRecommendationMock(path, method, body, authedUser(token).email);
+  }
+  if (path.startsWith('/v1/market-trends')) {
+    authedUser(token);
+    return resolveMarketTrendsMock(path);
   }
   return null;
 }
