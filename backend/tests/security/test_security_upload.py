@@ -23,7 +23,7 @@ def user_id_of(headers) -> uuid.UUID:
 @pytest.mark.parametrize("doc_id", TRAVERSAL_IDS)
 def test_document_id_traversal_and_malformed_ids_never_reach_storage(client, docs, doc_id):
     a, _ = login(client)
-    assert upload(client, a).status_code == 201
+    assert upload(client, a).status_code == 202   # T49: 접수 후 무결성 검사 대기
     for method, suffix in (("GET", ""), ("GET", "/file"), ("DELETE", "")):
         response = client.request(method, f"{BASE}/{doc_id}{suffix}", headers=a)
         assert response.status_code in (404, 422), f"{method} {doc_id}{suffix}: {response.status_code}"
@@ -38,9 +38,9 @@ def test_client_cannot_choose_the_document_owner(client, docs):
     response = client.post(BASE, headers=a, data={"kind": "resume", "owner_user_id": victim, "user_id": victim},
                            files={"file": ("x.pdf", b"%PDF-1.7\nsynthetic\n%%EOF", "application/pdf")},
                            params={"user_id": victim})
-    # 안전한 결과는 두 가지뿐: 알 수 없는 필드를 거부(422)하거나, 무시하고 업로드한 사람을 소유자로 저장(201)
-    assert response.status_code in (201, 422), response.text
-    if response.status_code == 201:
+    # 안전한 결과는 두 가지뿐: 알 수 없는 필드를 거부(422)하거나, 무시하고 업로드한 사람을 소유자로 저장(202 접수)
+    assert response.status_code in (202, 422), response.text
+    if response.status_code == 202:
         assert owner(docs, response.json()["document_id"]) == user_id_of(a)
     assert client.get(BASE, headers=b).json()["items"] == []
 
