@@ -256,8 +256,9 @@ describe('accessibility and mobile', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver);
     const { container } = renderPage();
     await screen.findByRole('table');
+    // 폭 측정(effect → setState) 뒤 다시 그린 결과를 기다린다.
+    await waitFor(() => expect(container.querySelector('.market-chart svg')).toHaveAttribute('width', '343'));
     const svg = container.querySelector('.market-chart svg')!;
-    expect(svg).toHaveAttribute('width', '343');
     const xLabels = [...svg.querySelectorAll('.market-chart-grid > text')];
     expect(xLabels.length).toBeLessThanOrEqual(3);
     for (const circle of svg.querySelectorAll('circle')) {
