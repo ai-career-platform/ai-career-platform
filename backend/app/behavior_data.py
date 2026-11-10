@@ -2,7 +2,8 @@
 
     python -m app.behavior_data quality [--as-of 2026-11-10T00:00:00+00:00]
     python -m app.behavior_data purge --retention-days 180 --as-of 2026-11-10T00:00:00+00:00          # dry-run
-    APP_ENV=test python -m app.behavior_data purge --retention-days 180 --as-of ... --execute          # 격리 DB만
+    APP_ENV=test BEHAVIOR_PURGE_DISPOSABLE_DB=YES BEHAVIOR_PURGE_DISPOSABLE_TOKEN=<token> \
+      python -m app.behavior_data purge --retention-days 180 --as-of ... --execute    # 일회용 DB만 (DB 주석 표식 필요)
 
 계약: docs/data/BEHAVIOR_EVENT_CONTRACT.md (T71, DRAFT·미승인), T72 수집 경로(app/services/behavior_events.py).
 
@@ -14,7 +15,8 @@
 - 0001 `behavior_events`에는 `retain_until`·저장 시각이 없어 `event_at`만 쓸 수 있다. T72는 수집 시각보다
   최대 7일 이른 `event_at`을 받으므로, 계약(수집 시각 + 보존 기간)보다 먼저 지우지 않도록
   `event_at < as_of - retention_days - 7일`인 행만 대상으로 삼는다(최대 7일 늦게 지워질 수 있음).
-- 실제 삭제는 `--execute` + APP_ENV=local-dev/test + loopback PostgreSQL에서만. 기본은 dry-run.
+- 실제 삭제는 **일회용 테스트 DB에서만** 된다. 기본은 dry-run. 연결 전·후 증거를 모두 요구한다(§ 안전장치).
+  CLI와 `purge_expired(dry_run=False)` 직접 호출에 같은 규칙을 적용하고, 하나라도 어긋나면 DELETE 없이 FAIL.
 - 삭제와 감사 기록(`career.audit_events`, action_code `system.behavior.purge`)은 한 트랜잭션이다.
   감사 기록이 실패하면 삭제도 롤백되고 FAIL로 보고한다(감사 없는 삭제를 성공으로 보고하지 않음).
 """
@@ -22,22 +24,32 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
+import re
 import uuid
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import Session
 
 from app.schemas.behavior_events import (
     ALLOWED_KEYS, ID_OR_CODE, MAX_METADATA_BYTES, MAX_METADATA_KEYS, TRACKING_EVENTS, TRACKING_POLICY,
 )
 
-SAFE_ENVS = ("local-dev", "test")
 LOOPBACK = ("localhost", "127.0.0.1", "::1")
+# ---- 삭제 안전장치 (일회용 테스트 DB 식별 증거; T16 격리 DB 규칙과 같은 방식)
+PURGE_APP_ENV = "test"                                  # local-dev(일반 로컬 DB)도 허용하지 않는다
+DISPOSABLE_FLAG = "BEHAVIOR_PURGE_DISPOSABLE_DB"        # 명시적 승인: 값이 정확히 "YES"
+DISPOSABLE_TOKEN = "BEHAVIOR_PURGE_DISPOSABLE_TOKEN"    # 실행마다 정하는 토큰. DB 주석 표식과 같아야 함
+MARKER_PREFIX = "ai-career-disposable-test:"            # COMMENT ON DATABASE <db> IS '<prefix><token>'
+DISPOSABLE_DB_NAME = re.compile(r"^t[0-9]{2,3}_[a-z0-9_]*test$")   # 예: t16_profile_test
+FORBIDDEN_DB_NAME = re.compile(r"staging|stage|prod|live|poc|shared|main")
+TOKEN_FORMAT = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 COLLECTION_LAG = timedelta(days=7)   # T72: event_at은 수집 시각보다 최대 7일 이를 수 있다
 FUTURE_SKEW = timedelta(minutes=5)   # T72: event_at은 수집 시각보다 최대 5분 늦을 수 있다
 AUDIT_ACTION = "system.behavior.purge"
@@ -180,10 +192,71 @@ VALUES (NULL, :action, :resource, :run_id, :request_id)
 """)
 
 
-def purge_expired(session: Session, *, as_of: datetime, retention_days: int, dry_run: bool = True,
-                  run_id: uuid.UUID | None = None) -> PurgeResult:
-    """보존 기간이 지난 행동 이벤트를 찾고(dry-run) 지운다. 호출자가 실행 환경을 검증해야 한다(main 참고).
+class UnsafePurgeTarget(Exception):
+    """삭제 대상이 일회용 테스트 DB라는 증거가 부족함. args[0]은 사유 코드."""
 
+
+def check_purge_environment(database_url: object, environ: Mapping[str, str]) -> URL:
+    """연결 전 검사. 환경·승인 플래그·토큰 형식·loopback·DB 이름을 교차 확인한다 (fail closed).
+
+    localhost/loopback만으로는 안전하다고 보지 않는다: SSH 포트포워딩(-L)한 공유 DB도 localhost로 보인다.
+    그래서 DB 이름 규칙과 연결 후 검사(verify_connected_target)를 함께 요구한다.
+    """
+    if environ.get("APP_ENV") != PURGE_APP_ENV:
+        raise UnsafePurgeTarget("UNSAFE_APP_ENV")
+    if environ.get(DISPOSABLE_FLAG) != "YES":
+        raise UnsafePurgeTarget("UNSAFE_NO_DISPOSABLE_APPROVAL")
+    if not TOKEN_FORMAT.fullmatch(environ.get(DISPOSABLE_TOKEN, "")):
+        raise UnsafePurgeTarget("UNSAFE_NO_DISPOSABLE_TOKEN")
+    try:
+        url = database_url if isinstance(database_url, URL) else make_url(str(database_url))
+    except Exception:  # noqa: BLE001 - 식별할 수 없는 대상
+        raise UnsafePurgeTarget("UNSAFE_UNKNOWN_TARGET") from None
+    if not isinstance(database_url, (str, URL)) or url.get_backend_name() != "postgresql":
+        raise UnsafePurgeTarget("UNSAFE_UNKNOWN_TARGET")
+    if url.host not in LOOPBACK:
+        raise UnsafePurgeTarget("UNSAFE_NON_LOOPBACK")
+    name = url.database or ""
+    if not DISPOSABLE_DB_NAME.fullmatch(name) or FORBIDDEN_DB_NAME.search(name):
+        raise UnsafePurgeTarget("UNSAFE_DB_NAME")
+    return url
+
+
+_IDENTITY = text("""
+SELECT current_database() AS db, host(inet_server_addr()) AS server_addr,
+       shobj_description(d.oid, 'pg_database') AS marker
+FROM pg_database d WHERE d.datname = current_database()
+""")
+
+
+def verify_connected_target(session: Session, environ: Mapping[str, str]) -> None:
+    """연결 후 검사. 이 Session의 실제 연결이 일회용 테스트 DB인지 확인한다 (DELETE 전에 호출).
+
+    - 연결된 DB 이름 = 설정 DB 이름 (다른 DB로 접속됐으면 거부)
+    - 서버가 본 자기 주소가 loopback (SSH 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP)
+    - DB 주석 표식 = MARKER_PREFIX + 토큰 (공유 DB에는 이 표식이 없다; 원격 서버의 localhost로 터널링해도 차단)
+    """
+    bind = session.get_bind()
+    url = check_purge_environment(getattr(bind, "url", None), environ)
+    row = session.execute(_IDENTITY).mappings().one()
+    if row["db"] != url.database:
+        raise UnsafePurgeTarget("UNSAFE_DB_MISMATCH")
+    try:
+        loopback = row["server_addr"] is not None and ipaddress.ip_address(row["server_addr"]).is_loopback
+    except ValueError:
+        loopback = False
+    if not loopback:
+        raise UnsafePurgeTarget("UNSAFE_SERVER_ADDR")
+    if row["marker"] != MARKER_PREFIX + environ[DISPOSABLE_TOKEN]:
+        raise UnsafePurgeTarget("UNSAFE_NO_DISPOSABLE_MARKER")
+
+
+def purge_expired(session: Session, *, as_of: datetime, retention_days: int, dry_run: bool = True,
+                  run_id: uuid.UUID | None = None, environ: Mapping[str, str] | None = None) -> PurgeResult:
+    """보존 기간이 지난 행동 이벤트를 찾고(dry-run) 지운다.
+
+    dry_run=False면 호출 경로(CLI·직접 호출)와 상관없이 이 함수 안에서 이 Session의 연결을 검증한다.
+    검증에 실패하면 COUNT·DELETE 없이 FAIL(UNSAFE_*)을 돌려준다.
     한 트랜잭션: 대상 계산 → 삭제 → 감사 기록 → 잔존 확인 → 커밋. 어느 단계든 실패하면 전부 롤백한다.
     """
     run_id = run_id or uuid.uuid4()
@@ -191,6 +264,18 @@ def purge_expired(session: Session, *, as_of: datetime, retention_days: int, dry
     result = PurgeResult(run_id=str(run_id), operation="behavior_retention_purge", dry_run=dry_run,
                          as_of=as_of.isoformat(), retention_days=retention_days, cutoff=cutoff.isoformat())
     params = {"cutoff": cutoff}
+    if not dry_run:
+        try:
+            verify_connected_target(session, os.environ if environ is None else environ)
+        except UnsafePurgeTarget as exc:
+            session.rollback()
+            result.reason_code, result.remaining_expired = str(exc), -1
+            result.notes.append("blocked before COUNT/DELETE: target is not a verified disposable test DB")
+            return result
+        except Exception as exc:  # noqa: BLE001 - 식별 실패도 차단
+            session.rollback()
+            result.reason_code, result.remaining_expired = f"UNSAFE_IDENTITY_CHECK_{type(exc).__name__}", -1
+            return result
     try:
         result.target = int(session.execute(_COUNT_EXPIRED, params).scalar_one())
         if dry_run:
@@ -223,13 +308,14 @@ def purge_expired(session: Session, *, as_of: datetime, retention_days: int, dry
 
 # ------------------------------------------------------------------------------------------- CLI
 
-def ensure_write_allowed(database_url: str, app_env: str | None) -> None:
-    """실제 삭제는 명시적인 로컬 개발/테스트 환경 + loopback PostgreSQL에서만 (fail closed)."""
-    if app_env not in SAFE_ENVS:
-        raise SystemExit("Shared or unset APP_ENV: behavior purge --execute is allowed only in local-dev/test")
-    url = make_url(database_url)
-    if url.get_backend_name() != "postgresql" or url.host not in LOOPBACK:
-        raise SystemExit("behavior purge --execute requires a loopback PostgreSQL target")
+def ensure_write_allowed(database_url: str, environ: Mapping[str, str]) -> None:
+    """CLI 연결 전 검사. 실패하면 DB에 연결하지 않고 종료한다 (연결 후 검사는 purge_expired 안에서)."""
+    try:
+        check_purge_environment(database_url, environ)
+    except UnsafePurgeTarget as exc:
+        raise SystemExit(f"behavior purge --execute refused ({exc}): only a verified disposable test DB "
+                         f"(APP_ENV=test, {DISPOSABLE_FLAG}=YES, {DISPOSABLE_TOKEN}, loopback, tNN_*_test, "
+                         f"database marker) is allowed") from None
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -253,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     if settings.database is None:
         raise SystemExit("DATABASE_URL is required")
     if args.command == "purge" and args.execute:
-        ensure_write_allowed(settings.database.url, os.environ.get("APP_ENV"))
+        ensure_write_allowed(settings.database.url, os.environ)
     engine = create_db_engine(settings.database)
     try:
         with create_session_factory(engine)() as session:

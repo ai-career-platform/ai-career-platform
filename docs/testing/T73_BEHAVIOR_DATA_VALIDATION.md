@@ -37,7 +37,7 @@
 | 철회 시 tracking 이벤트 삭제 | `PrivacyService.record_consent()` + `SqlPrivacyRepository.delete_behavior_events()` (T72) — 직접 검증, 새 삭제 로직 없음 |
 | 허용 이벤트·metadata 키·값 규칙·1KB·10키 | `app/schemas/behavior_events.py` 상수를 품질 SQL 파라미터로 그대로 전달 |
 | 격리 DB fixture | `pg_app`(T16) → `behavior_pg`(T72) |
-| 배치 실행 안전장치 | T66 `market_aggregation`의 `SAFE_ENVS`·loopback 규칙과 같은 방식 |
+| 삭제 실행 안전장치 | T16 격리 DB 규칙(명시 opt-in 플래그 + loopback + 정해진 DB 이름)을 확장 (§6.1) |
 | 탈퇴 접수 | T31 `POST /me/deletion-request` (migration 0002 전제, T31 fixture와 동일하게 적용) |
 
 ## 5. 품질 검증 규칙 (`python -m app.behavior_data quality`, 읽기 전용)
@@ -62,9 +62,32 @@
 
 - **보존 기간 기본값 없음.** `--retention-days`와 `--as-of`(시간대 필수)를 반드시 받는다. 180일은 테스트 fixture 값일 뿐 운영값이 아니다.
 - **기준 시각 결정:** T71은 `retain_until = 수집 시각 + 보존 기간`인데 0001에는 수집 시각이 없다. T72는 수집 시각보다 최대 7일 이른 `event_at`을 받으므로 `event_at < as_of − retention_days − 7일`인 행만 대상으로 한다. 계약보다 **먼저 지우는 일은 없고**, 최대 7일 늦게 지워질 수 있다. 정확한 기한은 `retain_until`(또는 `recorded_at`) 컬럼 Migration이 필요 — **후속 결정**.
-- 기본 dry-run(대상 건수만, 쓰기·감사 행 없음). `--execute`는 `APP_ENV=local-dev|test` + loopback PostgreSQL에서만 허용, 그 외는 DB 연결 전에 종료.
+- 기본 dry-run(대상 건수만, 쓰기·감사 행 없음). 실제 삭제는 **검증된 일회용 테스트 DB에서만** (§6.1).
 - 한 트랜잭션: 대상 계산 → 삭제 → 감사 행 → 잔존 재확인(0이 아니면 실패) → 커밋. 실패 시 전부 롤백하고 `status=FAIL`, `deleted=0`.
 - 운영 스케줄러·cron 연결 없음.
+
+### 6.1 삭제 안전장치 (리뷰 P1 보완, 2026-11-10)
+
+| 리뷰 지적 | 문제 | 보완 |
+|---|---|---|
+| **P1-01** 공유 DB 삭제 차단 | 기존 `ensure_write_allowed()`는 `APP_ENV`와 loopback만 확인 → SSH `-L`로 포워딩한 공유 Staging DB도 `127.0.0.1`로 보여 통과 가능 | 연결 전·후 증거를 **모두** 요구 (아래 표). 일반 로컬 개발 DB(`local-dev`)도 차단 |
+| **P1-02** 직접 호출 우회 | `purge_expired(dry_run=False)`를 CLI 밖에서 부르면 검사가 없음 | 함수 **안에서** 그 Session의 실제 연결로 같은 검사를 수행. 실패하면 COUNT·DELETE·INSERT 없이 `FAIL(UNSAFE_*)`. 테스트 전용 예외 없음 |
+
+| 단계 | 검사 | 실패 코드 |
+|---|---|---|
+| 연결 전 (CLI는 DB 연결 전에 종료) | `APP_ENV=test` (`local-dev`·staging·미설정 거부) | `UNSAFE_APP_ENV` |
+| | `BEHAVIOR_PURGE_DISPOSABLE_DB=YES` (명시적 일회용 DB 승인) | `UNSAFE_NO_DISPOSABLE_APPROVAL` |
+| | `BEHAVIOR_PURGE_DISPOSABLE_TOKEN` 16~128자 (실행마다 정함) | `UNSAFE_NO_DISPOSABLE_TOKEN` |
+| | PostgreSQL URL, 호스트 loopback | `UNSAFE_UNKNOWN_TARGET`, `UNSAFE_NON_LOOPBACK` |
+| | DB 이름 `^t[0-9]{2,3}_[a-z0-9_]*test$` 이고 `staging/stage/prod/live/poc/shared/main` 미포함 (`ai_career_poc` 거부) | `UNSAFE_DB_NAME` |
+| 연결 후, 삭제 전 (같은 Session) | `current_database()` = 설정 DB 이름 | `UNSAFE_DB_MISMATCH` |
+| | `inet_server_addr()`가 loopback — 터널·프록시로 원격 서버에 붙으면 서버 쪽 주소가 원격 IP | `UNSAFE_SERVER_ADDR` |
+| | DB 주석 = `ai-career-disposable-test:<토큰>` — 공유 DB에는 이 표식이 없으므로, 원격 서버의 localhost로 터널링한 경우(서버 주소가 loopback으로 보임)도 차단 | `UNSAFE_NO_DISPOSABLE_MARKER` |
+| | 식별 조회 자체가 실패 | `UNSAFE_IDENTITY_CHECK_*` |
+
+- 각 검사는 서로를 보완한다: 이름·localhost만으로는 판단하지 않고, 서버가 본 주소와 DB에 미리 심은 표식까지 맞아야 한다. 표식은 일회용 DB를 만든 사람이 `COMMENT ON DATABASE`로 직접 넣어야 하므로 공유 DB에서 우연히 맞을 수 없다.
+- 검증할 수 없는 Session(바인드 URL 없음 등)은 `UNSAFE_UNKNOWN_TARGET`으로 거부한다.
+- 증거를 갖출 수 없는 환경(Staging 등)에서는 실제 삭제가 불가능하며, 운영 실행은 별도 승인 절차가 정해질 때까지 **HOLD**다.
 
 ## 7. 철회 삭제 검증 (T72 경로 직접 검증)
 
@@ -92,7 +115,7 @@
 | 물리 삭제 트랜잭션 롤백 시 아무것도 지워지지 않음 | PASS |
 | 탈퇴 접수 중 오류 롤백 | T31 회귀 `test_actual_deletion_final_revoke_error_rolls_back_every_change` PASS |
 
-## 9. PostgreSQL 테스트 (`tests/test_behavior_data_postgres.py` 17건)
+## 9. PostgreSQL 테스트 (`tests/test_behavior_data_postgres.py` 22건)
 
 | 테스트 | 기대 | 결과 |
 |---|---|---|
@@ -115,19 +138,23 @@
 | 탈퇴 요청 | 비활성화·401 | PASS |
 | 물리 삭제 | CASCADE·타 사용자 보존·롤백 | PASS |
 | 잘못된 환경 | 실행 차단 (단위 테스트 + CLI) | PASS |
+| **P1-02** 직접 호출: 표식 없음 / 다른 토큰 / 승인 플래그 없음 / `APP_ENV=local-dev` (4건) | `FAIL(UNSAFE_*)`, target 0, 4행 유지, 감사 0 | PASS |
+| **P1-01** SSH 터널 모양 연결: 테스트 안의 TCP 중계기 `127.0.0.1:<임의> → <이 PC의 LAN IP>:<PG>` (SSH `-L`과 같은 구조). URL·DB 이름·토큰·표식은 모두 정상 | 서버 주소가 LAN IP라 `UNSAFE_SERVER_ADDR`, 4행 유지 | PASS (opt-in `T73_TUNNEL_TEST=YES`, 실제 실행함) |
+
+단위 테스트(40건)에서 추가로 확인한 것: 연결 전 차단 17종(`ai_career_poc`·`career_dev` localhost 포함)과 CLI가 DB 연결 전에 종료, 직접 호출 차단 10종(서버 주소 `172.18.0.3`/`10.2.0.4`/NULL, 표식 없음·불일치, DB 불일치, 바인드 없는 Session 등)에서 COUNT·DELETE·INSERT 미실행, 프로세스 환경 기본 사용, 식별 조회 실패 시 차단, 증빙에 토큰 미포함.
 
 ### 전체 결과
 
 | 범위 | 명령 | 결과 |
 |---|---|---|
-| T73 단위 | `pytest tests/test_behavior_data.py` | 17 passed |
-| T73 PostgreSQL | `pytest tests/test_behavior_data_postgres.py` (격리 DB) | 17 passed |
-| T72 단위 / PostgreSQL | `tests/test_behavior_events.py` / `_postgres.py` | 53 / 12 passed |
+| T73 단위 | `pytest tests/test_behavior_data.py` | **40 passed** (보완 전 17) |
+| T73 PostgreSQL | `pytest tests/test_behavior_data_postgres.py` (격리 DB, `T73_TUNNEL_TEST=YES`) | **22 passed** (보완 전 17) |
+| T72 단위 + PostgreSQL | `tests/test_behavior_events.py tests/test_behavior_events_postgres.py` | 65 passed (53 + 12, 철회 동시성 포함) |
 | T31 | `tests/test_privacy.py tests/test_privacy_postgres.py` | 29 passed |
 | T71 동시성 | `D1_TEST_ONLY=YES python -m unittest … test_behavior_concurrency.py` | 2 OK |
 | T71 계약 41항목 | `test_behavior_contract.sh` 공용 본문을 로컬 PG 18로 실행 (Docker 없음) | 41/41 PASS |
-| Backend 전체 (격리 DB 포함) | `pytest` | 628 passed, 94 skipped / 실패 1·오류 19 |
-| main 동일 조건 | `pytest` @ `0f771f2` | 594 passed, 94 skipped / 실패 1·오류 19 (**동일**) |
+| Backend 전체 (격리 DB 포함) | `pytest` | 656 passed, 94 skipped / 실패 1·오류 19 |
+| main 동일 조건 | `pytest` @ `0f771f2` | 594 passed, 94 skipped / 실패 1·오류 19 (**동일**, 차이 = T73 62건) |
 | Migration 영향 | `python database/migrate.py lint`, `git diff origin/main -- database/migrations` | LINT PASS, 변경 0 |
 | OpenAPI | `python docs/api/check_openapi.py` | PASS (API 변경 없음) |
 
@@ -141,6 +168,7 @@ CI에는 격리 PostgreSQL 테스트·T71 셸 계약 테스트가 포함되지 �
 | 품질 테스트 `no_consent_at_event_time` 기대 3, 실제 2 | 테스트 기대값 오류 (해당 행은 B·동의 30일 전 A 2건) | 기대값 수정. 검사 SQL은 별도 DB에서 행별로 재확인 |
 | 탈퇴 요청 503 (IntegrityError) | 0001만 적용된 DB에선 `scheduled_purge_at NOT NULL` → T31 탈퇴는 migration 0002 전제 | T31 fixture와 같이 테스트에서 0002 적용 |
 | (참고) T72 보고의 PostgreSQL 건수 | T72 보고서는 "T72 13 + T31 12"로 적었으나 실제 T72 12 + T31 13 (합계 25 동일) | 이 보고서에서 정정 |
+| 리뷰 P1-01·P1-02 | 위 §6.1 | 안전장치 보완, 신규 테스트 28건(단위 23 + PostgreSQL 5) |
 
 ## 11. 감사 증빙
 
@@ -153,11 +181,15 @@ CI에는 격리 PostgreSQL 테스트·T71 셸 계약 테스트가 포함되지 �
 CLI 재현 결과 (일회용 DB, 합성 사용자 1명, as_of 2026-11-10, 180일 fixture → cutoff 2026-05-07):
 
 ```text
-quality                         → status PASS, total 4, errors 0
-purge (dry-run)                 → target 2, deleted 0, audit_recorded false, PASS
-APP_ENV=staging purge --execute → "Shared or unset APP_ENV: …" exit 1 (DB 연결 전)
-APP_ENV=test purge --execute    → target 2, deleted 2, remaining 0, audit_recorded true, PASS
-APP_ENV=test purge --execute    → target 0, deleted 0, PASS (멱등)
+DB t73_cli_test (일회용), 승인 플래그·토큰은 아래 실행에 지정
+quality                                              → status PASS, total 4, errors 0
+purge (dry-run)                                      → target 2, deleted 0, audit_recorded false, PASS
+APP_ENV=staging --execute                            → refused (UNSAFE_APP_ENV), exit 1, DB 연결 전
+APP_ENV=local-dev --execute                          → refused (UNSAFE_APP_ENV), exit 1, DB 연결 전
+127.0.0.1:55473/ai_career_poc --execute (터널 모양)  → refused (UNSAFE_DB_NAME), exit 1, DB 연결 전
+APP_ENV=test + 플래그 + 토큰, 표식 없음 --execute    → FAIL (UNSAFE_NO_DISPOSABLE_MARKER), target 0, deleted 0
+COMMENT ON DATABASE 표식 후 --execute                → target 2, deleted 2, remaining 0, audit_recorded true, PASS
+같은 명령 재실행                                     → target 0, deleted 0, PASS (멱등)
 남은 행: kept(2026-05-10), recent / audit_events: 2행 system.behavior.purge
 ```
 
@@ -165,7 +197,7 @@ APP_ENV=test purge --execute    → target 0, deleted 0, PASS (멱등)
 
 1. T71 이벤트 8종·동의 매트릭스·personalization 정책 PM 미승인
 2. 보존 기간(180일 가안) 미확정, `retain_until`/수집 시각 컬럼 Migration 미결정 → 현재 cutoff는 7일 보수 여유 포함
-3. 운영 실행 승인·스케줄 연결 없음 (`--execute`는 격리 DB만)
+3. 운영 실행 승인·스케줄 연결 없음. `--execute`는 검증된 일회용 테스트 DB만 가능하며, Staging·운영에서 실행할 승인 절차(증거 형식 포함)는 미정 → **운영 적용 HOLD**
 4. 탈퇴 대기 기간 행동 데이터 처리, 물리 삭제 시점(D-06) 미확정
 5. 감사 이벤트 확장 컬럼(result·reason·metadata, T83)과 철회 감사 기록(T84) 미구현
 6. 파생 데이터(집계·피처·모델) 삭제 반영(T71 §10-6) 범위 밖
@@ -179,11 +211,15 @@ cd backend
 python -m pytest tests/test_behavior_data.py
 T16_ISOLATED_DB_TEST=YES T16_TEST_ADMIN_URL=postgresql://<admin>@127.0.0.1:<port>/t16_profile_test \
   python -m pytest tests/test_behavior_data_postgres.py tests/test_behavior_events_postgres.py tests/test_privacy_postgres.py
+# SSH 터널 모양 테스트(선택): 일회용 클러스터가 이 PC의 LAN 주소로도 접속을 받을 때만
+#   listen_addresses=127.0.0.1,<LAN IP> + pg_hba "host all all <LAN IP>/32 ..." (출발지 자기 자신만) 후 T73_TUNNEL_TEST=YES
 
-# CLI (DATABASE_URL은 일회용 DB)
+# CLI (DATABASE_URL은 일회용 DB, 이름 tNN_*_test)
 python -m app.behavior_data quality --as-of 2026-11-10T00:00:00+00:00
 python -m app.behavior_data purge --retention-days 180 --as-of 2026-11-10T00:00:00+00:00            # dry-run
-APP_ENV=test python -m app.behavior_data purge --retention-days 180 --as-of 2026-11-10T00:00:00+00:00 --execute
+psql -c "COMMENT ON DATABASE t73_cli_test IS 'ai-career-disposable-test:<token>'"                   # 일회용 표식
+APP_ENV=test BEHAVIOR_PURGE_DISPOSABLE_DB=YES BEHAVIOR_PURGE_DISPOSABLE_TOKEN=<token> \
+  python -m app.behavior_data purge --retention-days 180 --as-of 2026-11-10T00:00:00+00:00 --execute
 
 # T71 회귀 (mock SQL을 올린 일회용 DB)
 PGHOST=127.0.0.1 PGPORT=<port> PGUSER=<admin> PGDATABASE=t71_behavior_test D1_TEST_ONLY=YES \
@@ -194,9 +230,9 @@ PGHOST=127.0.0.1 PGPORT=<port> PGUSER=<admin> PGDATABASE=t71_behavior_test D1_TE
 
 | 파일 | 내용 |
 |---|---|
-| `backend/app/behavior_data.py` | 신규: 품질 검사(읽기 전용)·보존 만료 삭제 job·CLI·실행 안전장치·감사 기록 |
-| `backend/tests/test_behavior_data.py` | 신규: 단위 17건 (cutoff, 환경 차단, CLI, dry-run, 실패 롤백, 증빙 형식) |
-| `backend/tests/test_behavior_data_postgres.py` | 신규: PostgreSQL 17건 |
+| `backend/app/behavior_data.py` | 신규: 품질 검사(읽기 전용)·보존 만료 삭제 job·CLI·감사 기록, **P1 보완: 연결 전·후 일회용 DB 검증(`check_purge_environment`, `verify_connected_target`)과 `purge_expired` 내부 강제** |
+| `backend/tests/test_behavior_data.py` | 신규: 단위 40건 (cutoff, 연결 전 차단 17종, CLI 연결 전 종료, 직접 호출 차단 10종, 실패 롤백, 증빙 형식) |
+| `backend/tests/test_behavior_data_postgres.py` | 신규: PostgreSQL 22건 (직접 호출 차단 4건, SSH 터널 모양 1건 포함) |
 | `docs/testing/T73_BEHAVIOR_DATA_VALIDATION.md` | 신규: 이 보고서 |
 
 운영 코드 변경은 신규 모듈 1개뿐이며 T72·T31 코드, API, OpenAPI, Migration, Frontend, 설정은 바꾸지 않았다.

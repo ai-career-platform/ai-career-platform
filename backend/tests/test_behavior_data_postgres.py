@@ -3,18 +3,25 @@
 Reuses the T72 `behavior_pg` fixture (T16 disposable DB, 0001 schema, synthetic users A/B, behavior_tracking v1).
 Opt-in only: T16_ISOLATED_DB_TEST=YES and T16_TEST_ADMIN_URL -> loopback t16_profile_test.
 """
+import ipaddress
 import json
+import os
+import socket
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from psycopg import Rollback, errors as pg_errors, sql
-from sqlalchemy import event as sa_event
+from sqlalchemy import create_engine, event as sa_event, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import NullPool
 
-from app.behavior_data import AUDIT_ACTION, purge_expired, run_quality_check
+from app.behavior_data import (
+    AUDIT_ACTION, DISPOSABLE_FLAG, DISPOSABLE_TOKEN, MARKER_PREFIX, purge_expired, run_quality_check,
+)
 from app.core.errors import AppError
 from app.repositories.privacy import SqlPrivacyRepository
 from app.schemas.privacy import OptionalConsentInput
@@ -146,9 +153,21 @@ def audit_rows(admin):
                          (AUDIT_ACTION,)).fetchall()
 
 
+def mark_disposable(monkeypatch, admin, token=None):
+    """운영 절차와 같은 방식으로 일회용 DB 증거를 준비한다: 승인 플래그 + 실행 토큰 + DB 주석 표식."""
+    token = token or "t73-" + uuid4().hex
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv(DISPOSABLE_FLAG, "YES")
+    monkeypatch.setenv(DISPOSABLE_TOKEN, token)
+    db = admin.execute("SELECT current_database()").fetchone()[0]
+    admin.execute(sql.SQL("COMMENT ON DATABASE {} IS {}").format(sql.Identifier(db), sql.Literal(MARKER_PREFIX + token)))
+    return token
+
+
 @pytest.fixture
-def retention_rows(behavior_pg):
+def retention_rows(behavior_pg, monkeypatch):
     _, engine, admin, _ = behavior_pg
+    mark_disposable(monkeypatch, admin)
     as_of = datetime.now(UTC)
     cutoff = as_of - timedelta(days=187)
     raw_event(admin, A, at=cutoff - timedelta(seconds=1), metadata={"page_id": "expired_a"})
@@ -207,6 +226,99 @@ def test_retention_delete_failure_rolls_back(retention_rows):
     finally:
         sa_event.remove(engine, "before_cursor_execute", fail_delete)
     assert (result.status, result.deleted) == ("FAIL", 0) and len(remaining_pages(admin)) == 4
+
+
+# ------------------------------------------------------------------------------- P1-01/P1-02 guards on a real DB
+
+@pytest.mark.parametrize("change,reason", [
+    ("no_marker", "UNSAFE_NO_DISPOSABLE_MARKER"),
+    ("wrong_token", "UNSAFE_NO_DISPOSABLE_MARKER"),
+    ("no_flag", "UNSAFE_NO_DISPOSABLE_APPROVAL"),
+    ("local_dev", "UNSAFE_APP_ENV"),
+])
+def test_direct_purge_call_without_disposable_evidence_deletes_nothing(retention_rows, monkeypatch, change, reason):
+    engine, admin, as_of = retention_rows
+    db = admin.execute("SELECT current_database()").fetchone()[0]
+    if change == "no_marker":
+        admin.execute(sql.SQL("COMMENT ON DATABASE {} IS NULL").format(sql.Identifier(db)))
+    elif change == "wrong_token":
+        monkeypatch.setenv(DISPOSABLE_TOKEN, "t73-" + uuid4().hex)
+    elif change == "no_flag":
+        monkeypatch.delenv(DISPOSABLE_FLAG)
+    else:
+        monkeypatch.setenv("APP_ENV", "local-dev")
+    with Session(engine) as db_session:
+        result = purge_expired(db_session, as_of=as_of, retention_days=180, dry_run=False)
+    assert (result.status, result.reason_code, result.deleted, result.target) == ("FAIL", reason, 0, 0)
+    assert len(remaining_pages(admin)) == 4 and audit_rows(admin) == []
+
+
+def _lan_address():
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 9))   # TEST-NET, 패킷은 보내지 않음: 기본 경로의 로컬 주소만 얻는다
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
+class _TcpForwarder:
+    """SSH -L 과 같은 모양: 127.0.0.1:<port> → upstream. 서버는 upstream 쪽 주소로 연결을 받는다."""
+
+    def __init__(self, upstream):
+        self.upstream = upstream
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen()
+        self.port = self.listener.getsockname()[1]
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self):
+        while True:
+            try:
+                client, _ = self.listener.accept()
+            except OSError:
+                return
+            upstream = socket.create_connection(self.upstream)
+            for a, b in ((client, upstream), (upstream, client)):
+                threading.Thread(target=self._pipe, args=(a, b), daemon=True).start()
+
+    @staticmethod
+    def _pipe(src, dst):
+        try:
+            while data := src.recv(65536):
+                dst.sendall(data)
+        except OSError:
+            pass
+        finally:
+            for s in (src, dst):
+                try:
+                    s.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+    def close(self):
+        self.listener.close()
+
+
+@pytest.mark.skipif(os.environ.get("T73_TUNNEL_TEST") != "YES",
+                    reason="needs the disposable PostgreSQL to also accept the host's own LAN address")
+def test_ssh_tunnel_shaped_connection_is_blocked_even_with_marker_and_localhost_url(retention_rows):
+    """URL은 127.0.0.1·tNN_*_test·표식까지 모두 맞지만, 서버가 본 자기 주소가 loopback이 아니므로 차단."""
+    engine, admin, as_of = retention_rows
+    forwarder = _TcpForwarder((_lan_address(), engine.url.port))
+    tunnel = create_engine(engine.url.set(host="127.0.0.1", port=forwarder.port), poolclass=NullPool)
+    try:
+        with Session(tunnel) as db:
+            addr = db.execute(text("SELECT host(inet_server_addr())")).scalar_one()
+            db.rollback()
+            assert not ipaddress.ip_address(addr).is_loopback      # 터널 너머 서버 쪽 주소
+            result = purge_expired(db, as_of=as_of, retention_days=180, dry_run=False)
+    finally:
+        tunnel.dispose()
+        forwarder.close()
+    assert (result.status, result.reason_code, result.deleted) == ("FAIL", "UNSAFE_SERVER_ADDR", 0)
+    assert len(remaining_pages(admin)) == 4 and audit_rows(admin) == []
 
 
 # ------------------------------------------------------------------------------- withdrawal (T72/T31 path)
