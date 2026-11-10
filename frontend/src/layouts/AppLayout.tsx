@@ -10,12 +10,16 @@ const homeLinks = [
   { href: '#companies', label: '기업 탐색' },
 ];
 
-export function AppLayout({ adminModerationUi = false }: { adminModerationUi?: boolean }) {
+export function AppLayout({ adminModerationUi = false, adminAuditUi = false }: {
+  adminModerationUi?: boolean; adminAuditUi?: boolean;
+}) {
   const { pathname } = useLocation();
   const isHome = pathname === '/';
   const { state } = useAuth();
-  // 관리자 검수 메뉴: 기능 플래그(Mock 전용)가 켜져 있고 admin 역할일 때만. 경로 자체도 RequireAuth 로 막습니다.
-  const showModeration = adminModerationUi && state.status === 'authenticated' && state.user.roles.includes('admin');
+  const isAdmin = state.status === 'authenticated' && state.user.roles.includes('admin');
+  // 관리자 메뉴: 기능 플래그(Mock 전용)가 켜져 있고 admin 역할일 때만. 경로 자체도 RequireAuth 로 막습니다.
+  const showModeration = adminModerationUi && isAdmin;
+  const showAudit = adminAuditUi && isAdmin;
   const authLink =
     state.status === 'authenticated' ? (
       <NavLink to="/account">{state.user.displayName}</NavLink>
@@ -54,6 +58,8 @@ export function AppLayout({ adminModerationUi = false }: { adminModerationUi?: b
                 기업·채용공고 탐색
               </NavLink>
               {showModeration && <NavLink to="/admin/moderation">콘텐츠 검수 (Mock)</NavLink>}
+              {showAudit && <NavLink to="/admin/audit-events">운영 감사 (Mock)</NavLink>}
+              {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용 (Mock)</NavLink>}
             </nav>
           </aside>
         )}

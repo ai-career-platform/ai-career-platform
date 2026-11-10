@@ -18,6 +18,11 @@ export interface HttpRequest {
   token?: string | null;
   /** 'blob'이면 성공 응답 본문을 Blob 으로 돌려줍니다(인증된 파일 다운로드). 기본 'json' */
   responseType?: 'json' | 'blob';
+  /**
+   * 성공 응답의 헤더를 받는 콜백 (T85: getAiUsage 의 X-AI-Cost-Status). 오류 응답에서는 부르지 않습니다.
+   * 반환 타입(본문)을 바꾸지 않으려고 콜백으로 둡니다.
+   */
+  onResponseHeaders?: (headers: Headers) => void;
 }
 
 export interface HttpClient {
@@ -97,6 +102,7 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
       if (response.status === 401) config.onUnauthorized?.(error);
       throw error;
     }
+    init.onResponseHeaders?.(response.headers);
     if (responseType === 'blob') {
       try {
         return (await response.blob()) as T;
