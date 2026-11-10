@@ -66,10 +66,10 @@ T86 추가 (`tests/security/test_security_upload.py`, 기존 `docs` fixture 재�
 
 | 시험 | 기대 | 로컬(Windows) | Linux CI |
 |---|---|---|---|
-| 문서 ID 자리의 경로 탐색·비 UUID 7종 × GET·/file·DELETE | 404/422, 파일 내용 미노출, 삭제 없음 | **NOT_RUN** | §14 |
-| 클라이언트가 소유자를 지정 (form·query의 `owner_user_id`·`user_id`) | 거부(422) 또는 업로드한 사람이 소유자 | NOT_RUN | §14 |
-| 목록의 `user_id` 질의 | 다른 사람 문서 미노출 | NOT_RUN | §14 |
-| 잘못된 요청 Content-Type 3종 | 400/415/422, 저장 파일 없음 | NOT_RUN | §14 |
+| 문서 ID 자리의 경로 탐색·비 UUID 7종 × GET·/file·DELETE | 404/422, 파일 내용 미노출, 삭제 없음 | **NOT_RUN** | **PASS** |
+| 클라이언트가 소유자를 지정 (form·query의 `owner_user_id`·`user_id`) | 거부(422) 또는 업로드한 사람이 소유자 | NOT_RUN | **PASS** |
+| 목록의 `user_id` 질의 | 다른 사람 문서 미노출 | NOT_RUN | **PASS** |
+| 잘못된 요청 Content-Type 3종 | 400/415/422, 저장 파일 없음 | NOT_RUN | **PASS** |
 
 로컬에서 실행하지 못한 이유: 문서 저장소가 POSIX 전용입니다(디렉터리 0700 검사, `os.O_DIRECTORY`). 기존 `tests/test_documents.py`도 Windows에서는 같은 이유로 실패합니다. 이 결과를 PASS로 세지 않았습니다.
 
@@ -168,7 +168,15 @@ T16_ISOLATED_DB_TEST=YES T16_TEST_ADMIN_URL=postgresql://USER@127.0.0.1:PORT/t16
   - `ci.yml` "Backend pytest": DB 없는 시험. PG 시험은 skip(환경변수 없음).
   - `backend-tests.yml` "backend": postgres:18.1 서비스 + T16 가드 환경변수라 PG 시험까지 실행합니다.
 - 보안 시험이 실패하면 해당 job이 실패합니다. merge 차단은 저장소 보호 규칙의 필수 검사 설정에 따릅니다. **제안: `backend`·`Backend pytest`를 필수 검사로 지정.**
-- 실제 실행 여부와 수치는 PR 본문의 CI 로그 확인 결과를 따릅니다.
+- **CI 실행 증빙 (HEAD `4a10dd7`, PR #188)** — 5개 검사 모두 PASS:
+
+| Job | 결과 | 해석 |
+|---|---|---|
+| `backend` (backend-tests.yml, postgres:18.1) | **1236 passed, 53 skipped** | 기준(T84 시점 812 passed / 53 skipped) 대비 +424 = `tests/security` 수집 424건 전부 실행·통과. skip 수가 같으므로 PG·업로드 보안 시험 skip 0 |
+| `Backend pytest` (ci.yml, DB 없음) | 1063 passed, 226 skipped | +413 passed. +11 skipped = PG 시험 11개(DB 없는 job 에서 T16 가드로 skip — PG job 에서 실행) |
+| `upload-e2e`, `offline-tests`, `CI Smoke Test` | PASS | 기존 |
+
+- 첫 실행(`64a82de`)에서 업로드 시험 7건이 **실패**했습니다. 원인은 시험의 기대값(업로드 응답 201)이 T49 계약(202 Accepted, 검사 대기)과 달랐던 것입니다. 기대값만 고쳤고(`4a10dd7`), 보안 단정(404/422, 내용 미노출, 삭제 없음)은 그대로 두었습니다. 보안 결함이 아니었고, skip 처리하지 않았습니다.
 - Skip으로 바꾼 보안 시험은 없습니다. PG·POSIX 의존 시험의 조건부 skip은 기존 T16 가드와 같습니다.
 
 ## 15. 시험에서 제외된 미구현 기능 (HOLD)
@@ -185,6 +193,6 @@ T16_ISOLATED_DB_TEST=YES T16_TEST_ADMIN_URL=postgresql://USER@127.0.0.1:PORT/t16
 
 | 범위 | 결과 |
 |---|---|
-| `tests/security` (일회용 PG 포함) | **412 passed**, 12 errors = `test_security_upload.py`(POSIX 전용 저장소, 위 §5) |
+| `tests/security` (일회용 PG 포함) | **412 passed**, 12 errors = `test_security_upload.py`(POSIX 전용 저장소, 위 §5) — 이 12건은 Linux CI 에서 실행·PASS (§14) |
 | 전체 Backend (일회용 PG, CI 환경변수) | 1206 passed, 53 skipped, 1 failed + 31 errors — 모두 문서 저장소 POSIX 의존(기존 20 + 신규 12). PASS로 세지 않음 |
 | 게이트 변이 확인 | 누락 경로 추가 시 13건 실패 (확인 후 되돌림) |
