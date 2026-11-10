@@ -28,7 +28,7 @@ def test_summary_separates_success_errors_and_timeouts():
 
 @pytest.mark.parametrize("url,flag", [
     ("postgresql://u@10.0.0.5:5432/t16_profile_test", "YES"),
-    ("postgresql://u@127.0.0.1:5432/ai_career_poc", "YES"),
+    ("postgresql://u@127.0.0.1:5432/shared_staging_db", "YES"),
     ("postgresql://u@127.0.0.1:5432/t16_profile_test", ""),
 ])
 def test_guard_refuses_anything_but_the_disposable_loopback_db(monkeypatch, url, flag):
