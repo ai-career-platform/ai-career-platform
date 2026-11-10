@@ -1,5 +1,6 @@
 # T82 — 실제 Backend API 연동 검증
 
+> **2026-11-10 재확인 (main `1f3465d`, PR #182 병합 후): 판정 변화 없음 — BLOCKED / HOLD.** 아래 §10 참고.
 > 판정: **NOT_READY / HOLD** — 실제 API 연동을 하지 않았습니다. 선행 T81 API·OpenAPI 계약·정책 승인·F-027 범위가 없습니다.
 > 이 문서의 테스트는 **가짜 fetch를 쓰는 Frontend 계약 테스트**입니다. 실제 API·PostgreSQL 통합 테스트는 실행하지 않았습니다(NOT_RUN).
 > 확인일 2026-11-10 · 기준 main `1fe3025` · T82 PR #182 (`task/t82-admin-moderation-ui`)
@@ -114,3 +115,53 @@ T80 정책·상태 모델·권한·이의제기 규칙, DB 트리거 사용, F-0
 4. T81: Backend 구현 + 일회용 PostgreSQL 통합 테스트
 5. T82: 생성 타입으로 교체 → §3 공백 해소 → `ModerationServiceProvider`에서 HTTP Adapter 선택(격리 통합 모드 한정) → STEP 06 실제 통합 테스트
 6. 운영 활성화는 정책·기능 승인 후 별도 결정
+
+## 10. 재확인 — PR #182 병합 후 (2026-11-10, main `1f3465d`)
+
+### 10.1 선행조건 (실제 코드·GitHub 기준)
+
+| 항목 | 결과 | 판정 |
+|---|---|---|
+| T82 UI | PR #182 **MERGED** (`1f3465d`). Mock Adapter만 연결, 기능 플래그는 Mock 모드 전용 | PASS (Mock) |
+| T81 Backend | PR·브랜치 없음. `backend/`·`database/`·`docs/api/openapi.yaml`·`schema.gen.ts`에 moderation 없음 | HOLD |
+| 승인된 API 계약 | 없음 — T80 구현 계약 §4는 **PROPOSED** | HOLD |
+| T04 범위 (F-027) | "**제외**: 1차에 검수할 공개 콘텐츠 없음" 그대로 | HOLD |
+| T80 정책 | "정책 승인: 미완료" 그대로 (#181 병합 ≠ 정책 승인) | HOLD |
+| T05·T06 계약 갱신 | 없음 | HOLD |
+| Staging Migration 기준선 | PR #178 **OPEN**, Staging에 이력 테이블 없음 | HOLD |
+| 스테이징 쓰기 승인 | 없음 | HOLD |
+
+→ 지시서 **경로 B** (T81 미구현). 승인된 구현 계약이 없으므로 **실제 연동 코드를 확정하지 않고 BLOCKED**로 둡니다. T81 API·Migration은 작성하지 않았습니다.
+
+### 10.2 Staging 읽기 전용 점검 (접속 정보 비공개)
+
+| 항목 | 방법 | 결과 |
+|---|---|---|
+| STAGING_CONNECTION | `.env` 기존 접속으로 `default_transaction_read_only=on` 세션 | PASS — `ai_career_poc`, PostgreSQL 18.1, 세션 read-only on |
+| STAGING_SCHEMA | `pg_tables`·`pg_proc` 조회 | `career` 테이블 51개, **검수 테이블·함수 0개**, Migration 이력 테이블 없음 → 검수 스키마 **NOT_PRESENT** |
+| STAGING_READ_ONLY | 위 SELECT만 실행 | PASS (변경 없음) |
+| STAGING_API | 배포 API에 인증 없는 GET | `/api/version` 200 — 배포 버전 **`1f3465d`**(최신 main), `/api/v1/admin/moderation-cases` **404**, `/api/v1/admin/reviews` 404, `/api/openapi.json` 경로 50개 중 검수 경로 0개 → **NOT_DEPLOYED** |
+| Staging 프런트엔드 | headless Chrome으로 `:18080` 열기 | `:18080`은 React 앱이 아니라 **PoC 상태 페이지**(`poc/staging/frontend/index.html`, `status.js`)를 제공. 검수 메뉴·Mock 안내 0, 검수 API 요청 0 → T82 UI는 Staging에 노출되지 않음 |
+| STAGING_WRITE_E2E | — | **NOT_RUN** (정책·계약·Migration·쓰기 승인 없음) |
+| STAGING_DATA_INTEGRITY | — | 변경 없음 (쓰기 0건) |
+
+### 10.3 T81 구현자에게 넘기는 T82 연결 체크리스트
+
+T82는 아래가 갖춰지면 **화면 수정 없이** Adapter·타입만 바꿔 연결할 수 있습니다. 각 항목은 T81 OpenAPI로 확정돼야 하며, 지금 값은 T80 제안입니다.
+
+| # | T81이 확정해 줄 것 | T82 쪽 영향 (현재 가정 위치) |
+|---|---|---|
+| 1 | 목록 `GET` 경로·쿼리 `status`·`target_type`·`priority`(+`overdue`·`cursor` 여부) | `api/moderationHttp.ts` `list`, 계약 테스트 |
+| 2 | 목록 항목 DTO — 대상 요약 문자열 제공 여부(현재 `target_summary` 가정), `assignee_id`, `due_at`, `flags`, `report_count`, `version` | `api/moderation.ts` `ModerationCaseSummary` |
+| 3 | 상세 DTO — `content_owner_id`·`submitted_by`·`first_decider_id`·`appeal_count`·`reason_code`·`close_reason`, 이력 배열 이름·필드(현재 `events[]`·`actor_id`·`event`) | `ModerationCaseDetail`, `ModerationCaseEvent` |
+| 4 | 담당 시작 `POST …/assignment {version}` 응답 = 갱신된 상세 | `assign` |
+| 5 | 결정 `POST …/decision {version, decision, reason_code?, note?}` 응답 = 갱신된 상세, `note`는 응답에 미포함 | `decide` |
+| 6 | 오류: 401·403 `FORBIDDEN`·404·409 `APPROVAL_CLOSED`/`CONFLICT`·422 `VALIDATION_FAILED` (기존 카탈로그) | `moderationErrorMessage` |
+| 7 | 권한 코드(`admin.content.review` 등)와 서버 측 가드 (자기 콘텐츠·담당자·최초 결정자·version) | `RequireAuth`·메뉴 조건, `availableActions`(UX 전용) |
+| 8 | 통합 테스트용 합성 데이터 생성 방법 (일회용 DB 픽스처) | 실제 통합 테스트 24항목 실행 전제 |
+
+연결 단계 (T81 병합 후): `npm run gen:api` → 수기 타입을 생성 타입으로 교체 → `ModerationServiceProvider`에서 **격리 통합 모드에서만** `createHttpModerationService` 선택 (Mock 모드·운영 빌드는 그대로) → 일회용 PostgreSQL + 로컬 FastAPI로 §5의 24항목 실행 → Staging은 쓰기 승인 후.
+
+### 10.4 이번 단계 테스트
+
+코드 변경 없음(문서만). Frontend·Backend 코드는 main과 같으므로 회귀 결과는 PR #182 시점(Frontend 302 passed / 22 skipped)과 이 PR의 CI로 확인합니다. 로컬 FastAPI·일회용 PostgreSQL 통합 테스트와 브라우저 실 API E2E는 **NOT_RUN**(연결할 API 없음).
