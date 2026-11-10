@@ -9,7 +9,9 @@ It also cross-checks cited facts against the repository (error catalog, roles se
 """
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -115,8 +117,8 @@ def fire(case: Case, event: str, actor: str, *, version: int | None = None, **kw
         if guard_ok(t, case, actor, version=case.version if version is None else version, **kw):
             if t.event == "ASSIGN" or t.event == "REASSIGN":
                 case.assignee = kw.get("assignee") or actor
-                if case.status == "APPEALED":
-                    case.appeal_count = 1
+            if "appeal_count를 1로 올림" in t.guard:
+                case.appeal_count = 1
             if t.event in ("RELEASE", "RELEASE_APPEAL"):
                 case.assignee = None
             if t.event in ("APPROVE", "REJECT"):
@@ -132,8 +134,8 @@ def fire(case: Case, event: str, actor: str, *, version: int | None = None, **kw
 class StateModelDocumentTest(unittest.TestCase):
     def test_tables_parse(self):
         self.assertEqual(set(STATES), {"PENDING", "IN_REVIEW", "APPROVED", "REJECTED", "APPEALED", "CLOSED"})
-        self.assertEqual(len(TRANSITIONS), 12)
-        self.assertEqual([t.tid for t in TRANSITIONS], [f"T{i:02d}" for i in range(1, 13)])
+        self.assertEqual(len(TRANSITIONS), 13)
+        self.assertEqual([t.tid for t in TRANSITIONS], [f"T{i:02d}" for i in range(1, 14)])
 
     def test_mermaid_edges_equal_transition_table(self):
         table = {(t.source, t.target, t.event) for t in TRANSITIONS}
@@ -199,9 +201,12 @@ class StateModelDocumentTest(unittest.TestCase):
         self.assertEqual((appeals[0].source, appeals[0].actor), ("REJECTED", "owner"))
         self.assertIn("appeal_count == 0", appeals[0].guard)
         self.assertIn("14일 이내", appeals[0].guard)
+        self.assertIn("appeal_count를 1로 올림", appeals[0].guard, "appeal is counted when it is submitted")
         review = next(t for t in TRANSITIONS if t.source == "APPEALED" and t.event == "ASSIGN")
         self.assertIn("not first_decider", review.guard)
-        self.assertIn("appeal_count를 1로", review.guard)
+        self.assertIn("appeal_count 변경 없음", review.guard)
+        incrementing = [t.tid for t in TRANSITIONS if "appeal_count를 1로 올림" in t.guard]
+        self.assertEqual(incrementing, ["T08"], "exactly one transition increments appeal_count")
 
     def test_every_mutation_checks_version(self):
         for t in TRANSITIONS:
@@ -333,6 +338,143 @@ class PolicyAndContractConsistencyTest(unittest.TestCase):
         openapi = (ROOT / "docs/api/openapi.yaml").read_text(encoding="utf-8")
         self.assertNotIn("moderation-cases", openapi)
         self.assertNotIn("/admin/reviews", openapi)
+
+
+class AppealCountingTest(unittest.TestCase):
+    """Review fix: appeal_count is counted when the appeal is submitted (T08), never at assignment."""
+
+    def _rejected(self) -> Case:
+        case = Case(owner="seller")
+        fire(case, "ASSIGN", "A")
+        fire(case, "REJECT", "A", reason="INACCURATE")
+        return case
+
+    def test_count_is_one_as_soon_as_the_appeal_is_submitted(self):
+        case = self._rejected()
+        self.assertTrue(fire(case, "APPEAL", "seller"))
+        self.assertEqual((case.status, case.appeal_count, case.assignee), ("APPEALED", 1, None))
+        self.assertTrue(fire(case, "ASSIGN", "B"))
+        self.assertEqual(case.appeal_count, 1, "assignment does not change the count")
+
+    def test_withdrawn_appeal_keeps_the_rejection_and_cannot_be_resubmitted(self):
+        case = self._rejected()
+        fire(case, "APPEAL", "seller")
+        self.assertFalse(fire(case, "WITHDRAW_APPEAL", "stranger"))
+        self.assertTrue(fire(case, "WITHDRAW_APPEAL", "seller"))
+        self.assertEqual((case.status, case.appeal_count), ("REJECTED", 1))
+        self.assertFalse(fire(case, "APPEAL", "seller"))
+
+    def test_owner_cannot_close_an_appeal_any_more_only_system_on_target_deletion(self):
+        close = next(t for t in TRANSITIONS if t.source == "APPEALED" and t.event == "CLOSE")
+        self.assertEqual(close.actor, "system")
+        withdraw = next(t for t in TRANSITIONS if t.event == "WITHDRAW_APPEAL")
+        self.assertEqual((withdraw.source, withdraw.target, withdraw.actor), ("APPEALED", "REJECTED", "owner"))
+
+    def test_contract_and_policy_use_the_same_rule(self):
+        self.assertIn("**이의제기 접수(T08)에서 0 → 1**", CONTRACT)
+        self.assertIn("재검토 배정(T09)은 횟수를 바꾸지 않는다", CONTRACT)
+        self.assertIn("CHECK (status <> 'APPEALED' OR appeal_count = 1)", CONTRACT)
+        self.assertIn("접수하는 순간 1회로 센다", POLICY)
+        self.assertIn("**`appeal_count`는 이의제기 접수(T08) 시점에 0 → 1**", DIAGRAM)
+
+
+SKETCH = CONTRACT.split("```sql", 1)[1].split("```", 1)[0]
+TARGET_TABLE_ROWS = table_rows(CONTRACT.split("## 1. 검수 대상 유형", 1)[1].split("## 2.", 1)[0], r"^`[a-z_]+`$")
+TARGET_COLUMNS = {r[0].strip("`"): r[3].strip("`") for r in TARGET_TABLE_ROWS if r[0] != "`target_type`"}
+
+
+def migration_primary_keys() -> dict[str, str]:
+    sql = (ROOT / "database/migrations/0001_initial_schema.sql").read_text(encoding="utf-8")
+    keys = {}
+    for table, body in re.findall(r"CREATE TABLE career\.(\w+) \((.*?)\n\);", sql, re.S):
+        pk = re.search(r"PRIMARY KEY \((\w+)\)", body)
+        if pk:
+            keys[table] = pk.group(1)
+    return keys
+
+
+class TargetReferenceSketchTest(unittest.TestCase):
+    """Review fixes 1 and 2: deleting a target must not fail, history stays, AI results keep real FKs."""
+
+    def test_eight_target_types_each_map_to_one_real_fk_column(self):
+        self.assertEqual(len(TARGET_COLUMNS), 8)
+        self.assertEqual(len(set(TARGET_COLUMNS.values())), 8)
+        listed = re.search(r"target_type IN \((.*?)\)\),", SKETCH, re.S).group(1)
+        self.assertEqual(set(re.findall(r"'([a-z_]+)'", listed)), set(TARGET_COLUMNS))
+
+    def test_fk_columns_reference_existing_primary_keys_and_set_null_on_delete(self):
+        keys = migration_primary_keys()
+        for target_type, column in TARGET_COLUMNS.items():
+            m = re.search(rf"^\s+{column} uuid REFERENCES career\.(\w+) \((\w+)\) ON DELETE SET NULL,$", SKETCH, re.M)
+            self.assertIsNotNone(m, f"{column} must be a nullable FK with ON DELETE SET NULL")
+            table, pk = m.groups()
+            self.assertEqual(keys.get(table), pk, f"{target_type}: {table}.{pk} is not the 0001 primary key")
+
+    def test_snapshot_is_required_and_not_a_foreign_key(self):
+        self.assertRegex(SKETCH, r"(?m)^\s+target_type varchar\(32\) NOT NULL,$")
+        self.assertRegex(SKETCH, r"(?m)^\s+target_id uuid NOT NULL,$")
+        self.assertNotRegex(SKETCH, r"target_id uuid[^,\n]*REFERENCES")
+        self.assertIn("target snapshot is immutable", SKETCH)
+
+    def test_check_allows_null_after_delete_instead_of_requiring_exactly_one(self):
+        self.assertIn("recommendation_run_id) <= 1", SKETCH)
+        self.assertNotRegex(SKETCH, r"num_nonnulls\([^)]*\)\s*=\s*1")
+        for target_type, column in TARGET_COLUMNS.items():
+            self.assertIn(f"({column} IS NULL OR (target_type = '{target_type}' AND {column} = target_id))", SKETCH)
+
+    def test_insert_requires_the_live_reference_and_live_target_covers_every_type(self):
+        self.assertIn("IF TG_OP = 'INSERT' THEN", SKETCH)
+        self.assertIn("career.moderation_case_live_target(NEW) IS DISTINCT FROM NEW.target_id", SKETCH)
+        for target_type, column in TARGET_COLUMNS.items():
+            self.assertIn(f"WHEN '{target_type}' THEN c.{column}", SKETCH)
+
+    def test_open_cases_close_on_delete_and_decided_cases_keep_their_status(self):
+        self.assertIn("AND OLD.status IN ('PENDING', 'IN_REVIEW', 'APPEALED') THEN", SKETCH)
+        self.assertIn("NEW.close_reason := 'TARGET_DELETED';", SKETCH)
+        self.assertIn("INSERT INTO career.moderation_case_events", SKETCH)
+        self.assertIn("BEFORE INSERT OR UPDATE ON career.moderation_cases", SKETCH)
+        self.assertIn("AFTER UPDATE ON career.moderation_cases", SKETCH)
+
+    def test_open_case_uniqueness_uses_the_snapshot(self):
+        self.assertIn("ON career.moderation_cases (target_type, target_id, review_trigger)\n"
+                      "    WHERE status IN ('PENDING', 'IN_REVIEW', 'APPEALED');", SKETCH)
+
+    def test_user_references_do_not_block_account_deletion(self):
+        for column in ("content_owner_id", "submitted_by", "assignee_id", "first_decider_id", "decided_by"):
+            self.assertRegex(SKETCH, rf"{column} uuid REFERENCES career\.users \(user_id\) ON DELETE SET NULL,")
+
+    def test_polymorphic_ai_result_id_is_gone(self):
+        self.assertNotIn("ai_result_id", SKETCH)
+        self.assertNotIn("content_type", SKETCH)
+        self.assertEqual(CONTRACT.count("ai_result_id"), 1, "only the sentence that retires it may mention it")
+
+    def test_delete_order_and_lock_order_are_documented(self):
+        self.assertIn("① 대상 행 `SELECT … FOR UPDATE` → ② 그 대상의 열린 건 `SELECT … FOR UPDATE`", CONTRACT)
+        self.assertIn("**대상 행 → 검수 건 행** 순서로 잠근다", CONTRACT)
+
+
+@unittest.skipUnless(os.environ.get("T80_DDL_SKETCH_TEST") == "YES",
+                     "opt-in: T80_DDL_SKETCH_TEST=YES and T80_PG_ADMIN_URL=<loopback *_test database>")
+class TargetReferenceSketchPostgresTest(unittest.TestCase):
+    """Runs the DDL sketch on a disposable PostgreSQL 18 database (drops and recreates schema career there)."""
+
+    SCENARIO_FILE = Path(__file__).with_name("moderation_sketch_scenario.sql")
+
+    def test_sketch_on_disposable_postgres(self):
+        from urllib.parse import urlparse
+        url = os.environ["T80_PG_ADMIN_URL"]
+        parsed = urlparse(url)
+        self.assertIn(parsed.hostname, {"127.0.0.1", "localhost"}, "loopback only")
+        self.assertTrue(parsed.path.lstrip("/").endswith("_test"), "database name must end with _test")
+        psql = os.environ.get("PSQL", "psql")
+        migration = (ROOT / "database/migrations/0001_initial_schema.sql").read_text(encoding="utf-8")
+        script = "\n".join(["DROP SCHEMA IF EXISTS career CASCADE;", "CREATE SCHEMA career;", migration, SKETCH,
+                            self.SCENARIO_FILE.read_text(encoding="utf-8")])
+        result = subprocess.run([psql, "-X", "-q", "-At", "-v", "ON_ERROR_STOP=1", "-d", url, "-f", "-"],
+                                input=script, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                env={**os.environ, "PGCLIENTENCODING": "UTF8", "LC_MESSAGES": "C", "LANG": "C"})
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        self.assertIn("T80_SKETCH_PG=PASS", result.stdout)
 
 
 if __name__ == "__main__":

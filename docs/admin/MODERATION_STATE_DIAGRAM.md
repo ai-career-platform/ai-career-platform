@@ -8,7 +8,7 @@
 
 - 검수 단위는 **검수 건(case)** 하나다. 같은 콘텐츠라도 계기(게시 전, 신고, 만료 등)가 다르면 새 건을 만든다.
 - **결정이 끝난 건은 다시 열지 않는다.** 승인된 콘텐츠를 다시 봐야 하면(신고·만료) 새 건(`trigger=REPORT|EXPIRY|SOURCE_CHANGE`)을 연다. 그래서 `APPROVED → IN_REVIEW` 같은 역전이는 없고, 결정 이력이 그대로 남는다.
-- 이의제기는 같은 건 안에서 1회만 한다(`appeal_count` 0 → 1). 이의제기 재검토 결과가 최종이다.
+- 이의제기는 같은 건 안에서 1회만 한다. **`appeal_count`는 이의제기 접수(T08) 시점에 0 → 1**로 오르고, 재검토 배정·철회로 바뀌지 않는다. 이의제기 재검토 결과가 최종이다.
 - 자동 검증 실패(입력 거부)는 검수 건을 만들지 않는다(정책 §2.4).
 - 처리 기한을 넘겨도 상태는 자동으로 바뀌지 않는다(자동 승인·반려 없음).
 
@@ -40,11 +40,12 @@ Guard의 `not self`는 **담당·결정 관리자 ≠ 콘텐츠 소유자·제�
 | T05 | IN_REVIEW | RELEASE_APPEAL | APPEALED | assignee, admin | appeal_count == 1 (재검토 담당 해제); version 일치 | PROPOSED |
 | T06 | IN_REVIEW | APPROVE | APPROVED | assignee | not self; appeal_count == 1이면 not first_decider; version 일치 | REVIEW-PROPOSED |
 | T07 | IN_REVIEW | REJECT | REJECTED | assignee | not self; appeal_count == 1이면 not first_decider; reason_code 필수, OTHER면 메모 필수; version 일치 | REVIEW-PROPOSED |
-| T08 | REJECTED | APPEAL | APPEALED | owner | appeal_count == 0; 결정 후 14일 이내; version 일치 | REVIEW-PROPOSED |
-| T09 | APPEALED | ASSIGN | IN_REVIEW | admin | not self; not first_decider; appeal_count를 1로 올림; version 일치 | REVIEW-PROPOSED |
+| T08 | REJECTED | APPEAL | APPEALED | owner | appeal_count == 0; 결정 후 14일 이내; appeal_count를 1로 올림; version 일치 | REVIEW-PROPOSED |
+| T09 | APPEALED | ASSIGN | IN_REVIEW | admin | not self; not first_decider; appeal_count 변경 없음; version 일치 | REVIEW-PROPOSED |
 | T10 | PENDING | CLOSE | CLOSED | owner, system | owner 요청 철회 또는 대상 삭제·대체 | PROPOSED |
 | T11 | IN_REVIEW | CLOSE | CLOSED | system | 대상 삭제·대체만 (검수 중 철회는 불가) | PROPOSED |
-| T12 | APPEALED | CLOSE | CLOSED | owner, system | owner 이의제기 철회 또는 대상 삭제 | PROPOSED |
+| T12 | APPEALED | CLOSE | CLOSED | system | 대상 삭제·대체만 | PROPOSED |
+| T13 | APPEALED | WITHDRAW_APPEAL | REJECTED | owner | 이의제기 철회; 반려 결정 유지; appeal_count 1 유지(재신청 불가); version 일치 | PROPOSED |
 
 `first_decider_id`는 T06·T07이 appeal_count == 0일 때 처음 기록하고 이후 바꾸지 않는다.
 
@@ -54,7 +55,7 @@ Guard의 `not self`는 **담당·결정 관리자 ≠ 콘텐츠 소유자·제�
 |---|---|---|
 | APPROVED → 어떤 상태든 | 결정 완료. 다시 보려면 새 건 | `APPROVAL_CLOSED` |
 | CLOSED → 어떤 상태든 | 종료 | `APPROVAL_CLOSED` |
-| REJECTED(appeal_count=1) → APPEALED | 이의제기 1회 제한, 재검토 결과 최종 | `APPROVAL_CLOSED` |
+| REJECTED(appeal_count=1) → APPEALED | 이의제기 1회 제한 (재검토 후 반려, 이의제기 철회 후 모두 해당) | `APPROVAL_CLOSED` |
 | REJECTED(결정 후 14일 초과) → APPEALED | 기한 경과 | `APPROVAL_CLOSED` |
 | PENDING·APPEALED → APPROVED/REJECTED | 담당 없이 결정 불가 | `CONFLICT` |
 | version 불일치 (동시 처리) | 다른 관리자가 먼저 바꿈 | `CONFLICT` |
@@ -75,6 +76,7 @@ stateDiagram-v2
     PENDING --> CLOSED : CLOSE
     IN_REVIEW --> CLOSED : CLOSE
     APPEALED --> CLOSED : CLOSE
+    APPEALED --> REJECTED : WITHDRAW_APPEAL
     APPROVED --> [*]
     REJECTED --> [*]
     CLOSED --> [*]
@@ -91,11 +93,13 @@ stateDiagram-v2
 | 시나리오 | 경로 |
 |---|---|
 | 게시 전 승인 | SUBMIT → ASSIGN → APPROVE |
-| 게시 전 반려 → 이의제기 → 승인 | SUBMIT → ASSIGN → REJECT → APPEAL → ASSIGN(다른 관리자) → APPROVE |
+| 게시 전 반려 → 이의제기 → 승인 | SUBMIT → ASSIGN → REJECT → APPEAL(appeal_count=1) → ASSIGN(다른 관리자) → APPROVE |
+| 이의제기 철회 | … → REJECT → APPEAL → WITHDRAW_APPEAL → REJECTED (재신청 409) |
 | 이의제기 후 다시 반려 (최종) | … → APPEAL → ASSIGN → REJECT. 이후 APPEAL은 409 |
 | 승인 후 신고 | 기존 건은 APPROVED 그대로, **새 건** SUBMIT(trigger=REPORT) → … |
 | 같은 대상 중복 신고 | 열린 REPORT 건이 있으면 그 건을 반환하고 신고 수만 늘린다 (구현 계약 §2.3) |
 | 담당자 변경 | REASSIGN (IN_REVIEW 유지) 또는 RELEASE/RELEASE_APPEAL 후 다른 관리자가 ASSIGN |
 | 관리자 1명 + 자기 콘텐츠 | ASSIGN이 not self로 막혀 PENDING 유지 → `needs_other_admin` 표시·기한 경고 (**HOLD**) |
 | 동시 결정 | 먼저 커밋한 결정만 반영, 나중 요청은 version 불일치로 409 |
-| 검수 중 대상 삭제 | system CLOSE (close_reason=TARGET_DELETED) |
+| 검수 중 대상 삭제 | system CLOSE (close_reason=TARGET_DELETED). 서비스 경로는 삭제 전에 닫고, CASCADE 경로는 DB 트리거가 닫는다 (구현 계약 §2.1) |
+| 결정된 건의 대상 삭제 | 상태 그대로 (APPROVED·REJECTED 유지), `target_id` 스냅샷으로 이력 보존 |
