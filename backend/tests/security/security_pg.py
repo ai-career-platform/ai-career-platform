@@ -50,6 +50,11 @@ class SecurityPG:
 
 @pytest.fixture
 def sec_pg(monkeypatch):
+    yield from disposable_pg(monkeypatch)
+
+
+def disposable_pg(monkeypatch, write_tables=WRITE_TABLES, migrations=("0001",), extra_sql=()):
+    """일회용 PG + 최소 권한 앱. write_tables 에만 INSERT/UPDATE/DELETE, migrations 는 적용할 0001~ 접두어."""
     options = conninfo_to_dict(os.environ["T16_TEST_ADMIN_URL"])
     if options.get("host") not in {"127.0.0.1", "localhost"} or options.get("dbname") != "t16_profile_test":
         pytest.fail("Only loopback disposable t16_profile_test is allowed")
@@ -59,13 +64,17 @@ def sec_pg(monkeypatch):
         assert 180000 <= admin.info.server_version < 190000
         admin.execute("DROP SCHEMA IF EXISTS career CASCADE")
         admin.execute("CREATE SCHEMA career")
-        admin.execute((ROOT / "database/migrations/0001_initial_schema.sql").read_text(encoding="utf-8"))
+        for prefix in migrations:
+            (path,) = (ROOT / "database/migrations").glob(f"{prefix}_*.sql")
+            admin.execute(path.read_text(encoding="utf-8"))
         admin.execute((ROOT / "database/seeds/0001_initial_seed.sql").read_text(encoding="utf-8"))
+        for statement in extra_sql:
+            admin.execute(statement)
         admin.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB NOCREATEROLE").format(
             ident, sql.Literal(password)))
         admin.execute(sql.SQL("GRANT USAGE ON SCHEMA career TO {}").format(ident))
         admin.execute(sql.SQL("GRANT SELECT ON ALL TABLES IN SCHEMA career TO {}").format(ident))
-        for table in WRITE_TABLES:
+        for table in write_tables:
             admin.execute(sql.SQL("GRANT INSERT, UPDATE, DELETE ON career.{} TO {}").format(sql.Identifier(table), ident))
         admin.execute(sql.SQL("GRANT UPDATE ON career.auth_sessions TO {}").format(ident))
         headers = {}
