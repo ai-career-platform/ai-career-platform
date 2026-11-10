@@ -524,3 +524,94 @@ def test_generated_operation_matches_the_confirmed_openapi(app, path):
     assert names(generated["parameters"]) == names(confirmed["parameters"])
     assert set(confirmed["responses"]) <= set(generated["responses"])
     assert "/api/v1/admin/audit" not in app.openapi()["paths"], "no alias path"
+
+
+# ---------------------------------------------------------------- STEP 05 additions: cursor stability (condition A)
+@pytest.mark.parametrize("limit,count", [(1, 40), (20, 250), (100, 250)])
+def test_cursor_walk_with_limits_1_20_100_has_no_duplicates_or_gaps(client, admin, store, limit, count):
+    headers, _ = admin
+    same = NOW - timedelta(hours=1)
+    store.events = [event(n, same) for n in range(1, count + 1)]
+    seen, pages = walk(client, headers, limit)
+    assert seen == [str(uid(n)) for n in range(count, 0, -1)]
+    assert pages == -(-count // limit)
+
+
+def test_cursor_keeps_microsecond_precision(client, admin, store):
+    headers, _ = admin
+    base = NOW - timedelta(hours=1)
+    store.events = [event(n, base + timedelta(microseconds=n)) for n in range(1, 11)]
+    seen, _ = walk(client, headers, 1)
+    assert seen == [str(uid(n)) for n in range(10, 0, -1)]
+
+
+def test_cursor_from_another_api_is_rejected(client, admin, store):
+    headers, _ = admin
+    store.events = [event(1, NOW - timedelta(minutes=1))]
+    foreign = ListCursor(derive_cursor_key(TEST_SECRET)).encode("bookmarks", {}, uid(1), NOW.isoformat())
+    response = audit(client, headers, cursor=foreign)
+    assert response.status_code == 400 and response.json()["code"] == "INVALID_CURSOR"
+    other_key = ListCursor(derive_cursor_key("another-secret-0123456789-abcdefghij"))
+    forged = other_key.encode("admin-audit-events", {}, uid(1), f"{NOW.isoformat()}|{NOW.isoformat()}")
+    assert audit(client, headers, cursor=forged).status_code == 400
+
+
+def test_cursor_size_limit_is_422(client, admin):
+    headers, _ = admin
+    response = audit(client, headers, cursor="A" * 501)
+    assert response.status_code == 422 and response.json()["code"] == "VALIDATION_FAILED"
+
+
+# ---------------------------------------------------------------- STEP 05 additions: auth & personal data
+def test_expired_token_is_401_token_expired(client, admin):
+    headers, user_id = admin
+    sid = uuid.UUID(jwt.decode(headers["Authorization"][7:], options={"verify_signature": False})["sid"])
+    from app.core.security import issue_access_token
+    expired = issue_access_token(TEST_SECRET, user_id, sid, ["admin"], 900, now=NOW - timedelta(days=400))
+    for path in (AUDIT, USAGE):
+        response = client.get(path, headers=bearer(expired))
+        assert response.status_code == 401 and response.json()["code"] == "TOKEN_EXPIRED"
+
+
+def test_responses_carry_no_credentials_or_identity_text(client, admin, store):
+    headers, user_id = admin
+    store.events = [event(1, NOW - timedelta(minutes=1), actor=user_id, rtype="user", rid=user_id, req="req-x-0003")]
+    token = headers["Authorization"][7:]
+    for response in (audit(client, headers), usage(client, headers)):
+        assert token not in response.text
+        assert "set-cookie" not in {k.lower() for k in response.headers}
+        for text in ("admin@example.com", "김구직", "password", "refresh", "203.0.113."):
+            assert text not in response.text
+
+
+def test_service_logs_never_contain_filter_user_ids(client, admin, store, caplog):
+    headers, _ = admin
+    secret_actor = uuid.UUID("12345678-9abc-4def-8123-456789abcdef")
+    with caplog.at_level("DEBUG"):
+        audit(client, headers, actor_user_id=str(secret_actor))                # success
+        store.fail.add("list")
+        audit(client, headers, actor_user_id=str(secret_actor))                # 503 path
+        audit(client, headers, actor_user_id=str(secret_actor), cursor="bad")  # 400 path
+    # httpx 는 테스트 클라이언트 쪽 로그(요청 URL)다. 운영의 uvicorn/Nginx 접근 로그도 같은 URL을 남긴다 →
+    # 검증 보고서 §8 의 배포 설정 발견 사항. 여기서는 서버 애플리케이션 로그만 본다.
+    server = " | ".join(r.getMessage() for r in caplog.records if not r.name.startswith("httpx"))
+    assert any(r.name.startswith("app") for r in caplog.records), "server logs were captured"
+    assert str(secret_actor) not in server and secret_actor.hex not in server
+
+
+# ---------------------------------------------------------------- STEP 05 additions: cost
+def test_cost_sum_is_exact_decimal_rounded_to_6_places(client, admin, store):
+    headers, _ = admin
+    at = datetime(2026, 11, 2, tzinfo=UTC)
+    store.usage_records = [rec(at, cost="0.100000"), rec(at, cost="0.200000"), rec(at, cost="0.000001")]
+    body = usage(client, headers, group_by="feature_code").json()
+    assert body[0]["estimated_cost_usd"] == 0.300001, "Decimal sum, not float accumulation"
+
+
+# ---------------------------------------------------------------- known deviations from the confirmed contract
+def test_known_contract_deviations_are_exactly_two(app):
+    """확정 OpenAPI 에 없는 동작 2가지 (T06 반영 후보). 계약이 바뀌면 이 테스트를 함께 고친다."""
+    confirmed_audit = SPEC["paths"]["/admin/audit-events"]["get"]["responses"]
+    confirmed_usage = SPEC["paths"]["/admin/ai-usage"]["get"]["responses"]["200"]
+    assert "400" not in confirmed_audit and "400" in app.openapi()["paths"][AUDIT]["get"]["responses"]
+    assert "headers" not in confirmed_usage and admin_router.COST_STATUS_HEADER == "X-AI-Cost-Status"

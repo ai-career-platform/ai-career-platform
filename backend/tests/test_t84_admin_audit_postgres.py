@@ -334,3 +334,118 @@ def test_pg_usage_requires_no_write_privilege(pg):
     grants = {r[0] for r in pg.q("SELECT privilege_type FROM information_schema.role_table_grants "
                                  "WHERE grantee=%s AND table_name='ai_usage_records'", pg.role)}
     assert grants == {"SELECT"}
+
+
+# ---------------------------------------------------------------- STEP 05: cursor stability
+def walk(pg, limit, **params):
+    seen, cursor = [], None
+    while True:
+        body = audit(pg, limit=limit, **params, **({"cursor": cursor} if cursor else {})).json()
+        seen += [i["audit_event_id"] for i in body["items"]]
+        cursor = body["next_cursor"]
+        if not cursor:
+            return seen
+
+
+@pytest.mark.parametrize("limit", [1, 20])
+def test_pg_condition_a_microsecond_distinct_rows_walk_exactly(pg, limit):
+    base = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
+    insert_events(pg, [(nid(n), None, "system.x.y", "r", None, None, base + timedelta(microseconds=n))
+                       for n in range(1, 31)])
+    assert walk(pg, limit) == [str(nid(n)) for n in range(30, 0, -1)]
+
+
+def _four(pg):
+    base = datetime.now(UTC) - timedelta(hours=1)
+    insert_events(pg, [(nid(n), None, "system.x.y", "r", None, None, base - timedelta(minutes=n)) for n in range(1, 5)])
+    return base
+
+
+def test_pg_condition_b2_late_commit_in_passed_region_is_missed_in_that_walk(pg):
+    """한계(문서화): 늦게 커밋된 과거 시각 행이 이미 지난 위치면 그 순회에서 빠진다. 새 조회에서는 보인다."""
+    _four(pg)
+    late = psycopg.connect(os.environ["T16_TEST_ADMIN_URL"])
+    try:
+        late.execute("SELECT now()")                       # 트랜잭션 시작 → occurred_at 기본값 고정 (as_of 보다 이름)
+        first = audit(pg, limit=2).json()
+        late.execute("INSERT INTO career.audit_events(audit_event_id, action_code, resource_type) "
+                     "VALUES (%s, 'system.late.commit', 'r')", (nid(77),))
+        late.commit()
+    finally:
+        late.close()
+    second = audit(pg, limit=2, cursor=first["next_cursor"]).json()
+    walked = [i["audit_event_id"] for i in first["items"] + second["items"]]
+    assert str(nid(77)) not in walked and len(walked) == 4
+    assert str(nid(77)) in [i["audit_event_id"] for i in audit(pg, limit=10).json()["items"]]
+
+
+def test_pg_condition_b3_late_row_in_remaining_region_appears(pg):
+    """한계(문서화): 순회 전체가 스냅샷이 아니다 — 아직 지나지 않은 위치의 새 커밋 행은 다음 페이지에 나타난다."""
+    base = _four(pg)
+    first = audit(pg, limit=2).json()
+    insert_events(pg, [(nid(78), None, "system.x.y", "r", None, None, base - timedelta(minutes=10))])
+    second = audit(pg, limit=10, cursor=first["next_cursor"]).json()
+    assert str(nid(78)) in [i["audit_event_id"] for i in second["items"]]
+
+
+def test_pg_condition_b4_delete_during_walk_never_duplicates(pg):
+    _four(pg)
+    first = audit(pg, limit=2).json()
+    pg.db.execute("DELETE FROM career.audit_events WHERE audit_event_id=%s", (nid(4),))   # 남은 구간
+    second = audit(pg, limit=10, cursor=first["next_cursor"]).json()
+    walked = [i["audit_event_id"] for i in first["items"] + second["items"]]
+    assert walked == [str(nid(1)), str(nid(2)), str(nid(3))]
+
+
+def test_pg_condition_b5_occurred_at_update_can_duplicate_and_app_role_cannot_update(pg):
+    """0001 에는 수정 금지 트리거가 없다(T83 제안). 소유자가 시각을 바꾸면 중복이 생길 수 있음을 기록한다."""
+    _four(pg)
+    first = audit(pg, limit=2).json()
+    pg.db.execute("UPDATE career.audit_events SET occurred_at = occurred_at - interval '1 day' "
+                  "WHERE audit_event_id=%s", (nid(1),))
+    second = audit(pg, limit=10, cursor=first["next_cursor"]).json()
+    walked = [i["audit_event_id"] for i in first["items"] + second["items"]]
+    assert walked.count(str(nid(1))) == 2
+    grants = {r[0] for r in pg.q("SELECT privilege_type FROM information_schema.role_table_grants "
+                                 "WHERE grantee=%s AND table_name='audit_events'", pg.role)}
+    assert not grants & {"UPDATE", "DELETE", "TRUNCATE"}
+
+
+# ---------------------------------------------------------------- STEP 05: data safety, logs, cost
+FINGERPRINT = ("SELECT md5(coalesce(string_agg(t::text, ',' ORDER BY t::text), '')) FROM {} t")
+
+
+def fingerprint(pg):
+    return tuple(pg.q(FINGERPRINT.format(f"career.{table}"))[0][0] for table in ("audit_events", "ai_usage_records"))
+
+
+def test_pg_confirmed_requests_never_change_existing_data(pg):
+    t = datetime.now(UTC) - timedelta(hours=1)
+    insert_events(pg, [(nid(n), ADMIN, "admin.role.grant", "user", SEEKER, f"req-t84-{n:04d}", t) for n in range(1, 6)])
+    usage_rows(pg, [(kst(2, 1), ADMIN, "agent", "m", 1, 1, "0.000000"), (kst(3, 1), None, "agent", "m", 2, 2, "0.5")])
+    before = fingerprint(pg)
+    walk(pg, 2)
+    audit(pg, cursor="bad")
+    audit(pg, SEEKER)
+    for group in ("day", "feature_code", "provider_model"):
+        get(pg, USAGE, group_by=group, **{"from": "2026-11-01", "to": "2026-11-07"})
+    assert fingerprint(pg) == before
+
+
+def test_pg_sql_error_logs_hide_parameters(pg, caplog):
+    secret_actor = UUID("12345678-9abc-4def-8123-456789abcdef")
+    pg.db.execute(sql.SQL("REVOKE SELECT ON career.audit_events FROM {}").format(sql.Identifier(pg.role)))
+    client = TestClient(pg.app, base_url="https://testserver", raise_server_exceptions=False)
+    with caplog.at_level("DEBUG"):
+        response = client.get(AUDIT, headers=pg.h[ADMIN], params={**WINDOW, "actor_user_id": str(secret_actor)})
+    assert response.status_code == 500
+    server = " | ".join(r.getMessage() + str(r.exc_info or "") for r in caplog.records if not r.name.startswith("httpx"))
+    assert str(secret_actor) not in server and str(secret_actor) not in response.text
+
+
+def test_pg_cost_sum_is_exact_numeric(pg):
+    usage_rows(pg, [(kst(2, 1), None, "agent", "m", 1, 1, "0.100000"), (kst(2, 2), None, "agent", "m", 1, 1, "0.200000"),
+                    (kst(2, 3), None, "agent", "m", 1, 1, "0.000001")])
+    body = get(pg, USAGE, group_by="feature_code", **{"from": "2026-11-01", "to": "2026-11-07"}).json()
+    assert body == [{"key": "agent", "input_tokens": 3, "output_tokens": 3, "estimated_cost_usd": 0.300001,
+                     "request_count": 3}]
