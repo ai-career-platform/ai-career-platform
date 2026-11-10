@@ -1,0 +1,4 @@
+.confirm-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #0008; padding: 1rem; }
+.confirm-dialog { width: min(100%, 480px); max-height: 90dvh; overflow: auto; border-radius: 12px; padding: 1.5rem; background: var(--color-surface); box-shadow: 0 12px 48px #0004; }
+.confirm-dialog h2 { margin-top: 0; font-size: 1.15rem; }
+.confirm-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }

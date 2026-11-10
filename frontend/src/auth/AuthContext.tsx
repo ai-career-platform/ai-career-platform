@@ -12,7 +12,7 @@ async function loadUser(api: Api, token: string): Promise<AuthState> {
   return {
     status: 'authenticated',
     token,
-    user: { email: me.email, displayName: me.display_name, roles: permissions.roles },
+    user: { email: me.email, displayName: me.display_name, roles: permissions.roles, userId: me.user_id },
   };
 }
 
