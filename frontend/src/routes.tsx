@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -42,6 +43,8 @@ export const routes: RouteObject[] = [
         { path: 'me/bookmarks', element: <BookmarksPage /> },
         { path: 'me/skills', element: <MySkillsPage /> },
         { path: 'me/documents', element: <MyDocumentsPage /> },
+        // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+        { path: 'recommendations', element: <RecommendationsPage /> },
       ] },
       { path: '*', element: <NotFoundPage /> },
     ],
