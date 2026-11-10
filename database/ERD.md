@@ -1,7 +1,7 @@
 # AI Career Platform — 전체 ERD v0.2
 
 > **자동 생성 파일 — 직접 수정하지 마세요.** 원본: [DATA_DICTIONARY.md](DATA_DICTIONARY.md) · 재생성: `python3 database/model/check_data_dictionary.py --write-erd`
-> 테이블 51개, FK 76개. 영역별 그림은 영역 안의 테이블과, 다른 영역 테이블로 향하는 FK를 함께 보여줍니다.
+> 테이블 51개, FK 78개. 영역별 그림은 영역 안의 테이블과, 다른 영역 테이블로 향하는 FK를 함께 보여줍니다.
 
 ## A. 계정·인증·권한
 
@@ -461,6 +461,7 @@ erDiagram
         uuid observation_id PK
         uuid source_id FK
         uuid job_role_id FK
+        uuid skill_id FK
         date observed_on
         varchar period
         varchar metric_code
@@ -471,6 +472,7 @@ erDiagram
         uuid forecast_id PK
         uuid model_version_id FK
         uuid job_role_id FK
+        uuid skill_id FK
         date forecast_for
         varchar metric_code
         numeric predicted_value
@@ -533,8 +535,10 @@ erDiagram
     AGENT_TOOL_APPROVALS o|--o{ AGENT_TOOL_CALLS : approval_id
     DATA_SOURCES ||--o{ MARKET_OBSERVATIONS : source_id
     JOB_ROLES o|--o{ MARKET_OBSERVATIONS : job_role_id
+    SKILLS o|--o{ MARKET_OBSERVATIONS : skill_id
     MODEL_VERSIONS ||--o{ MARKET_FORECASTS : model_version_id
     JOB_ROLES o|--o{ MARKET_FORECASTS : job_role_id
+    SKILLS o|--o{ MARKET_FORECASTS : skill_id
     USERS ||--o{ BEHAVIOR_EVENTS : user_id
     MODEL_VERSIONS ||--o{ USER_SEGMENTS : model_version_id
     USERS ||--o{ USER_SEGMENT_ASSIGNMENTS : user_id

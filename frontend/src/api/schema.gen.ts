@@ -246,6 +246,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/behavior-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 동의 기반 행동 이벤트 1건 수집 (T72)
+         * @description behavior_tracking 최신 동의가 true인 사용자의 허용 이벤트만 저장한다(T71 계약). 서버 수집 스위치는 기본 꺼짐(collection_disabled). personalization 3종은 미승인 제안이라 형식만 검사하고 저장하지 않는다 (blocked_policy_pending). 같은 event_id 재전송은 저장하지 않고 duplicate. 이벤트 발생 시각이 최신 동의 시각보다 이르면 blocked_no_consent. 사용자 식별은 토큰으로만 하며 user_id를 받지 않는다.
+         */
+        post: operations["recordMyBehaviorEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/dashboard": {
         parameters: {
             query?: never;
@@ -865,7 +885,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 채용시장 지표 관측값 + 예측값 */
+        /**
+         * 채용시장 지표 관측값 + 예측값
+         * @description 지표 정의·단위·구간 규칙은 docs/data/MARKET_METRICS_CONTRACT.md (T65).
+         *     관측이 없는 구간은 observations에 넣지 않는다(0으로 채우지 않음). 관측값은 출처별로만 준다.
+         *     기간 상한: day 366일, week 157주, month 60개월. 넘으면 422.
+         */
         get: operations["getMarketTrends"];
         put?: never;
         post?: never;
@@ -1185,6 +1210,29 @@ export interface components {
             scheduled_purge_at: string | null;
             /** Format: date-time */
             completed_at: string | null;
+        };
+        /** @description T71 계약 이벤트 1건. metadata 키는 event_code별 허용 목록만, 값은 숫자·true/false·공백 없는 ID/코드 (^[A-Za-z0-9_.:-]{1,64}$)만 허용한다. 중첩 객체·배열·null·문장(검색어 원문)은 거부하고 1KB 이하. event_at은 시간대가 있어야 하며 서버 시각 기준 5분 넘는 미래·7일 넘는 과거는 422. */
+        BehaviorEventInput: {
+            /**
+             * Format: uuid
+             * @description 클라이언트 중복 요청 식별자 (UUID v4). 재시도 때 같은 값을 보낸다
+             */
+            event_id: string;
+            /** @enum {string} */
+            event_code: "page.view" | "search.submit" | "posting.view" | "role.view" | "skill_gap.view" | "posting.bookmark" | "recommendation.click" | "recommendation.dismiss";
+            event_at: components["schemas"]["Timestamp"];
+            metadata?: {
+                [key: string]: number | boolean | string;
+            } | null;
+        };
+        BehaviorEventResult: {
+            /**
+             * Format: uuid
+             * @description 요청한 클라이언트 event_id
+             */
+            event_id: string;
+            /** @enum {string} */
+            status: "recorded" | "duplicate" | "blocked_no_consent" | "blocked_policy_pending" | "collection_disabled";
         };
         Dashboard: {
             profile_completeness: number;
@@ -1581,11 +1629,38 @@ export interface components {
             upper_bound?: number | null;
         };
         MarketTrend: {
-            metric_code: string;
+            /** @enum {string} */
+            metric_code: "posting_count" | "skill_demand_share";
+            /**
+             * @description count = 건, ratio = 0~1 비율 (T65 계약 §1)
+             * @enum {string}
+             */
+            unit: "count" | "ratio";
             /** @enum {string} */
             period: "day" | "week" | "month";
-            /** @description 출처 코드 (화면에 표시) */
-            source: string;
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @description 관측값 출처 (화면에 표시). 관측값이 없으면 null */
+            source: {
+                code: string;
+                name: string;
+            } | null;
+            /** @description null = 전체 시장 */
+            job_role: {
+                /** Format: uuid */
+                job_role_id: string;
+                code: string;
+                name: string;
+            } | null;
+            /** @description skill_demand_share의 대상 기술, 그 외 null */
+            skill: {
+                /** Format: uuid */
+                skill_id: string;
+                code: string;
+                name: string;
+            } | null;
             observations: components["schemas"]["MarketPoint"][];
             /** @description 관측값과 시각적으로 구분해 표시. 범위(lower/upper) 포함 */
             forecasts: components["schemas"]["MarketPoint"][];
@@ -2402,6 +2477,75 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    recordMyBehaviorEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                 *       "event_code": "posting.view",
+                 *       "event_at": "2026-11-10T03:00:00Z",
+                 *       "metadata": {
+                 *         "job_posting_id": "jp_123",
+                 *         "list_position": 3
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["BehaviorEventInput"];
+            };
+        };
+        responses: {
+            /** @description 저장하지 않음 (duplicate, blocked_no_consent, blocked_policy_pending, collection_disabled) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                     *       "status": "blocked_no_consent"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BehaviorEventResult"];
+                };
+            };
+            /** @description 저장됨 (status=recorded) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "event_id": "3ad04800-5d47-47b4-a144-270e7e2e5f5c",
+                     *       "status": "recorded"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BehaviorEventResult"];
+                };
+            };
+            /** @description JSON 형식 오류 (code=MALFORMED_JSON) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["TooManyRequests"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -3965,10 +4109,19 @@ export interface operations {
     getMarketTrends: {
         parameters: {
             query: {
-                job_role_id?: string;
                 metric_code: "posting_count" | "skill_demand_share";
+                /** @description 시작일 (포함) */
                 from: string;
+                /** @description 종료일 (포함). from 이후 */
                 to: string;
+                /** @description 집계 단위 (KST) */
+                period?: "day" | "week" | "month";
+                /** @description 없으면 전체 시장 */
+                job_role_id?: string;
+                /** @description skill_demand_share일 때 필수, 그 외 지정하면 422 */
+                skill_id?: string;
+                /** @description 출처 코드. 없으면 데이터가 있는 출처가 하나일 때 자동 선택, 둘 이상이면 422 */
+                source?: string;
             };
             header?: never;
             path?: never;
@@ -3976,7 +4129,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 관측과 예측을 분리해 반환 */
+            /** @description 관측과 예측을 분리해 반환 (데이터가 없으면 빈 배열) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3986,6 +4139,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
         };
     };

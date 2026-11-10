@@ -137,6 +137,7 @@ Backend 구현: [`backend/app/core/exception_handlers.py`](../backend/app/core/e
 
 - 가입 때는 모든 정책에 동의를 받는다 (`SignupRequest.consents`).
 - 가입 후 `POST /me/consents`는 **선택 항목만** 받는다 (`OptionalConsentInput`: `llm_processing`, `behavior_tracking`). 필수 항목은 응답의 `is_required: true`로 표시해 화면에 변경 버튼을 두지 않는다.
+- `POST /me/behavior-events`(T72)는 `behavior_tracking` 최신 동의가 true인 사용자의 T71 허용 이벤트만 저장한다. 동의가 없거나 저장하지 않는 경우는 오류가 아니라 200 + `status`(`blocked_no_consent` 등)이고, 저장은 201 `recorded`다. 서버 수집 스위치는 기본 꺼짐이다 ([T72 문서](../backend/docs/T72_BEHAVIOR_EVENTS.md)).
 
 ### 1.9 파일 업로드·내려받기 (NFR-SEC-003)
 
@@ -366,7 +367,7 @@ Backend 구현: [`backend/app/core/exception_handlers.py`](../backend/app/core/e
 |---|---|---|
 | 기능 요구사항 | 36/37 | FR-CMN-004 공통 상태 화면: 별도 API 없이 모든 API의 공통 오류 형식으로 충족 |
 | 화면 | 29/29 | — |
-| 테이블 | 48/51 | `job_posting_external_refs`, `ingestion_runs`: 외부 공고 수집 배치 전용 (T62~T64) · `behavior_events`: 수집 API는 이벤트 계약 후 추가 (T71·T72) |
+| 테이블 | 49/51 | `job_posting_external_refs`, `ingestion_runs`: 외부 공고 수집 배치 전용 (T62~T64). `behavior_events`는 T72 `POST /me/behavior-events`로 연결 (수집 기본 꺼짐) |
 
 위 예외 목록은 검사 스크립트에 이유와 함께 들어 있으며, 예외가 아닌 항목이 빠지거나 요구사항 문서에 없는 ID를 쓰면 검사가 실패합니다.
 
@@ -400,7 +401,7 @@ python3 -B -m unittest docs/api/test_check_openapi.py -v   # 검사 스크립트
 | OpenAPI 3.1 문법·$ref | PASS (operation 74개, 스키마 85개) |
 | 예시(mock) ↔ 스키마 | 173개 모두 PASS |
 | 공통 규칙 | 오류 응답 application/json + ErrorResponse, 로그인 필요 API의 401, 관리자 API의 403, `/me`의 user_id 금지, 경로 변수 선언 — 모두 PASS |
-| 추적 | 요구사항 36/37, 화면 29/29, 테이블 48/51 (예외 이유 §4) |
+| 추적 | 요구사항 36/37, 화면 29/29, 테이블 49/51 (예외 이유 §4) |
 | 단위 테스트 | 8개 OK (정상 1 + 오류 탐지 7) |
 
 현재 CI(`ci.yml`)는 이 검사를 실행하지 않습니다 → `T06_STATUS=PARTIAL`.

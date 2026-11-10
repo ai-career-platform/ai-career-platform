@@ -1,6 +1,8 @@
 import type { RouteObject } from 'react-router';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
+import { ModerationServiceProvider } from './admin/ModerationServiceProvider';
+import { env } from './config/env';
 import { AppLayout } from './layouts/AppLayout';
 import { AccountPage } from './pages/AccountPage';
 import { PrivacySettingsPage } from './pages/PrivacySettingsPage';
@@ -10,21 +12,40 @@ import { JobExplorerPage } from './pages/JobExplorerPage';
 import { LoginPage } from './pages/LoginPage';
 import { MySkillsPage } from './pages/MySkillsPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
+import { MarketTrendsPage } from './pages/MarketTrendsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
+import { ModerationCasePage } from './pages/admin/ModerationCasePage';
+import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export const routes: RouteObject[] = [
+export type Features = { adminModerationUi: boolean };
+
+/**
+ * UI-027 관리자 검수(T82)는 기능 플래그가 켜졌을 때만 경로·메뉴가 생깁니다(기본 꺼짐, Mock 모드 전용 — env.ts).
+ * 꺼져 있으면 /admin/moderation 은 404 화면입니다. 켜져 있어도 admin 역할만 들어갑니다(RequireAuth).
+ */
+const adminRoutes = (features: Features): RouteObject[] => (features.adminModerationUi ? [
+  { element: <RequireAuth roles={['admin']} />, children: [
+    { element: <ModerationServiceProvider />, children: [
+      { path: 'admin/moderation', element: <ModerationQueuePage /> },
+      { path: 'admin/moderation/:caseId', element: <ModerationCasePage /> },
+    ] },
+  ] },
+] : []);
+
+export const buildRoutes = (features: Features = { adminModerationUi: env.adminModerationUi }): RouteObject[] => [
   {
     path: '/',
     element: (
       <AuthProvider>
-        <AppLayout />
+        <AppLayout adminModerationUi={features.adminModerationUi} />
       </AuthProvider>
     ),
     children: [
@@ -42,8 +63,15 @@ export const routes: RouteObject[] = [
         { path: 'me/bookmarks', element: <BookmarksPage /> },
         { path: 'me/skills', element: <MySkillsPage /> },
         { path: 'me/documents', element: <MyDocumentsPage /> },
+        // UI-017 맞춤 추천 (F-017). 카드의 공고 상세 링크 /job-postings/:id 화면은 T24 범위입니다.
+        { path: 'recommendations', element: <RecommendationsPage /> },
+        // UI-024 채용시장 추세 (F-024). T67 GET /api/v1/market-trends 는 로그인 사용자만 조회합니다.
+        { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
+      ...adminRoutes(features),
       { path: '*', element: <NotFoundPage /> },
     ],
   },
 ];
+
+export const routes: RouteObject[] = buildRoutes();

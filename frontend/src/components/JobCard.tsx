@@ -13,7 +13,13 @@ export type JobCardData = {
   tone: CardTone;
 };
 
-export function JobCard({ job }: { job: JobCardData }) {
+type JobCardProps = {
+  job: JobCardData;
+  /** tags 목록의 접근성 이름. 기술이 아닌 값을 넣을 때 바꿉니다. */
+  tagsLabel?: string;
+};
+
+export function JobCard({ job, tagsLabel = '관련 기술' }: JobCardProps) {
   return (
     <article className="home-job-card">
       <div className={`job-visual job-visual--${job.tone}`}>
@@ -25,9 +31,11 @@ export function JobCard({ job }: { job: JobCardData }) {
         <p className="job-company">{job.company}</p>
         <h3>{job.title}</h3>
         <p className="job-detail">{job.detail}</p>
-        <ul className="job-tags" aria-label="관련 기술">
-          {job.tags.map((tag) => <li key={tag}>{tag}</li>)}
-        </ul>
+        {job.tags.length > 0 && (
+          <ul className="job-tags" aria-label={tagsLabel}>
+            {job.tags.map((tag) => <li key={tag}>{tag}</li>)}
+          </ul>
+        )}
       </div>
     </article>
   );

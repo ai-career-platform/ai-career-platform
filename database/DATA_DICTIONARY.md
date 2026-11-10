@@ -909,18 +909,23 @@
 | observation_id | uuid | N | gen_random_uuid() | PK | |
 | source_id | uuid | N | | FK → data_sources.source_id (RESTRICT) | 출처 표시 (FR-ANL-005 수용 기준 2) |
 | job_role_id | uuid | Y | | FK → job_roles.job_role_id (RESTRICT) | NULL = 전체 시장 |
-| observed_on | date | N | | | |
+| skill_id | uuid | Y | | FK → skills.skill_id (RESTRICT) | `skill_demand_share` 전용 기술 차원, 다른 지표는 NULL (T65, migration 0003) |
+| observed_on | date | N | | | 집계 구간 시작일 (KST, 주=월요일, 월=1일) |
 | period | varchar(10) | N | | | `day` / `week` / `month` |
-| metric_code | varchar(80) | N | | | 예: `posting_count` |
-| metric_value | numeric | N | | | |
+| metric_code | varchar(80) | N | | | `posting_count` / `skill_demand_share` ([T65 계약](../docs/data/MARKET_METRICS_CONTRACT.md)) |
+| metric_value | numeric | N | | | 단위는 지표별 계약 (건 / 0~1 비율) |
 | created_at | timestamptz | N | now() | | |
 
 제약:
 - `CHECK (period IN ('day', 'week', 'month'))`
+- `CHECK ((metric_code = 'skill_demand_share') = (skill_id IS NOT NULL))`
+- `CHECK ((metric_code <> 'posting_count' OR (metric_value >= 0 AND metric_value = trunc(metric_value))) AND (metric_code <> 'skill_demand_share' OR metric_value BETWEEN 0 AND 1))`
 
 인덱스:
-- `UNIQUE (source_id, job_role_id, metric_code, period, observed_on)`
+- `UNIQUE (source_id, job_role_id, metric_code, period, observed_on) WHERE skill_id IS NULL`
 - `(job_role_id, metric_code, observed_on)`
+- `UNIQUE (source_id, job_role_id, skill_id, metric_code, period, observed_on) WHERE skill_id IS NOT NULL`
+- `(skill_id, metric_code, observed_on)`
 
 ### F06 `market_forecasts`
 - 요구사항: FR-ANL-005
@@ -931,6 +936,7 @@
 | forecast_id | uuid | N | gen_random_uuid() | PK | |
 | model_version_id | uuid | N | | FK → model_versions.model_version_id (RESTRICT) | |
 | job_role_id | uuid | Y | | FK → job_roles.job_role_id (RESTRICT) | |
+| skill_id | uuid | Y | | FK → skills.skill_id (RESTRICT) | `skill_demand_share` 예측 전용, 다른 지표는 NULL (T65, migration 0003) |
 | forecast_for | date | N | | | |
 | metric_code | varchar(80) | N | | | |
 | predicted_value | numeric | N | | | |
@@ -940,10 +946,12 @@
 
 제약:
 - `CHECK (lower_bound IS NULL OR upper_bound IS NULL OR lower_bound <= upper_bound)`
+- `CHECK ((metric_code = 'skill_demand_share') = (skill_id IS NOT NULL))`
 
 인덱스:
 - `(model_version_id)`
 - `(job_role_id, metric_code, forecast_for)`
+- `(skill_id, metric_code, forecast_for)`
 
 ### F07 `behavior_events`
 - 요구사항: FR-ADM-006, NFR-PRV-001, NFR-PRV-002

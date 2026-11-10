@@ -425,6 +425,52 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /me/behavior-events:
+    post:
+      tags: [me]
+      operationId: recordMyBehaviorEvent
+      summary: 동의 기반 행동 이벤트 1건 수집 (T72)
+      description: >-
+        behavior_tracking 최신 동의가 true인 사용자의 허용 이벤트만 저장한다(T71 계약). 서버 수집 스위치는
+        기본 꺼짐(collection_disabled). personalization 3종은 미승인 제안이라 형식만 검사하고 저장하지 않는다
+        (blocked_policy_pending). 같은 event_id 재전송은 저장하지 않고 duplicate. 이벤트 발생 시각이 최신 동의
+        시각보다 이르면 blocked_no_consent. 사용자 식별은 토큰으로만 하며 user_id를 받지 않는다.
+      x-implementation-status: PARTIAL
+      x-requirements: [FR-ADM-006, NFR-PRV-001]
+      x-screens: [UI-025]
+      x-tables: [behavior_events, user_consents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BehaviorEventInput' }
+            example:
+              event_id: 3ad04800-5d47-47b4-a144-270e7e2e5f5c
+              event_code: posting.view
+              event_at: '2026-11-10T03:00:00Z'
+              metadata: { job_posting_id: jp_123, list_position: 3 }
+      responses:
+        '201':
+          description: 저장됨 (status=recorded)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BehaviorEventResult' }
+              example: { event_id: 3ad04800-5d47-47b4-a144-270e7e2e5f5c, status: recorded }
+        '200':
+          description: 저장하지 않음 (duplicate, blocked_no_consent, blocked_policy_pending, collection_disabled)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BehaviorEventResult' }
+              example: { event_id: 3ad04800-5d47-47b4-a144-270e7e2e5f5c, status: blocked_no_consent }
+        '400':
+          description: JSON 형식 오류 (code=MALFORMED_JSON)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /me/dashboard:
     get:
       tags: [me]
@@ -1532,22 +1578,30 @@ paths:
       summary: 채용시장 지표 관측값 + 예측값
       x-requirements: [FR-ANL-005]
       x-screens: [UI-024]
-      x-tables: [market_observations, market_forecasts, data_sources, model_versions, job_roles]
+      x-tables: [market_observations, market_forecasts, data_sources, model_versions, job_roles, skills]
+      description: |
+        지표 정의·단위·구간 규칙은 docs/data/MARKET_METRICS_CONTRACT.md (T65).
+        관측이 없는 구간은 observations에 넣지 않는다(0으로 채우지 않음). 관측값은 출처별로만 준다.
+        기간 상한: day 366일, week 157주, month 60개월. 넘으면 422.
       parameters:
-        - { name: job_role_id, in: query, schema: { type: string, format: uuid } }
         - name: metric_code
           in: query
           required: true
           schema: { type: string, enum: [posting_count, skill_demand_share] }
-        - { name: from, in: query, required: true, schema: { type: string, format: date } }
-        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: from, in: query, required: true, description: '시작일 (포함)', schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, description: '종료일 (포함). from 이후', schema: { type: string, format: date } }
+        - { name: period, in: query, description: '집계 단위 (KST)', schema: { type: string, enum: [day, week, month], default: week } }
+        - { name: job_role_id, in: query, description: '없으면 전체 시장', schema: { type: string, format: uuid } }
+        - { name: skill_id, in: query, description: 'skill_demand_share일 때 필수, 그 외 지정하면 422', schema: { type: string, format: uuid } }
+        - { name: source, in: query, description: '출처 코드. 없으면 데이터가 있는 출처가 하나일 때 자동 선택, 둘 이상이면 422', schema: { type: string, minLength: 1, maxLength: 80 } }
       responses:
         '200':
-          description: 관측과 예측을 분리해 반환
+          description: 관측과 예측을 분리해 반환 (데이터가 없으면 빈 배열)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MarketTrend' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
   # ------------------------------------------------------------------ admin
@@ -2113,6 +2167,38 @@ components:
         requested_at: { $ref: '#/components/schemas/Timestamp' }
         scheduled_purge_at: { type: [string, 'null'], format: date-time, description: '삭제 정책 미확정이면 null; 자동 삭제를 뜻하지 않음' }
         completed_at: { type: [string, 'null'], format: date-time }
+    BehaviorEventInput:
+      type: object
+      additionalProperties: false
+      description: >-
+        T71 계약 이벤트 1건. metadata 키는 event_code별 허용 목록만, 값은 숫자·true/false·공백 없는 ID/코드
+        (^[A-Za-z0-9_.:-]{1,64}$)만 허용한다. 중첩 객체·배열·null·문장(검색어 원문)은 거부하고 1KB 이하.
+        event_at은 시간대가 있어야 하며 서버 시각 기준 5분 넘는 미래·7일 넘는 과거는 422.
+      required: [event_id, event_code, event_at]
+      properties:
+        event_id: { type: string, format: uuid, description: '클라이언트 중복 요청 식별자 (UUID v4). 재시도 때 같은 값을 보낸다' }
+        event_code:
+          type: string
+          enum: [page.view, search.submit, posting.view, role.view, skill_gap.view,
+                 posting.bookmark, recommendation.click, recommendation.dismiss]
+        event_at: { $ref: '#/components/schemas/Timestamp' }
+        metadata:
+          type: [object, 'null']
+          maxProperties: 10
+          additionalProperties:
+            anyOf:
+              - { type: number }
+              - { type: boolean }
+              - { type: string, pattern: '^[A-Za-z0-9_.:-]{1,64}$' }
+    BehaviorEventResult:
+      type: object
+      additionalProperties: false
+      required: [event_id, status]
+      properties:
+        event_id: { type: string, format: uuid, description: 요청한 클라이언트 event_id }
+        status:
+          type: string
+          enum: [recorded, duplicate, blocked_no_consent, blocked_policy_pending, collection_disabled]
     Dashboard:
       type: object
       additionalProperties: false
@@ -2724,11 +2810,45 @@ components:
     MarketTrend:
       type: object
       additionalProperties: false
-      required: [metric_code, period, source, observations, forecasts, forecast_model]
+      required: [metric_code, unit, period, from, to, source, job_role, skill, observations, forecasts, forecast_model]
       properties:
-        metric_code: { type: string }
+        metric_code: { type: string, enum: [posting_count, skill_demand_share] }
+        unit: { type: string, enum: [count, ratio], description: 'count = 건, ratio = 0~1 비율 (T65 계약 §1)' }
         period: { type: string, enum: [day, week, month] }
-        source: { type: string, description: '출처 코드 (화면에 표시)' }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        source:
+          description: 관측값 출처 (화면에 표시). 관측값이 없으면 null
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [code, name]
+              properties:
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
+        job_role:
+          description: null = 전체 시장
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [job_role_id, code, name]
+              properties:
+                job_role_id: { type: string, format: uuid }
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
+        skill:
+          description: skill_demand_share의 대상 기술, 그 외 null
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [skill_id, code, name]
+              properties:
+                skill_id: { type: string, format: uuid }
+                code: { type: string }
+                name: { type: string }
+            - { type: 'null' }
         observations:
           type: array
           items: { $ref: '#/components/schemas/MarketPoint' }

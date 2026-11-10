@@ -1,8 +1,9 @@
 """T31 uses the same request-scoped T14 Session and existing career tables."""
 from uuid import UUID
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 from app.models.auth import User, UserConsent, ConsentPolicy, AuthSession, AccountDeletionRequest
+from app.models.behavior import BehaviorEvent
 from app.repositories.auth import SqlAuthRepository
 from app.schemas.privacy import Consent, DeletionRequest
 
@@ -43,6 +44,12 @@ class SqlPrivacyRepository:
         self.session.add(row)
         self.session.flush()
         return self.consent_dto(row, False)
+
+    def delete_behavior_events(self, user_id, event_codes):
+        """T72/T71 §6: 철회와 같은 트랜잭션에서 그 정책으로 모은 이벤트를 지운다(lock_user 이후 호출)."""
+        result = self.session.execute(delete(BehaviorEvent).where(
+            BehaviorEvent.user_id == user_id, BehaviorEvent.event_code.in_(sorted(event_codes))))
+        return result.rowcount
 
     def get_deletion(self, user_id):
         row = self.session.scalar(select(AccountDeletionRequest).where(
