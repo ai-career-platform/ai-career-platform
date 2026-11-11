@@ -29,6 +29,8 @@ describe('admin audit routes', () => {
     const router = open('/login', false);
     await login('admin@example.com');
     await screen.findByRole('link', { name: '운영 관리자' });
+    // 로그인 직후 /account 전환이 끝나야 이후 경로 이동을 덮어쓰지 않는다.
+    await screen.findByRole('heading', { name: '내 계정' });
     for (const path of ['/admin/audit-events', '/admin/ai-usage']) {
       await router.navigate(path);
       expect(await screen.findByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
