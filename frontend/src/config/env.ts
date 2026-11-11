@@ -33,4 +33,6 @@ export const env = {
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
   /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /** T143 내 데이터 내려받기: Mock 전용, 기본 비활성(T141 정책·T142 저장소 미승인) */
+  personalDataUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
 } as const;

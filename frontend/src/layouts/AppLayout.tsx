@@ -10,8 +10,8 @@ const homeLinks = [
   { href: '#companies', label: '기업 탐색' },
 ];
 
-export function AppLayout({ adminModerationUi = false, adminAuditUi = false, notificationsUi = false, applicationsUi = false, companyConsoleUi = false, publicPortfolioUi = false }: {
-  adminModerationUi?: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; publicPortfolioUi?: boolean;
+export function AppLayout({ adminModerationUi = false, adminAuditUi = false, notificationsUi = false, applicationsUi = false, companyConsoleUi = false, publicPortfolioUi = false, personalDataUi = false }: {
+  adminModerationUi?: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean;
 }) {
   const { pathname } = useLocation();
   const isHome = pathname === '/';
@@ -25,6 +25,7 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
   const showApplications = applicationsUi && state.status === 'authenticated';
   const showCompany = companyConsoleUi && state.status === 'authenticated';
   const showPortfolio = publicPortfolioUi && state.status === 'authenticated';
+  const showPersonalData = personalDataUi && state.status === 'authenticated';
   const authLink =
     state.status === 'authenticated' ? (
       <NavLink to="/account">{state.user.displayName}</NavLink>
@@ -66,6 +67,7 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
               {showApplications && <NavLink to="/me/applications">지원 현황 (Mock)</NavLink>}
               {showCompany && <NavLink to="/company">기업 콘솔 (Mock)</NavLink>}
               {showPortfolio && <NavLink to="/me/public-profile">공개 포트폴리오 (Mock)</NavLink>}
+              {showPersonalData && <NavLink to="/me/data">내 데이터 내려받기 (Mock)</NavLink>}
               {showModeration && <NavLink to="/admin/moderation">콘텐츠 검수 (Mock)</NavLink>}
               {showAudit && <NavLink to="/admin/audit-events">운영 감사 (Mock)</NavLink>}
               {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용 (Mock)</NavLink>}

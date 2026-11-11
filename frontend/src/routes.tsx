@@ -37,12 +37,14 @@ import { CompanyConsolePage } from './pages/CompanyConsolePage';
 import { CompanyInvitationAcceptPage } from './pages/CompanyInvitationAcceptPage';
 import { PostingServiceProvider } from './company/PostingServiceProvider';
 import { CompanyPostingsPage } from './pages/CompanyPostingsPage';
+import { PersonalDataServiceProvider } from './personal/PersonalDataServiceProvider';
+import { MyDataPage } from './pages/MyDataPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -94,6 +96,15 @@ const portfolioRoutes = (features: Features): RouteObject[] => (features.publicP
   ] },
 ] : []);
 
+/** T143 내 데이터 내려받기: Mock 전용, 로그인 사용자만 */
+const personalDataRoutes = (features: Features): RouteObject[] => (features.personalDataUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <PersonalDataServiceProvider />, children: [
+      { path: 'me/data', element: <MyDataPage /> },
+    ] },
+  ] },
+] : []);
+
 /** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
 const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
   { element: <RequireAuth />, children: [
@@ -118,7 +129,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi, personalDataUi: env.personalDataUi,
   },
 ): RouteObject[] => [
   {
@@ -127,7 +138,8 @@ export const buildRoutes = (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
           notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
-          companyConsoleUi={features.companyConsoleUi ?? false} publicPortfolioUi={features.publicPortfolioUi ?? false} />
+          companyConsoleUi={features.companyConsoleUi ?? false} publicPortfolioUi={features.publicPortfolioUi ?? false}
+          personalDataUi={features.personalDataUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -155,6 +167,7 @@ export const buildRoutes = (
       ...notificationRoutes(features),
       ...applicationRoutes(features),
       ...portfolioRoutes(features),
+      ...personalDataRoutes(features),
       ...companyRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
