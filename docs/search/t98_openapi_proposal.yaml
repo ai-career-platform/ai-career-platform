@@ -1,0 +1,76 @@
+# T98 OpenAPI proposal — PROPOSED / NOT APPROVED. NOT part of docs/api/openapi.yaml.
+# Replaces the parameter list of GET /job-postings (listJobPostings). Backward compatible: a single company_id/job_role_id
+# value is still valid (array of one). Checked by docs/search/test_t98_search_contract.py (merged in memory).
+paths:
+  /job-postings:
+    get:
+      tags: [catalog]
+      operationId: listJobPostings
+      summary: 채용공고 목록·고급 필터 (기본은 게시 중인 공고만)
+      x-requirements: [FR-JOB-005]
+      x-screens: [UI-012, UI-011]
+      x-tables: [job_postings, companies, job_roles]
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          description: 제목 또는 기업명 부분 일치(대소문자 무시). 앞뒤 공백 제거 후 1~100자. %·_·\ 는 문자 그대로
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: company_id
+          in: query
+          style: form
+          explode: true
+          description: 여러 개면 OR. 중복은 무시, 최대 10개
+          schema: { type: array, maxItems: 10, items: { type: string, format: uuid } }
+        - name: job_role_id
+          in: query
+          style: form
+          explode: true
+          description: 여러 개면 OR. 최대 10개
+          schema: { type: array, maxItems: 10, items: { type: string, format: uuid } }
+        - name: employment_type
+          in: query
+          style: form
+          explode: true
+          description: 여러 개면 OR. 고용형태가 없는(NULL) 공고는 이 필터를 쓰면 제외
+          schema: { type: array, maxItems: 4, items: { type: string, enum: [full_time, contract, intern, part_time] } }
+        - name: region
+          in: query
+          style: form
+          explode: true
+          description: 시·도 코드. location_text 첫 단어로 판정한 **파생값**(원천에 구조화된 지역 없음). 근무지 없는 공고는 제외
+          schema: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/RegionCode' } }
+        - name: posted_within
+          in: query
+          description: 게시일이 요청 시각 기준 이 기간 안 (published_at >= now - 기간)
+          schema: { type: string, enum: [1d, 3d, 7d, 30d] }
+        - name: include_closed
+          in: query
+          description: true면 마감 공고 포함 (FR-JOB-005 수용 기준 2)
+          schema: { type: boolean, default: false }
+        - name: sort
+          in: query
+          description: -published_at(최신 게시순, 동률 id 내림차순) | expires_at(마감 임박순, 마감일 없음은 맨 뒤, 동률 id 오름차순)
+          schema: { type: string, enum: [-published_at, expires_at], default: -published_at }
+        - { $ref: '#/components/parameters/Limit' }
+        - name: cursor
+          in: query
+          description: 이전 응답의 next_cursor 그대로. 정렬·필터(정규화 후)가 다르면 400 INVALID_CURSOR
+          schema: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: 공고 목록. 결과가 없으면 items=[] · next_cursor=null (오류 아님)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobPostingPage' }
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+components:
+  schemas:
+    RegionCode:
+      type: string
+      description: 시·도 17개. 별칭은 docs/search/T98_ADVANCED_SEARCH_CONTRACT.md §4
+      enum: [seoul, busan, daegu, incheon, gwangju, daejeon, ulsan, sejong, gyeonggi, gangwon, chungbuk, chungnam,
+             jeonbuk, jeonnam, gyeongbuk, gyeongnam, jeju]
