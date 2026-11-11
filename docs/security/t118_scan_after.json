@@ -1,0 +1,106 @@
+{
+ "scanner": "pip-audit 2.9.0 (PyPI/OSV), severity from api.osv.dev",
+ "scanned_at": "2026-11-11",
+ "input": "backend/requirements-dev.txt after PyJWT 2.15.0 / python-multipart 0.0.31 / pytest 9.0.3",
+ "rows": [
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-161",
+   "aliases": [
+    "GHSA-86qp-5c8j-p5mr",
+    "X41-2026-002",
+    "CVE-2026-48710"
+   ],
+   "fix": [
+    "1.0.1"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette has missing Host header validation that poisons request.url.path, bypassing path-based security chec"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-249",
+   "aliases": [
+    "GHSA-82w8-qh3p-5jfq",
+    "CVE-2026-54283"
+   ],
+   "fix": [
+    "1.3.1"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette: request.form() limits silently ignored for application/x-www-form-urlencoded enable DoS"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-248",
+   "aliases": [
+    "GHSA-jp82-jpqv-5vv3",
+    "CVE-2026-54282"
+   ],
+   "fix": [
+    "1.3.0"
+   ],
+   "severity": "LOW",
+   "summary": "Starlette: Unvalidated request path concatenated into authority poisons request.url.hostname"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-1942",
+   "aliases": [
+    "CVE-2025-62727",
+    "GHSA-7f5h-v6xp-fcq8"
+   ],
+   "fix": [
+    "0.49.1"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette vulnerable to O(n^2) DoS via Range header merging in ``starlette.responses.FileResponse``"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-1941",
+   "aliases": [
+    "GHSA-2c2j-9gv5-cj73",
+    "CVE-2025-54121"
+   ],
+   "fix": [
+    "0.47.2"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette has possible denial-of-service vector when parsing large files in multipart forms"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-2281",
+   "aliases": [
+    "GHSA-wqp7-x3pw-xc5r",
+    "CVE-2026-48818"
+   ],
+   "fix": [
+    "1.1.0"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette: SSRF and NTLM credential theft via UNC paths in StaticFiles on Windows"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-2280",
+   "aliases": [
+    "GHSA-x746-7m8f-x49c",
+    "CVE-2026-48817"
+   ],
+   "fix": [
+    "1.1.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette: Arbitrary HTTP method dispatched to `HTTPEndpoint` attributes via `getattr`"
+  }
+ ]
+}
