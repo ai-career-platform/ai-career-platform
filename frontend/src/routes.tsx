@@ -32,12 +32,14 @@ import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
 import { CompanyServiceProvider } from './company/CompanyServiceProvider';
 import { CompanyConsolePage } from './pages/CompanyConsolePage';
 import { CompanyInvitationAcceptPage } from './pages/CompanyInvitationAcceptPage';
+import { PostingServiceProvider } from './company/PostingServiceProvider';
+import { CompanyPostingsPage } from './pages/CompanyPostingsPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -69,8 +71,12 @@ const notificationRoutes = (features: Features): RouteObject[] => (features.noti
 const companyRoutes = (features: Features): RouteObject[] => (features.companyConsoleUi ? [
   { element: <RequireAuth />, children: [
     { element: <CompanyServiceProvider />, children: [
-      { path: 'company', element: <CompanyConsolePage /> },
+      { path: 'company', element: <CompanyConsolePage postingsUi={features.companyPostingsUi ?? false} /> },
       { path: 'company-invitations/accept', element: <CompanyInvitationAcceptPage /> },
+      // T127 공고 관리: 같은 기업 Mock 을 쓰도록 CompanyServiceProvider 안쪽
+      ...(features.companyPostingsUi ? [{ element: <PostingServiceProvider />, children: [
+        { path: 'company/postings', element: <CompanyPostingsPage /> },
+      ] }] : []),
     ] },
   ] },
 ] : []);
@@ -99,7 +105,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi,
   },
 ): RouteObject[] => [
   {

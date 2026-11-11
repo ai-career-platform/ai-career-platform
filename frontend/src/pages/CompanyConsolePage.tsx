@@ -217,7 +217,7 @@ function Invitations({ orgId, active }: { orgId: string; active: boolean }) {
   );
 }
 
-export function CompanyConsolePage() {
+export function CompanyConsolePage({ postingsUi = false }: { postingsUi?: boolean }) {
   const service = useCompanyService();
   const { state } = useAuth();
   const navigate = useNavigate();
@@ -265,6 +265,7 @@ export function CompanyConsolePage() {
               {current.organization.status === 'pending' && (
                 <p className="company-notice" role="note">운영 확인 대기 중입니다. 확인 전에는 초대할 수 없고, 공고는 초안만 쓸 수 있습니다.</p>
               )}
+              {postingsUi && <Link to={`/company/postings?org=${current.organization.organization_id}`}>공고 관리 (T127)</Link>}
               <Members orgId={current.organization.organization_id} myRole={current.role} me={me} onLeft={left} />
               {current.role === 'owner'
                 ? <Invitations orgId={current.organization.organization_id} active={current.organization.status === 'active'} />

@@ -119,7 +119,8 @@ function sources(dir: string): string[] {
     return /\.tsx$/.test(name) && !/\.test\.tsx$/.test(name) ? [path] : [];
   });
 }
-const LINK = /(?:to|href)=\{?["'`](\/[A-Za-z0-9/_:#-]*)["'`]/g;
+// 쿼리 문자열이 붙은 링크(`/company/postings?org=${id}`)도 경로 부분을 진입점으로 셉니다(T127)
+const LINK = /(?:to|href)=\{?["'`](\/[A-Za-z0-9/_:#-]*)["'`?]/g;
 const linkTargets = () => new Set(sources(SRC).flatMap((file) => [...readFileSync(file, 'utf8').matchAll(LINK)].map((m) => m[1]!)));
 function routePaths(): string[] {
   const text = readFileSync(join(SRC, 'routes.tsx'), 'utf8');
