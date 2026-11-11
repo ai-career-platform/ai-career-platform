@@ -23,7 +23,6 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
   // T97 알림함: 기능 플래그(Mock 전용)가 켜져 있고 로그인했을 때만
   const showNotifications = notificationsUi && state.status === 'authenticated';
   const showApplications = applicationsUi && state.status === 'authenticated';
-  // T124 기업 콘솔: 플래그(Mock 전용) + 로그인. 조직 권한은 화면 안에서 판단
   const showCompany = companyConsoleUi && state.status === 'authenticated';
   const authLink =
     state.status === 'authenticated' ? (

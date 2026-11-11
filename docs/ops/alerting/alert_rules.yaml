@@ -1,0 +1,55 @@
+# T113 경보 규칙 — PROPOSED 임계값(실측 기준선 없음, T119 에서 재조정). 운영 채널·수신자 미정(승인 필요).
+# kind: health_down | error_rate | latency | count | budget | staleness
+# inhibited_by: 원인 경보가 울리는 중이면 이 경보는 알리지 않음(같은 장애 중복 억제).
+# for_checks: 연속 몇 번 조건을 만족해야 FIRING 인지(일시적 흔들림 억제). 점검 주기 1분 가정.
+rules:
+  - id: A-DB-DOWN
+    severity: critical
+    kind: health_down
+    params: { probe: health_db }
+    for_checks: 2
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r1-db
+  - id: A-API-DOWN
+    severity: critical
+    kind: health_down
+    params: { probe: health }
+    for_checks: 2
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r2-api
+  - id: A-API-5XX
+    severity: critical
+    kind: error_rate
+    params: { threshold: 0.05, min_requests: 20 }
+    for_checks: 3
+    inhibited_by: [A-DB-DOWN, A-API-DOWN]
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r2-api
+  - id: A-API-LATENCY
+    severity: warning
+    kind: latency
+    params: { p95_ms: 1000, min_requests: 20 }
+    for_checks: 5
+    inhibited_by: [A-DB-DOWN, A-API-DOWN]
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r2-api
+  - id: A-AI-PROVIDER
+    severity: warning
+    kind: count
+    params: { field: dependency_errors, threshold: 5 }
+    for_checks: 1
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r3-ai
+  - id: A-AI-BUDGET-80
+    severity: warning
+    kind: budget
+    params: { ratio: 0.8 }
+    for_checks: 1
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r4-budget
+  - id: A-AI-BUDGET-100
+    severity: critical
+    kind: budget
+    params: { ratio: 1.0 }
+    for_checks: 1
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r4-budget
+  - id: A-BACKUP-STALE
+    severity: warning
+    kind: staleness
+    params: { max_age_hours: 24 }
+    for_checks: 1
+    runbook: docs/ops/INCIDENT_RUNBOOK.md#r5-backup
