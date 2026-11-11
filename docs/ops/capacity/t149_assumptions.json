@@ -1,0 +1,49 @@
+{
+  "status": "PROPOSED",
+  "readme": "Every number has a basis: measured (local synthetic measurement or code constant), estimated (assumption, no real data) or proposed (target awaiting PM approval). Scenario user counts are planning cases, not forecasts.",
+  "scenarios": [
+    {"name": "poc", "users_start": 20, "users_month12": 100, "note": "current learning PoC (T10 seed has 20 users)"},
+    {"name": "class", "users_start": 100, "users_month12": 1000, "note": "one cohort of learners using it actively"},
+    {"name": "growth", "users_start": 1000, "users_month12": 10000, "note": "stress case to see what breaks first"}
+  ],
+  "activity_per_user_month": {
+    "behavior_events": {"value": 300, "basis": "estimated", "note": "about 10 tracked actions per active day; T71/T72 consent-gated events, no real traffic measured"},
+    "audit_events": {"value": 30, "basis": "estimated", "note": "login, profile, document, consent changes; T83"},
+    "ai_usage_records": {"value": 20, "basis": "estimated", "note": "same as ai.calls_per_user_month"},
+    "auth_sessions": {"value": 15, "basis": "estimated", "note": "one refresh session per login, rows kept until purge (purge policy undecided)"},
+    "recommendation_runs": {"value": 4, "basis": "estimated", "note": "weekly recommendation refresh"},
+    "recommendation_items": {"value": 40, "basis": "estimated", "note": "10 items per run"}
+  },
+  "per_user_static": {
+    "user_skills": {"value": 5, "basis": "estimated", "note": "T147 factory uses 3; T34 users typically list more"},
+    "documents": {"value": 2, "basis": "estimated", "note": "one resume and one portfolio (T49)"}
+  },
+  "storage": {
+    "document_avg_bytes": {"value": 350000, "basis": "estimated", "note": "typical PDF resume; upload limit is 10 MiB (measured from code: document_validation.MAX_FILE_BYTES)"},
+    "max_disk_utilization": {"value": 0.7, "basis": "proposed", "note": "plan disk so that projected data uses at most 70% (alert at 70%, critical at 85%)"}
+  },
+  "crawler": {
+    "new_postings_per_day": {"value": 200, "basis": "estimated", "note": "6 seed keywords x about 33 new postings; live collection is HOLD (T61), fixture night run produced 28 postings"},
+    "pages_per_posting": {"value": 1.05, "basis": "estimated", "note": "one detail page plus one list page shared by about 20 postings (T152 stores both)"},
+    "html_bytes_per_page": {"value": 150000, "basis": "estimated", "note": "no real page stored; synthetic fixture is 1,343 B; storage cap is 2,000,000 B (measured from code: raw_artifact_store.MAX_HTML_BYTES)"},
+    "raw_retention_days": {"value": 30, "basis": "proposed", "note": "raw HTML is only for re-parsing; T152 retention not approved"},
+    "skills_per_posting": {"value": 4, "basis": "estimated", "note": "T147 factory rule"},
+    "companies": {"value": 2000, "basis": "estimated", "note": "distinct employers seen in a year"},
+    "company_postings_total": {"value": 0, "basis": "proposed", "note": "T126 company postings API is flag-off"}
+  },
+  "logs": {
+    "requests_per_user_day": {"value": 20, "basis": "estimated", "note": "API calls per user per calendar day, averaged over all users"},
+    "bytes_per_line": {"value": 400, "basis": "estimated", "note": "app.access line measured at 135-144 B (T112 format); Nginx proposed format line assumed about 260 B"},
+    "retention_days": {"value": 30, "basis": "proposed", "note": "T112 proposal; access logs carry no query string"}
+  },
+  "backup": {
+    "copies": {"value": 14, "basis": "proposed", "note": "T114 retention-plan defaults: 7 daily + 4 weekly + 3 monthly"}
+  },
+  "ai": {
+    "calls_per_user_month": {"value": 20, "basis": "estimated", "note": "document analysis + Q&A; T110 (AI ops) NOT_STARTED, no real usage"},
+    "input_tokens_per_call": {"value": 2000, "basis": "estimated", "note": "document chunk + prompt"},
+    "output_tokens_per_call": {"value": 500, "basis": "estimated", "note": "short answer or extraction"},
+    "usd_per_million_input": {"value": 3.0, "basis": "estimated", "note": "placeholder unit price, not a quote; model and contract undecided"},
+    "usd_per_million_output": {"value": 15.0, "basis": "estimated", "note": "placeholder unit price, not a quote; model and contract undecided"}
+  }
+}

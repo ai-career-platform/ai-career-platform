@@ -1,0 +1,1119 @@
+{
+  "tool": "t149_capacity measure",
+  "basis": "measured",
+  "data": "synthetic only (T10 seed + T147 factory + scripts/ops/t149_activity_rows.sql)",
+  "environment": {
+    "postgresql": "18.6 (local disposable cluster, Windows)",
+    "pg_dump": "pg_dump (PostgreSQL) 18.6",
+    "base_main_sha": "822fa16660afdaa5ad099f059b244216332becf1",
+    "migrations": [
+      "0001",
+      "0002",
+      "0003"
+    ],
+    "measured_at": "2026-11-11"
+  },
+  "notes": [
+    "sizes are pg_total_relation_size (heap + indexes + TOAST) after ANALYZE; not Staging or production",
+    "dump_bytes: pg_dump -Fc --no-owner --no-privileges (same options as T114), dump deleted after measuring"
+  ],
+  "runs": [
+    {
+      "label": "s0",
+      "database": "t149_local_s0",
+      "database_bytes": 11761343,
+      "career_bytes": 2301952,
+      "career_rows": 958,
+      "tables": {
+        "account_deletion_requests": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_tool_approvals": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "agent_tool_calls": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ai_usage_records": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "anomaly_events": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "audit_events": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "auth_identities": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "behavior_events": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "companies": {
+          "rows": 20,
+          "total_bytes": 81920,
+          "bytes_per_row": 4096.0
+        },
+        "consent_policies": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "data_sources": {
+          "rows": 1,
+          "total_bytes": 81920,
+          "bytes_per_row": 81920.0
+        },
+        "document_analyses": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "document_chunks": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ingestion_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "job_posting_external_refs": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "job_posting_skills": {
+          "rows": 400,
+          "total_bytes": 122880,
+          "bytes_per_row": 307.2
+        },
+        "job_postings": {
+          "rows": 100,
+          "total_bytes": 139264,
+          "bytes_per_row": 1392.6
+        },
+        "job_role_skills": {
+          "rows": 150,
+          "total_bytes": 81920,
+          "bytes_per_row": 546.1
+        },
+        "job_roles": {
+          "rows": 30,
+          "total_bytes": 81920,
+          "bytes_per_row": 2730.7
+        },
+        "market_forecasts": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "market_observations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "match_evaluations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "model_evaluations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "model_versions": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "password_reset_tokens": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "permissions": {
+          "rows": 2,
+          "total_bytes": 81920,
+          "bytes_per_row": 40960.0
+        },
+        "recommendation_feedback": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "recommendation_items": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "recommendation_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "retrieval_citations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "retrieval_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "role_permissions": {
+          "rows": 2,
+          "total_bytes": 73728,
+          "bytes_per_row": 36864.0
+        },
+        "roles": {
+          "rows": 2,
+          "total_bytes": 73728,
+          "bytes_per_row": 36864.0
+        },
+        "skill_gap_assessments": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "skill_gap_items": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "skills": {
+          "rows": 100,
+          "total_bytes": 98304,
+          "bytes_per_row": 983.0
+        },
+        "user_consents": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_documents": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "user_experiences": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_job_bookmarks": {
+          "rows": 32,
+          "total_bytes": 90112,
+          "bytes_per_row": 2816.0
+        },
+        "user_profiles": {
+          "rows": 18,
+          "total_bytes": 65536,
+          "bytes_per_row": 3640.9
+        },
+        "user_project_skills": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_projects": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_roles": {
+          "rows": 21,
+          "total_bytes": 73728,
+          "bytes_per_row": 3510.9
+        },
+        "user_segment_assignments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_segments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_skills": {
+          "rows": 60,
+          "total_bytes": 73728,
+          "bytes_per_row": 1228.8
+        },
+        "user_target_roles": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "users": {
+          "rows": 20,
+          "total_bytes": 81920,
+          "bytes_per_row": 4096.0
+        }
+      },
+      "dump_bytes": 162023,
+      "input": "T10 seed only (no factory)"
+    },
+    {
+      "label": "s1",
+      "database": "t149_local_s1",
+      "database_bytes": 19309071,
+      "career_bytes": 9846784,
+      "career_rows": 30266,
+      "tables": {
+        "account_deletion_requests": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_tool_approvals": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "agent_tool_calls": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ai_usage_records": {
+          "rows": 1600,
+          "total_bytes": 491520,
+          "bytes_per_row": 307.2
+        },
+        "anomaly_events": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "audit_events": {
+          "rows": 2400,
+          "total_bytes": 720896,
+          "bytes_per_row": 300.4
+        },
+        "auth_identities": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "auth_sessions": {
+          "rows": 1200,
+          "total_bytes": 565248,
+          "bytes_per_row": 471.0
+        },
+        "behavior_events": {
+          "rows": 12000,
+          "total_bytes": 3039232,
+          "bytes_per_row": 253.3
+        },
+        "companies": {
+          "rows": 50,
+          "total_bytes": 81920,
+          "bytes_per_row": 1638.4
+        },
+        "consent_policies": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "data_sources": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "document_analyses": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "document_chunks": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ingestion_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "job_posting_external_refs": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "job_posting_skills": {
+          "rows": 1600,
+          "total_bytes": 303104,
+          "bytes_per_row": 189.4
+        },
+        "job_postings": {
+          "rows": 400,
+          "total_bytes": 237568,
+          "bytes_per_row": 593.9
+        },
+        "job_role_skills": {
+          "rows": 210,
+          "total_bytes": 98304,
+          "bytes_per_row": 468.1
+        },
+        "job_roles": {
+          "rows": 42,
+          "total_bytes": 49152,
+          "bytes_per_row": 1170.3
+        },
+        "market_forecasts": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "market_observations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "match_evaluations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "model_evaluations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "model_versions": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "password_reset_tokens": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "permissions": {
+          "rows": 2,
+          "total_bytes": 49152,
+          "bytes_per_row": 24576.0
+        },
+        "recommendation_feedback": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "recommendation_items": {
+          "rows": 8000,
+          "total_bytes": 2138112,
+          "bytes_per_row": 267.3
+        },
+        "recommendation_runs": {
+          "rows": 800,
+          "total_bytes": 245760,
+          "bytes_per_row": 307.2
+        },
+        "retrieval_citations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "retrieval_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "role_permissions": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "roles": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "skill_gap_assessments": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "skill_gap_items": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "skills": {
+          "rows": 130,
+          "total_bytes": 90112,
+          "bytes_per_row": 693.2
+        },
+        "user_consents": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_documents": {
+          "rows": 400,
+          "total_bytes": 278528,
+          "bytes_per_row": 696.3
+        },
+        "user_experiences": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_job_bookmarks": {
+          "rows": 321,
+          "total_bytes": 122880,
+          "bytes_per_row": 382.8
+        },
+        "user_profiles": {
+          "rows": 204,
+          "total_bytes": 81920,
+          "bytes_per_row": 401.6
+        },
+        "user_project_skills": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_projects": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_roles": {
+          "rows": 21,
+          "total_bytes": 40960,
+          "bytes_per_row": 1950.5
+        },
+        "user_segment_assignments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_segments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_skills": {
+          "rows": 660,
+          "total_bytes": 155648,
+          "bytes_per_row": 235.8
+        },
+        "user_target_roles": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "users": {
+          "rows": 220,
+          "total_bytes": 122880,
+          "bytes_per_row": 558.5
+        }
+      },
+      "dump_bytes": 1092996,
+      "input": "factory users=200 companies=30 postings=300",
+      "factory_seed": 149,
+      "factory_sha256_prefix": "53cfbbb38d163fee"
+    },
+    {
+      "label": "s2",
+      "database": "t149_local_s2",
+      "database_bytes": 48174783,
+      "career_bytes": 38567936,
+      "career_rows": 147093,
+      "tables": {
+        "account_deletion_requests": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_tool_approvals": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "agent_tool_calls": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ai_usage_records": {
+          "rows": 8000,
+          "total_bytes": 1908736,
+          "bytes_per_row": 238.6
+        },
+        "anomaly_events": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "audit_events": {
+          "rows": 12000,
+          "total_bytes": 3186688,
+          "bytes_per_row": 265.6
+        },
+        "auth_identities": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "auth_sessions": {
+          "rows": 6000,
+          "total_bytes": 2506752,
+          "bytes_per_row": 417.8
+        },
+        "behavior_events": {
+          "rows": 60000,
+          "total_bytes": 14245888,
+          "bytes_per_row": 237.4
+        },
+        "companies": {
+          "rows": 170,
+          "total_bytes": 98304,
+          "bytes_per_row": 578.3
+        },
+        "consent_policies": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "data_sources": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "document_analyses": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "document_chunks": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ingestion_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "job_posting_external_refs": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "job_posting_skills": {
+          "rows": 6400,
+          "total_bytes": 1032192,
+          "bytes_per_row": 161.3
+        },
+        "job_postings": {
+          "rows": 1600,
+          "total_bytes": 688128,
+          "bytes_per_row": 430.1
+        },
+        "job_role_skills": {
+          "rows": 210,
+          "total_bytes": 98304,
+          "bytes_per_row": 468.1
+        },
+        "job_roles": {
+          "rows": 42,
+          "total_bytes": 49152,
+          "bytes_per_row": 1170.3
+        },
+        "market_forecasts": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "market_observations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "match_evaluations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "model_evaluations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "model_versions": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "password_reset_tokens": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "permissions": {
+          "rows": 2,
+          "total_bytes": 49152,
+          "bytes_per_row": 24576.0
+        },
+        "recommendation_feedback": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "recommendation_items": {
+          "rows": 40000,
+          "total_bytes": 10354688,
+          "bytes_per_row": 258.9
+        },
+        "recommendation_runs": {
+          "rows": 4000,
+          "total_bytes": 884736,
+          "bytes_per_row": 221.2
+        },
+        "retrieval_citations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "retrieval_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "role_permissions": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "roles": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "skill_gap_assessments": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "skill_gap_items": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "skills": {
+          "rows": 130,
+          "total_bytes": 90112,
+          "bytes_per_row": 693.2
+        },
+        "user_consents": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_documents": {
+          "rows": 2000,
+          "total_bytes": 909312,
+          "bytes_per_row": 454.7
+        },
+        "user_experiences": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_job_bookmarks": {
+          "rows": 1476,
+          "total_bytes": 376832,
+          "bytes_per_row": 255.3
+        },
+        "user_profiles": {
+          "rows": 956,
+          "total_bytes": 212992,
+          "bytes_per_row": 222.8
+        },
+        "user_project_skills": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_projects": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_roles": {
+          "rows": 21,
+          "total_bytes": 40960,
+          "bytes_per_row": 1950.5
+        },
+        "user_segment_assignments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_segments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_skills": {
+          "rows": 3060,
+          "total_bytes": 573440,
+          "bytes_per_row": 187.4
+        },
+        "user_target_roles": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "users": {
+          "rows": 1020,
+          "total_bytes": 327680,
+          "bytes_per_row": 321.3
+        }
+      },
+      "dump_bytes": 6102464,
+      "input": "factory users=1000 companies=150 postings=1500",
+      "factory_seed": 149,
+      "factory_sha256_prefix": "3f0e92dfe823d1e6"
+    },
+    {
+      "label": "s3",
+      "database": "t149_local_s3",
+      "database_bytes": 190822079,
+      "career_bytes": 181231616,
+      "career_rows": 731193,
+      "tables": {
+        "account_deletion_requests": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "agent_tool_approvals": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "agent_tool_calls": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ai_usage_records": {
+          "rows": 40000,
+          "total_bytes": 9142272,
+          "bytes_per_row": 228.6
+        },
+        "anomaly_events": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "audit_events": {
+          "rows": 60000,
+          "total_bytes": 15048704,
+          "bytes_per_row": 250.8
+        },
+        "auth_identities": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "auth_sessions": {
+          "rows": 30000,
+          "total_bytes": 12132352,
+          "bytes_per_row": 404.4
+        },
+        "behavior_events": {
+          "rows": 300000,
+          "total_bytes": 70295552,
+          "bytes_per_row": 234.3
+        },
+        "companies": {
+          "rows": 770,
+          "total_bytes": 286720,
+          "bytes_per_row": 372.4
+        },
+        "consent_policies": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "data_sources": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "document_analyses": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "document_chunks": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "ingestion_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "job_posting_external_refs": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "job_posting_skills": {
+          "rows": 30400,
+          "total_bytes": 4685824,
+          "bytes_per_row": 154.1
+        },
+        "job_postings": {
+          "rows": 7600,
+          "total_bytes": 2744320,
+          "bytes_per_row": 361.1
+        },
+        "job_role_skills": {
+          "rows": 210,
+          "total_bytes": 98304,
+          "bytes_per_row": 468.1
+        },
+        "job_roles": {
+          "rows": 42,
+          "total_bytes": 49152,
+          "bytes_per_row": 1170.3
+        },
+        "market_forecasts": {
+          "rows": 0,
+          "total_bytes": 40960,
+          "bytes_per_row": null
+        },
+        "market_observations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "match_evaluations": {
+          "rows": 0,
+          "total_bytes": 49152,
+          "bytes_per_row": null
+        },
+        "model_evaluations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "model_versions": {
+          "rows": 1,
+          "total_bytes": 49152,
+          "bytes_per_row": 49152.0
+        },
+        "password_reset_tokens": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "permissions": {
+          "rows": 2,
+          "total_bytes": 49152,
+          "bytes_per_row": 24576.0
+        },
+        "recommendation_feedback": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "recommendation_items": {
+          "rows": 200000,
+          "total_bytes": 51298304,
+          "bytes_per_row": 256.5
+        },
+        "recommendation_runs": {
+          "rows": 20000,
+          "total_bytes": 4071424,
+          "bytes_per_row": 203.6
+        },
+        "retrieval_citations": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "retrieval_runs": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "role_permissions": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "roles": {
+          "rows": 2,
+          "total_bytes": 40960,
+          "bytes_per_row": 20480.0
+        },
+        "skill_gap_assessments": {
+          "rows": 0,
+          "total_bytes": 32768,
+          "bytes_per_row": null
+        },
+        "skill_gap_items": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "skills": {
+          "rows": 130,
+          "total_bytes": 90112,
+          "bytes_per_row": 693.2
+        },
+        "user_consents": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_documents": {
+          "rows": 10000,
+          "total_bytes": 4079616,
+          "bytes_per_row": 408.0
+        },
+        "user_experiences": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_job_bookmarks": {
+          "rows": 7160,
+          "total_bytes": 1589248,
+          "bytes_per_row": 222.0
+        },
+        "user_profiles": {
+          "rows": 4772,
+          "total_bytes": 802816,
+          "bytes_per_row": 168.2
+        },
+        "user_project_skills": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_projects": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "user_roles": {
+          "rows": 21,
+          "total_bytes": 40960,
+          "bytes_per_row": 1950.5
+        },
+        "user_segment_assignments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_segments": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "bytes_per_row": null
+        },
+        "user_skills": {
+          "rows": 15060,
+          "total_bytes": 2457600,
+          "bytes_per_row": 163.2
+        },
+        "user_target_roles": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "bytes_per_row": null
+        },
+        "users": {
+          "rows": 5020,
+          "total_bytes": 1335296,
+          "bytes_per_row": 266.0
+        }
+      },
+      "dump_bytes": 29707254,
+      "input": "factory users=5000 companies=750 postings=7500",
+      "factory_seed": 149,
+      "factory_sha256_prefix": "93ee50d6f6583286"
+    }
+  ],
+  "restore_drill": {
+    "basis": "measured",
+    "database": "t149_local_s3",
+    "database_bytes": 190822079,
+    "dump_bytes": 29707254,
+    "commands": [
+      "pg_dump -Fc --no-owner --no-privileges -d t149_local_s3",
+      "createdb t149_local_restore",
+      "pg_restore --no-owner --no-privileges -d t149_local_restore"
+    ],
+    "runs_ms": [
+      {
+        "dump": 2107,
+        "restore": 5967
+      },
+      {
+        "dump": 2212,
+        "restore": 4783
+      },
+      {
+        "dump": 2103,
+        "restore": 6143
+      }
+    ],
+    "verified": "career.behavior_events = 300,000 rows after each restore; restore DB and dump deleted",
+    "note": "single local disk, no network copy; not a Staging measurement"
+  }
+}
