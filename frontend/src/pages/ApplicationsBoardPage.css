@@ -1,0 +1,32 @@
+.apps-page { display: grid; gap: 1rem; min-width: 0; }
+.apps-page h1, .apps-page p { margin: 0; }
+.apps-notice { display: grid; gap: .35rem; padding: .75rem 1rem; border-left: 4px solid var(--color-warning); background: var(--color-surface); }
+.apps-error { color: var(--color-danger); font-weight: 600; }
+.apps-ok { font-weight: 600; }
+.apps-muted { color: var(--color-text-muted); font-size: .875rem; }
+.apps-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.apps-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem; align-items: start; }
+.apps-column { display: grid; gap: .5rem; padding: .75rem; border: 1px solid var(--color-border); border-radius: 8px; min-width: 0; }
+.apps-column h2 { margin: 0; font-size: 1rem; }
+.apps-count { font-weight: 400; color: var(--color-text-muted); font-size: .875rem; }
+.apps-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.apps-card { display: grid; gap: .4rem; padding: .75rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); overflow-wrap: anywhere; }
+.apps-card__head { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.apps-badge { padding: 0 .4rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: .75rem; font-weight: 600; }
+.apps-badge--closed { border-color: var(--color-warning); }
+.apps-badge--gone { border-style: dashed; }
+.apps-facts { display: grid; gap: .15rem; margin: 0; font-size: .875rem; }
+.apps-facts div { display: flex; gap: .4rem; }
+.apps-facts dt { color: var(--color-text-muted); }
+.apps-facts dd { margin: 0; }
+.apps-label { font-size: .875rem; font-weight: 600; }
+.apps-card select, .apps-card textarea { font: inherit; padding: .4rem; border: 1px solid var(--color-border); border-radius: 6px; max-width: 100%; min-height: 44px; }
+.apps-card textarea { width: 100%; box-sizing: border-box; }
+.apps-memo summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.apps-memo { display: grid; gap: .35rem; }
+.apps-delete { justify-self: start; }
+.apps-empty { display: grid; gap: .5rem; justify-items: start; }
+.apps-table-wrap { overflow-x: auto; }
+.apps-table { border-collapse: collapse; width: 100%; min-width: 36rem; }
+.apps-table caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
+.apps-table th, .apps-table td { border-bottom: 1px solid var(--color-border); padding: .5rem; text-align: left; vertical-align: top; }

@@ -45,6 +45,8 @@ async function open(path: string, as?: string, notificationsUi = true) {
     fireEvent.change(screen.getByLabelText(/^비밀번호/), { target: { value: MOCK_PASSWORD } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
     await screen.findByRole('link', { name: as === ADMIN ? '운영 관리자' : '일반 사용자' });
+    // 로그인 후 /account 이동이 끝난 다음 딥링크로 이동한다. CI의 비동기 경합 방지.
+    await screen.findByRole('heading', { name: '내 계정' });
     await act(() => router.navigate(path));
   }
   return router;

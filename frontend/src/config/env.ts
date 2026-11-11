@@ -21,4 +21,6 @@ export const env = {
   notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
   /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
   jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
+  /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
+  applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
 } as const;

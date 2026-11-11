@@ -27,12 +27,14 @@ import { AuditEventsPage } from './pages/admin/AuditEventsPage';
 import { NotificationServiceProvider } from './notifications/NotificationServiceProvider';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
+import { ApplicationServiceProvider } from './applications/ApplicationServiceProvider';
+import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -60,6 +62,15 @@ const notificationRoutes = (features: Features): RouteObject[] => (features.noti
   ] },
 ] : []);
 
+/** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
+const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <ApplicationServiceProvider />, children: [
+      { path: 'me/applications', element: <ApplicationsBoardPage /> },
+    ] },
+  ] },
+] : []);
+
 /**
  * UI-027 관리자 검수(T82)는 기능 플래그가 켜졌을 때만 경로·메뉴가 생깁니다(기본 꺼짐, Mock 모드 전용 — env.ts).
  * 꺼져 있으면 /admin/moderation 은 404 화면입니다. 켜져 있어도 admin 역할만 들어갑니다(RequireAuth).
@@ -75,7 +86,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi,
   },
 ): RouteObject[] => [
   {
@@ -83,7 +94,7 @@ export const buildRoutes = (
     element: (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
-          notificationsUi={features.notificationsUi ?? false} />
+          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -109,6 +120,7 @@ export const buildRoutes = (
         { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
       ...notificationRoutes(features),
+      ...applicationRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },
