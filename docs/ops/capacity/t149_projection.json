@@ -1,0 +1,74 @@
+{
+  "tool": "t149_capacity",
+  "months": 12,
+  "dump_ratio": 0.1557,
+  "base_database_bytes": 11761343,
+  "bytes_per_row": {
+    "ai_usage_records": 228.6,
+    "audit_events": 250.8,
+    "auth_sessions": 404.4,
+    "behavior_events": 234.3,
+    "companies": 372.4,
+    "job_posting_skills": 154.1,
+    "job_postings": 361.1,
+    "recommendation_items": 256.5,
+    "recommendation_runs": 203.6,
+    "user_documents": 408.0,
+    "user_profiles": 168.2,
+    "user_skills": 163.2,
+    "users": 266.0
+  },
+  "scenarios": [
+    {
+      "scenario": "poc",
+      "users_month12": 100,
+      "user_months": 720,
+      "db_gib": 0.145,
+      "raw_html_gib": 0.88,
+      "documents_gib": 0.065,
+      "logs_gib": 0.022,
+      "backups_gib": 0.316,
+      "total_storage_gib": 1.429,
+      "disk_needed_gib": 2.041,
+      "ai_usd_per_month": 27.0,
+      "basis": {
+        "bytes_per_row": "measured (synthetic, local PostgreSQL)",
+        "activity_and_prices": "estimated"
+      }
+    },
+    {
+      "scenario": "class",
+      "users_month12": 1000,
+      "user_months": 6600,
+      "db_gib": 0.692,
+      "raw_html_gib": 0.88,
+      "documents_gib": 0.652,
+      "logs_gib": 0.224,
+      "backups_gib": 1.508,
+      "total_storage_gib": 3.955,
+      "disk_needed_gib": 5.65,
+      "ai_usd_per_month": 270.0,
+      "basis": {
+        "bytes_per_row": "measured (synthetic, local PostgreSQL)",
+        "activity_and_prices": "estimated"
+      }
+    },
+    {
+      "scenario": "growth",
+      "users_month12": 10000,
+      "user_months": 66000,
+      "db_gib": 6.215,
+      "raw_html_gib": 0.88,
+      "documents_gib": 6.519,
+      "logs_gib": 2.235,
+      "backups_gib": 13.546,
+      "total_storage_gib": 29.396,
+      "disk_needed_gib": 41.994,
+      "ai_usd_per_month": 2700.0,
+      "basis": {
+        "bytes_per_row": "measured (synthetic, local PostgreSQL)",
+        "activity_and_prices": "estimated"
+      }
+    }
+  ]
+}
