@@ -31,13 +31,18 @@ export const env = {
   /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
   companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
-  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
-  publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
   /**
-   * T156 크롤러 관리자 콘솔. **기본 꺼짐**(설정하지 않은 빌드에서는 메뉴·경로 없음).
-   * 다른 Mock 전용 화면과 달리 실제 API 모드에서도 켤 수 있습니다: 읽기 API(T155 #124)는 main 에 있고
-   * 서버가 admin 역할을 검사하기 때문입니다. 쓰기는 서버 플래그 CRAWLER_ADMIN_WRITE_API 가 따로 막습니다.
-   * 운영·Staging 빌드에서 켜는 것은 별도 승인 사항입니다.
+   * T140 기술 자동완성(동의어·표준 코드). T139 서버 API 도 기본 꺼짐(SKILL_AUTOCOMPLETE_API)이라 둘 다 켜야 합니다.
+   * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.
+   */
+  skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
+  /**
+   * T156 크롤러 관리자 콘솔. 기본 비활성, 서버 T155 쓰기 플래그 별도 적용.
+   * 실제 API 또는 Mock에서 관리자가 켤 수 있으나 활성화는 별도 승인 사항입니다.
    */
   crawlerAdminUi: import.meta.env.VITE_CRAWLER_ADMIN_UI === 'true',
+  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
+  publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /** T143 내 데이터 내려받기: Mock 전용, 기본 비활성(T141 정책·T142 저장소 미승인) */
+  personalDataUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
 } as const;
