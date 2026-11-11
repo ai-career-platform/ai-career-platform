@@ -1,0 +1,29 @@
+name: T74 Segmentation Baseline Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ml/**'
+      - 'tests/t74/**'
+      - 'database/fixtures/synth_factory.py'
+      - 'docs/ai/T74_SEGMENTATION_BASELINE.md'
+      - '.github/workflows/t74-segmentation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  t74-segmentation:
+    name: T74 Segmentation (unittest, synthetic data only)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v5
+      - name: Configure Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run T74-only tests
+        run: python -B -m unittest discover -s tests/t74 -v
