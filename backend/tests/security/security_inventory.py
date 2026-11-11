@@ -16,6 +16,8 @@ from fastapi.routing import APIRoute
 PUBLIC_ROUTES = frozenset({
     ("GET", "/health"), ("GET", "/health/db"), ("GET", "/version"),
     ("POST", "/api/v1/auth/signup"), ("POST", "/api/v1/auth/login"),
+    # T93: 계약상 공개(security: []). 계정 열거 방지·요청 한도·토큰 해시는 tests/test_t93_account_recovery*.py
+    ("POST", "/api/v1/auth/password-reset-requests"), ("POST", "/api/v1/auth/password-resets"),
     ("GET", "/api/v1/consent-policies"),
     ("GET", "/api/v1/companies"), ("GET", "/api/v1/companies/{company_id}"),
     ("GET", "/api/v1/job-postings"), ("GET", "/api/v1/job-postings/{job_posting_id}"),

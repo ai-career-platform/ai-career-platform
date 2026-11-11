@@ -1,0 +1,452 @@
+[
+  {
+    "browser": "chrome",
+    "version": "156.0.8078.74",
+    "viewport": "desktop-1280",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  },
+  {
+    "browser": "chrome",
+    "version": "156.0.8078.74",
+    "viewport": "mobile-375",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  },
+  {
+    "browser": "chrome",
+    "version": "156.0.8078.74",
+    "viewport": "zoom-200%",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  },
+  {
+    "browser": "edge",
+    "version": "157.0.4341.42",
+    "viewport": "desktop-1280",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  },
+  {
+    "browser": "edge",
+    "version": "157.0.4341.42",
+    "viewport": "mobile-375",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  },
+  {
+    "browser": "edge",
+    "version": "157.0.4341.42",
+    "viewport": "zoom-200%",
+    "login": {
+      "tabsToEmail": 9,
+      "loggedIn": true
+    },
+    "pages": [
+      {
+        "path": "/",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "A",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/login",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-postings",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/job-roles",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/me/skills",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/recommendations",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      },
+      {
+        "path": "/account/privacy",
+        "overflow": false,
+        "skipLinkFirst": true,
+        "skipLinkVisible": true,
+        "skipMovesFocusToMain": true,
+        "focusAfterSkip": "INPUT",
+        "focusIndicatorVisible": true
+      }
+    ],
+    "pageErrors": []
+  }
+]
