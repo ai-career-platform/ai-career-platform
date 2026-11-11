@@ -13,6 +13,10 @@ from pydantic import BaseModel, ConfigDict
 PostingStatus = Literal["published", "closed"]
 EmploymentType = Literal["full_time", "contract", "intern", "part_time"]
 PostingSort = Literal["-published_at", "expires_at"]
+# T99 고급 검색(T98 제안, 기능 플래그) — app/services/job_search.py 의 표와 같은 값
+RegionCode = Literal["seoul", "busan", "daegu", "incheon", "gwangju", "daejeon", "ulsan", "sejong", "gyeonggi", "gangwon",
+                     "chungbuk", "chungnam", "jeonbuk", "jeonnam", "gyeongbuk", "gyeongnam", "jeju"]
+PostedWithin = Literal["1d", "3d", "7d", "30d"]
 
 
 class _Strict(BaseModel):
