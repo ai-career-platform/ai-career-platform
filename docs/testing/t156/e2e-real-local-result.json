@@ -1,0 +1,241 @@
+{
+  "tag": "mwbuddrw",
+  "steps": [
+    {
+      "name": "nonadmin_forbidden",
+      "menuVisible": 0
+    },
+    {
+      "name": "admin_console_loaded",
+      "menuHref": "/admin/crawler"
+    },
+    {
+      "name": "tabs_keyboard",
+      "afterArrowRight": "작업"
+    },
+    {
+      "name": "T156 E2E mwbuddrw"
+    },
+    {
+      "name": "duplicate_refused",
+      "alert": "같은 검색어가 이미 있습니다(삭제한 검색어 포함)."
+    },
+    {
+      "name": "fixture_job_requested",
+      "status": 201,
+      "jobId": "1c95799a-9dff-4cef-a6d5-993a36994f1c",
+      "reason": "FIXTURE_JOB_PENDING"
+    },
+    {
+      "name": "second_run_refused_active_job"
+    },
+    {
+      "name": "fixture_raw_parse_refined",
+      "job_id": "1c95799a-9dff-4cef-a6d5-993a36994f1c",
+      "job_before": "PENDING",
+      "raw_artifacts_by_kind": {
+        "detail": 2,
+        "list": 1
+      },
+      "raw_sha_verified": 2,
+      "worker": {
+        "status": "COMPLETED",
+        "detail_count": 2,
+        "valid_count": 2,
+        "checkpoint_advanced": true
+      },
+      "parse_lineage": 2,
+      "refined_postings": [
+        "T156 synthetic E2E posting 9540901838",
+        "T156 synthetic E2E posting 9669635175"
+      ],
+      "discoveries": 2,
+      "job_after": "COMPLETED"
+    },
+    {
+      "name": "ui_jobs_completed",
+      "rows": 1
+    },
+    {
+      "name": "ui_keyword_stats",
+      "row": "3T156 E2E mwbuddrw활성12수정비활성화Fixture 실행작업이력삭제"
+    },
+    {
+      "name": "ui_audit_trail",
+      "firstActor": "2026. 11. 11. 17:13:07 KST추가admin:bc023e6e-623a-4331-914e-7ce6d4999760T156 E2E mwbuddrw · 활성 · 3"
+    },
+    {
+      "name": "schedule_time_changed_and_restored",
+      "before": "03:00",
+      "target": "04:10",
+      "enableCheckboxDisabled": true
+    },
+    {
+      "name": "ui_command_ledger",
+      "refused": 24,
+      "accepted": 26
+    },
+    {
+      "name": "ui_runs_tab"
+    },
+    {
+      "name": "mobile",
+      "pageHorizontalOverflow": false
+    }
+  ],
+  "api": [
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/crawler/keywords",
+      "status": 201,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/crawler/keywords",
+      "status": 409,
+      "idempotencyKey": false,
+      "reason": "KEYWORD_EXISTS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/crawler/commands/run",
+      "status": 201,
+      "idempotencyKey": true,
+      "reason": "FIXTURE_JOB_PENDING"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/crawler/commands/run",
+      "status": 409,
+      "idempotencyKey": true,
+      "reason": "ACTIVE_JOB_EXISTS"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/jobs?limit=100&keyword_id=28",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/keywords/28/audit?limit=20",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/settings",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/admin/crawler/schedules/jobkorea-daily",
+      "status": 200,
+      "idempotencyKey": true,
+      "reason": "SCHEDULE_TIME_UPDATED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/settings",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/admin/crawler/schedules/jobkorea-daily",
+      "status": 200,
+      "idempotencyKey": true,
+      "reason": "SCHEDULE_TIME_UPDATED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/settings",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/commands?limit=50",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/crawler/stats/keywords?limit=100",
+      "status": 200,
+      "idempotencyKey": false,
+      "reason": null
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "Failed to load resource: the server responded with a status of 409 (Conflict)"
+  ],
+  "rawHtmlInDom": false
+}

@@ -22,6 +22,9 @@ import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCar
 import { ModerationCasePage } from './pages/admin/ModerationCasePage';
 import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
+import { CrawlerAdminServiceProvider } from './admin/CrawlerAdminServiceProvider';
+import { CrawlerNavigationProvider } from './admin/CrawlerNavigationContext';
+import { CrawlerAdminPage } from './pages/admin/CrawlerAdminPage';
 import { AiUsagePage } from './pages/admin/AiUsagePage';
 import { AuditEventsPage } from './pages/admin/AuditEventsPage';
 import { NotificationServiceProvider } from './notifications/NotificationServiceProvider';
@@ -118,6 +121,15 @@ const applicationRoutes = (features: Features): RouteObject[] => (features.appli
  * UI-027 관리자 검수(T82)는 기능 플래그가 켜졌을 때만 경로·메뉴가 생깁니다(기본 꺼짐, Mock 모드 전용 — env.ts).
  * 꺼져 있으면 /admin/moderation 은 404 화면입니다. 켜져 있어도 admin 역할만 들어갑니다(RequireAuth).
  */
+/** T156 관리자 콘솔: 플래그 기본 꺼짐, admin 권한 전용 */
+const crawlerAdminRoutes = (features: Features): RouteObject[] => (crawlerEnabled(features) ? [
+  { element: <RequireAuth roles={['admin']} />, children: [
+    { element: <CrawlerAdminServiceProvider />, children: [
+      { path: 'admin/crawler', element: <CrawlerAdminPage /> },
+    ] },
+  ] },
+] : []);
+
 const adminRoutes = (features: Features): RouteObject[] => (features.adminModerationUi ? [
   { element: <RequireAuth roles={['admin']} />, children: [
     { element: <ModerationServiceProvider />, children: [
@@ -127,7 +139,14 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
   ] },
 ] : []);
 
-export const buildRoutes = (
+type CrawlerFeatures = Features & { crawlerAdminUi?: boolean };
+const crawlerEnabled = (features: Features): boolean => (features as CrawlerFeatures).crawlerAdminUi ?? env.crawlerAdminUi;
+type BuildRoutes = {
+  (features: CrawlerFeatures): RouteObject[];
+  (): RouteObject[];
+};
+
+export const buildRoutes: BuildRoutes = (
   features: Features = {
     adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi, personalDataUi: env.personalDataUi,
   },
@@ -135,12 +154,14 @@ export const buildRoutes = (
   {
     path: '/',
     element: (
+      <CrawlerNavigationProvider enabled={crawlerEnabled(features)}>
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
           notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
           companyConsoleUi={features.companyConsoleUi ?? false} publicPortfolioUi={features.publicPortfolioUi ?? false}
           personalDataUi={features.personalDataUi ?? false} />
       </AuthProvider>
+      </CrawlerNavigationProvider>
     ),
     children: [
       { index: true, element: <LandingPage /> },
@@ -171,6 +192,7 @@ export const buildRoutes = (
       ...companyRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
+      ...crawlerAdminRoutes(features),
       { path: '*', element: <NotFoundPage /> },
     ],
   },
