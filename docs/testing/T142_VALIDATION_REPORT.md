@@ -77,6 +77,11 @@ python ../docs/api/check_compat.py --base-ref origin/main
 | 실제 서버 API(플래그 켠 서버) | **NOT_RUN** |
 | Staging | NOT_RUN |
 
+### 전체 회귀 (로컬 Windows, 일회용 PG 18.6, `T16_ISOLATED_DB_TEST=YES`)
+- **1686 passed, 101 skipped**, 1 failed, 31 errors
+- 1 failed·31 errors는 모두 `tests/test_documents.py`·`tests/security`의 `DOCUMENT_STORAGE_ROOT must have mode 0700`입니다(Windows에서 POSIX 권한 검사). **main `822fa16`에서도 같은 1 failed·31 errors**(같은 두 묶음: 403 passed)라 이 변경과 무관합니다. Linux CI에서 판정합니다.
+- T116 호환성: `check_compat.py --base-ref origin/main` → `breaking=0 warn=0`
+
 ## 9. CI 결과
 PR 댓글에 최신 HEAD 기준으로 기록합니다.
 
