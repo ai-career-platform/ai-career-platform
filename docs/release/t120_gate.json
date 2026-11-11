@@ -1,0 +1,25 @@
+{
+  "task": "T120",
+  "main_sha": "ab567656eabb06d86e4cf9966c3bdfd042da8318",
+  "images": {
+    "backend": "ghcr.io/ai-career-platform/ai-career-platform-backend@sha256:608f36334a2b02dd559c017f0ece93a1347f476024016b7b16f70f5be53fcd12",
+    "frontend": "ghcr.io/ai-career-platform/ai-career-platform-frontend@sha256:72721b53abae199641846eefc0840298152e1999f56f4a2e06fe0aee6f18e654"
+  },
+  "staging_running_digest": "NOT_VERIFIED",
+  "gates": [
+    {"id": "E1", "name": "approved scope", "result": "PARTIAL", "p0": false},
+    {"id": "E2", "name": "tests and CI", "result": "PASS", "p0": true},
+    {"id": "E3", "name": "browser E2E", "result": "PARTIAL", "p0": true},
+    {"id": "E4", "name": "backup and restore", "result": "PARTIAL", "p0": true},
+    {"id": "E5", "name": "migration safety", "result": "FAIL", "p0": true},
+    {"id": "E6", "name": "vulnerabilities and secrets", "result": "FAIL", "p0": true},
+    {"id": "E7", "name": "logs, metrics, alerts", "result": "FAIL", "p0": false},
+    {"id": "E8", "name": "rollback plan", "result": "PARTIAL", "p0": false},
+    {"id": "E9", "name": "release SHA and digest", "result": "PARTIAL", "p0": true},
+    {"id": "E10", "name": "privacy", "result": "OPEN", "p0": true},
+    {"id": "E11", "name": "operational quality", "result": "NOT_MEASURED", "p0": false},
+    {"id": "E12", "name": "handover", "result": "PARTIAL", "p0": false}
+  ],
+  "decision": "NO_GO",
+  "approved_by": ""
+}
