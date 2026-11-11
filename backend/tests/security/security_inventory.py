@@ -73,8 +73,12 @@ class Route:
 def inventory(app: FastAPI | None = None) -> list[Route]:
     """앱(또는 앱 없이 등록된 라우터 전체)의 HTTP 경로. 테스트 수집 시점에는 앱을 만들지 않고 라우터에서 읽습니다."""
     if app is None:
-        from app.routers import api_v1, system
-        source = list(system.router.routes) + list(api_v1.api_router.routes)
+        from app.core.config import API_V1_PREFIX
+        from app.routers import api_v1, job_postings, system
+        # 공고 목록은 create_app 이 기능 플래그(T99)로 legacy/advanced 중 하나를 붙임 — 경로·메서드는 같음
+        listing = [APIRoute(API_V1_PREFIX + r.path, r.endpoint, methods=r.methods)
+                   for r in job_postings.legacy_list_router.routes if isinstance(r, APIRoute)]
+        source = list(system.router.routes) + list(api_v1.api_router.routes) + listing
     else:
         source = list(app.routes)
     routes = []

@@ -8,6 +8,12 @@ import { FilterChips } from '../components/FilterChips';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
+import {
+  EMPLOYMENT_TYPES, MAX_VALUES, POSTED_WITHIN, POSTED_WITHIN_LABELS, REGIONS,
+  type EmploymentType, type JobSearchService, type PostedWithin, type RegionCode,
+} from '../api/jobSearch';
+import { createMockJobSearchService } from '../mocks/jobSearch';
+import { EMPTY_STATE, hasAnyFilter, normalizeSearch, parseSearch, serializeSearch, toApiQuery, type SearchState } from './jobSearchUrl';
 import './JobPostingsPage.css';
 
 type Sort = '-published_at' | 'expires_at';
@@ -20,18 +26,27 @@ const STATUS_OPTIONS = [
   { value: 'all', label: '마감 포함' },
 ];
 
-/** 이 화면이 쓰는 공고 조회는 T18 정식 API(`/v1/job-postings`, `/v1/companies`)입니다. 별도 수집 API 데이터는 섞지 않습니다. */
-export function JobPostingsPage() {
+/**
+ * 이 화면이 쓰는 공고 조회는 T18 정식 API(`/v1/job-postings`, `/v1/companies`)입니다. 별도 수집 API 데이터는 섞지 않습니다.
+ *
+ * `advanced`(T100): T98 고급 검색 계약(PROPOSED)으로 고용형태·지역·게시 기간을 더합니다. 기능 플래그(Mock 전용)일 때만 켜지고,
+ * 데이터는 Mock Adapter 입니다(서버 T99 는 기능 플래그 뒤, 기본 꺼짐). URL 쿼리 = API 쿼리 이름이며, 조건을 바꿀 때마다
+ * 기록이 쌓여 브라우저 뒤로가기로 이전 조건으로 돌아갑니다. 꺼져 있으면 기존 T24 동작 그대로입니다.
+ */
+export function JobPostingsPage({ advanced = false, searchService }: { advanced?: boolean; searchService?: JobSearchService } = {}) {
   const api = useApi();
   const [params, setParams] = useSearchParams();
-  const query = (params.get('q') ?? '').trim().slice(0, 100);
-  const companyId = uuidOrEmpty(params.get('company'));
-  const roleId = uuidOrEmpty(params.get('role'));
-  const includeClosed = params.get('closed') === '1';
-  const sort: Sort = params.get('order') === 'expires' ? 'expires_at' : '-published_at';
+  const adv: SearchState | null = advanced ? parseSearch(params) : null;
+  const query = adv ? adv.q : (params.get('q') ?? '').trim().slice(0, 100);
+  const companyId = adv ? (adv.company_id[0] ?? '') : uuidOrEmpty(params.get('company'));
+  const roleId = adv ? (adv.job_role_id[0] ?? '') : uuidOrEmpty(params.get('role'));
+  const includeClosed = adv ? adv.include_closed : params.get('closed') === '1';
+  const sort: Sort = adv ? adv.sort : params.get('order') === 'expires' ? 'expires_at' : '-published_at';
+  const [fallbackSearch] = useState(() => (advanced && !searchService ? createMockJobSearchService({ latencyMs: 150 }) : null));
+  const search = searchService ?? fallbackSearch;
 
   // 커서 목록은 검색 조건별로 따로 둡니다. 조건이 바뀌면 첫 페이지부터 다시 시작합니다.
-  const filterKey = [query, companyId, roleId, includeClosed, sort].join('|');
+  const filterKey = adv ? serializeSearch(adv).toString() : [query, companyId, roleId, includeClosed, sort].join('|');
   const [cursorState, setCursorState] = useState<{ key: string; stack: (string | null)[] }>({ key: filterKey, stack: [null] });
   // 조건이 바뀌면 이전 조건의 커서는 버립니다(같은 조건으로 돌아와도 1페이지부터).
   if (cursorState.key !== filterKey) setCursorState({ key: filterKey, stack: [null] });
@@ -40,11 +55,12 @@ export function JobPostingsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
 
-  const list = useQuery(['job-postings', filterKey, cursor], (signal) =>
-    api.jobPostings.list(
+  const list = useQuery(['job-postings', advanced, filterKey, cursor], (signal) => (adv && search
+    ? search.list(toApiQuery(adv, PAGE_SIZE, cursor ?? null), signal)
+    : api.jobPostings.list(
       { limit: PAGE_SIZE, sort, include_closed: includeClosed, q: query, company_id: companyId, job_role_id: roleId, cursor },
       signal,
-    ));
+    )));
 
   const companies = useQuery(['company-options'], (signal) =>
     api.companies.list({ limit: OPTION_LIMIT }, signal));
@@ -58,7 +74,23 @@ export function JobPostingsPage() {
   const companyDetail = useQuery(detailCompanyId !== null && ['company', detailCompanyId], (signal) =>
     api.companies.get(detailCompanyId ?? '', signal));
 
+  /** 고급 모드: 조건을 바꿀 때마다 기록을 남김(push) → 뒤로가기로 이전 조건 */
+  function changeAdvanced(patch: Partial<SearchState>) {
+    if (!adv) return;
+    setSelected(null);
+    setParams(serializeSearch(normalizeSearch({ ...adv, ...patch })));
+  }
   function change(patch: Record<string, string>) {
+    if (adv) {
+      const map: Partial<SearchState> = {};
+      if ('q' in patch) map.q = patch.q ?? '';
+      if ('company' in patch) map.company_id = patch.company ? [patch.company] : [];
+      if ('role' in patch) map.job_role_id = patch.role ? [patch.role] : [];
+      if ('closed' in patch) map.include_closed = patch.closed === '1';
+      if ('order' in patch) map.sort = patch.order === 'expires' ? 'expires_at' : '-published_at';
+      changeAdvanced(map);
+      return;
+    }
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(patch)) {
       if (value) next.set(key, value); else next.delete(key);
@@ -74,8 +106,15 @@ export function JobPostingsPage() {
     setSelected(null);
     setCursorState({ key: filterKey, stack: next });
   }
-  const hasFilters = Boolean(query || companyId || roleId || includeClosed || sort !== '-published_at');
-  const reset = () => { setSelected(null); setParams({}, { replace: true }); };
+  const hasFilters = adv ? hasAnyFilter(adv) : Boolean(query || companyId || roleId || includeClosed || sort !== '-published_at');
+  // 고급 모드 초기화는 검색어·필터만 지우고 정렬은 유지(T98 §6)
+  const reset = () => {
+    setSelected(null);
+    if (adv) setParams(serializeSearch({ ...EMPTY_STATE, sort: adv.sort }));
+    else setParams({}, { replace: true });
+  };
+  const toggle = <T extends string>(values: T[], value: T) =>
+    (values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
 
   const companyItems = companies.status === 'ready' ? companies.data.items : [];
   const visibleCompanies = showAllCompanies ? companyItems : companyItems.slice(0, COMPANY_PREVIEW);
@@ -137,8 +176,8 @@ export function JobPostingsPage() {
       <form className="t24-controls" role="search" aria-label="채용공고 검색 조건" onSubmit={submitSearch}>
         <div className="t24-fields">
           <div className="t24-search">
-            <TextField key={query} name="q" label="공고 검색" type="search" maxLength={100}
-              placeholder="예: 백엔드, 데이터" defaultValue={query} />
+            <TextField key={query} name="q" label={adv ? '공고·기업 검색' : '공고 검색'} type="search" maxLength={100}
+              placeholder={adv ? '예: 백엔드, 기업 이름' : '예: 백엔드, 데이터'} defaultValue={query} />
             <Button type="submit">검색</Button>
           </div>
           <div className="t24-select">
@@ -168,6 +207,49 @@ export function JobPostingsPage() {
             </select>
           </div>
         </div>
+        {adv && (
+          <fieldset className="t100-advanced">
+            <legend>상세 조건 <span className="t100-badge">시범 · Mock</span></legend>
+            <div className="t100-group" role="group" aria-labelledby="t100-employment">
+              <span id="t100-employment" className="t100-group-title">고용 형태</span>
+              {EMPLOYMENT_TYPES.map((type: EmploymentType) => (
+                <label key={type} className="t100-check">
+                  <input type="checkbox" checked={adv.employment_type.includes(type)}
+                    onChange={() => changeAdvanced({ employment_type: toggle(adv.employment_type, type) })} />
+                  {employmentLabel(type)}
+                </label>
+              ))}
+            </div>
+            <details className="t100-regions" open={adv.region.length > 0}>
+              <summary>근무 지역{adv.region.length ? ` (${adv.region.length}개 선택)` : ''}</summary>
+              <p className="t24-hint" id="t100-region-hint">
+                공고의 근무지 표기 첫 단어로 판단한 추정값입니다. 최대 {MAX_VALUES.region}개까지 고를 수 있습니다.
+              </p>
+              <div className="t100-group" role="group" aria-label="근무 지역" aria-describedby="t100-region-hint">
+                {REGIONS.map(([code, label]) => {
+                  const checked = adv.region.includes(code as RegionCode);
+                  return (
+                    <label key={code} className="t100-check">
+                      <input type="checkbox" checked={checked}
+                        disabled={!checked && adv.region.length >= MAX_VALUES.region}
+                        onChange={() => changeAdvanced({ region: toggle(adv.region, code as RegionCode) })} />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            </details>
+            <div className="t24-select">
+              <label htmlFor="t100-posted">게시일</label>
+              <select id="t100-posted" value={adv.posted_within}
+                onChange={(event) => changeAdvanced({ posted_within: event.target.value as PostedWithin | '' })}>
+                <option value="">전체 기간</option>
+                {POSTED_WITHIN.map((value) => <option key={value} value={value}>{POSTED_WITHIN_LABELS[value]}</option>)}
+              </select>
+            </div>
+            <p className="t24-hint">검색어는 공고 제목과 기업 이름에서 찾습니다. 기술·경력·연봉 조건은 데이터가 없어 제공하지 않습니다.</p>
+          </fieldset>
+        )}
         {roles.status === 'error' && (
           <p role="alert" className="t24-hint">직무 목록을 불러오지 못했습니다. <button type="button" className="t24-link" onClick={roles.retry}>다시 시도</button></p>
         )}

@@ -13,7 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { MOCK_PASSWORD } from '../mocks/handlers';
 import { buildRoutes } from '../routes';
 
-vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true, adminModerationUi: true, adminAuditUi: true, applicationsUi: true } }));
+vi.mock('../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true, adminModerationUi: true, adminAuditUi: true, notificationsUi: true, jobSearchAdvancedUi: true, applicationsUi: true } }));
 
 type Issue = string;
 
@@ -57,7 +57,7 @@ export function audit(root: HTMLElement): Issue[] {
 }
 
 async function open(path: string, as?: 'user@example.com' | 'admin@example.com') {
-  const router = createMemoryRouter(buildRoutes({ adminModerationUi: true, adminAuditUi: true, applicationsUi: true }),
+  const router = createMemoryRouter(buildRoutes({ adminModerationUi: true, adminAuditUi: true, notificationsUi: true, jobSearchAdvancedUi: true, applicationsUi: true }),
     { initialEntries: [as ? '/login' : path] });
   const view = render(<RouterProvider router={router} />);
   if (as) {
@@ -78,7 +78,7 @@ async function open(path: string, as?: 'user@example.com' | 'admin@example.com')
 const PUBLIC = ['/', '/login', '/job-roles', '/job-postings', '/system-status', '/no-such-page'];
 const SEEKER = ['/account', '/account/privacy', '/me/target-roles', '/me/career-history', '/me/bookmarks', '/me/skills',
   '/me/documents', '/recommendations', '/market-trends', '/admin/audit-events' /* 403 화면 */,
-  '/me/applications' /* T103, Mock 플래그 */];
+  '/me/notifications', '/me/notification-settings' /* T97, Mock 플래그 */, '/me/applications' /* T103 */];
 const ADMIN = ['/admin/moderation', '/admin/audit-events', '/admin/ai-usage'];
 
 describe('accessibility rules on every main screen', () => {

@@ -24,6 +24,9 @@ import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
 import { AiUsagePage } from './pages/admin/AiUsagePage';
 import { AuditEventsPage } from './pages/admin/AuditEventsPage';
+import { NotificationServiceProvider } from './notifications/NotificationServiceProvider';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 import { ApplicationServiceProvider } from './applications/ApplicationServiceProvider';
 import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
 
@@ -31,7 +34,7 @@ import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; applicationsUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -47,9 +50,19 @@ const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminA
 ] : []);
 
 /**
- * UI-N05 개인 지원 현황(T103)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
- * 로그인 사용자만 들어갑니다. 기록은 로그인 사용자 ID 별로 분리됩니다(ApplicationServiceProvider).
+ * UI-N04 알림함·UI-005 알림 수신 설정(T97)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
+ * 로그인 사용자만 들어갑니다. 알림·설정은 로그인 사용자 ID 별로 분리됩니다(NotificationServiceProvider).
  */
+const notificationRoutes = (features: Features): RouteObject[] => (features.notificationsUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <NotificationServiceProvider />, children: [
+      { path: 'me/notifications', element: <NotificationsPage /> },
+      { path: 'me/notification-settings', element: <NotificationSettingsPage /> },
+    ] },
+  ] },
+] : []);
+
+/** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
 const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
   { element: <RequireAuth />, children: [
     { element: <ApplicationServiceProvider />, children: [
@@ -73,7 +86,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, applicationsUi: env.applicationsUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi,
   },
 ): RouteObject[] => [
   {
@@ -81,7 +94,7 @@ export const buildRoutes = (
     element: (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
-          applicationsUi={features.applicationsUi ?? false} />
+          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -89,7 +102,7 @@ export const buildRoutes = (
       { path: 'system-status', element: <HomePage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
-      { path: 'job-postings', element: <JobPostingsPage /> },
+      { path: 'job-postings', element: <JobPostingsPage advanced={features.jobSearchAdvancedUi ?? false} /> },
       { path: 'login', element: <LoginPage /> },
       // UI-N03 계정 복구 (T94). Mock 모드에서만 동작. 실제 API(T93 PR 195)는 미병합이라 일반 빌드는 '준비 중' 안내
       { path: 'password-reset', element: <PasswordResetPage /> },
@@ -106,6 +119,7 @@ export const buildRoutes = (
         // UI-024 채용시장 추세 (F-024). T67 GET /api/v1/market-trends 는 로그인 사용자만 조회합니다.
         { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
+      ...notificationRoutes(features),
       ...applicationRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
