@@ -1,0 +1,55 @@
+{
+  "_comment": "T98 advanced job search acceptance cases (PROPOSED contract). Synthetic data only. Reused by T99 against PostgreSQL. ids are 00000000-0000-4000-8000-0000000000NN; 'p01' -> NN=01.",
+  "now": "2026-11-11T03:00:00Z",
+  "companies": {
+    "c1": {"name": "알파테크"},
+    "c2": {"name": "베타_소프트"},
+    "c3": {"name": "감마 100%랩"}
+  },
+  "job_roles": {"r1": "backend", "r2": "frontend"},
+  "postings": {
+    "p01": {"title": "백엔드 개발자", "company": "c1", "role": "r1", "employment_type": "full_time", "location_text": "서울 강남구", "published_at": "2026-11-10T00:00:00Z", "expires_at": "2026-12-01T00:00:00Z", "status": "published"},
+    "p02": {"title": "프론트엔드 개발자", "company": "c2", "role": "r2", "employment_type": "contract", "location_text": "경기 성남시 분당구", "published_at": "2026-11-09T00:00:00Z", "expires_at": null, "status": "published"},
+    "p03": {"title": "백엔드 엔지니어(인턴)", "company": "c3", "role": "r1", "employment_type": "intern", "location_text": "부산 해운대구", "published_at": "2026-11-01T00:00:00Z", "expires_at": "2026-11-20T00:00:00Z", "status": "published"},
+    "p04": {"title": "데이터 엔지니어", "company": "c1", "role": null, "employment_type": "full_time", "location_text": null, "published_at": "2026-10-01T00:00:00Z", "expires_at": null, "status": "published"},
+    "p05": {"title": "QA 엔지니어", "company": "c2", "role": null, "employment_type": "part_time", "location_text": "충청북도 청주시", "published_at": "2026-11-10T00:00:00Z", "expires_at": "2026-11-30T00:00:00Z", "status": "published"},
+    "p06": {"title": "서버 개발자 100%재택", "company": "c3", "role": "r1", "employment_type": "full_time", "location_text": "서울", "published_at": "2026-11-05T00:00:00Z", "expires_at": "2026-11-10T00:00:00Z", "status": "published"},
+    "p07": {"title": "디자이너", "company": "c1", "role": null, "employment_type": "contract", "location_text": "서울 마포구", "published_at": "2026-11-08T00:00:00Z", "expires_at": "2026-11-15T00:00:00Z", "status": "closed"},
+    "p08": {"title": "작성 중 공고", "company": "c1", "role": "r1", "employment_type": "full_time", "location_text": "서울", "published_at": null, "expires_at": null, "status": "draft"},
+    "p09": {"title": "모바일 개발자_iOS", "company": "c2", "role": "r2", "employment_type": "full_time", "location_text": "경기도 수원시", "published_at": "2026-11-07T00:00:00Z", "expires_at": "2026-11-12T00:00:00Z", "status": "published"},
+    "p10": {"title": "광주 백엔드", "company": "c3", "role": "r1", "employment_type": "full_time", "location_text": "광주 서구", "published_at": "2026-11-06T00:00:00Z", "expires_at": null, "status": "published"}
+  },
+  "cases": [
+    {"id": "A01", "why": "default: open postings only, newest first, tie on published_at -> id desc", "params": {}, "expect": ["p05", "p01", "p02", "p09", "p10", "p03", "p04"]},
+    {"id": "A02", "why": "q matches the company name too", "params": {"q": "베타"}, "expect": ["p05", "p02", "p09"]},
+    {"id": "A03", "why": "% is a literal character, not a wildcard", "params": {"q": "%"}, "expect": ["p10", "p03"]},
+    {"id": "A04", "why": "_ is a literal character, not a wildcard", "params": {"q": "_"}, "expect": ["p05", "p02", "p09"]},
+    {"id": "A05", "why": "q is trimmed and case-insensitive", "params": {"q": "  qa  "}, "expect": ["p05"]},
+    {"id": "A06", "why": "multi-value employment_type is OR", "params": {"employment_type": ["contract", "part_time"]}, "expect": ["p05", "p02"]},
+    {"id": "A07", "why": "duplicate values are ignored", "params": {"employment_type": ["contract", "contract"]}, "expect": ["p02"]},
+    {"id": "A08", "why": "region by first token of location_text; NULL location never matches", "params": {"region": ["seoul"]}, "expect": ["p01"]},
+    {"id": "A09", "why": "region aliases (경기도, 충청북도) and multi-value OR", "params": {"region": ["gyeonggi", "chungbuk"]}, "expect": ["p05", "p02", "p09"]},
+    {"id": "A10", "why": "region gwangju is the metropolitan city", "params": {"region": ["gwangju"]}, "expect": ["p10"]},
+    {"id": "A11", "why": "posted_within=7d is published_at >= now - 7 days", "params": {"posted_within": "7d"}, "expect": ["p05", "p01", "p02", "p09", "p10"]},
+    {"id": "A12", "why": "different filters combine with AND", "params": {"q": "개발자", "employment_type": ["full_time"], "region": ["seoul", "gyeonggi"]}, "expect": ["p01", "p09"]},
+    {"id": "A13", "why": "include_closed + expires_at: soonest first, no deadline last, ties id asc; drafts never", "params": {"include_closed": true, "sort": "expires_at"}, "expect": ["p06", "p09", "p07", "p03", "p05", "p01", "p02", "p04", "p10"]},
+    {"id": "A14", "why": "company filter with closed postings", "params": {"company_id": ["c1"], "include_closed": true}, "expect": ["p01", "p07", "p04"]},
+    {"id": "A15", "why": "multi job_role_id + posted_within=30d", "params": {"job_role_id": ["r1", "r2"], "posted_within": "30d"}, "expect": ["p01", "p02", "p09", "p10", "p03"]},
+    {"id": "A16", "why": "no match is an empty page, not an error", "params": {"q": "존재하지않는공고"}, "expect": []}
+  ],
+  "invalid": [
+    {"id": "E01", "params": {"employment_type": ["freelance"]}, "status": 422},
+    {"id": "E02", "params": {"company_id": ["c1", "c1", "c1", "c1", "c1", "c1", "c1", "c1", "c1", "c1", "c2"], "_note": "11 values before dedupe"}, "status": 422},
+    {"id": "E03", "params": {"q": "   "}, "status": 422},
+    {"id": "E04", "params": {"posted_within": "2d"}, "status": 422},
+    {"id": "E05", "params": {"q": {"repeat": "가", "times": 101}}, "status": 422},
+    {"id": "E06", "params": {"region": ["tokyo"]}, "status": 422},
+    {"id": "E07", "params": {"job_role_id": ["not-a-uuid"]}, "status": 422},
+    {"id": "E08", "params": {"limit": 0}, "status": 422},
+    {"id": "E09", "params": {"sort": "salary"}, "status": 422}
+  ],
+  "pagination": [
+    {"id": "P01", "why": "walking pages of 2 returns exactly the single-page result, no duplicates or gaps", "params": {"include_closed": true, "sort": "expires_at"}, "page_size": 2},
+    {"id": "P02", "why": "same for the default sort with a tie", "params": {}, "page_size": 2}
+  ]
+}
