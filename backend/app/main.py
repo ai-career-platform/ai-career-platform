@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from app.routers import crawler_admin_write
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth_config import AuthSettings
@@ -59,6 +60,8 @@ def create_app() -> FastAPI:
     app.include_router(list_router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.job_applications_api:  # T102: 미승인·기본 비활성
         app.include_router(job_applications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.crawler_admin_write_api:  # T155: 기본 비활성
+        app.include_router(crawler_admin_write.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.company_accounts_api:  # T123: 기본 비활성
         app.include_router(company_accounts.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.company_postings_api:  # T126: 기본 비활성
