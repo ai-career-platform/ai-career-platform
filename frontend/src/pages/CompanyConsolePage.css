@@ -1,0 +1,29 @@
+.company-page { display: grid; gap: 1rem; min-width: 0; }
+.company-page h1, .company-page p { margin: 0; }
+.company-notice { padding: .75rem 1rem; border-left: 4px solid var(--color-warning); background: var(--color-surface); }
+.company-error { color: var(--color-danger); font-weight: 600; }
+.company-ok { font-weight: 600; }
+.company-muted { color: var(--color-text-muted); font-size: .875rem; }
+.company-orgs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.company-orgs li { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.company-detail { display: grid; gap: 1rem; min-width: 0; }
+.company-org-name { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0; }
+.company-section { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 8px; min-width: 0; }
+.company-section h2 { margin: 0; font-size: 1.125rem; }
+.company-form { display: grid; gap: .5rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 8px; max-width: 36rem; }
+.company-form h2 { margin: 0; font-size: 1.125rem; }
+.company-form--inline { border: 0; padding: 0; max-width: none; grid-template-columns: 1fr; }
+.company-form input, .company-form select, .company-table select { font: inherit; padding: .4rem; border: 1px solid var(--color-border); border-radius: 6px; min-height: 44px; max-width: 100%; box-sizing: border-box; }
+.company-table-wrap { overflow-x: auto; }
+.company-table { border-collapse: collapse; width: 100%; min-width: 36rem; }
+.company-table caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
+.company-table th, .company-table td { border-bottom: 1px solid var(--color-border); padding: .5rem; text-align: left; vertical-align: middle; }
+.company-invites { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.company-invite { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .5rem; border: 1px solid var(--color-border); border-radius: 8px; overflow-wrap: anywhere; }
+.company-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.company-badge { padding: 0 .4rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: .75rem; font-weight: 600; }
+.company-badge--pending { border-color: var(--color-warning); }
+.company-badge--expired, .company-badge--revoked, .company-badge--suspended { border-style: dashed; }
+@media (min-width: 48rem) {
+  .company-form--inline { grid-template-columns: auto 1fr auto auto auto; align-items: center; }
+}

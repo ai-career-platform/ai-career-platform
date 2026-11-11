@@ -23,4 +23,6 @@ export const env = {
   jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
   /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
   applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
+  /** T124 기업 콘솔 Mock UI: 기본 비활성 */
+  companyConsoleUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
 } as const;
