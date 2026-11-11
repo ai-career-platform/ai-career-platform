@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.auth_config import AuthSettings
 from app.core.config import API_V1_PREFIX, APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.observability import AccessLogMiddleware, RequestMetrics, install_uvicorn_access_filter
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
@@ -44,7 +45,11 @@ def create_app() -> FastAPI:
     app.state.auth_settings = AuthSettings.from_env(settings.app_env)
     app.state.attempt_limiter = AttemptLimiter()
     app.state.behavior_event_settings = BehaviorEventSettings.from_env()
+    # T112: 요청 로그·지표(안쪽) → request_id(바깥). add_middleware 는 나중에 넣은 것이 바깥이다.
+    app.state.request_metrics = RequestMetrics()
+    app.add_middleware(AccessLogMiddleware, metrics=app.state.request_metrics)
     app.add_middleware(RequestIdMiddleware)
+    install_uvicorn_access_filter()
     register_exception_handlers(app)
     app.include_router(system.router)
     app.include_router(api_v1.api_router)

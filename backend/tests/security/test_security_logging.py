@@ -2,8 +2,9 @@
 그리고 Finding F-1(접근 로그의 쿼리 문자열) 재현.
 
 - 애플리케이션 로그: 앱 로거(app.*, uvicorn.error 등) — 여기서는 원문이 없어야 합니다(PASS 기준).
-- 접근 로그: uvicorn.access / Nginx combined — 요청 줄 전체(쿼리 포함)를 남깁니다. **현재 동작을 재현해 기록**하고,
-  개선안(쿼리 제거 필터)이 동작함을 함께 보입니다. 운영 Uvicorn·Nginx 설정은 바꾸지 않습니다.
+- 접근 로그: uvicorn.access / Nginx combined — 요청 줄 전체(쿼리 포함)를 남겼습니다(F-1).
+  **T112 에서 개선안(쿼리 제거 필터)을 앱에 적용**했습니다(app.core.observability.StripQueryFilter, create_app 이 설치).
+  Nginx combined 형식은 그대로입니다 — 제안 설정은 docs/ops/observability/ (미적용, 승인 필요).
 """
 import logging
 import socket
@@ -104,42 +105,25 @@ def _get(url: str) -> int:
         return exc.code
 
 
-class StripQueryFromAccessLog(logging.Filter):
-    """개선안 프로토타입: uvicorn.access 레코드의 경로에서 쿼리 문자열을 지웁니다 (운영 미적용)."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
-            args = list(record.args)
-            args[2] = args[2].split("?", 1)[0] + ("?[query redacted]" if "?" in args[2] else "")
-            record.args = tuple(args)
-        return True
-
-
-def test_finding_f1_uvicorn_access_log_records_the_query_string(live_uvicorn, caplog):
+def test_finding_f1_uvicorn_access_log_no_longer_records_the_query_string(live_uvicorn, caplog):
+    """T112 적용 후: 인증 실패(401) 요청의 조회 조건·사용자 ID 원문이 접근 로그에 남지 않는다."""
     query = f"from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z&actor_user_id={SYNTHETIC_ACTOR}"
     with caplog.at_level(logging.INFO, logger="uvicorn.access"):
         assert _get(f"{live_uvicorn}/api/v1/admin/audit-events?{query}") == 401
         time.sleep(0.2)
     access = [r.getMessage() for r in caplog.records if r.name == "uvicorn.access"]
     assert access, "uvicorn default access log is on"
-    # 현재 동작(Finding F-1): 인증 실패(401) 요청이어도 원문 사용자 ID 가 접근 로그에 남는다.
-    assert any(str(SYNTHETIC_ACTOR) in line for line in access), access
+    assert all(str(SYNTHETIC_ACTOR) not in line and "2026-11-01" not in line for line in access), access
+    assert any("/api/v1/admin/audit-events?[query redacted]" in line for line in access), access
     assert str(SYNTHETIC_ACTOR) not in server_logs(caplog), "application logs stay clean"
 
 
-def test_finding_f1_mitigation_prototype_removes_the_query(live_uvicorn, caplog):
-    access_logger = logging.getLogger("uvicorn.access")
-    shim = StripQueryFromAccessLog()
-    access_logger.addFilter(shim)
-    try:
-        with caplog.at_level(logging.INFO, logger="uvicorn.access"):
-            _get(f"{live_uvicorn}/api/v1/admin/audit-events?actor_user_id={SYNTHETIC_ACTOR}")
-            time.sleep(0.2)
-    finally:
-        access_logger.removeFilter(shim)
-    access = [r.getMessage() for r in caplog.records if r.name == "uvicorn.access"]
-    assert access and all(str(SYNTHETIC_ACTOR) not in line for line in access), access
-    assert any("/api/v1/admin/audit-events?[query redacted]" in line for line in access)
+def test_finding_f1_filter_is_installed_once_by_create_app(live_uvicorn):
+    from app.core.observability import StripQueryFilter
+
+    create_app()  # 두 번째 생성에도 중복 설치되지 않음
+    filters = [f for f in logging.getLogger("uvicorn.access").filters if isinstance(f, StripQueryFilter)]
+    assert len(filters) == 1
 
 
 def test_finding_f1_deployment_config_still_logs_full_request_lines():
