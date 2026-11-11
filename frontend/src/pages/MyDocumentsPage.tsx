@@ -10,6 +10,7 @@ import type { UploadKind, UserDocument } from '../api/documents';
 import { ApiError } from '../api/errors';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
+import { formatDateTime } from '../i18n/format';
 import { env } from '../config/env';
 import './MyDocumentsPage.css';
 
@@ -264,7 +265,7 @@ export function MyDocumentsPage() {
                 <dl className="documents-meta">
                   <div><dt>유형</dt><dd>{kindNames[doc.kind] ?? doc.kind}</dd></div>
                   <div><dt>크기</dt><dd>{formatBytes(doc.size_bytes)}</dd></div>
-                  <div><dt>등록일</dt><dd>{new Date(doc.created_at).toLocaleString('ko-KR')}</dd></div>
+                  <div><dt>등록일</dt><dd><time dateTime={doc.created_at}>{formatDateTime(doc.created_at)}</time></dd></div>
                   <div><dt>상태</dt><dd><span className={`documents-status documents-status--${doc.status}`}>{statusNames[doc.status]}</span></dd></div>
                 </dl>
                 <div className="documents-item-actions">

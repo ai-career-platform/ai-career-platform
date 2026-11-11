@@ -1,0 +1,273 @@
+{
+  "tool": "t146-i18n-a11y",
+  "mode": "mock",
+  "base": "http://127.0.0.1:5202",
+  "browser": "chrome (playwright-core)",
+  "browserTimezone": "America/Los_Angeles",
+  "summary": {
+    "pass": 30,
+    "fail": 0
+  },
+  "results": [
+    {
+      "scenario": "w320",
+      "step": "html lang is ko",
+      "status": "PASS"
+    },
+    {
+      "scenario": "w320",
+      "step": "first Tab focuses a visible skip link; Enter moves focus to main",
+      "status": "PASS",
+      "detail": {
+        "cls": "skip-link",
+        "text": "본문으로 바로가기",
+        "visible": true
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /job-postings",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /login",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "login with keyboard only",
+      "status": "PASS"
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /account",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /account/privacy",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /me/skills",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /me/notifications",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "no horizontal overflow /me/applications",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "privacy dates are KST while the browser is in Los Angeles",
+      "status": "PASS",
+      "detail": {
+        "checked": 4,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "recommendation run time is KST",
+      "status": "PASS",
+      "detail": {
+        "checked": 1,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "long unbroken document name wraps (no overflow) and date is KST",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320,
+        "checked": 1,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w320",
+      "step": "zoom 200% equivalent (half width) keeps privacy page usable",
+      "status": "PASS",
+      "detail": {
+        "scroll": 320,
+        "inner": 320
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "html lang is ko",
+      "status": "PASS"
+    },
+    {
+      "scenario": "w1280",
+      "step": "first Tab focuses a visible skip link; Enter moves focus to main",
+      "status": "PASS",
+      "detail": {
+        "cls": "skip-link",
+        "text": "본문으로 바로가기",
+        "visible": true
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /job-postings",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /login",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "login with keyboard only",
+      "status": "PASS"
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /account",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /account/privacy",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /me/skills",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /me/notifications",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "no horizontal overflow /me/applications",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "privacy dates are KST while the browser is in Los Angeles",
+      "status": "PASS",
+      "detail": {
+        "checked": 4,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "recommendation run time is KST",
+      "status": "PASS",
+      "detail": {
+        "checked": 1,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "long unbroken document name wraps (no overflow) and date is KST",
+      "status": "PASS",
+      "detail": {
+        "scroll": 1280,
+        "inner": 1280,
+        "checked": 1,
+        "browserZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "scenario": "w1280",
+      "step": "zoom 200% equivalent (half width) keeps privacy page usable",
+      "status": "PASS",
+      "detail": {
+        "scroll": 640,
+        "inner": 640
+      }
+    }
+  ]
+}
