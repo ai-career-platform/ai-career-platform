@@ -1,0 +1,167 @@
+# T101 OpenAPI proposal — PROPOSED / NOT APPROVED. NOT part of docs/api/openapi.yaml.
+# New requirement FR-JOB-008, screen UI-N05 and table job_applications are proposals (the contract test injects them).
+paths:
+  /me/job-applications:
+    get:
+      tags: [me]
+      operationId: listMyJobApplications
+      summary: 내 지원 기록 (최근 수정순, 사용자가 직접 기록한 상태)
+      x-requirements: [FR-JOB-008]
+      x-screens: [UI-N05]
+      x-tables: [job_applications, job_postings]
+      parameters:
+        - name: stage
+          in: query
+          style: form
+          explode: true
+          description: 여러 개면 OR
+          schema: { type: array, maxItems: 7, items: { $ref: '#/components/schemas/ApplicationStage' } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: 본인 기록만
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobApplicationPage' }
+        '400': { $ref: '#/components/responses/BadCursor' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    post:
+      tags: [me]
+      operationId: createMyJobApplication
+      summary: 지원 기록 추가 (같은 공고는 1건)
+      x-requirements: [FR-JOB-008]
+      x-screens: [UI-N05, UI-012]
+      x-tables: [job_applications, job_postings, companies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobApplicationCreate' }
+            example: { job_posting_id: 2d4f6a8c-0e1b-4d3f-8a5c-7e9b1d3f5a7c, stage: interested }
+      responses:
+        '201':
+          description: 생성됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobApplication' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /me/job-applications/{application_id}:
+    parameters:
+      - name: application_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [me]
+      operationId: getMyJobApplication
+      summary: 지원 기록 1건 (남의 기록은 404)
+      x-requirements: [FR-JOB-008]
+      x-screens: [UI-N05]
+      x-tables: [job_applications, job_postings]
+      responses:
+        '200':
+          description: 기록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobApplication' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [me]
+      operationId: updateMyJobApplication
+      summary: 단계·날짜·메모 수정 (version 이 다르면 409)
+      x-requirements: [FR-JOB-008]
+      x-screens: [UI-N05]
+      x-tables: [job_applications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobApplicationUpdate' }
+            example: { version: 3, stage: interviewing, next_step_on: '2026-11-20' }
+      responses:
+        '200':
+          description: 수정 후 기록
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobApplication' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [me]
+      operationId: deleteMyJobApplication
+      summary: 지원 기록 삭제 (즉시 물리 삭제)
+      x-requirements: [FR-JOB-008]
+      x-screens: [UI-N05]
+      x-tables: [job_applications]
+      responses:
+        '204': { description: 삭제됨 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  schemas:
+    ApplicationStage:
+      type: string
+      description: 사용자가 직접 기록한 단계. 채용사 공식 상태가 아님
+      enum: [interested, preparing, applied, interviewing, offered, rejected, withdrawn]
+    ApplicationPosting:
+      type: object
+      additionalProperties: false
+      required: [job_posting_id, title, company_name, status, expires_at]
+      properties:
+        job_posting_id: { type: [string, 'null'], format: uuid, description: 공고가 지워졌으면 null }
+        title: { type: string, maxLength: 240 }
+        company_name: { type: string, maxLength: 200 }
+        status: { type: string, enum: [published, closed, unavailable] }
+        expires_at: { type: [string, 'null'], format: date-time }
+    JobApplication:
+      type: object
+      additionalProperties: false
+      required: [application_id, stage, applied_on, next_step_on, memo, version, created_at, updated_at, stage_changed_at, posting]
+      properties:
+        application_id: { type: string, format: uuid }
+        stage: { $ref: '#/components/schemas/ApplicationStage' }
+        applied_on: { type: [string, 'null'], format: date }
+        next_step_on: { type: [string, 'null'], format: date }
+        memo: { type: [string, 'null'], maxLength: 2000 }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        stage_changed_at: { type: string, format: date-time }
+        posting: { $ref: '#/components/schemas/ApplicationPosting' }
+    JobApplicationPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/JobApplication' } }
+        next_cursor: { $ref: '#/components/schemas/NextCursor' }
+    JobApplicationCreate:
+      type: object
+      additionalProperties: false
+      required: [job_posting_id]
+      properties:
+        job_posting_id: { type: string, format: uuid }
+        stage: { $ref: '#/components/schemas/ApplicationStage' }
+        applied_on: { type: [string, 'null'], format: date }
+        next_step_on: { type: [string, 'null'], format: date }
+        memo: { type: [string, 'null'], maxLength: 2000 }
+    JobApplicationUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      minProperties: 2
+      properties:
+        version: { type: integer, minimum: 1 }
+        stage: { $ref: '#/components/schemas/ApplicationStage' }
+        applied_on: { type: [string, 'null'], format: date }
+        next_step_on: { type: [string, 'null'], format: date }
+        memo: { type: [string, 'null'], maxLength: 2000 }
