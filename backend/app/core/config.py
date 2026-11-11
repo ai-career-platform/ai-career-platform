@@ -66,6 +66,8 @@ class Settings:
     job_applications_api: bool = False
     # T123: 기업 계정 API — 승인 전 비활성, DB 저장소 미연결
     company_accounts_api: bool = False
+    # T126 기업 공고 API: 승인 전 기본 비활성
+    company_postings_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -76,6 +78,7 @@ class Settings:
             job_search_advanced=os.environ.get("JOB_SEARCH_ADVANCED", "false").lower() == "true",
             job_applications_api=os.environ.get("JOB_APPLICATIONS_API", "false").lower() == "true",
             company_accounts_api=os.environ.get("COMPANY_ACCOUNTS_API", "false").lower() == "true",
+            company_postings_api=os.environ.get("COMPANY_POSTINGS_API", "false").lower() == "true",
         )
 
 
