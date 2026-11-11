@@ -31,4 +31,6 @@ export const env = {
   /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
   companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
+  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
+  publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
 } as const;
