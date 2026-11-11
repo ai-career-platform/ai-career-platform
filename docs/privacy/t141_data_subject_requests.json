@@ -1,0 +1,126 @@
+{
+  "status": "PROPOSED",
+  "task": "T141",
+  "version": "2026-11-11.1",
+  "related": {
+    "T31": "backend/app/routers/privacy.py (deletion intake, consents)",
+    "T83": "docs/security/AUDIT_EVENT_CONTRACT.md",
+    "T128": "docs/enterprise/T128_PUBLIC_PROFILE_CONSENT_POLICY.md"
+  },
+  "request_types": {
+    "access": {
+      "label": "열람",
+      "self_service": true,
+      "reauth_required": true,
+      "deadline_days": 10,
+      "result": "in_app_view",
+      "implemented_by": "GET /api/v1/me 등 기존 조회 API (부분). 통합 열람은 export와 같은 묶음 사용"
+    },
+    "rectification": {
+      "label": "정정",
+      "self_service": true,
+      "reauth_required": false,
+      "deadline_days": 10,
+      "result": "data_updated",
+      "implemented_by": "기존 수정 API(T21 프로필·T33 기술·경력). 화면에서 고칠 수 없는 항목만 접수"
+    },
+    "erasure": {
+      "label": "삭제",
+      "self_service": true,
+      "reauth_required": true,
+      "deadline_days": 10,
+      "result": "erasure_plan_applied",
+      "implemented_by": "T31 POST /api/v1/me/deletion-request (접수만, 물리 삭제 미구현)"
+    },
+    "export": {
+      "label": "반출(내보내기)",
+      "self_service": true,
+      "reauth_required": true,
+      "deadline_days": 10,
+      "result": "download_artifact",
+      "implemented_by": "T142 제안 API (플래그 기본 꺼짐)"
+    }
+  },
+  "actors": {
+    "requester": "본인. 로그인 세션 + 재인증",
+    "privacy_officer": "개인정보 처리 담당. 현재 역할 없음 -> admin 역할로 임시 매핑(PM 결정 필요)",
+    "system": "배치·Worker"
+  },
+  "identity_verification": {
+    "self_service": {
+      "method": "active_session_plus_password_reauth",
+      "reauth_max_age_minutes": 10,
+      "reauth_bound_to": "session_id",
+      "reauth_attempt_limit": "T15 로그인 시도 제한과 같은 limiter 사용"
+    },
+    "assisted": {
+      "method": "privacy_officer_manual_check",
+      "evidence_stored": "verification_method 코드와 결과만. 신분증 사본·원문 저장 금지"
+    },
+    "disabled_account": "탈퇴 접수로 비활성화된 계정은 재인증할 수 없음(T31 HOLD). 담당자 확인 경로(assisted)만 허용"
+  },
+  "states": {
+    "pending_verification": {"terminal": false, "desc": "접수됨. 신원 확인 전(assisted 경로만)"},
+    "received": {"terminal": false, "desc": "신원 확인 완료, 처리 대기"},
+    "in_progress": {"terminal": false, "desc": "처리 중(묶음 생성·삭제 계획 적용)"},
+    "completed": {"terminal": false, "desc": "완료. export는 다운로드 가능 기간"},
+    "failed": {"terminal": false, "desc": "처리 실패. 재시도 한도 안에서 다시 received"},
+    "rejected": {"terminal": true, "desc": "반려(사유 코드 필수)"},
+    "cancelled": {"terminal": true, "desc": "본인 취소(처리 시작 전만)"},
+    "expired": {"terminal": true, "desc": "export 다운로드 기간 만료 또는 사용 완료. 파일 삭제"},
+    "closed": {"terminal": true, "desc": "export 외 요청의 완료 종결"}
+  },
+  "initial": {
+    "self_service": "received",
+    "assisted": "pending_verification"
+  },
+  "transitions": [
+    {"from": "pending_verification", "to": "received", "action": "dsr.verify", "actors": ["privacy_officer"], "guards": ["identity_verified", "not_requester"], "audit": "privacy.dsr.verify"},
+    {"from": "pending_verification", "to": "rejected", "action": "dsr.reject", "actors": ["privacy_officer"], "guards": ["reason_code_required", "not_requester"], "audit": "privacy.dsr.reject"},
+    {"from": "pending_verification", "to": "cancelled", "action": "dsr.cancel", "actors": ["requester"], "guards": ["owner_only"], "audit": "privacy.dsr.cancel"},
+    {"from": "received", "to": "in_progress", "action": "dsr.start", "actors": ["system", "privacy_officer"], "guards": ["single_worker_lock"], "audit": "privacy.dsr.start"},
+    {"from": "received", "to": "rejected", "action": "dsr.reject", "actors": ["privacy_officer"], "guards": ["reason_code_required", "not_requester"], "audit": "privacy.dsr.reject"},
+    {"from": "received", "to": "cancelled", "action": "dsr.cancel", "actors": ["requester"], "guards": ["owner_only"], "audit": "privacy.dsr.cancel"},
+    {"from": "in_progress", "to": "completed", "action": "dsr.complete", "actors": ["system", "privacy_officer"], "guards": ["single_worker_lock"], "audit": "privacy.dsr.complete"},
+    {"from": "in_progress", "to": "failed", "action": "dsr.fail", "actors": ["system"], "guards": ["reason_code_required"], "audit": "privacy.dsr.fail"},
+    {"from": "failed", "to": "received", "action": "dsr.retry", "actors": ["system", "privacy_officer"], "guards": ["attempts_below_max"], "audit": "privacy.dsr.retry"},
+    {"from": "failed", "to": "rejected", "action": "dsr.reject", "actors": ["privacy_officer"], "guards": ["reason_code_required", "not_requester"], "audit": "privacy.dsr.reject"},
+    {"from": "completed", "to": "expired", "action": "dsr.expire", "actors": ["system"], "guards": ["export_only"], "audit": "privacy.dsr.expire"},
+    {"from": "completed", "to": "closed", "action": "dsr.close", "actors": ["system", "privacy_officer"], "guards": ["not_export"], "audit": "privacy.dsr.close"}
+  ],
+  "limits": {
+    "max_attempts": 3,
+    "export_download_ttl_hours": 24,
+    "export_download_uses": 1,
+    "export_max_bytes": 52428800,
+    "open_requests_per_type": 1,
+    "requests_per_type_per_30_days": 3
+  },
+  "reject_reason_codes": ["identity_not_verified", "duplicate_request", "manifestly_excessive", "legal_hold", "not_data_subject"],
+  "fail_reason_codes": ["export_too_large", "storage_unavailable", "dependency_unavailable", "internal_error"],
+  "data_categories": [
+    {"category": "account", "tables": ["users", "user_profiles"], "export": "include", "excluded_columns": ["email_canonical"], "erasure": "delete"},
+    {"category": "credentials", "tables": ["auth_identities", "auth_sessions", "password_reset_tokens"], "export": "exclude", "excluded_columns": ["password_hash", "refresh_token_hash", "token_hash"], "erasure": "delete"},
+    {"category": "career", "tables": ["user_experiences", "user_projects", "user_project_skills", "user_skills", "user_target_roles"], "export": "include", "excluded_columns": [], "erasure": "delete"},
+    {"category": "documents", "tables": ["user_documents", "document_analyses", "document_chunks"], "export": "metadata_and_files", "excluded_columns": ["storage_key"], "erasure": "delete_with_storage_objects"},
+    {"category": "consents", "tables": ["user_consents"], "export": "include", "excluded_columns": [], "erasure": "retain_anonymized"},
+    {"category": "activity", "tables": ["user_job_bookmarks", "behavior_events", "recommendation_feedback"], "export": "include", "excluded_columns": [], "erasure": "delete"},
+    {"category": "derived", "tables": ["skill_gap_assessments", "skill_gap_items", "recommendation_runs", "recommendation_items", "match_evaluations", "user_segment_assignments"], "export": "include", "excluded_columns": ["model_version_id"], "erasure": "delete"},
+    {"category": "ai_runs", "tables": ["agent_runs", "agent_tool_calls", "agent_tool_approvals", "retrieval_runs", "retrieval_citations"], "export": "summary_only", "excluded_columns": ["prompt", "completion"], "erasure": "delete"},
+    {"category": "audit", "tables": ["audit_events"], "export": "summary_only", "excluded_columns": ["client_ip_hash", "row_hash", "metadata"], "erasure": "retain_anonymized"},
+    {"category": "ai_usage", "tables": ["ai_usage_records"], "export": "exclude", "excluded_columns": [], "erasure": "retain_anonymized"},
+    {"category": "deletion_requests", "tables": ["account_deletion_requests"], "export": "include", "excluded_columns": [], "erasure": "retain_anonymized"}
+  ],
+  "never_export_columns": ["password_hash", "refresh_token_hash", "token_hash", "client_ip_hash", "storage_key", "row_hash"],
+  "invariants": [
+    "D-INV1 본인 요청만 본인 데이터에 접근한다. 다른 사용자 요청은 존재를 숨긴다(404)",
+    "D-INV2 열람·삭제·반출은 10분 안 재인증 없이 접수하지 않는다",
+    "D-INV3 비밀번호 해시·토큰 해시·IP 해시·저장 키는 반출하지 않는다",
+    "D-INV4 반려·실패는 사유 코드가 있어야 한다",
+    "D-INV5 담당자는 자기 요청을 승인·반려하지 않는다",
+    "D-INV6 종료 상태에서는 다른 상태로 가지 않는다",
+    "D-INV7 모든 전이는 T83 감사 이벤트를 남긴다. 메타데이터에 개인정보 원문을 넣지 않는다",
+    "D-INV8 삭제는 보존 대상(감사·동의·탈퇴 기록·AI 사용량)을 지우지 않고 익명화한다",
+    "D-INV9 반출 다운로드는 1회·24시간만 유효하고, 토큰은 SHA-256 해시로만 저장한다"
+  ]
+}
