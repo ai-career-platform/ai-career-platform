@@ -1,0 +1,209 @@
+{
+  "status": "PROPOSED",
+  "task": "T125",
+  "version": "2026-11-11.1",
+  "states": {
+    "draft": {
+      "terminal": false,
+      "public": false,
+      "desc": "작성 중. 기업만 보임"
+    },
+    "pending_review": {
+      "terminal": false,
+      "public": false,
+      "desc": "검수 대기. 내용 수정 불가(철회 후 수정)"
+    },
+    "rejected": {
+      "terminal": false,
+      "public": false,
+      "desc": "반려. 사유 표시, 수정하면 draft"
+    },
+    "published": {
+      "terminal": false,
+      "public": true,
+      "desc": "게시. 공개 공고 표(job_postings)에 반영"
+    },
+    "closed": {
+      "terminal": true,
+      "public": false,
+      "desc": "기업이 마감"
+    },
+    "expired": {
+      "terminal": true,
+      "public": false,
+      "desc": "만료 시각 경과(시스템)"
+    },
+    "taken_down": {
+      "terminal": true,
+      "public": false,
+      "desc": "운영 강제 내림(사유 필수)"
+    }
+  },
+  "initial": "draft",
+  "transitions": [
+    {
+      "from": "draft",
+      "to": "pending_review",
+      "action": "posting.submit_review",
+      "actors": [
+        "company_member",
+        "company_owner"
+      ],
+      "guards": [
+        "org_active",
+        "required_fields_complete",
+        "version_match"
+      ],
+      "effects": [
+        "moderation_case_open"
+      ]
+    },
+    {
+      "from": "pending_review",
+      "to": "draft",
+      "action": "posting.withdraw_review",
+      "actors": [
+        "company_member",
+        "company_owner"
+      ],
+      "guards": [
+        "version_match"
+      ],
+      "effects": [
+        "moderation_case_close:withdrawn"
+      ]
+    },
+    {
+      "from": "pending_review",
+      "to": "published",
+      "action": "posting.publish",
+      "actors": [
+        "admin"
+      ],
+      "guards": [
+        "not_member_of_org",
+        "org_active",
+        "expires_within_60_days",
+        "version_match"
+      ],
+      "effects": [
+        "public_posting_upsert",
+        "moderation_case_close:approved"
+      ]
+    },
+    {
+      "from": "pending_review",
+      "to": "rejected",
+      "action": "posting.reject",
+      "actors": [
+        "admin"
+      ],
+      "guards": [
+        "not_member_of_org",
+        "reason_code_required",
+        "version_match"
+      ],
+      "effects": [
+        "moderation_case_close:rejected"
+      ]
+    },
+    {
+      "from": "rejected",
+      "to": "draft",
+      "action": "posting.draft_edit",
+      "actors": [
+        "company_member",
+        "company_owner"
+      ],
+      "guards": [
+        "version_match"
+      ],
+      "effects": []
+    },
+    {
+      "from": "published",
+      "to": "closed",
+      "action": "posting.close",
+      "actors": [
+        "company_member",
+        "company_owner",
+        "admin"
+      ],
+      "guards": [
+        "version_match"
+      ],
+      "effects": [
+        "public_posting_close"
+      ]
+    },
+    {
+      "from": "published",
+      "to": "expired",
+      "action": "system.expire",
+      "actors": [
+        "system"
+      ],
+      "guards": [
+        "now_after_expires_at"
+      ],
+      "effects": [
+        "public_posting_close"
+      ]
+    },
+    {
+      "from": "published",
+      "to": "taken_down",
+      "action": "posting.takedown",
+      "actors": [
+        "admin"
+      ],
+      "guards": [
+        "reason_code_required"
+      ],
+      "effects": [
+        "public_posting_close"
+      ]
+    }
+  ],
+  "revision_flow": {
+    "description": "게시 중 공고 수정은 '수정본'을 만들고 수정본만 draft→pending_review→(published|rejected)를 거친다. 승인 전까지 공개 공고는 이전 내용 그대로.",
+    "public_changes_only_on": "posting.publish"
+  },
+  "reject_reason_codes": [
+    "missing_required_info",
+    "discriminatory_requirement",
+    "personal_contact_info",
+    "misleading_terms",
+    "not_a_job_posting",
+    "duplicate_posting",
+    "unverified_link",
+    "other"
+  ],
+  "takedown_reason_codes": [
+    "legal_request",
+    "fraud_suspected",
+    "discriminatory_requirement",
+    "organization_suspended",
+    "other"
+  ],
+  "limits": {
+    "max_publish_days": 60,
+    "title_max": 240,
+    "description_max": 20000
+  },
+  "source": {
+    "data_source_code": "company_direct",
+    "label": "기업 직접 등록",
+    "license_ref": "organization-posting-terms-v1 (PROPOSED)"
+  },
+  "invariants": [
+    "P-INV-1 기업 역할은 published 로 가는 전이를 실행할 수 없다(검수 우회·즉시 게시 금지)",
+    "P-INV-2 게시·반려는 해당 조직 멤버가 아닌 운영 관리자만(자기 검수 금지, T80 not self)",
+    "P-INV-3 공개 공고 표(job_postings)는 posting.publish 때만 생기거나 바뀐다. 초안·검수 중·반려는 공개 API 에 나오지 않는다",
+    "P-INV-4 반려·내림은 사유 코드가 필수다",
+    "P-INV-5 closed·expired·taken_down 은 종료 상태다. 다시 게시하려면 새 초안(복사)",
+    "P-INV-6 운영 관리자는 공고 내용을 수정하지 않는다(T121 INV-9)",
+    "P-INV-7 모든 사람 행위 전이는 version 일치가 필요하다(동시 수정 충돌 409)",
+    "P-INV-8 검증 전·정지 조직은 검수 요청·게시를 할 수 없다(T121 INV-8)"
+  ]
+}

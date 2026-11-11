@@ -1,0 +1,554 @@
+{
+  "timeline": [
+    {
+      "at": "2026-11-11T01:04:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "FIRING",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:05:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:05:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:06:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:06:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:07:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:07:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:08:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:08:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:09:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:09:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:10:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:10:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:11:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:11:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:12:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:12:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:13:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:13:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:14:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:14:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:15:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:15:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:16:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:16:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:17:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:17:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:18:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:18:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:19:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:19:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "ESCALATED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:19:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:20:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:20:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:20:00+00:00",
+      "rule": "A-DB-DOWN",
+      "event": "ACKNOWLEDGED",
+      "by": "on-call(mock)"
+    },
+    {
+      "at": "2026-11-11T01:21:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:21:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:22:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "health_db=503",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:22:00+00:00",
+      "rule": "A-API-5XX",
+      "severity": "critical",
+      "event": "INHIBITED",
+      "detail": "5xx_rate=0.750; by A-DB-DOWN",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r2-api"
+    },
+    {
+      "at": "2026-11-11T01:23:00+00:00",
+      "rule": "A-DB-DOWN",
+      "severity": "critical",
+      "event": "RESOLVED",
+      "detail": "health_db=200",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r1-db"
+    },
+    {
+      "at": "2026-11-11T01:28:00+00:00",
+      "rule": "A-AI-PROVIDER",
+      "severity": "warning",
+      "event": "FIRING",
+      "detail": "dependency_errors=7",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r3-ai"
+    },
+    {
+      "at": "2026-11-11T01:29:00+00:00",
+      "rule": "A-AI-PROVIDER",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "dependency_errors=7",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r3-ai"
+    },
+    {
+      "at": "2026-11-11T01:30:00+00:00",
+      "rule": "A-AI-PROVIDER",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "dependency_errors=7",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r3-ai"
+    },
+    {
+      "at": "2026-11-11T01:31:00+00:00",
+      "rule": "A-AI-PROVIDER",
+      "severity": "warning",
+      "event": "RESOLVED",
+      "detail": "dependency_errors=0",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r3-ai"
+    },
+    {
+      "at": "2026-11-11T01:33:00+00:00",
+      "rule": "A-AI-BUDGET-80",
+      "severity": "warning",
+      "event": "FIRING",
+      "detail": "budget_ratio=0.82",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:34:00+00:00",
+      "rule": "A-AI-BUDGET-80",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "budget_ratio=0.82",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:35:00+00:00",
+      "rule": "A-AI-BUDGET-80",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "budget_ratio=1.01",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:35:00+00:00",
+      "rule": "A-AI-BUDGET-100",
+      "severity": "critical",
+      "event": "FIRING",
+      "detail": "budget_ratio=1.01",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:36:00+00:00",
+      "rule": "A-AI-BUDGET-80",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "budget_ratio=1.01",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:36:00+00:00",
+      "rule": "A-AI-BUDGET-100",
+      "severity": "critical",
+      "event": "SUPPRESSED",
+      "detail": "budget_ratio=1.01",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:37:00+00:00",
+      "rule": "A-AI-BUDGET-80",
+      "severity": "warning",
+      "event": "RESOLVED",
+      "detail": "budget_ratio=0.20",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:37:00+00:00",
+      "rule": "A-AI-BUDGET-100",
+      "severity": "critical",
+      "event": "RESOLVED",
+      "detail": "budget_ratio=0.20",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r4-budget"
+    },
+    {
+      "at": "2026-11-11T01:37:00+00:00",
+      "rule": "A-BACKUP-STALE",
+      "severity": "warning",
+      "event": "FIRING",
+      "detail": "backup_age_hours=30.0",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r5-backup"
+    },
+    {
+      "at": "2026-11-11T01:38:00+00:00",
+      "rule": "A-BACKUP-STALE",
+      "severity": "warning",
+      "event": "SUPPRESSED",
+      "detail": "backup_age_hours=30.0",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r5-backup"
+    },
+    {
+      "at": "2026-11-11T01:39:00+00:00",
+      "rule": "A-BACKUP-STALE",
+      "severity": "warning",
+      "event": "RESOLVED",
+      "detail": "backup_age_hours=3.0",
+      "runbook": "docs/ops/INCIDENT_RUNBOOK.md#r5-backup"
+    }
+  ],
+  "primary_sent": 10,
+  "secondary_sent": 1,
+  "postmortems": {
+    "A-DB-DOWN": {
+      "rule": "A-DB-DOWN",
+      "detected_at": "2026-11-11T01:04:00+00:00",
+      "acknowledged_at": "2026-11-11T01:20:00+00:00",
+      "resolved_at": "2026-11-11T01:23:00+00:00",
+      "duration_minutes": 19.0,
+      "notifications": 3,
+      "suppressed": 18,
+      "inhibited": 0,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    },
+    "A-API-5XX": {
+      "rule": "A-API-5XX",
+      "detected_at": null,
+      "acknowledged_at": null,
+      "resolved_at": null,
+      "duration_minutes": null,
+      "notifications": 0,
+      "suppressed": 0,
+      "inhibited": 18,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    },
+    "A-AI-PROVIDER": {
+      "rule": "A-AI-PROVIDER",
+      "detected_at": "2026-11-11T01:28:00+00:00",
+      "acknowledged_at": null,
+      "resolved_at": "2026-11-11T01:31:00+00:00",
+      "duration_minutes": 3.0,
+      "notifications": 2,
+      "suppressed": 2,
+      "inhibited": 0,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    },
+    "A-AI-BUDGET-80": {
+      "rule": "A-AI-BUDGET-80",
+      "detected_at": "2026-11-11T01:33:00+00:00",
+      "acknowledged_at": null,
+      "resolved_at": "2026-11-11T01:37:00+00:00",
+      "duration_minutes": 4.0,
+      "notifications": 2,
+      "suppressed": 3,
+      "inhibited": 0,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    },
+    "A-AI-BUDGET-100": {
+      "rule": "A-AI-BUDGET-100",
+      "detected_at": "2026-11-11T01:35:00+00:00",
+      "acknowledged_at": null,
+      "resolved_at": "2026-11-11T01:37:00+00:00",
+      "duration_minutes": 2.0,
+      "notifications": 2,
+      "suppressed": 1,
+      "inhibited": 0,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    },
+    "A-BACKUP-STALE": {
+      "rule": "A-BACKUP-STALE",
+      "detected_at": "2026-11-11T01:37:00+00:00",
+      "acknowledged_at": null,
+      "resolved_at": "2026-11-11T01:39:00+00:00",
+      "duration_minutes": 2.0,
+      "notifications": 2,
+      "suppressed": 1,
+      "inhibited": 0,
+      "sections": [
+        "영향(사용자·기간)",
+        "탐지 경로",
+        "원인",
+        "완화·복구",
+        "재발 방지",
+        "남은 위험"
+      ]
+    }
+  }
+}

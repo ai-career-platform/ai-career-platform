@@ -32,12 +32,17 @@ import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
 import { PortfolioServiceProvider } from './portfolio/PortfolioServiceProvider';
 import { PublicProfileSettingsPage } from './pages/PublicProfileSettingsPage';
 import { PublicPortfolioViewPage } from './pages/PublicPortfolioViewPage';
+import { CompanyServiceProvider } from './company/CompanyServiceProvider';
+import { CompanyConsolePage } from './pages/CompanyConsolePage';
+import { CompanyInvitationAcceptPage } from './pages/CompanyInvitationAcceptPage';
+import { PostingServiceProvider } from './company/PostingServiceProvider';
+import { CompanyPostingsPage } from './pages/CompanyPostingsPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; publicPortfolioUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -65,7 +70,21 @@ const notificationRoutes = (features: Features): RouteObject[] => (features.noti
   ] },
 ] : []);
 
-/** T130 공개 포트폴리오: Mock 전용. 설정은 로그인 필요, 공개 화면(/p/:token)은 로그인 없이(같은 Provider = 같은 Mock 저장소) */
+/** T124 기업 콘솔·초대 수락: Mock 전용, 로그인 필요. 조직 권한은 서비스(Mock = T123 규칙)가 404/403 으로 판단 */
+const companyRoutes = (features: Features): RouteObject[] => (features.companyConsoleUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <CompanyServiceProvider />, children: [
+      { path: 'company', element: <CompanyConsolePage postingsUi={features.companyPostingsUi ?? false} /> },
+      { path: 'company-invitations/accept', element: <CompanyInvitationAcceptPage /> },
+      // T127 공고 관리: 같은 기업 Mock 을 쓰도록 CompanyServiceProvider 안쪽
+      ...(features.companyPostingsUi ? [{ element: <PostingServiceProvider />, children: [
+        { path: 'company/postings', element: <CompanyPostingsPage /> },
+      ] }] : []),
+    ] },
+  ] },
+] : []);
+
+/** T130 공개 포트폴리오: Mock만, 공유 링크 공개 경로는 임시 토큰을 사용 */
 const portfolioRoutes = (features: Features): RouteObject[] => (features.publicPortfolioUi ? [
   { element: <PortfolioServiceProvider />, children: [
     { path: 'p/:token', element: <PublicPortfolioViewPage /> },
@@ -99,7 +118,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, publicPortfolioUi: env.publicPortfolioUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi,
   },
 ): RouteObject[] => [
   {
@@ -108,7 +127,7 @@ export const buildRoutes = (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
           notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
-          publicPortfolioUi={features.publicPortfolioUi ?? false} />
+          companyConsoleUi={features.companyConsoleUi ?? false} publicPortfolioUi={features.publicPortfolioUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -136,6 +155,7 @@ export const buildRoutes = (
       ...notificationRoutes(features),
       ...applicationRoutes(features),
       ...portfolioRoutes(features),
+      ...companyRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },

@@ -24,8 +24,13 @@ export const env = {
   /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
   applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
   /**
-   * T130 공개 포트폴리오 편집·미리보기·공유 링크. T128 미승인, T129 서버는 플래그 뒤·저장소 없음 → **Mock 모드에서만**.
-   * 두 값이 모두 'true'여야 메뉴·경로(/me/public-profile, /p/:token)가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐.
+   * T124 기업 콘솔(조직·멤버·초대). T121·T122 미승인, T123 서버는 플래그 뒤·저장소 없음 → **Mock 모드에서만** 켤 수 있습니다.
+   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐.
    */
+  companyConsoleUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
+  /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
+  companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
+    && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
+  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
 } as const;

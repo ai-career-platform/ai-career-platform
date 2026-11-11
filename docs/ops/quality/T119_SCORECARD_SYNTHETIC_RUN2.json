@@ -1,0 +1,147 @@
+{
+  "generated_at": "2026-11-12T03:00:00+00:00",
+  "source": "same DB after a synthetic employment_type shift",
+  "summary": {
+    "ok": 6,
+    "breach": 2,
+    "not_measured": 4
+  },
+  "checks": [
+    {
+      "id": "DQ-NULL-TITLE",
+      "area": "data_quality",
+      "metric": "null_rate.title",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.0,
+      "breach": 0.0
+    },
+    {
+      "id": "DQ-NULL-EMPLOYMENT",
+      "area": "data_quality",
+      "metric": "null_rate.employment_type",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.2,
+      "breach": 0.4
+    },
+    {
+      "id": "DQ-NULL-LOCATION",
+      "area": "data_quality",
+      "metric": "null_rate.location_text",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.2,
+      "breach": 0.4
+    },
+    {
+      "id": "DQ-NULL-EXPIRES",
+      "area": "data_quality",
+      "metric": "null_rate.expires_at",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.3,
+      "breach": 0.6
+    },
+    {
+      "id": "DQ-DUPLICATES",
+      "area": "data_quality",
+      "metric": "duplicate_rate",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.01,
+      "breach": 0.05
+    },
+    {
+      "id": "DQ-STALE-PUBLISHED",
+      "area": "data_quality",
+      "metric": "stale_published_rate",
+      "value": 0.0,
+      "status": "ok",
+      "basis": "synthetic",
+      "warn": 0.01,
+      "breach": 0.05
+    },
+    {
+      "id": "DQ-FRESHNESS",
+      "area": "data_quality",
+      "metric": "freshness_hours",
+      "value": 339.0,
+      "status": "breach",
+      "basis": "none",
+      "warn": 48,
+      "breach": 168
+    },
+    {
+      "id": "DQ-DRIFT-EMPLOYMENT",
+      "area": "data_quality",
+      "metric": "psi.employment_type",
+      "value": 0.691144,
+      "status": "breach",
+      "basis": "candidate",
+      "warn": 0.1,
+      "breach": 0.25
+    },
+    {
+      "id": "SLO-AVAILABILITY",
+      "area": "service_slo",
+      "metric": "availability",
+      "value": null,
+      "status": "not_measured",
+      "basis": "none",
+      "warn": 0.995,
+      "breach": 0.99
+    },
+    {
+      "id": "SLO-P95",
+      "area": "service_slo",
+      "metric": "p95_ms",
+      "value": null,
+      "status": "not_measured",
+      "basis": "candidate",
+      "warn": 100,
+      "breach": 300
+    },
+    {
+      "id": "AI-RANKING-QUALITY",
+      "area": "ai_quality",
+      "metric": "ndcg_at_10",
+      "value": null,
+      "status": "not_measured",
+      "basis": "none",
+      "warn": null,
+      "breach": null
+    },
+    {
+      "id": "COST-AI-BUDGET",
+      "area": "cost",
+      "metric": "ai_cost_budget_ratio",
+      "value": null,
+      "status": "not_measured",
+      "basis": "none",
+      "warn": 0.8,
+      "breach": 1.0
+    }
+  ],
+  "measured": {
+    "rows": 90,
+    "null_rate.title": 0.0,
+    "null_rate.employment_type": 0.0,
+    "null_rate.location_text": 0.0,
+    "null_rate.expires_at": 0.0,
+    "duplicate_rate": 0.0,
+    "stale_published_rate": 0.0,
+    "freshness_hours": 339.0,
+    "distribution.employment_type": {
+      "contract": 54,
+      "full_time": 26,
+      "intern": 10
+    },
+    "ai_cost_month_usd": 0.0
+  }
+}

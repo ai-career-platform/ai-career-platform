@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  title: AI Career Platform — 기업 조직·소속·초대 API (PROPOSED, T122)
+  version: 0.1.0-proposal
+  description: |
+    **PROPOSED** — 확정 계약(docs/api/openapi.yaml)에 합치지 않습니다. 구현(T123)은 기능 플래그 뒤에서만, 기본 비활성.
+    권한 판단은 T121 매트릭스(docs/enterprise/t121_role_matrix.json). 다른 조직 리소스는 404, 같은 조직 역할 부족은 403.
+    409 는 기존 오류 코드 CONFLICT 하나(T116 오류 코드 기준선 유지). 세부 원인은 서버 로그.
+servers:
+  - url: /api/v1
+paths:
+  /organizations:
+    post:
+      operationId: registerOrganization
+      summary: 기업 등록 신청(pending). 신청자가 owner 가 됨 — org.register
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationCreate' } } }
+      responses:
+        '201': { description: 신청됨, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '401': { description: 비로그인 }
+        '409': { description: 같은 수집 회사에 열린 조직이 이미 있음(CONFLICT) }
+        '422': { description: 검증 실패 }
+  /me/organizations:
+    get:
+      operationId: listMyOrganizations
+      summary: 내가 active 멤버인 조직 목록
+      responses:
+        '200': { description: 목록, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MyOrganization' } } } } }
+  /organizations/{organization_id}:
+    get:
+      operationId: getOrganization
+      summary: 조직 콘솔 정보 — org.view_console (소속만, 아니면 404)
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      responses:
+        '200': { description: 조직, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '404': { description: 없음 또는 다른 조직 }
+  /organizations/{organization_id}/members:
+    get:
+      operationId: listOrganizationMembers
+      summary: 멤버 목록 — member.list
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      responses:
+        '200': { description: 목록, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Member' } } } } }
+        '404': { description: 없음 또는 다른 조직 }
+  /organizations/{organization_id}/members/{user_id}:
+    patch:
+      operationId: changeMemberRole
+      summary: 역할 변경 — member.change_role (owner). 마지막 owner 강등은 409
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/UserId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemberUpdate' } } }
+      responses:
+        '200': { description: 변경됨, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '403': { description: 같은 조직이지만 owner 아님 }
+        '404': { description: 없음 또는 다른 조직 }
+        '409': { description: 버전 불일치·마지막 owner }
+    delete:
+      operationId: removeMember
+      summary: 멤버 제외(member.remove, owner) 또는 본인 탈퇴(member.leave). 즉시 권한 회수
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/UserId' } ]
+      responses:
+        '204': { description: 제외됨 }
+        '403': { description: 같은 조직이지만 owner 아님(본인 탈퇴 제외) }
+        '404': { description: 없음 또는 다른 조직 }
+        '409': { description: 마지막 owner }
+  /organizations/{organization_id}/invitations:
+    get:
+      operationId: listInvitations
+      summary: 초대 목록 — member.invite (owner)
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      responses:
+        '200': { description: 목록, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Invitation' } } } } }
+    post:
+      operationId: createInvitation
+      summary: 초대(TTL 기본 72시간, 최대 7일). 토큰 원문은 메일로만 — 응답에 넣지 않음
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/InvitationCreate' } } }
+      responses:
+        '201': { description: 초대됨, content: { application/json: { schema: { $ref: '#/components/schemas/Invitation' } } } }
+        '403': { description: owner 아님 또는 검증 전 조직 }
+        '404': { description: 없음 또는 다른 조직 }
+        '409': { description: 같은 이메일 대기 초대 있음·이미 멤버 }
+  /organizations/{organization_id}/invitations/{invitation_id}/resend:
+    post:
+      operationId: resendInvitation
+      summary: 재전송 — 기존 토큰 무효화, 새 토큰·새 만료. 최대 5회
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/InvitationId' } ]
+      responses:
+        '200': { description: 재전송됨, content: { application/json: { schema: { $ref: '#/components/schemas/Invitation' } } } }
+        '409': { description: 대기 상태 아님·재전송 한도 }
+  /organizations/{organization_id}/invitations/{invitation_id}:
+    delete:
+      operationId: revokeInvitation
+      summary: 초대 취소
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/InvitationId' } ]
+      responses:
+        '204': { description: 취소됨 }
+        '409': { description: 대기 상태 아님 }
+  /organization-invitations/accept:
+    post:
+      operationId: acceptInvitation
+      summary: 초대 수락 — 로그인 이메일 = 초대 이메일일 때만(invite.accept self). 만료·취소·불일치는 모두 같은 404
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/InvitationAccept' } } }
+      responses:
+        '200': { description: 수락됨, content: { application/json: { schema: { $ref: '#/components/schemas/MyOrganization' } } } }
+        '404': { description: 토큰 없음·만료·취소·다른 이메일(구분하지 않음) }
+        '409': { description: 이미 멤버 }
+  /admin/organizations/{organization_id}/verification:
+    post:
+      operationId: verifyOrganization
+      summary: 운영 관리자 검증 — org.verify (admin)
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/VerificationDecision' } } }
+      responses:
+        '200': { description: 처리됨, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '403': { description: 관리자 아님 }
+        '409': { description: pending 아님·버전 불일치 }
+components:
+  parameters:
+    OrganizationId: { name: organization_id, in: path, required: true, schema: { type: string, format: uuid } }
+    UserId: { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    InvitationId: { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    OrganizationStatus: { type: string, enum: [pending, active, suspended, closed, rejected] }
+    MemberRole: { type: string, enum: [owner, member] }
+    InvitationStatus: { type: string, enum: [pending, accepted, revoked, expired] }
+    OrganizationCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        linked_company_id: { type: [string, 'null'], format: uuid, description: 수집 회사와 선택 연결(T121 D-6) }
+    Organization:
+      type: object
+      required: [organization_id, name, status, version, created_at]
+      properties:
+        organization_id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/OrganizationStatus' }
+        linked_company_id: { type: [string, 'null'], format: uuid }
+        status_reason: { type: [string, 'null'] }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+    MyOrganization:
+      type: object
+      required: [organization, role]
+      properties:
+        organization: { $ref: '#/components/schemas/Organization' }
+        role: { $ref: '#/components/schemas/MemberRole' }
+    Member:
+      type: object
+      required: [user_id, display_name, role, joined_at, version]
+      description: 같은 조직 멤버에게만 보임. 이메일 원문은 넣지 않음(마스킹)
+      properties:
+        user_id: { type: string, format: uuid }
+        display_name: { type: string }
+        email_masked: { type: string, example: 'k***@example.com' }
+        role: { $ref: '#/components/schemas/MemberRole' }
+        joined_at: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    MemberUpdate:
+      type: object
+      additionalProperties: false
+      required: [role, version]
+      properties:
+        role: { $ref: '#/components/schemas/MemberRole' }
+        version: { type: integer, minimum: 1 }
+    InvitationCreate:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        role: { allOf: [ { $ref: '#/components/schemas/MemberRole' } ], default: member }
+    Invitation:
+      type: object
+      required: [invitation_id, email_masked, role, status, expires_at, resend_count]
+      properties:
+        invitation_id: { type: string, format: uuid }
+        email_masked: { type: string }
+        role: { $ref: '#/components/schemas/MemberRole' }
+        status: { $ref: '#/components/schemas/InvitationStatus' }
+        expires_at: { type: string, format: date-time }
+        resend_count: { type: integer, minimum: 0, maximum: 5 }
+    InvitationAccept:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 200 }
+    VerificationDecision:
+      type: object
+      additionalProperties: false
+      required: [decision, version]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        reason: { type: string, maxLength: 300, description: reject 일 때 필수 }
+        version: { type: integer, minimum: 1 }
