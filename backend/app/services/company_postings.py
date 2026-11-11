@@ -95,6 +95,11 @@ class MemoryPostingRepository:
 _URL = re.compile(r"^https://[^\s/$.?#].[^\s]*$")
 
 
+def _require_admin_role(roles: frozenset[str]) -> None:
+    if "admin" not in roles:
+        raise AppError(ErrorCode.FORBIDDEN, log_detail="admin only")
+
+
 class CompanyPostingService:
     def __init__(self, accounts: CompanyAccountService, repo: MemoryPostingRepository, public: MemoryPublicPostings,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC)):
@@ -241,6 +246,7 @@ class CompanyPostingService:
     def decide(self, user_id: uuid.UUID, roles: frozenset[str], posting_id: uuid.UUID, decision: str,
                reason_code: str | None, note: str | None, version: int) -> CompanyPosting:
         now = self.clock()
+        _require_admin_role(roles)       # T148 F-2: 존재 확인보다 먼저(비관리자에게 id 존재 여부를 알리지 않음)
         with self.repo.lock:
             posting = self.repo.postings.get(posting_id)
             if posting is None:
@@ -275,6 +281,7 @@ class CompanyPostingService:
 
     def takedown(self, user_id: uuid.UUID, roles: frozenset[str], posting_id: uuid.UUID, reason_code: str,
                  note: str | None) -> CompanyPosting:
+        _require_admin_role(roles)       # T148 F-2
         with self.repo.lock:
             posting = self.repo.postings.get(posting_id)
             if posting is None:
