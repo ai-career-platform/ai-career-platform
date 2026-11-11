@@ -1,0 +1,32 @@
+{
+  "task": "T150",
+  "main_sha": "822fa16660afdaa5ad099f059b244216332becf1",
+  "publish_run_id": 42973326842,
+  "images": {
+    "backend": "ghcr.io/ai-career-platform/ai-career-platform-backend@sha256:33874911d4119b9b465cce87be6dc6ec43f51a6470dcb0cdb8d2eb99959ab831",
+    "frontend": "ghcr.io/ai-career-platform/ai-career-platform-frontend@sha256:8297a34023dd1da9be13e8c568811394f37e044f8335309eedac58d50fa82c0a"
+  },
+  "staging_running_digest": "NOT_VERIFIED",
+  "carried_from_t120": ["E5", "E6"],
+  "gates": [
+    {"id": "F1", "name": "final main SHA and CI", "result": "PASS", "p0": true},
+    {"id": "F2", "name": "running image digest", "result": "PARTIAL", "p0": true},
+    {"id": "F3", "name": "staging deployment state", "result": "NOT_VERIFIED", "p0": false},
+    {"id": "F4", "name": "database migration", "result": "FAIL", "p0": true},
+    {"id": "F5", "name": "personal data access and deletion", "result": "FAIL", "p0": true},
+    {"id": "F6", "name": "encryption and key management", "result": "FAIL", "p0": true},
+    {"id": "F7", "name": "company/candidate/admin permission E2E", "result": "PARTIAL", "p0": true},
+    {"id": "F8", "name": "browser E2E", "result": "PARTIAL", "p0": false},
+    {"id": "F9", "name": "backup and restore", "result": "PARTIAL", "p0": true},
+    {"id": "F10", "name": "cost and capacity", "result": "PARTIAL", "p0": false},
+    {"id": "F11", "name": "open critical/high", "result": "FAIL", "p0": true},
+    {"id": "F12", "name": "handover", "result": "PARTIAL", "p0": false},
+    {"id": "F13", "name": "prerequisite tasks", "result": "FAIL", "p0": false}
+  ],
+  "prerequisites": {
+    "T120": "MERGED_NO_GO", "T127": "MERGED_MOCK_ONLY", "T130": "MERGED_MOCK_ONLY", "T136": "NOT_STARTED",
+    "T143": "PR_237_OPEN", "T144": "PR_232_OPEN", "T148": "PR_241_OPEN", "T149": "PR_236_OPEN"
+  },
+  "decision": "NO_GO",
+  "approved_by": ""
+}
