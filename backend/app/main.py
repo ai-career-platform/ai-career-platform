@@ -11,7 +11,7 @@ from app.core.exception_handlers import register_exception_handlers
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, job_postings, system
+from app.routers import api_v1, job_applications, job_postings, system
 from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,8 @@ def create_app() -> FastAPI:
     # 공고 목록: 기본 T18 확정 계약, JOB_SEARCH_ADVANCED=true 일 때만 T98 제안 계약(T99)
     list_router = job_postings.advanced_list_router if settings.job_search_advanced else job_postings.legacy_list_router
     app.include_router(list_router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.job_applications_api:  # T102: 미승인·기본 비활성
+        app.include_router(job_applications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 
