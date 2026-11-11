@@ -29,6 +29,8 @@ describe('admin audit routes', () => {
     const router = open('/login', false);
     await login('admin@example.com');
     await screen.findByRole('link', { name: '운영 관리자' });
+    // 로그인 후 기본 경로 이동이 끝나기 전에 navigate하면 /account 리디렉션과 경합할 수 있다.
+    await screen.findByRole('heading', { name: '내 계정' });
     for (const path of ['/admin/audit-events', '/admin/ai-usage']) {
       await router.navigate(path);
       expect(await screen.findByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
