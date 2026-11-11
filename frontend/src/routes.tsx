@@ -48,7 +48,6 @@ import { MyDataPage } from './pages/MyDataPage';
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
 export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean };
-export type CrawlerFeatures = Features & { crawlerAdminUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -123,7 +122,7 @@ const applicationRoutes = (features: Features): RouteObject[] => (features.appli
  * 꺼져 있으면 /admin/moderation 은 404 화면입니다. 켜져 있어도 admin 역할만 들어갑니다(RequireAuth).
  */
 /** T156 관리자 콘솔: 플래그 기본 꺼짐, admin 권한 전용 */
-const crawlerAdminRoutes = (features: CrawlerFeatures): RouteObject[] => ((features.crawlerAdminUi ?? env.crawlerAdminUi) ? [
+const crawlerAdminRoutes = (features: Features): RouteObject[] => (crawlerEnabled(features) ? [
   { element: <RequireAuth roles={['admin']} />, children: [
     { element: <CrawlerAdminServiceProvider />, children: [
       { path: 'admin/crawler', element: <CrawlerAdminPage /> },
@@ -140,15 +139,22 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
   ] },
 ] : []);
 
-export const buildRoutes = (
-  features: CrawlerFeatures = {
+type CrawlerFeatures = Features & { crawlerAdminUi?: boolean };
+const crawlerEnabled = (features: Features): boolean => (features as CrawlerFeatures).crawlerAdminUi ?? env.crawlerAdminUi;
+type BuildRoutes = {
+  (features: CrawlerFeatures): RouteObject[];
+  (): RouteObject[];
+};
+
+export const buildRoutes: BuildRoutes = (
+  features: Features = {
     adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi, personalDataUi: env.personalDataUi,
   },
 ): RouteObject[] => [
   {
     path: '/',
     element: (
-      <CrawlerNavigationProvider enabled={features.crawlerAdminUi ?? env.crawlerAdminUi}>
+      <CrawlerNavigationProvider enabled={crawlerEnabled(features)}>
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
           notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
