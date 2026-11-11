@@ -64,6 +64,8 @@ class Settings:
     job_search_advanced: bool = False
     # T102: 개인 지원 기록 API (미승인·기본 비활성)
     job_applications_api: bool = False
+    # T129: 공개 포트폴리오 공유 링크 API (T128 미승인·기본 비활성, 저장소 없음 → 켜도 503)
+    public_portfolio_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -73,6 +75,7 @@ class Settings:
             database=DatabaseSettings.from_env(),
             job_search_advanced=os.environ.get("JOB_SEARCH_ADVANCED", "false").lower() == "true",
             job_applications_api=os.environ.get("JOB_APPLICATIONS_API", "false").lower() == "true",
+            public_portfolio_api=os.environ.get("PUBLIC_PORTFOLIO_API", "false").lower() == "true",
         )
 
 
