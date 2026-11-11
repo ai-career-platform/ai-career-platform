@@ -14,4 +14,9 @@ export const env = {
    * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 admin 역할만 들어갑니다.
    */
   adminAuditUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
+  /**
+   * T103 개인 지원 현황 보드. T101 계약 미승인·T102 서버 플래그 기본 꺼짐이라 **Mock 모드에서만** 켤 수 있습니다.
+   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 로그인 사용자만 들어갑니다.
+   */
+  applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
 } as const;

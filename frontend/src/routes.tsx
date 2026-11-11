@@ -24,12 +24,14 @@ import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
 import { AiUsagePage } from './pages/admin/AiUsagePage';
 import { AuditEventsPage } from './pages/admin/AuditEventsPage';
+import { ApplicationServiceProvider } from './applications/ApplicationServiceProvider';
+import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; applicationsUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -40,6 +42,18 @@ const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminA
     { element: <AdminAuditServiceProvider />, children: [
       { path: 'admin/audit-events', element: <AuditEventsPage /> },
       { path: 'admin/ai-usage', element: <AiUsagePage /> },
+    ] },
+  ] },
+] : []);
+
+/**
+ * UI-N05 개인 지원 현황(T103)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
+ * 로그인 사용자만 들어갑니다. 기록은 로그인 사용자 ID 별로 분리됩니다(ApplicationServiceProvider).
+ */
+const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <ApplicationServiceProvider />, children: [
+      { path: 'me/applications', element: <ApplicationsBoardPage /> },
     ] },
   ] },
 ] : []);
@@ -58,13 +72,16 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 ] : []);
 
 export const buildRoutes = (
-  features: Features = { adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi },
+  features: Features = {
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, applicationsUi: env.applicationsUi,
+  },
 ): RouteObject[] => [
   {
     path: '/',
     element: (
       <AuthProvider>
-        <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false} />
+        <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
+          applicationsUi={features.applicationsUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -89,6 +106,7 @@ export const buildRoutes = (
         // UI-024 채용시장 추세 (F-024). T67 GET /api/v1/market-trends 는 로그인 사용자만 조회합니다.
         { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
+      ...applicationRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },
