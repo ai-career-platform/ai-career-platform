@@ -2,6 +2,7 @@
 
 > 판정: **PARTIAL** — 보안 회귀 게이트와 일회용 PostgreSQL 검증을 추가했습니다. 고위험 권한 누출은 발견되지 않았습니다.
 > 접근 로그 Finding F-1(Medium)은 재현했지만 운영 설정 변경은 범위 밖이라 수정하지 않았습니다. T58·T81 실 API는 없어서 HOLD입니다.
+> **갱신(T112, 2026-11-11)**: F-1의 uvicorn 접근 로그 쪽은 앱 내 필터(`app.core.observability.StripQueryFilter`)로 완화했습니다. 시험은 "남지 않음" 기준으로 바꿨습니다. Nginx `combined` 로그 쪽은 여전히 미적용입니다(제안 설정 `docs/ops/observability/`, 승인 필요).
 > 확인일 2026-11-10 · 기준 main `a24608d` · 브랜치 `task/t86-security-regression-suite`
 > Backend 업무 코드 변경 0건 — 시험·문서만 추가했습니다.
 
