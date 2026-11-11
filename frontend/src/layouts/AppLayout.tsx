@@ -10,8 +10,8 @@ const homeLinks = [
   { href: '#companies', label: '기업 탐색' },
 ];
 
-export function AppLayout({ adminModerationUi = false, adminAuditUi = false, notificationsUi = false, applicationsUi = false }: {
-  adminModerationUi?: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean;
+export function AppLayout({ adminModerationUi = false, adminAuditUi = false, notificationsUi = false, applicationsUi = false, publicPortfolioUi = false }: {
+  adminModerationUi?: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean; publicPortfolioUi?: boolean;
 }) {
   const { pathname } = useLocation();
   const isHome = pathname === '/';
@@ -23,6 +23,8 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
   // T97 알림함: 기능 플래그(Mock 전용)가 켜져 있고 로그인했을 때만
   const showNotifications = notificationsUi && state.status === 'authenticated';
   const showApplications = applicationsUi && state.status === 'authenticated';
+  // T130 공개 포트폴리오: 플래그(Mock 전용) + 로그인
+  const showPortfolio = publicPortfolioUi && state.status === 'authenticated';
   const authLink =
     state.status === 'authenticated' ? (
       <NavLink to="/account">{state.user.displayName}</NavLink>
@@ -62,6 +64,7 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
               </NavLink>
               {showNotifications && <NavLink to="/me/notifications">알림함 (Mock)</NavLink>}
               {showApplications && <NavLink to="/me/applications">지원 현황 (Mock)</NavLink>}
+              {showPortfolio && <NavLink to="/me/public-profile">공개 포트폴리오 (Mock)</NavLink>}
               {showModeration && <NavLink to="/admin/moderation">콘텐츠 검수 (Mock)</NavLink>}
               {showAudit && <NavLink to="/admin/audit-events">운영 감사 (Mock)</NavLink>}
               {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용 (Mock)</NavLink>}

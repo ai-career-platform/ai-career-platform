@@ -29,12 +29,15 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 import { ApplicationServiceProvider } from './applications/ApplicationServiceProvider';
 import { ApplicationsBoardPage } from './pages/ApplicationsBoardPage';
+import { PortfolioServiceProvider } from './portfolio/PortfolioServiceProvider';
+import { PublicProfileSettingsPage } from './pages/PublicProfileSettingsPage';
+import { PublicPortfolioViewPage } from './pages/PublicPortfolioViewPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; publicPortfolioUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -58,6 +61,16 @@ const notificationRoutes = (features: Features): RouteObject[] => (features.noti
     { element: <NotificationServiceProvider />, children: [
       { path: 'me/notifications', element: <NotificationsPage /> },
       { path: 'me/notification-settings', element: <NotificationSettingsPage /> },
+    ] },
+  ] },
+] : []);
+
+/** T130 공개 포트폴리오: Mock 전용. 설정은 로그인 필요, 공개 화면(/p/:token)은 로그인 없이(같은 Provider = 같은 Mock 저장소) */
+const portfolioRoutes = (features: Features): RouteObject[] => (features.publicPortfolioUi ? [
+  { element: <PortfolioServiceProvider />, children: [
+    { path: 'p/:token', element: <PublicPortfolioViewPage /> },
+    { element: <RequireAuth />, children: [
+      { path: 'me/public-profile', element: <PublicProfileSettingsPage /> },
     ] },
   ] },
 ] : []);
@@ -86,7 +99,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, publicPortfolioUi: env.publicPortfolioUi,
   },
 ): RouteObject[] => [
   {
@@ -94,7 +107,8 @@ export const buildRoutes = (
     element: (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
-          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false} />
+          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
+          publicPortfolioUi={features.publicPortfolioUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -121,6 +135,7 @@ export const buildRoutes = (
       ] },
       ...notificationRoutes(features),
       ...applicationRoutes(features),
+      ...portfolioRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },

@@ -131,7 +131,8 @@ const matches = (route: string, link: string) =>
 // 알려진 공백(문서 T92 §4): 화면이 아직 없음 → 고쳐지면 이 목록에서 지워야 시험이 통과
 const KNOWN_DEAD_LINKS = new Set(['/signup']);
 // 앱 안 진입점이 없어도 되는 경로(사유): 운영 점검·개발 미리보기·상세(목록에서 동적 링크)·404
-const NO_ENTRY_NEEDED = new Set(['/system-status', '/*', '/admin/moderation/:caseId']);
+// T130 공개 포트폴리오 화면(/p/:token)은 사용자가 만든 공유 링크(동적 주소)로만 들어옴
+const NO_ENTRY_NEEDED = new Set(['/system-status', '/*', '/admin/moderation/:caseId', '/p/:token']);
 
 describe('navigation gate', () => {
   it('every in-app link points to a defined route (except the pinned known gaps)', () => {
