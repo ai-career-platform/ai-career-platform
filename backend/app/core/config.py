@@ -85,9 +85,9 @@ class Settings:
             job_applications_api=os.environ.get("JOB_APPLICATIONS_API", "false").lower() == "true",
             company_accounts_api=os.environ.get("COMPANY_ACCOUNTS_API", "false").lower() == "true",
             company_postings_api=os.environ.get("COMPANY_POSTINGS_API", "false").lower() == "true",
+            skill_autocomplete_api=os.environ.get("SKILL_AUTOCOMPLETE_API", "false").lower() == "true",
             public_portfolio_api=os.environ.get("PUBLIC_PORTFOLIO_API", "false").lower() == "true",
             personal_data_requests_api=os.environ.get("PERSONAL_DATA_REQUESTS_API", "false").lower() == "true",
-            skill_autocomplete_api=os.environ.get("SKILL_AUTOCOMPLETE_API", "false").lower() == "true",
         )
 
 
