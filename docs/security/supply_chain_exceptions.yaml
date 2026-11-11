@@ -1,0 +1,25 @@
+# T118 공급망 예외 목록 — HIGH/CRITICAL 취약점을 고치기 전까지 임시로 허용하려면 승인 기록이 필요합니다.
+# 유효 조건: approved_by·reason 이 비어 있지 않고 expires(YYYY-MM-DD)가 오늘 이후. 하나라도 빠지면 무효(게이트 실패).
+# 아래 항목은 **승인 대기(approved_by 비어 있음)** 입니다 — 현재 게이트 판정은 FAIL 입니다.
+exceptions:
+  - package: starlette
+    id: PYSEC-2026-249
+    severity: HIGH
+    fixed_in: "1.3.1"
+    reason: "FastAPI 0.115.x 가 starlette<0.47 로 고정 — FastAPI 업그레이드(별도 PR) 필요. 적용성 분석은 SUPPLY_CHAIN_POLICY.md §4"
+    approved_by: ""
+    expires: 2026-12-11
+  - package: starlette
+    id: PYSEC-2026-1942
+    severity: HIGH
+    fixed_in: "0.49.1"
+    reason: "FastAPI 0.115.x 가 starlette<0.47 로 고정 — FastAPI 업그레이드(별도 PR) 필요. 적용성 분석은 SUPPLY_CHAIN_POLICY.md §4"
+    approved_by: ""
+    expires: 2026-12-11
+  - package: starlette
+    id: PYSEC-2026-2281
+    severity: HIGH
+    fixed_in: "1.1.0"
+    reason: "FastAPI 0.115.x 가 starlette<0.47 로 고정 — FastAPI 업그레이드(별도 PR) 필요. 적용성 분석은 SUPPLY_CHAIN_POLICY.md §4"
+    approved_by: ""
+    expires: 2026-12-11

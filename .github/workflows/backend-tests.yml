@@ -3,10 +3,10 @@ name: Backend tests
 on:
   pull_request:
     branches: [main]
-    paths: ['backend/**', 'docs/api/openapi.yaml', '.github/workflows/backend-tests.yml']
+    paths: ['backend/**', 'docs/api/openapi.yaml', 'docs/api/check_compat.py', 'docs/api/compat_exceptions.yaml', 'docs/api/error_codes.snapshot.json', '.github/workflows/backend-tests.yml']
   push:
     branches: [main]
-    paths: ['backend/**', 'docs/api/openapi.yaml', '.github/workflows/backend-tests.yml']
+    paths: ['backend/**', 'docs/api/openapi.yaml', 'docs/api/check_compat.py', 'docs/api/compat_exceptions.yaml', 'docs/api/error_codes.snapshot.json', '.github/workflows/backend-tests.yml']
 
 permissions:
   contents: read
@@ -37,5 +37,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r backend/requirements-dev.txt
+      # T116: base 브랜치 계약 대비 파괴적 변경이 있으면 실패. 의도한 변경은 docs/api/compat_exceptions.yaml(승인자 필수)
+      - name: OpenAPI backward compatibility (T116)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          python docs/api/check_compat.py --base-ref FETCH_HEAD
       - run: python -m pytest -q
         working-directory: backend
