@@ -2,7 +2,7 @@ import { ApiError } from './errors';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type QueryValue = string | number | boolean | null | undefined;
-export type Query = Record<string, QueryValue>;
+export type Query = Record<string, QueryValue | readonly QueryValue[]>;
 
 export interface HttpRequest {
   method?: HttpMethod;
@@ -44,13 +44,15 @@ export const REQUEST_ID_HEADER = 'X-Request-ID';
 /** 상태를 바꾸는 요청(GET 외)에 항상 붙이는 CSRF 헤더. Backend auth 라우터가 검사합니다 (docs/SECURITY.md). */
 export const CSRF_HEADER = 'X-CSRF-TOKEN';
 
-/** { q: 'a b', page: 2, empty: '' } → '?q=a+b&page=2' (값이 없으면 '') */
+/** { q: 'a b', page: 2, empty: '', region: ['x', 'y'] } → '?q=a+b&page=2&region=x&region=y' (값이 없으면 '') */
 export function buildQuery(query?: Query): string {
   if (!query) return '';
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value === null || value === undefined || value === '') continue;
-    params.set(key, String(value));
+    for (const item of Array.isArray(value) ? value : [value]) {   // 배열은 키를 반복(T98 다중 값)
+      if (item === null || item === undefined || item === '') continue;
+      params.append(key, String(item));
+    }
   }
   const text = params.toString();
   return text ? `?${text}` : '';
