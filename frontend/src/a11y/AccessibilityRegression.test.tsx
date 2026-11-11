@@ -65,6 +65,8 @@ async function open(path: string, as?: 'user@example.com' | 'admin@example.com')
     fireEvent.change(screen.getByLabelText(/^비밀번호/), { target: { value: MOCK_PASSWORD } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
     await screen.findByRole('link', { name: as === 'admin@example.com' ? '운영 관리자' : '일반 사용자' });
+    // 로그인 후 기본 계정 화면으로의 이동이 완료되기 전 다음 navigate가 덮어써지지 않도록 한다.
+    await screen.findByRole('heading', { name: '내 계정' });
     await act(() => router.navigate(path));
   }
   await screen.findByRole('heading', { level: 1 }, { timeout: 4000 });
