@@ -1,0 +1,15 @@
+{
+  "title": "AI Career Platform — Staging 기본 관측 (T112 PROPOSED)",
+  "status": "PROPOSED",
+  "source": "app.access 구조화 로그 1줄/요청: http_request request_id= method= path= status= duration_ms=",
+  "note": "수집기(Loki·CloudWatch 등)는 정해지지 않았습니다. 패널은 로그 필드만으로 계산할 수 있게 정의했고, 쿼리 문법은 수집기 선정 후 채웁니다.",
+  "panels": [
+    {"id": "req_rate", "title": "요청 수(분당)", "fields": ["status"], "calc": "count per 1m"},
+    {"id": "err_5xx_rate", "title": "5xx 비율", "fields": ["status"], "calc": "count(status>=500)/count(*) per 5m", "alert_ref": "T113 A-API-5XX"},
+    {"id": "err_4xx_top", "title": "4xx 상위 경로", "fields": ["path", "status"], "calc": "top 10 path where 400<=status<500 per 1h"},
+    {"id": "latency_p95", "title": "지연 p95(ms)", "fields": ["duration_ms", "path"], "calc": "p95(duration_ms) per 5m, by path prefix", "alert_ref": "T113 A-API-LATENCY"},
+    {"id": "health", "title": "/health, /health/db 상태", "fields": ["path", "status"], "calc": "last status where path in (/health,/health/db)", "alert_ref": "T113 A-DB-DOWN"},
+    {"id": "trace_lookup", "title": "request_id 조회", "fields": ["request_id", "method", "path", "status", "duration_ms"], "calc": "filter request_id = <입력>"}
+  ],
+  "retention_proposal": {"app_logs_days": 14, "proxy_logs_days": 14, "metrics_days": 30, "basis": "PoC 규모·비상업. PM 승인 전 미적용"}
+}
