@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { useCrawlerNavigationEnabled } from '../admin/CrawlerNavigationContext';
 import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
@@ -10,8 +11,8 @@ const homeLinks = [
   { href: '#companies', label: '기업 탐색' },
 ];
 
-export function AppLayout({ adminModerationUi = false, adminAuditUi = false, crawlerAdminUi = false, notificationsUi = false, applicationsUi = false, companyConsoleUi = false, publicPortfolioUi = false, personalDataUi = false }: {
-  adminModerationUi?: boolean; adminAuditUi?: boolean; crawlerAdminUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean;
+export function AppLayout({ adminModerationUi = false, adminAuditUi = false, notificationsUi = false, applicationsUi = false, companyConsoleUi = false, publicPortfolioUi = false, personalDataUi = false }: {
+  adminModerationUi?: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean;
 }) {
   const { pathname } = useLocation();
   const isHome = pathname === '/';
@@ -20,7 +21,7 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, cra
   // 관리자 메뉴: 기능 플래그(Mock 전용)가 켜져 있고 admin 역할일 때만. 경로 자체도 RequireAuth 로 막습니다.
   const showModeration = adminModerationUi && isAdmin;
   const showAudit = adminAuditUi && isAdmin;
-  const showCrawler = crawlerAdminUi && isAdmin;
+  const showCrawler = useCrawlerNavigationEnabled() && isAdmin;
   // T97 알림함: 기능 플래그(Mock 전용)가 켜져 있고 로그인했을 때만
   const showNotifications = notificationsUi && state.status === 'authenticated';
   const showApplications = applicationsUi && state.status === 'authenticated';
