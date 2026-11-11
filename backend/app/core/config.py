@@ -68,6 +68,8 @@ class Settings:
     company_accounts_api: bool = False
     # T126 기업 공고 API: 승인 전 기본 비활성
     company_postings_api: bool = False
+    # T129: 공개 포트폴리오 API — 승인 전 기본 비활성
+    public_portfolio_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -79,6 +81,7 @@ class Settings:
             job_applications_api=os.environ.get("JOB_APPLICATIONS_API", "false").lower() == "true",
             company_accounts_api=os.environ.get("COMPANY_ACCOUNTS_API", "false").lower() == "true",
             company_postings_api=os.environ.get("COMPANY_POSTINGS_API", "false").lower() == "true",
+            public_portfolio_api=os.environ.get("PUBLIC_PORTFOLIO_API", "false").lower() == "true",
         )
 
 
