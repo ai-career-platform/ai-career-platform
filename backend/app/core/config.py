@@ -68,12 +68,12 @@ class Settings:
     company_accounts_api: bool = False
     # T126 기업 공고 API: 승인 전 기본 비활성
     company_postings_api: bool = False
+    # T139: 기술 자동완성·동의어 API (PROPOSED) — 승인 전 기본 비활성
+    skill_autocomplete_api: bool = False
     # T129: 공개 포트폴리오 API — 승인 전 기본 비활성
     public_portfolio_api: bool = False
     # T142: 내 데이터 반출 요청 API — T141 정책 승인 전 기본 비활성
     personal_data_requests_api: bool = False
-    # T139: 기술 자동완성·동의어 API (PROPOSED) — 승인 전 기본 비활성
-    skill_autocomplete_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
