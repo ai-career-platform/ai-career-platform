@@ -121,10 +121,12 @@ CONTRACT: tuple[EnvVar, ...] = (
     EnvVar("JOB_SEARCH_ADVANCED", (), "false", False, "PM(승인)", "T99 고급 검색. 승인 전 꺼짐", check=_flag),
     EnvVar("JOB_APPLICATIONS_API", (), "false", False, "PM(승인)", "T102 지원 기록 API. 승인 전 꺼짐",
            check=_flag),
+    EnvVar("CRAWLER_ADMIN_WRITE_API", (), "false", False, "PM(승인)", "T155 크롤러 관리자 쓰기·명령 API. 승인 전 꺼짐", check=_flag),
     EnvVar("COMPANY_ACCOUNTS_API", (), "false", False, "PM(승인)", "T123 기업 계정 API. 승인 전 꺼짐", check=_flag),
     EnvVar("COMPANY_POSTINGS_API", (), "false", False, "PM(승인)", "T126 기업 공고 API. 승인 전 꺼짐", check=_flag),
+    EnvVar("SKILL_AUTOCOMPLETE_API", (), "false", False, "PM(승인)", "T139 기술 자동완성 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PUBLIC_PORTFOLIO_API", (), "false", False, "PM(승인)", "T129 공개 프로필 API. 승인 전 꺼짐", check=_flag),
-    EnvVar("CRAWLER_ADMIN_WRITE_API", (), "false", False, "PM(승인)", "T155 크롤러 관리자 쓰기·명령 API. 승인 전 꺼짐", check=_flag),
+    EnvVar("PERSONAL_DATA_REQUESTS_API", (), "false", False, "PM(승인)", "T142 내 데이터 반출 요청 API. 승인 전 꺼짐", check=_flag),
 )
 
 BY_NAME = {v.name: v for v in CONTRACT}
