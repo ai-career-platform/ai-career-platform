@@ -1,0 +1,289 @@
+{
+  "mode": "mock",
+  "base": "http://127.0.0.1:5196",
+  "generated_at": "2026-11-11T05:34:15.317Z",
+  "summary": {
+    "PASS": 30,
+    "NOT_RUN": 2
+  },
+  "results": [
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "home renders",
+      "status": "PASS",
+      "ms": 368
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "open job postings",
+      "status": "PASS",
+      "ms": 127,
+      "detail": {
+        "h1": "새로운 기회를 찾아보세요"
+      }
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "back and forward keep the right screen",
+      "status": "PASS",
+      "ms": 81
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "protected URL redirects to login",
+      "status": "PASS",
+      "ms": 282
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "login returns to the requested screen",
+      "status": "PASS",
+      "ms": 871,
+      "detail": {
+        "url": "/account"
+      }
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "reload keeps or drops the session (recorded)",
+      "status": "PASS",
+      "ms": 1454,
+      "detail": {
+        "afterReload": "로그인"
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /job-roles",
+      "status": "PASS",
+      "ms": 32,
+      "detail": {
+        "h1": "어떤 일이 나와 맞을까요?",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/skills",
+      "status": "PASS",
+      "ms": 14,
+      "detail": {
+        "h1": "나의 기술",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /recommendations",
+      "status": "PASS",
+      "ms": 14,
+      "detail": {
+        "h1": "맞춤 공고 추천",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /market-trends",
+      "status": "PASS",
+      "ms": 22,
+      "detail": {
+        "h1": "채용시장 추세",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/bookmarks",
+      "status": "PASS",
+      "ms": 10,
+      "detail": {
+        "h1": "저장한 채용공고",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/target-roles",
+      "status": "PASS",
+      "ms": 11,
+      "detail": {
+        "h1": "목표 직무 관리",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:D roles",
+      "step": "seeker cannot open an admin screen",
+      "status": "PASS",
+      "ms": 8,
+      "detail": {
+        "h1": "접근 권한이 없습니다"
+      }
+    },
+    {
+      "scenario": "desktop:C keyboard",
+      "step": "skip link is the first tab stop and moves focus to main",
+      "status": "PASS",
+      "ms": 113,
+      "detail": {
+        "first": "본문으로 바로가기",
+        "hash": "#main-content"
+      }
+    },
+    {
+      "scenario": "desktop:D roles",
+      "step": "admin signs in and opens the account screen",
+      "status": "PASS",
+      "ms": 791,
+      "detail": {
+        "h1": "운영 감사 기록"
+      }
+    },
+    {
+      "scenario": "desktop:E network",
+      "step": "slow/failing API",
+      "status": "NOT_RUN",
+      "reason": "mock adapters do not use the network"
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "home renders",
+      "status": "PASS",
+      "ms": 256
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "open job postings",
+      "status": "PASS",
+      "ms": 141,
+      "detail": {
+        "h1": "새로운 기회를 찾아보세요"
+      }
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "back and forward keep the right screen",
+      "status": "PASS",
+      "ms": 83
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "protected URL redirects to login",
+      "status": "PASS",
+      "ms": 292
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "login returns to the requested screen",
+      "status": "PASS",
+      "ms": 860,
+      "detail": {
+        "url": "/account"
+      }
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "reload keeps or drops the session (recorded)",
+      "status": "PASS",
+      "ms": 1443,
+      "detail": {
+        "afterReload": "로그인"
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /job-roles",
+      "status": "PASS",
+      "ms": 30,
+      "detail": {
+        "h1": "어떤 일이 나와 맞을까요?",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/skills",
+      "status": "PASS",
+      "ms": 13,
+      "detail": {
+        "h1": "나의 기술",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /recommendations",
+      "status": "PASS",
+      "ms": 13,
+      "detail": {
+        "h1": "맞춤 공고 추천",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /market-trends",
+      "status": "PASS",
+      "ms": 24,
+      "detail": {
+        "h1": "채용시장 추세",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/bookmarks",
+      "status": "PASS",
+      "ms": 11,
+      "detail": {
+        "h1": "저장한 채용공고",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/target-roles",
+      "status": "PASS",
+      "ms": 10,
+      "detail": {
+        "h1": "목표 직무 관리",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:D roles",
+      "step": "seeker cannot open an admin screen",
+      "status": "PASS",
+      "ms": 8,
+      "detail": {
+        "h1": "접근 권한이 없습니다"
+      }
+    },
+    {
+      "scenario": "mobile:C keyboard",
+      "step": "skip link is the first tab stop and moves focus to main",
+      "status": "PASS",
+      "ms": 117,
+      "detail": {
+        "first": "본문으로 바로가기",
+        "hash": "#main-content"
+      }
+    },
+    {
+      "scenario": "mobile:D roles",
+      "step": "admin signs in and opens the account screen",
+      "status": "PASS",
+      "ms": 1323,
+      "detail": {
+        "h1": "운영 감사 기록"
+      }
+    },
+    {
+      "scenario": "mobile:E network",
+      "step": "slow/failing API",
+      "status": "NOT_RUN",
+      "reason": "mock adapters do not use the network"
+    }
+  ]
+}

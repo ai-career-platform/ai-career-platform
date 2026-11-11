@@ -1,0 +1,216 @@
+{
+  "status": "PROPOSED",
+  "task": "T128",
+  "version": "2026-11-11.1",
+  "consent_policy_code": "public_profile",
+  "consent_required": true,
+  "default_visibility": "private",
+  "fields": [
+    {
+      "key": "display_name",
+      "source": "users.display_name",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": "실명일 수 있음 — 공개 시 별칭 입력 선택 제공(제안)"
+    },
+    {
+      "key": "headline",
+      "source": "user_profiles.headline",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": "한 줄 소개"
+    },
+    {
+      "key": "bio",
+      "source": "user_profiles.bio",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": "자유 문장 — 연락처·민감정보 입력 경고"
+    },
+    {
+      "key": "location_text",
+      "source": "user_profiles.location_text",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": "시·군·구 수준 권장, 상세 주소 입력 경고"
+    },
+    {
+      "key": "experience.organization",
+      "source": "user_experiences.organization",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": "항목별 선택, 새 항목은 비공개"
+    },
+    {
+      "key": "experience.title",
+      "source": "user_experiences.title",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": ""
+    },
+    {
+      "key": "experience.period",
+      "source": "user_experiences.start_date,end_date",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": "연·월 단위로만 표시"
+    },
+    {
+      "key": "experience.description",
+      "source": "user_experiences.description",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": "자유 문장"
+    },
+    {
+      "key": "project.title",
+      "source": "user_projects.title",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": "항목별 선택"
+    },
+    {
+      "key": "project.summary",
+      "source": "user_projects.summary",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "medium",
+      "note": ""
+    },
+    {
+      "key": "project.period",
+      "source": "user_projects.start_date,end_date",
+      "granularity": "item",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": ""
+    },
+    {
+      "key": "skills",
+      "source": "user_skills.skill_id,proficiency",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": "기술 이름과 숙련도"
+    },
+    {
+      "key": "target_roles",
+      "source": "user_target_roles.job_role_id",
+      "granularity": "field",
+      "default": "private",
+      "publishable": true,
+      "risk": "low",
+      "note": "희망 직무"
+    },
+    {
+      "key": "email",
+      "source": "users.email",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "연락은 플랫폼 밖 — 공개 프로필에 이메일·전화 없음"
+    },
+    {
+      "key": "documents",
+      "source": "user_documents.*",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "이력서 등 원본 파일 — 1차 공개 대상 아님(개인정보 다수)"
+    },
+    {
+      "key": "analysis_results",
+      "source": "document_analyses.*, skill gap, matches, recommendation_runs",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "AI 분석·적합도 점수 — 오해·차별 위험, 공개 안 함"
+    },
+    {
+      "key": "job_applications",
+      "source": "job_applications.* (T101)",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "개인 지원 기록 — 공개 안 함"
+    },
+    {
+      "key": "behavior_events",
+      "source": "behavior_events.*",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "행동 데이터 — 공개 안 함"
+    },
+    {
+      "key": "consents_and_account",
+      "source": "user_consents.*, auth_*",
+      "granularity": "field",
+      "default": "private",
+      "publishable": false,
+      "risk": "high",
+      "note": "계정·동의 정보 — 공개 안 함"
+    }
+  ],
+  "exposure": {
+    "search_engine_indexing": false,
+    "robots": "noindex, nofollow, noarchive",
+    "company_search": false,
+    "listing_or_directory": false,
+    "access": "share_link_only",
+    "cache_control": "no-store",
+    "referrer_policy": "no-referrer"
+  },
+  "links": {
+    "default_ttl_days": 30,
+    "max_ttl_days": 90,
+    "max_active_links": 3,
+    "token_min_entropy_bits": 128,
+    "revoked_or_expired_response": "404 (없는 링크와 구분하지 않음)"
+  },
+  "revocation": {
+    "effect": "immediate",
+    "scope": "consent 철회 = 모든 링크 무효 + 선택 초기화(비공개)",
+    "per_link_revoke": true
+  },
+  "deletion_propagation": {
+    "account_deletion": "선택·링크 CASCADE 삭제, 링크 즉시 404",
+    "item_deletion": "공개 화면은 저장된 사본이 아니라 현재 데이터를 그린다 — 지운 항목은 즉시 사라짐",
+    "new_items": "새로 추가한 경력·프로젝트는 비공개가 기본"
+  },
+  "invariants": [
+    "PP-INV-1 모든 항목의 기본값은 비공개다",
+    "PP-INV-2 연락처·문서·AI 분석·지원 기록·행동 데이터·계정 정보는 공개할 수 없다(1차)",
+    "PP-INV-3 공개에는 public_profile 선택 동의가 필요하고, 동의 철회는 모든 링크를 즉시 무효로 한다",
+    "PP-INV-4 검색엔진 색인·기업 검색·목록 노출은 없다. 접근은 공유 링크로만",
+    "PP-INV-5 만료·철회·없는 링크는 같은 404 로 응답한다",
+    "PP-INV-6 공개 화면은 현재 데이터를 그린다(삭제 즉시 반영). 새 항목은 비공개",
+    "PP-INV-7 공개 범위를 바꾸면 미리보기 확인 후 새 동의 기록을 남긴다"
+  ]
+}

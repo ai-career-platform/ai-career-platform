@@ -23,13 +23,25 @@ DECISIONS: dict[str, dict[str, str]] = {
     "member.change_role": {"job_seeker": "deny", "company_member": "deny", "company_owner": "own", "admin": "deny"},
     "member.remove": {"job_seeker": "deny", "company_member": "deny", "company_owner": "own", "admin": "deny"},
     "member.leave": {"job_seeker": "deny", "company_member": "self", "company_owner": "self", "admin": "deny"},
+    # T126 기업 공고(T125 상태 기계). 게시·반려·내림은 조직 범위가 아니라 운영 관리자 전용(아래 ADMIN_ONLY).
+    "posting.draft_create": {"job_seeker": "deny", "company_member": "own", "company_owner": "own", "admin": "deny"},
+    "posting.draft_edit": {"job_seeker": "deny", "company_member": "own", "company_owner": "own", "admin": "deny"},
+    "posting.submit_review": {"job_seeker": "deny", "company_member": "own", "company_owner": "own", "admin": "deny"},
+    "posting.withdraw_review": {"job_seeker": "deny", "company_member": "own", "company_owner": "own",
+                                "admin": "deny"},
+    "posting.view_internal": {"job_seeker": "deny", "company_member": "own", "company_owner": "own", "admin": "allow"},
+    "posting.close": {"job_seeker": "deny", "company_member": "own", "company_owner": "own", "admin": "allow"},
 }
+
+# 운영 관리자만(해당 조직 멤버가 아닐 것 — T80 not self, T125 P-INV-2)
+ADMIN_ONLY = {"posting.publish", "posting.reject", "posting.takedown", "org.verify"}
 
 # T121 org_status_rules: active 는 전부, 나머지는 허용 목록만
 STATUS_ALLOWED: dict[str, set[str] | None] = {
     "active": None,
-    "pending": {"org.view_console", "member.list", "member.leave"},
-    "suspended": {"org.view_console", "member.list", "member.leave"},
+    "pending": {"org.view_console", "member.list", "member.leave", "posting.draft_create", "posting.draft_edit",
+                "posting.view_internal"},
+    "suspended": {"org.view_console", "member.list", "member.leave", "posting.view_internal"},
     "closed": set(),
     "rejected": set(),
 }

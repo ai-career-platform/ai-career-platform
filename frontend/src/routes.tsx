@@ -65,7 +65,7 @@ const notificationRoutes = (features: Features): RouteObject[] => (features.noti
   ] },
 ] : []);
 
-/** T124 기업 콘솔·초대 수락: Mock 전용, 로그인 필요. 조직 권한은 서비스(Mock = T123 규칙)가 404/403 으로 판단 */
+/** T124 기업 콘솔 및 초대 수락: Mock 전용, 로그인 필요 */
 const companyRoutes = (features: Features): RouteObject[] => (features.companyConsoleUi ? [
   { element: <RequireAuth />, children: [
     { element: <CompanyServiceProvider />, children: [
@@ -107,8 +107,7 @@ export const buildRoutes = (
     element: (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
-          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
-          companyConsoleUi={features.companyConsoleUi ?? false} />
+          notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false} companyConsoleUi={features.companyConsoleUi ?? false} />
       </AuthProvider>
     ),
     children: [

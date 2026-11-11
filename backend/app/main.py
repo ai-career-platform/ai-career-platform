@@ -8,10 +8,11 @@ from starlette.concurrency import run_in_threadpool
 from app.core.auth_config import AuthSettings
 from app.core.config import API_V1_PREFIX, APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
+from app.core.observability import AccessLogMiddleware, RequestMetrics, install_uvicorn_access_filter
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, company_accounts, job_applications, job_postings, system
+from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, system
 from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,11 @@ def create_app() -> FastAPI:
     app.state.auth_settings = AuthSettings.from_env(settings.app_env)
     app.state.attempt_limiter = AttemptLimiter()
     app.state.behavior_event_settings = BehaviorEventSettings.from_env()
+    # T112: 요청 로그·지표(안쪽) → request_id(바깥). add_middleware 는 나중에 넣은 것이 바깥이다.
+    app.state.request_metrics = RequestMetrics()
+    app.add_middleware(AccessLogMiddleware, metrics=app.state.request_metrics)
     app.add_middleware(RequestIdMiddleware)
+    install_uvicorn_access_filter()
     register_exception_handlers(app)
     app.include_router(system.router)
     app.include_router(api_v1.api_router)
@@ -53,8 +58,10 @@ def create_app() -> FastAPI:
     app.include_router(list_router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.job_applications_api:  # T102: 미승인·기본 비활성
         app.include_router(job_applications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
-    if settings.company_accounts_api:  # T123: 미승인·기본 비활성
+    if settings.company_accounts_api:  # T123: 기본 비활성
         app.include_router(company_accounts.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.company_postings_api:  # T126: 기본 비활성
+        app.include_router(company_postings.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 
