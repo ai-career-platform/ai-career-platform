@@ -1,0 +1,12 @@
+# T116 하위호환 예외 목록 — 의도한 파괴적 변경만 기록합니다.
+# - location·rule 은 check_compat.py 출력과 글자 그대로 같아야 합니다.
+# - approved_by 가 비어 있으면 무효(예외로 인정하지 않음). PM 승인 기록(이슈·PR 링크)을 reference 에 남깁니다.
+# - 병합 후에는 기준선(main)이 바뀌므로 항목은 다음 PR 에서 지웁니다.
+#
+# 예:
+#   - location: "POST /auth/login param header:X-CSRF-TOKEN"
+#     rule: "new required parameter"
+#     approved_by: "PM 문길래"
+#     reference: "https://github.com/ai-career-platform/ai-career-platform/pull/166"
+#     reason: "CSRF 방어 — 모든 클라이언트가 같은 릴리스에서 헤더를 보냄"
+exceptions: []
