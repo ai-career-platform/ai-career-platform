@@ -257,3 +257,18 @@ describe('T50 my documents (Mock only, not Backend evidence)', () => {
     expect(log).not.toHaveBeenCalled();
   });
 });
+
+describe('T146 registered date is shown in KST regardless of the browser timezone', () => {
+  const originalTz = process.env.TZ;
+  afterEach(() => { process.env.TZ = originalTz; });
+
+  it.each(['Pacific/Pago_Pago', 'Pacific/Kiritimati'])('host TZ=%s', async (zone) => {
+    process.env.TZ = zone;
+    // 2026-11-10 15:30 UTC = 2026-11-11 00:30 KST
+    seedDocumentMock(USER, { original_filename: '경계.pdf', status: 'ready', created_at: '2026-11-10T15:30:00Z' });
+    show(); await screen.findByRole('article', { name: '경계.pdf' });
+    const time = within(item('경계.pdf')).getByText(/2026\. 11\. 11\./);
+    expect(time.tagName).toBe('TIME');
+    expect(time.getAttribute('datetime')).toBe('2026-11-10T15:30:00Z');
+  });
+});

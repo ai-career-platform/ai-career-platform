@@ -11,6 +11,7 @@ import { Button } from '../components/Button';
 import { TextField } from '../components/TextField';
 import { StatePanel } from '../components/StatePanel';
 import { env } from '../config/env';
+import { formatDateTime } from '../i18n/format';
 import './PrivacySettingsPage.css';
 
 type Action = { kind: 'consent'; policy: OptionalPolicy; granted: boolean } | { kind: 'delete' | 'cancel' };
@@ -120,7 +121,7 @@ export function PrivacySettingsPage() {
           <p>정책 버전: {row?.policy_version ?? policy.version}</p>
           {row && row.policy_version !== policy.version && <p>현재 정책: {policy.version}</p>}
           <p>{row ? row.granted ? '동의' : '철회' : '미기록'}</p>
-          <p>마지막 기록일: {row ? new Date(row.recorded_at).toLocaleString('ko-KR') : '없음'}</p>
+          <p>마지막 기록일: {row ? <time dateTime={row.recorded_at}>{formatDateTime(row.recorded_at)}</time> : '없음'}</p>
           {isOptionalPolicy(policy) && <Button variant="outline" disabled={pending || (!mock && Boolean(deletion))}
             onClick={() => open({ kind: 'consent', policy, granted: !row?.granted })}>{row?.granted ? '철회' : '동의'}</Button>}
         </article>;
@@ -129,8 +130,8 @@ export function PrivacySettingsPage() {
         <h2 id="deletion-title">회원 탈퇴 요청</h2>
         <p>요청 접수와 실제 데이터 삭제는 다릅니다. 여기서 즉시 물리 삭제하지 않습니다.</p>
         {deletion ? <>
-          <p>상태: <strong>접수됨</strong></p><p>요청일: {new Date(deletion.requested_at).toLocaleString('ko-KR')}</p>
-          <p>{deletion.scheduled_purge_at ? `삭제 예정일: ${new Date(deletion.scheduled_purge_at).toLocaleString('ko-KR')}` : '삭제 예정일은 아직 정해지지 않았습니다.'}</p>
+          <p>상태: <strong>접수됨</strong></p><p>요청일: <time dateTime={deletion.requested_at}>{formatDateTime(deletion.requested_at)}</time></p>
+          <p>{deletion.scheduled_purge_at ? <>삭제 예정일: <time dateTime={deletion.scheduled_purge_at}>{formatDateTime(deletion.scheduled_purge_at)}</time></> : '삭제 예정일은 아직 정해지지 않았습니다.'}</p>
           {mock ? <Button variant="outline" disabled={pending} onClick={() => open({ kind: 'cancel' })}>요청 취소 (Mock)</Button>
             : <p>현재 실제 탈퇴 취소는 지원하지 않습니다. 계정 복구·재인증 정책 확인이 필요합니다.</p>}
         </> : <><p>진행 중인 탈퇴 요청이 없습니다.</p><Button disabled={pending} onClick={() => open({ kind: 'delete' })}>회원 탈퇴 요청</Button></>}
