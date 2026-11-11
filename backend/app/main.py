@@ -6,12 +6,12 @@ from fastapi import FastAPI
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth_config import AuthSettings
-from app.core.config import APP_NAME, get_settings
+from app.core.config import API_V1_PREFIX, APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, system
+from app.routers import api_v1, job_applications, system
 from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,8 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(system.router)
     app.include_router(api_v1.api_router)
+    if settings.job_applications_api:  # T102: 제안 표가 있는 일회용 DB 에서만(기본 꺼짐)
+        app.include_router(job_applications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 
