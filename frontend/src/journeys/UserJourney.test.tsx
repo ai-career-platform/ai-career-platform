@@ -98,13 +98,15 @@ describe('interruptions and access control', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  it('known gaps are pinned: sign-up and password-reset links lead to 404 until T94/sign-up screens exist', async () => {
-    for (const path of ['/signup', '/password-reset']) {
-      const router = open(path);
-      expect(await h1('페이지를 찾을 수 없습니다')).toBeInTheDocument();
-      expect(router.state.location.pathname).toBe(path);
-      document.body.innerHTML = '';
-    }
+  it('known gap is pinned: the sign-up link leads to 404 until a sign-up screen exists', async () => {
+    const router = open('/signup');
+    expect(await h1('페이지를 찾을 수 없습니다')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/signup');
+  });
+
+  it('the password-reset link is no longer a gap after T94 (#196)', async () => {
+    open('/password-reset');
+    expect(await screen.findByRole('heading', { level: 1 })).not.toHaveTextContent('페이지를 찾을 수 없습니다');
   });
 });
 
@@ -127,7 +129,7 @@ const matches = (route: string, link: string) =>
   new RegExp('^' + route.replace(/:[^/]+/g, '[^/]+').replace(/\/$/, '') + '/?$').test(link.replace(/\/$/, '') || '/');
 
 // 알려진 공백(문서 T92 §4): 화면이 아직 없음 → 고쳐지면 이 목록에서 지워야 시험이 통과
-const KNOWN_DEAD_LINKS = new Set(['/signup', '/password-reset']);
+const KNOWN_DEAD_LINKS = new Set(['/signup']);
 // 앱 안 진입점이 없어도 되는 경로(사유): 운영 점검·개발 미리보기·상세(목록에서 동적 링크)·404
 const NO_ENTRY_NEEDED = new Set(['/system-status', '/*', '/admin/moderation/:caseId']);
 
