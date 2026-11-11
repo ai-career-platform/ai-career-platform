@@ -8,8 +8,11 @@ export class ApiError extends Error {
   readonly userMessage?: string;
   /** 응답 X-Request-ID — 오류 화면의 요청 번호, 감사 기록 조회 키 (FR-ADM-004) */
   readonly requestId?: string;
+  /** 오류 응답의 헤더 (T156: 크롤러 관리자 명령 거부 사유 X-Crawler-Command-Reason). 네트워크 오류면 undefined */
+  readonly headers?: Headers;
 
-  constructor(status: number, path: string, message?: string, code?: string, userMessage?: string, requestId?: string) {
+  constructor(status: number, path: string, message?: string, code?: string, userMessage?: string, requestId?: string,
+    headers?: Headers) {
     super(message ?? `API ${path} failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
@@ -17,5 +20,6 @@ export class ApiError extends Error {
     this.code = code;
     this.userMessage = userMessage;
     this.requestId = requestId;
+    this.headers = headers;
   }
 }

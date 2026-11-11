@@ -1,0 +1,12 @@
+{
+  "steps": [
+    "keyboard_stop_pending",
+    "run_events_visible",
+    "mobile_commands"
+  ],
+  "network": [
+    "http://127.0.0.1:5203/admin/crawler",
+    "http://127.0.0.1:5203/src/admin/crawlerAdminContext.ts"
+  ],
+  "overflow": false
+}

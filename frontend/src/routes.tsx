@@ -22,6 +22,8 @@ import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCar
 import { ModerationCasePage } from './pages/admin/ModerationCasePage';
 import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
+import { CrawlerAdminServiceProvider } from './admin/CrawlerAdminServiceProvider';
+import { CrawlerAdminPage } from './pages/admin/CrawlerAdminPage';
 import { AiUsagePage } from './pages/admin/AiUsagePage';
 import { AuditEventsPage } from './pages/admin/AuditEventsPage';
 import { NotificationServiceProvider } from './notifications/NotificationServiceProvider';
@@ -42,7 +44,7 @@ import { CompanyPostingsPage } from './pages/CompanyPostingsPage';
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; crawlerAdminUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -107,6 +109,18 @@ const applicationRoutes = (features: Features): RouteObject[] => (features.appli
  * UI-027 관리자 검수(T82)는 기능 플래그가 켜졌을 때만 경로·메뉴가 생깁니다(기본 꺼짐, Mock 모드 전용 — env.ts).
  * 꺼져 있으면 /admin/moderation 은 404 화면입니다. 켜져 있어도 admin 역할만 들어갑니다(RequireAuth).
  */
+/**
+ * T156 크롤러 관리자 콘솔. VITE_CRAWLER_ADMIN_UI 가 꺼져 있으면(기본) /admin/crawler 는 404 화면입니다.
+ * 켜져 있어도 admin 역할만 들어갑니다(RequireAuth). 서버(T155)도 모든 경로에서 admin 을 다시 검사합니다.
+ */
+const crawlerAdminRoutes = (features: Features): RouteObject[] => (features.crawlerAdminUi ? [
+  { element: <RequireAuth roles={['admin']} />, children: [
+    { element: <CrawlerAdminServiceProvider />, children: [
+      { path: 'admin/crawler', element: <CrawlerAdminPage /> },
+    ] },
+  ] },
+] : []);
+
 const adminRoutes = (features: Features): RouteObject[] => (features.adminModerationUi ? [
   { element: <RequireAuth roles={['admin']} />, children: [
     { element: <ModerationServiceProvider />, children: [
@@ -118,7 +132,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, crawlerAdminUi: env.crawlerAdminUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi, applicationsUi: env.applicationsUi, companyConsoleUi: env.companyConsoleUi, companyPostingsUi: env.companyPostingsUi, publicPortfolioUi: env.publicPortfolioUi,
   },
 ): RouteObject[] => [
   {
@@ -126,6 +140,7 @@ export const buildRoutes = (
     element: (
       <AuthProvider>
         <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
+          crawlerAdminUi={features.crawlerAdminUi ?? false}
           notificationsUi={features.notificationsUi ?? false} applicationsUi={features.applicationsUi ?? false}
           companyConsoleUi={features.companyConsoleUi ?? false} publicPortfolioUi={features.publicPortfolioUi ?? false} />
       </AuthProvider>
@@ -158,6 +173,7 @@ export const buildRoutes = (
       ...companyRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
+      ...crawlerAdminRoutes(features),
       { path: '*', element: <NotFoundPage /> },
     ],
   },

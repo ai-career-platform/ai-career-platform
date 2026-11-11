@@ -23,6 +23,11 @@ export interface HttpRequest {
    * 반환 타입(본문)을 바꾸지 않으려고 콜백으로 둡니다.
    */
   onResponseHeaders?: (headers: Headers) => void;
+  /**
+   * 이 요청에만 더할 헤더 (T156: 크롤러 관리자 명령의 Idempotency-Key).
+   * Accept·Content-Type·Authorization·CSRF 는 덮어쓸 수 없습니다(아래에서 다시 정합니다).
+   */
+  headers?: Record<string, string>;
 }
 
 export interface HttpClient {
@@ -73,7 +78,9 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
     const token = init.token !== undefined ? init.token : config.getToken?.();
     // FormData(파일 업로드)는 브라우저가 boundary 를 포함한 multipart Content-Type 을 정하도록 직접 지정하지 않습니다.
     const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
-    const headers: Record<string, string> = { Accept: responseType === 'blob' ? '*/*' : 'application/json' };
+    const headers: Record<string, string> = {
+      ...init.headers, Accept: responseType === 'blob' ? '*/*' : 'application/json',
+    };
     // CSRF 보호(OWASP custom-header): 외부 페이지의 HTML form 은 이 헤더를 보낼 수 없습니다. 비밀값이 아닙니다.
     if (method !== 'GET') headers[CSRF_HEADER] = '1';
     if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
@@ -99,7 +106,7 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
       const problem = (await response.json().catch(() => null)) as { code?: string; message?: string } | null;
       const error = new ApiError(
         response.status, path, undefined, problem?.code, problem?.message,
-        response.headers.get(REQUEST_ID_HEADER) ?? undefined,
+        response.headers.get(REQUEST_ID_HEADER) ?? undefined, response.headers,
       );
       if (response.status === 401) config.onUnauthorized?.(error);
       throw error;

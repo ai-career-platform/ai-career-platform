@@ -33,4 +33,11 @@ export const env = {
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
   /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /**
+   * T156 크롤러 관리자 콘솔. **기본 꺼짐**(설정하지 않은 빌드에서는 메뉴·경로 없음).
+   * 다른 Mock 전용 화면과 달리 실제 API 모드에서도 켤 수 있습니다: 읽기 API(T155 #124)는 main 에 있고
+   * 서버가 admin 역할을 검사하기 때문입니다. 쓰기는 서버 플래그 CRAWLER_ADMIN_WRITE_API 가 따로 막습니다.
+   * 운영·Staging 빌드에서 켜는 것은 별도 승인 사항입니다.
+   */
+  crawlerAdminUi: import.meta.env.VITE_CRAWLER_ADMIN_UI === 'true',
 } as const;
