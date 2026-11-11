@@ -31,6 +31,11 @@ export const env = {
   /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
   companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
+  /**
+   * T140 기술 자동완성(동의어·표준 코드). T139 서버 API 도 기본 꺼짐(SKILL_AUTOCOMPLETE_API)이라 둘 다 켜야 합니다.
+   * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.
+   */
+  skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
   /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
   /** T143 내 데이터 내려받기: Mock 전용, 기본 비활성(T141 정책·T142 저장소 미승인) */

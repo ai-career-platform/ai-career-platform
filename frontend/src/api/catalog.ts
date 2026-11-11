@@ -4,6 +4,7 @@
  */
 import type { HttpClient } from './http';
 import type { QueryOf, ResponseOf, Schemas } from './schema';
+import type { SkillSuggestPage } from './skills';
 
 export type JobRoleRef = Schemas['JobRoleRef'];
 export type JobRolePage = ResponseOf<'listJobRoles'>;
@@ -40,6 +41,9 @@ export const catalogApi = (http: HttpClient) => ({
   skills: {
     search: (query: QueryOf<'searchSkills'>, signal?: AbortSignal) =>
       http.request<ResponseOf<'searchSkills'>>('/v1/skills', { query, signal }),
+    /** T139 자동완성(PROPOSED). openapi.yaml 에 아직 없어서 타입을 직접 둡니다(api/skills.ts). */
+    suggest: (query: { q: string; limit?: number; cursor?: string }, signal?: AbortSignal) =>
+      http.request<SkillSuggestPage>('/v1/skills/suggest', { query, signal }),
   },
   companies: {
     list: (query: QueryOf<'listCompanies'>, signal?: AbortSignal) =>

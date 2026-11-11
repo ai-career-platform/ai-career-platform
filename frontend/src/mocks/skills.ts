@@ -3,7 +3,10 @@
  * DB·실제 계정·영구 저장 없음. 검증 규칙은 Backend T33과 같게 맞춥니다(Mock 성공은 실제 서비스 PASS가 아님).
  */
 import { ApiError } from '../api/errors';
-import { MAX_SKILLS, SEARCH_MIN_LENGTH, type Skill, type UserSkill } from '../api/skills';
+import {
+  MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, normalizeSkillTerm,
+  type Skill, type SkillMatchType, type SkillSuggestion, type UserSkill,
+} from '../api/skills';
 import type { MockRequest } from './handlers';
 
 const catalog: (Skill & { is_active: boolean })[] = [
@@ -28,8 +31,60 @@ function listOf(owned: Map<string, number | null>): UserSkill[] {
     .sort((a, b) => a.skill.name.localeCompare(b.skill.name) || a.skill.skill_id.localeCompare(b.skill.skill_id)) as UserSkill[];
 }
 
+/**
+ * T139 자동완성용 가상 동의어(합성). 실제 분류표가 아닙니다. 'py' 는 다의어 예시, RUST 는 등록할 수 없는 코드 예시입니다.
+ */
+const aliases: Record<string, { display: string; kind: 'exact' | 'ambiguous' }[]> = {
+  PYTHON: [{ display: '파이썬', kind: 'exact' }, { display: 'py', kind: 'ambiguous' }],
+  PYTORCH: [{ display: '파이토치', kind: 'exact' }, { display: 'py', kind: 'ambiguous' }],
+  JAVASCRIPT: [{ display: '자바스크립트', kind: 'exact' }, { display: 'JS', kind: 'exact' }],
+  TYPESCRIPT: [{ display: '타입스크립트', kind: 'exact' }, { display: 'TS', kind: 'exact' }],
+  KUBERNETES: [{ display: 'k8s', kind: 'exact' }, { display: '쿠버네티스', kind: 'exact' }],
+  POSTGRESQL: [{ display: '포스트그레스', kind: 'exact' }, { display: 'postgres', kind: 'exact' }],
+  REACT: [{ display: '리액트', kind: 'exact' }],
+  DOCKER: [{ display: '도커', kind: 'exact' }],
+};
+const unregistered = [{ code: 'RUST', name: 'Rust', aliases: [{ display: '러스트', kind: 'exact' as const }] }];
+const rank: Record<SkillMatchType, number> = { code: 0, alias: 1, ambiguous: 2, prefix: 3, partial: 4 };
+
+function suggest(q: string, limit: number): SkillSuggestion[] {
+  const term = normalizeSkillTerm(q);
+  const entries = [
+    ...catalog.filter(s => s.is_active).map(s => ({ code: s.code, name: s.name, skill_id: s.skill_id as string | null,
+      aliases: aliases[s.code] ?? [] })),
+    ...unregistered.map(u => ({ ...u, skill_id: null })),
+  ];
+  const best = new Map<string, SkillSuggestion>();
+  const offer = (e: (typeof entries)[number], match_type: SkillMatchType, matched: string) => {
+    const current = best.get(e.code);
+    if (!current || rank[match_type] < rank[current.match_type]) {
+      best.set(e.code, { code: e.code, name: e.name, match_type, matched, skill_id: e.skill_id });
+    }
+  };
+  for (const e of entries) {
+    if (normalizeSkillTerm(e.code) === term) offer(e, 'code', e.code);
+    for (const a of e.aliases) if (normalizeSkillTerm(a.display) === term) offer(e, a.kind === 'exact' ? 'alias' : 'ambiguous', a.display);
+    for (const text of [e.code, e.name, ...e.aliases.map(a => a.display)]) {
+      const n = normalizeSkillTerm(text);
+      if (n.startsWith(term)) offer(e, 'prefix', text);
+      else if (n.includes(term)) offer(e, 'partial', text);
+    }
+  }
+  return [...best.values()].sort((a, b) => rank[a.match_type] - rank[b.match_type] || a.name.length - b.name.length
+    || a.name.localeCompare(b.name) || a.code.localeCompare(b.code)).slice(0, limit);
+}
+
 export function resolveSkillsMock(path: string, request: MockRequest, userKey: string | null): unknown {
   const [pathname, query = ''] = path.split('?');
+  if (pathname === '/v1/skills/suggest' && request.method === 'GET') {
+    const params = new URLSearchParams(query);
+    const q = params.get('q') ?? '';
+    const limit = Number(params.get('limit') ?? 10);
+    if (!normalizeSkillTerm(q) || q.length > SEARCH_MAX_LENGTH || !(limit >= 1 && limit <= 50)) {
+      return fail(422, 'VALIDATION_FAILED');
+    }
+    return { items: suggest(q, limit), next_cursor: null, alias_source: 'taxonomy' };
+  }
   if (pathname === '/v1/skills' && request.method === 'GET') {
     const params = new URLSearchParams(query);
     const q = (params.get('q') ?? '').trim().toLowerCase();
