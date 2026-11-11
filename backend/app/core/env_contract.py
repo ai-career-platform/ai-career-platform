@@ -124,6 +124,7 @@ CONTRACT: tuple[EnvVar, ...] = (
     EnvVar("COMPANY_ACCOUNTS_API", (), "false", False, "PM(승인)", "T123 기업 계정 API. 승인 전 꺼짐", check=_flag),
     EnvVar("COMPANY_POSTINGS_API", (), "false", False, "PM(승인)", "T126 기업 공고 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PUBLIC_PORTFOLIO_API", (), "false", False, "PM(승인)", "T129 공개 프로필 API. 승인 전 꺼짐", check=_flag),
+    EnvVar("CRAWLER_ADMIN_WRITE_API", (), "false", False, "PM(승인)", "T155 크롤러 관리자 쓰기·명령 API. 승인 전 꺼짐", check=_flag),
 )
 
 BY_NAME = {v.name: v for v in CONTRACT}

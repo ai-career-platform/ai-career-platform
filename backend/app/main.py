@@ -12,7 +12,7 @@ from app.core.observability import AccessLogMiddleware, RequestMetrics, install_
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, public_portfolio, system
+from app.routers import api_v1, company_accounts, company_postings, crawler_admin_write, job_applications, job_postings, public_portfolio, system
 from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,8 @@ def create_app() -> FastAPI:
         app.include_router(company_postings.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.public_portfolio_api:  # T129: 기본 비활성
         app.include_router(public_portfolio.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.crawler_admin_write_api:  # T155: 기본 비활성
+        app.include_router(crawler_admin_write.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 

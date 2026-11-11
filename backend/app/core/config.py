@@ -70,6 +70,8 @@ class Settings:
     company_postings_api: bool = False
     # T129: 공개 포트폴리오 API — 승인 전 기본 비활성
     public_portfolio_api: bool = False
+    # T155: 크롤러 관리자 쓰기·명령 API — 승인 전 기본 비활성 (읽기 API는 기존대로 항상 등록)
+    crawler_admin_write_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -82,6 +84,7 @@ class Settings:
             company_accounts_api=os.environ.get("COMPANY_ACCOUNTS_API", "false").lower() == "true",
             company_postings_api=os.environ.get("COMPANY_POSTINGS_API", "false").lower() == "true",
             public_portfolio_api=os.environ.get("PUBLIC_PORTFOLIO_API", "false").lower() == "true",
+            crawler_admin_write_api=os.environ.get("CRAWLER_ADMIN_WRITE_API", "false").lower() == "true",
         )
 
 

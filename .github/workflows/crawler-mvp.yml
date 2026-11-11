@@ -67,11 +67,13 @@ jobs:
           CRAWLER_NIGHT_TEST_DSN: postgresql://crawler_staging@127.0.0.1:5432/ai_career_crawler_training
           CRAWLER_NIGHT_PG_TEST: '1'
         run: |
-          for migration in crawler/storage/migrations/000{3,4,5,6,7,8,9}_*.sql crawler/storage/migrations/0010_*.sql; do
+          for migration in crawler/storage/migrations/000{3,4,5,6,7,8,9}_*.sql crawler/storage/migrations/0010_*.sql crawler/storage/migrations/0011_*.sql; do
             psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
           python -m unittest crawler.tests.local_t154_night_executor crawler.tests.local_t154_night_caller -v
           python -m unittest crawler.tests.local_t155_admin_read_pg -v
           CRAWLER_NIGHT_CONTAINER_TEST=1 python -m unittest crawler.tests.local_t154_caller_container -v
+          # T155 write store last: it leaves synthetic PENDING metadata jobs (runtime role cannot DELETE)
+          python -m unittest crawler.tests.local_t155_admin_write_pg -v
       - name: Verify disabled crawler systemd unit files
         run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer poc/staging/crawler/ai-career-t154-night-20261108.service poc/staging/crawler/ai-career-t154-night-20261108.timer
