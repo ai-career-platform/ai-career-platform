@@ -60,7 +60,9 @@ class Settings:
     app_env: str
     app_version: str
     database: DatabaseSettings | None = None
-    # T102: 개인 지원 기록 API(T101 제안, 표는 database/proposed). 기본 꺼짐 — PM 승인·migration 전 운영·Staging 에서 켜지 않음
+    # T99: T98 고급 검색 계약(PROPOSED)을 켬. 기본 꺼짐 — PM 승인 전 운영·Staging 에서 켜지 않음
+    job_search_advanced: bool = False
+    # T102: 개인 지원 기록 API (미승인·기본 비활성)
     job_applications_api: bool = False
 
     @classmethod
@@ -69,6 +71,7 @@ class Settings:
             app_env=os.environ.get("APP_ENV", "local-dev"),
             app_version=os.environ.get("APP_VERSION", "0.1.0"),
             database=DatabaseSettings.from_env(),
+            job_search_advanced=os.environ.get("JOB_SEARCH_ADVANCED", "false").lower() == "true",
             job_applications_api=os.environ.get("JOB_APPLICATIONS_API", "false").lower() == "true",
         )
 

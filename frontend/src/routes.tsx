@@ -24,12 +24,15 @@ import { ModerationQueuePage } from './pages/admin/ModerationQueuePage';
 import { AdminAuditServiceProvider } from './admin/AdminAuditServiceProvider';
 import { AiUsagePage } from './pages/admin/AiUsagePage';
 import { AuditEventsPage } from './pages/admin/AuditEventsPage';
+import { NotificationServiceProvider } from './notifications/NotificationServiceProvider';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 
 /**
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -40,6 +43,19 @@ const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminA
     { element: <AdminAuditServiceProvider />, children: [
       { path: 'admin/audit-events', element: <AuditEventsPage /> },
       { path: 'admin/ai-usage', element: <AiUsagePage /> },
+    ] },
+  ] },
+] : []);
+
+/**
+ * UI-N04 알림함·UI-005 알림 수신 설정(T97)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
+ * 로그인 사용자만 들어갑니다. 알림·설정은 로그인 사용자 ID 별로 분리됩니다(NotificationServiceProvider).
+ */
+const notificationRoutes = (features: Features): RouteObject[] => (features.notificationsUi ? [
+  { element: <RequireAuth />, children: [
+    { element: <NotificationServiceProvider />, children: [
+      { path: 'me/notifications', element: <NotificationsPage /> },
+      { path: 'me/notification-settings', element: <NotificationSettingsPage /> },
     ] },
   ] },
 ] : []);
@@ -58,13 +74,16 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 ] : []);
 
 export const buildRoutes = (
-  features: Features = { adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi },
+  features: Features = {
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi,
+  },
 ): RouteObject[] => [
   {
     path: '/',
     element: (
       <AuthProvider>
-        <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false} />
+        <AppLayout adminModerationUi={features.adminModerationUi} adminAuditUi={features.adminAuditUi ?? false}
+          notificationsUi={features.notificationsUi ?? false} />
       </AuthProvider>
     ),
     children: [
@@ -89,6 +108,7 @@ export const buildRoutes = (
         // UI-024 채용시장 추세 (F-024). T67 GET /api/v1/market-trends 는 로그인 사용자만 조회합니다.
         { path: 'market-trends', element: <MarketTrendsPage /> },
       ] },
+      ...notificationRoutes(features),
       ...adminRoutes(features),
       ...adminAuditRoutes(features),
       { path: '*', element: <NotFoundPage /> },

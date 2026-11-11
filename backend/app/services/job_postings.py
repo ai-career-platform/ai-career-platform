@@ -121,6 +121,12 @@ class JobPostingService:
             "job_role_id": str(f.job_role_id) if f.job_role_id else None,
             "include_closed": f.include_closed, "sort": f.sort,
         }
+        if f.advanced:  # T99: 정규화(정렬·중복 제거)된 조건만 cursor 에 묶음 — 순서만 다른 같은 조건은 같은 cursor
+            params.update({
+                "v": "adv1", "company_ids": [str(x) for x in f.company_ids], "job_role_ids": [str(x) for x in f.job_role_ids],
+                "employment_types": list(f.employment_types), "regions": list(f.regions),
+                "posted_within": f.posted_within,
+            })
         after = None
         if cursor is not None:
             last_id, raw_key = self._cursor.decode(cursor, "job_postings", params)
