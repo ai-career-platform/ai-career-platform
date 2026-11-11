@@ -1,0 +1,107 @@
+# T119 운영 품질 점검 임계값 — **PROPOSED**. 실측 기준선이 없거나 합성 데이터 기준이면 그렇게 표시합니다.
+# 상태: ok(정상) / warn(주의) / breach(위반) / not_measured(측정값 없음 — PASS 아님)
+# basis: measured(실측) | candidate(측정은 있으나 목표 미승인, T88) | synthetic(합성 데이터 기준) | none(근거 없음)
+cadence:
+  data_quality: daily        # 매일 수집 후(스케줄 등록은 승인 후)
+  service_slo: weekly        # 주 1회 검토, 경보는 T113 규칙으로 상시
+  ai_quality: monthly        # 모델·규칙 버전이 바뀔 때마다 + 월 1회
+  cost: weekly
+owners:                      # 역할 이름만. 실제 담당자 지정은 PM
+  data_quality: 데이터 담당
+  service_slo: Backend 담당
+  ai_quality: AI 담당
+  cost: PM
+checks:
+  - id: DQ-NULL-TITLE
+    area: data_quality
+    metric: null_rate.title
+    warn: 0.0
+    breach: 0.0
+    direction: above
+    basis: synthetic
+    note: 제목은 DB CHECK 로도 막힘 — 0 이 아니면 적재 경로 이상
+  - id: DQ-NULL-EMPLOYMENT
+    area: data_quality
+    metric: null_rate.employment_type
+    warn: 0.20
+    breach: 0.40
+    direction: above
+    basis: synthetic
+  - id: DQ-NULL-LOCATION
+    area: data_quality
+    metric: null_rate.location_text
+    warn: 0.20
+    breach: 0.40
+    direction: above
+    basis: synthetic
+  - id: DQ-NULL-EXPIRES
+    area: data_quality
+    metric: null_rate.expires_at
+    warn: 0.30
+    breach: 0.60
+    direction: above
+    basis: synthetic
+  - id: DQ-DUPLICATES
+    area: data_quality
+    metric: duplicate_rate
+    warn: 0.01
+    breach: 0.05
+    direction: above
+    basis: synthetic
+    note: 같은 회사·같은 제목·같은 게시일
+  - id: DQ-STALE-PUBLISHED
+    area: data_quality
+    metric: stale_published_rate
+    warn: 0.01
+    breach: 0.05
+    direction: above
+    basis: synthetic
+    note: 마감일이 지났는데 published 로 남은 비율
+  - id: DQ-FRESHNESS
+    area: data_quality
+    metric: freshness_hours
+    warn: 48
+    breach: 168
+    direction: above
+    basis: none
+    note: 마지막 게시 공고 이후 경과 시간. 수집 주기 승인 전이라 근거 없음
+  - id: DQ-DRIFT-EMPLOYMENT
+    area: data_quality
+    metric: psi.employment_type
+    warn: 0.10
+    breach: 0.25
+    direction: above
+    basis: candidate
+    note: PSI 관례값(0.1 주의, 0.25 큰 변화). 기준 분포는 직전 점검
+  - id: SLO-AVAILABILITY
+    area: service_slo
+    metric: availability
+    warn: 0.995
+    breach: 0.99
+    direction: below
+    basis: none
+    note: 5xx 가 아닌 응답 비율(T112 지표). 목표 미승인
+  - id: SLO-P95
+    area: service_slo
+    metric: p95_ms
+    warn: 100
+    breach: 300
+    direction: above
+    basis: candidate
+    note: T88 후보(동시성 8 일반 조회 p95 < 100 ms) — 승인 전
+  - id: AI-RANKING-QUALITY
+    area: ai_quality
+    metric: ndcg_at_10
+    warn: null
+    breach: null
+    direction: below
+    basis: none
+    note: 추천 랭킹 평가(T105) 미착수 — 측정값·기준선 없음
+  - id: COST-AI-BUDGET
+    area: cost
+    metric: ai_cost_budget_ratio
+    warn: 0.8
+    breach: 1.0
+    direction: above
+    basis: none
+    note: T113 경보와 같은 비율. 월 예산 금액은 PM 미정
