@@ -30,8 +30,8 @@
 | `JOB_APPLICATIONS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐(계약 검사가 오타 보고) | T102 지원 기록 API. 승인 전 꺼짐 |
 | `COMPANY_ACCOUNTS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T123 기업 계정 API. 승인 전 꺼짐 |
 | `COMPANY_POSTINGS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T126 기업 공고 API. 승인 전 꺼짐 |
-| `PUBLIC_PORTFOLIO_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T129 공개 프로필 API. 승인 전 꺼짐 |
 | `SKILL_AUTOCOMPLETE_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T139 기술 자동완성 API. 승인 전 꺼짐 |
+| `PUBLIC_PORTFOLIO_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T129 공개 프로필 API. 승인 전 꺼짐 |
 | `PERSONAL_DATA_REQUESTS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T142 내 데이터 반출 요청 API. 승인 전 꺼짐 |
 
 - **Local**: 아무 값도 없어도 기동합니다. `JWT_SECRET`이 없으면 프로세스마다 임의 키를 쓰고, 재시작하면 토큰이 무효가 됩니다.
