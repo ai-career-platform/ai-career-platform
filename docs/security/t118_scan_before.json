@@ -1,0 +1,422 @@
+{
+ "scanner": "pip-audit 2.9.0 (PyPI/OSV), severity from api.osv.dev",
+ "scanned_at": "2026-11-11",
+ "input": "backend/requirements-dev.txt (includes requirements.txt)",
+ "rows": [
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-120",
+   "aliases": [
+    "CVE-2026-32597",
+    "GHSA-752w-5fwx-jx9f"
+   ],
+   "fix": [
+    "2.12.0"
+   ],
+   "severity": "HIGH",
+   "summary": "PyJWT accepts unknown `crit` header extensions"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2025-183",
+   "aliases": [
+    "CVE-2025-45768"
+   ],
+   "fix": [],
+   "severity": null,
+   "summary": ""
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-179",
+   "aliases": [
+    "GHSA-xgmm-8j9v-c9wx",
+    "CVE-2026-48526"
+   ],
+   "fix": [
+    "2.13.0"
+   ],
+   "severity": "HIGH",
+   "summary": "PyJWT: Public-key JWK accepted as HMAC secret enables forged HS256 tokens when mixed families are allowed"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-175",
+   "aliases": [
+    "GHSA-993g-76c3-p5m4",
+    "CVE-2026-48522"
+   ],
+   "fix": [
+    "2.13.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWKClient: missing scheme allowlist enables CVE-2024-21643-class SSRF + token forgery via file://, ftp://, d"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-177",
+   "aliases": [
+    "GHSA-fhv5-28vv-h8m8",
+    "CVE-2026-48524"
+   ],
+   "fix": [
+    "2.13.0"
+   ],
+   "severity": "LOW",
+   "summary": "PyJWKClient unbounded JWKS endpoint requests via attacker-controlled kid values (DoS)"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-178",
+   "aliases": [
+    "CVE-2026-48525",
+    "GHSA-w7vc-732c-9m39"
+   ],
+   "fix": [
+    "2.13.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: Unauthenticated DoS via unbounded Base64URL decoding of unused payload segment in b64=false detached JW"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-176",
+   "aliases": [
+    "GHSA-jq35-7prp-9v3f",
+    "CVE-2026-48523"
+   ],
+   "fix": [
+    "2.12.1"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: Algorithm allow-list bypass when decoding with `PyJWK` / `PyJWKClient` keys"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4145",
+   "aliases": [
+    "CVE-2026-102268",
+    "GHSA-ffc3-869f-jxw9"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "CRITICAL",
+   "summary": "PyJWT: Asymmetric-PEM detection bypass: whitespace/line-ending-mutated public keys skip the HS/asymmetric conf"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4149",
+   "aliases": [
+    "GHSA-p4g4-x82p-q773",
+    "CVE-2026-102271"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "HIGH",
+   "summary": "PyJWT: Public keys in DER form are accepted as HMAC secrets, bypassing the CVE-2022-29217 guard"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4152",
+   "aliases": [
+    "CVE-2026-102274",
+    "GHSA-w6j9-cwv2-h6wq"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: Malformed RSA JWK aborts parsing of an entire JWK Set"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4144",
+   "aliases": [
+    "GHSA-9v7f-9g4p-ffgj",
+    "CVE-2026-102267"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "HIGH",
+   "summary": "PyJWT: PyJWKClient follows redirects when fetching JWKS"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4148",
+   "aliases": [
+    "GHSA-jwrc-g2q2-pq5p",
+    "CVE-2026-102270"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: ReDoS vulnerability when calling the `is_pem_format` function."
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4140",
+   "aliases": [
+    "GHSA-2gx3-rcp4-g85q",
+    "CVE-2026-101917"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: PyJWKClient still amplifies unauthenticated JWKS fetches on unknown kid values (incomplete fix of CVE-2"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4141",
+   "aliases": [
+    "GHSA-42vr-xj54-vc7v",
+    "CVE-2026-101918"
+   ],
+   "fix": [
+    "2.15.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: Unauthenticated RecursionError DoS in pre-verification payload parse (PyJWKClient.get_signing_key_from_"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4147",
+   "aliases": [
+    "GHSA-hxm8-2xgr-2p9m",
+    "CVE-2026-102269"
+   ],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT: Non-canonical signature segments enable raw-token revocation bypass"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "PYSEC-2026-4183",
+   "aliases": [
+    "GHSA-x33g-cr3x-6449",
+    "CVE-2026-102275"
+   ],
+   "fix": [
+    "2.15.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "PyJWT accepts inconsistent OKP x/d JWKs, causing public/private key identity confusion"
+  },
+  {
+   "package": "pyjwt",
+   "version": "2.10.1",
+   "id": "GHSA-pxh4-856f-4h89",
+   "aliases": [],
+   "fix": [
+    "2.14.0"
+   ],
+   "severity": "HIGH",
+   "summary": "PyJWT: HS256/384/512 verify accepts empty HMAC key via oct JWK (PyJWK/PyJWKClient) enabling token forgery"
+  },
+  {
+   "package": "python-multipart",
+   "version": "0.0.22",
+   "id": "PYSEC-2026-3038",
+   "aliases": [
+    "CVE-2026-40347",
+    "GHSA-mj87-hwqh-73pj"
+   ],
+   "fix": [
+    "0.0.26"
+   ],
+   "severity": "MODERATE",
+   "summary": "python-multipart affected by Denial of Service via large multipart preamble or epilogue data"
+  },
+  {
+   "package": "python-multipart",
+   "version": "0.0.22",
+   "id": "PYSEC-2026-3037",
+   "aliases": [
+    "CVE-2026-53538",
+    "GHSA-6jv3-5f52-599m"
+   ],
+   "fix": [
+    "0.0.30"
+   ],
+   "severity": "LOW",
+   "summary": "python-multipart: Semicolon treated as querystring field separator enables parameter smuggling"
+  },
+  {
+   "package": "python-multipart",
+   "version": "0.0.22",
+   "id": "PYSEC-2026-3036",
+   "aliases": [
+    "GHSA-5rvq-cxj2-64vf",
+    "CVE-2026-53539"
+   ],
+   "fix": [
+    "0.0.30"
+   ],
+   "severity": "HIGH",
+   "summary": "python-multipart: Quadratic-time querystring parsing with semicolon separators causes CPU denial of service"
+  },
+  {
+   "package": "python-multipart",
+   "version": "0.0.22",
+   "id": "PYSEC-2026-3040",
+   "aliases": [
+    "CVE-2026-53540",
+    "GHSA-v9pg-7xvm-68hf"
+   ],
+   "fix": [
+    "0.0.31"
+   ],
+   "severity": "LOW",
+   "summary": "python-multipart: Negative Content-Length in parse_form buffers the entire body in memory"
+  },
+  {
+   "package": "python-multipart",
+   "version": "0.0.22",
+   "id": "PYSEC-2026-3039",
+   "aliases": [
+    "CVE-2026-42561",
+    "GHSA-pp6c-gr5w-3c5g"
+   ],
+   "fix": [
+    "0.0.27"
+   ],
+   "severity": "HIGH",
+   "summary": "python-multipart has Denial of Service via unbounded multipart part headers"
+  },
+  {
+   "package": "pytest",
+   "version": "8.3.5",
+   "id": "PYSEC-2026-1845",
+   "aliases": [
+    "CVE-2025-71176",
+    "GHSA-6w46-j5rx-g56g"
+   ],
+   "fix": [
+    "9.0.3"
+   ],
+   "severity": "MODERATE",
+   "summary": "pytest has vulnerable tmpdir handling"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-161",
+   "aliases": [
+    "GHSA-86qp-5c8j-p5mr",
+    "X41-2026-002",
+    "CVE-2026-48710"
+   ],
+   "fix": [
+    "1.0.1"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette has missing Host header validation that poisons request.url.path, bypassing path-based security chec"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-249",
+   "aliases": [
+    "GHSA-82w8-qh3p-5jfq",
+    "CVE-2026-54283"
+   ],
+   "fix": [
+    "1.3.1"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette: request.form() limits silently ignored for application/x-www-form-urlencoded enable DoS"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-248",
+   "aliases": [
+    "GHSA-jp82-jpqv-5vv3",
+    "CVE-2026-54282"
+   ],
+   "fix": [
+    "1.3.0"
+   ],
+   "severity": "LOW",
+   "summary": "Starlette: Unvalidated request path concatenated into authority poisons request.url.hostname"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-1942",
+   "aliases": [
+    "CVE-2025-62727",
+    "GHSA-7f5h-v6xp-fcq8"
+   ],
+   "fix": [
+    "0.49.1"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette vulnerable to O(n^2) DoS via Range header merging in ``starlette.responses.FileResponse``"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-1941",
+   "aliases": [
+    "GHSA-2c2j-9gv5-cj73",
+    "CVE-2025-54121"
+   ],
+   "fix": [
+    "0.47.2"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette has possible denial-of-service vector when parsing large files in multipart forms"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-2281",
+   "aliases": [
+    "GHSA-wqp7-x3pw-xc5r",
+    "CVE-2026-48818"
+   ],
+   "fix": [
+    "1.1.0"
+   ],
+   "severity": "HIGH",
+   "summary": "Starlette: SSRF and NTLM credential theft via UNC paths in StaticFiles on Windows"
+  },
+  {
+   "package": "starlette",
+   "version": "0.46.2",
+   "id": "PYSEC-2026-2280",
+   "aliases": [
+    "GHSA-x746-7m8f-x49c",
+    "CVE-2026-48817"
+   ],
+   "fix": [
+    "1.1.0"
+   ],
+   "severity": "MODERATE",
+   "summary": "Starlette: Arbitrary HTTP method dispatched to `HTTPEndpoint` attributes via `getattr`"
+  }
+ ]
+}
