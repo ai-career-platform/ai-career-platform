@@ -12,8 +12,9 @@ from app.core.observability import AccessLogMiddleware, RequestMetrics, install_
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, personal_data_requests, public_portfolio, skill_suggest, system
+from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, personal_data_requests, public_portfolio, system
 from app.services.behavior_events import BehaviorEventSettings
+from app.routers import skill_suggest
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,10 @@ def create_app() -> FastAPI:
         app.include_router(company_accounts.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.company_postings_api:  # T126: 기본 비활성
         app.include_router(company_postings.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
-    if settings.public_portfolio_api:  # T129: 기본 비활성
-        app.include_router(public_portfolio.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.skill_autocomplete_api:  # T139: 기본 비활성 (T137 별칭 표 미승인)
         app.include_router(skill_suggest.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.public_portfolio_api:  # T129: 기본 비활성
+        app.include_router(public_portfolio.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.personal_data_requests_api:  # T142: 기본 비활성
         app.include_router(personal_data_requests.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
