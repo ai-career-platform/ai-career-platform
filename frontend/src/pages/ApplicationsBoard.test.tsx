@@ -42,6 +42,8 @@ async function open(path: string, as?: string, applicationsUi = true) {
     fireEvent.change(screen.getByLabelText(/^비밀번호/), { target: { value: MOCK_PASSWORD } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
     await screen.findByRole('link', { name: as === ADMIN ? '운영 관리자' : '일반 사용자' });
+    // 로그인 완료 후 계정 화면으로 이동이 확정되어야 딥링크를 덮어쓰지 않는다.
+    await screen.findByRole('heading', { name: '내 계정' });
     await act(() => router.navigate(path));
   }
   return router;
