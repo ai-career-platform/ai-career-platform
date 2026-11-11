@@ -1,0 +1,34 @@
+{
+  "task": "T114",
+  "environment": "local disposable PostgreSQL 18.6 (loopback, Windows 11), synthetic data only",
+  "executed_at": "2026-11-11T04:20:23.249066+00:00",
+  "backup": {
+    "database": "t114_src",
+    "server_version": "18.6",
+    "pg_dump_version": "pg_dump (PostgreSQL) 18.6",
+    "bytes": 202241,
+    "sha256": "99905f41a81d321b126fc4bf34177e913506225437fc18e3d51705da7c311508",
+    "dump_seconds": 0.303,
+    "toc_entries": 321,
+    "migrations": [],
+    "encrypted": false
+  },
+  "verify": {
+    "verdict": "PASS",
+    "restore_seconds": 0.391,
+    "tables": 51,
+    "rows": 2058,
+    "table_mismatches": [],
+    "unexpected_tables": [],
+    "objects_equal": true,
+    "migrations_equal": true
+  },
+  "freshness": {
+    "rpo_hours": 24,
+    "fresh_case": "alert=false",
+    "stale_case_now": "2026-11-13T03:00:00Z",
+    "stale_case": "alert=true (older than RPO)"
+  },
+  "measured_rto_seconds": 0.391,
+  "note": "측정값은 합성 2,058행·51표 기준입니다. Staging 실데이터 크기·디스크에서는 다릅니다(미측정)."
+}
