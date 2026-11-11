@@ -1,0 +1,438 @@
+{
+  "status": "PROPOSED",
+  "task": "T121",
+  "version": "2026-11-11.1",
+  "roles": {
+    "anonymous": {
+      "scope": "none",
+      "source": "로그인 안 함"
+    },
+    "job_seeker": {
+      "scope": "global",
+      "source": "career.user_roles(기존 job_seeker)"
+    },
+    "company_member": {
+      "scope": "organization",
+      "source": "조직 소속(제안: career.organization_members.role='member')"
+    },
+    "company_owner": {
+      "scope": "organization",
+      "source": "조직 소속(제안: role='owner')"
+    },
+    "admin": {
+      "scope": "global",
+      "source": "career.user_roles(기존 admin)"
+    }
+  },
+  "decision_values": {
+    "allow": "허용",
+    "deny": "거부 — 같은 조직 안에서 역할이 부족하면 403 FORBIDDEN, 조직이 다르면 404",
+    "own": "본인이 active 멤버인 조직의 리소스만. 다른 조직·대기·정지 조직이면 404 NOT_FOUND(존재 숨김)",
+    "self": "본인 계정에 대한 행동만(예: 내 이메일로 온 초대만 수락)",
+    "consented": "후보자가 동의·공유한 필드와 유효한 링크 범위만(T128). 그 밖은 404"
+  },
+  "invariants": [
+    "INV-1 기업 역할은 조직 단위다. 전역 역할(career.user_roles)로 부여하지 않는다",
+    "INV-2 기업 역할은 운영 관리자 권한(admin.*)을 갖지 않는다",
+    "INV-3 공고 게시·반려는 운영 관리자만 한다. 기업 역할에 검수 우회·즉시 게시 권한이 없다(T125)",
+    "INV-4 후보자 비공개 정보·검색·연락·지원 기록은 어떤 역할에도 허용하지 않는다(승인 전)",
+    "INV-5 다른 조직의 리소스는 존재를 숨긴다(404). 같은 조직 안 역할 부족은 403",
+    "INV-6 조직에는 active owner 가 최소 1명 있어야 한다(마지막 owner 강등·제외·탈퇴 거부, 409)",
+    "INV-7 owner 는 자신보다 높은 권한을 만들 수 없다(기업 역할은 owner 가 최고). 기업 역할로 admin 을 부여할 수 없다",
+    "INV-8 검증 전(pending)·정지(suspended) 조직의 멤버는 공고 초안 외 행동을 할 수 없다(제안 D-4)",
+    "INV-9 운영 관리자는 기업 공고 내용을 직접 수정하지 않는다(반려·내림만). 수정은 기업이 한다"
+  ],
+  "actions": [
+    {
+      "action": "org.register",
+      "description": "기업 등록 신청(검증 전 pending)",
+      "story": "US-C01",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "allow",
+        "company_member": "allow",
+        "company_owner": "allow",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "org.verify",
+      "description": "기업 실재 확인·승인/반려",
+      "story": "US-A01",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "org.view_console",
+      "description": "기업 콘솔(멤버·공고 관리 화면) 열람",
+      "story": "US-C02",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "org.update_profile",
+      "description": "기업 소개·연락처 수정",
+      "story": "US-C03",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "org.close",
+      "description": "기업 계정 종료 요청",
+      "story": "US-C04",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "org.suspend",
+      "description": "기업 계정 정지(운영 조치)",
+      "story": "US-A02",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "member.list",
+      "description": "소속 멤버 목록",
+      "story": "US-C05",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.invite",
+      "description": "멤버 초대(이메일, TTL)",
+      "story": "US-C06",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.invite_resend",
+      "description": "초대 재전송(기존 토큰 무효화)",
+      "story": "US-C06",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.invite_revoke",
+      "description": "초대 취소",
+      "story": "US-C06",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "invite.accept",
+      "description": "초대 수락(로그인 이메일 = 초대 이메일)",
+      "story": "US-C07",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "self",
+        "company_member": "self",
+        "company_owner": "self",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.change_role",
+      "description": "멤버 역할 변경(owner ↔ member)",
+      "story": "US-C08",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.remove",
+      "description": "멤버 제외(권한 즉시 회수)",
+      "story": "US-C09",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "member.leave",
+      "description": "스스로 탈퇴",
+      "story": "US-C10",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "self",
+        "company_owner": "self",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "posting.draft_create",
+      "description": "자체 공고 초안 작성",
+      "story": "US-C11",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "posting.draft_edit",
+      "description": "초안·반려 공고 수정(버전 확인)",
+      "story": "US-C11",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "posting.submit_review",
+      "description": "검수 요청",
+      "story": "US-C12",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "posting.withdraw_review",
+      "description": "검수 요청 철회",
+      "story": "US-C12",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "posting.view_internal",
+      "description": "초안·검수 중·반려 사유 열람",
+      "story": "US-C13",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "posting.publish",
+      "description": "게시(검수 승인)",
+      "story": "US-A03",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "posting.reject",
+      "description": "반려(사유 필수)",
+      "story": "US-A03",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "posting.close",
+      "description": "게시 공고 마감",
+      "story": "US-C14",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "own",
+        "company_owner": "own",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "posting.takedown",
+      "description": "운영 강제 내림(사유·감사)",
+      "story": "US-A04",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "posting.view_public",
+      "description": "게시된 공고 조회",
+      "story": "US-S01",
+      "decisions": {
+        "anonymous": "allow",
+        "job_seeker": "allow",
+        "company_member": "allow",
+        "company_owner": "allow",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "candidate.view_public_profile",
+      "description": "후보자가 공유한 공개 프로필 조회(링크·동의 범위)",
+      "story": "US-C15",
+      "decisions": {
+        "anonymous": "consented",
+        "job_seeker": "consented",
+        "company_member": "consented",
+        "company_owner": "consented",
+        "admin": "consented"
+      }
+    },
+    {
+      "action": "candidate.view_private_profile",
+      "description": "후보자 비공개 프로필·문서·분석 결과 열람",
+      "story": "US-X01",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "candidate.search",
+      "description": "후보자 검색·목록(인재 DB)",
+      "story": "US-X02",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "candidate.contact",
+      "description": "후보자에게 연락·제안",
+      "story": "US-X03",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "candidate.view_applications",
+      "description": "후보자의 개인 지원 기록(T102) 열람",
+      "story": "US-X04",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "deny"
+      }
+    },
+    {
+      "action": "admin.audit.read",
+      "description": "감사 기록 조회(기존)",
+      "story": "US-A05",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    },
+    {
+      "action": "admin.role.grant_company",
+      "description": "운영자가 기업 소유자 지정(분쟁·복구)",
+      "story": "US-A06",
+      "decisions": {
+        "anonymous": "deny",
+        "job_seeker": "deny",
+        "company_member": "deny",
+        "company_owner": "deny",
+        "admin": "allow"
+      }
+    }
+  ],
+  "org_status_rules": {
+    "pending": [
+      "org.view_console",
+      "member.list",
+      "posting.draft_create",
+      "posting.draft_edit",
+      "posting.view_internal",
+      "member.leave",
+      "org.close"
+    ],
+    "active": "*",
+    "suspended": [
+      "org.view_console",
+      "member.list",
+      "posting.view_internal",
+      "member.leave"
+    ],
+    "closed": []
+  }
+}
