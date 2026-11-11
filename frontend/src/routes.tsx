@@ -32,7 +32,7 @@ import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
  * 화면 라우트 목록. 새 화면은 pages/ 에 컴포넌트를 만들고 여기에 children 으로 추가합니다.
  * 화면 ID·경로는 docs/FULL_SCOPE_TRACEABILITY.md 기준으로 맞춥니다.
  */
-export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean };
+export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean };
 
 /**
  * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
@@ -75,7 +75,7 @@ const adminRoutes = (features: Features): RouteObject[] => (features.adminModera
 
 export const buildRoutes = (
   features: Features = {
-    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi,
+    adminModerationUi: env.adminModerationUi, adminAuditUi: env.adminAuditUi, notificationsUi: env.notificationsUi, jobSearchAdvancedUi: env.jobSearchAdvancedUi,
   },
 ): RouteObject[] => [
   {
@@ -91,7 +91,7 @@ export const buildRoutes = (
       { path: 'system-status', element: <HomePage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
       { path: 'ui-preview', element: <UiPreviewPage /> },
-      { path: 'job-postings', element: <JobPostingsPage /> },
+      { path: 'job-postings', element: <JobPostingsPage advanced={features.jobSearchAdvancedUi ?? false} /> },
       { path: 'login', element: <LoginPage /> },
       // UI-N03 계정 복구 (T94). Mock 모드에서만 동작. 실제 API(T93 PR 195)는 미병합이라 일반 빌드는 '준비 중' 안내
       { path: 'password-reset', element: <PasswordResetPage /> },
