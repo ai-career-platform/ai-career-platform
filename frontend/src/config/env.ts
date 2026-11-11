@@ -33,4 +33,9 @@ export const env = {
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
   /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /**
+   * T140 기술 자동완성(동의어·표준 코드). T139 서버 API 도 기본 꺼짐(SKILL_AUTOCOMPLETE_API)이라 둘 다 켜야 합니다.
+   * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.
+   */
+  skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
 } as const;

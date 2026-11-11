@@ -1,0 +1,69 @@
+{
+  "mode": "real",
+  "steps": [
+    {
+      "name": "signup synthetic account",
+      "result": "PASS",
+      "status": 201
+    },
+    {
+      "name": "desktop: type 'pyth' + Enter adds Python",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: '파이썬' on real DB → empty (no T137 alias table)",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: 'c++' does not return C#",
+      "result": "PASS",
+      "options": 7
+    },
+    {
+      "name": "desktop: ArrowDown moves active option, Esc closes",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: already-added Python is aria-disabled",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: no horizontal overflow",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: save persists after reload (real API)",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: Enter on saved Python shows duplicate hint",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: '파이썬' on real DB → empty (no T137 alias table)",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: 'c++' does not return C#",
+      "result": "PASS",
+      "options": 7
+    },
+    {
+      "name": "mobile: ArrowDown moves active option, Esc closes",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: already-added Python is aria-disabled",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: no horizontal overflow",
+      "result": "PASS"
+    }
+  ],
+  "failed": 0,
+  "api_calls": 16,
+  "suggest_calls": 12,
+  "legacy_calls": 0,
+  "non_2xx": []
+}

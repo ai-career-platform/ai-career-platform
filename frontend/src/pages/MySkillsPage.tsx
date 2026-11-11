@@ -1,5 +1,8 @@
 /**
  * UI-008 나의 기술 (T34, FR-PRF-001). API: T33 GET/PUT /v1/me/skills, T17 GET /v1/skills.
+ * T140: VITE_SKILL_AUTOCOMPLETE=true 이면 T139 GET /v1/skills/suggest(동의어 → 표준 코드, PROPOSED)로 찾습니다.
+ *   - 한글 IME 조합 중(isComposing)의 Enter·화살표는 무시합니다(조합 확정용 Enter 로 기술이 추가되지 않게).
+ *   - 다의어(ambiguous)는 후보를 모두 보여 주고 사용자가 고릅니다. 등록할 수 없는(skill_id 없음) 코드는 고를 수 없습니다.
  *
  * - 기술은 검색 목록에서만 고를 수 있다(목록에 없는 기술 직접 입력 불가).
  * - 같은 기술은 한 번만 추가된다.
@@ -14,8 +17,8 @@ import { useApi } from '../api/ApiContext';
 import { useQuery } from '../api/useQuery';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
-  MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, proficiencyLabels,
-  type Proficiency, type Skill, type UserSkill,
+  MAX_SKILLS, SEARCH_MAX_LENGTH, SEARCH_MIN_LENGTH, normalizeSkillTerm, proficiencyLabels,
+  type Proficiency, type Skill, type SkillSuggestion, type UserSkill,
 } from '../api/skills';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
@@ -31,6 +34,20 @@ function errorMessage(error: unknown, fallback: string): string {
     if (error.userMessage) return error.userMessage;
   }
   return fallback;
+}
+
+/** 검색 결과 한 줄. skill 이 null 이면 고를 수 없는 항목입니다(T139 skill_id 없음). */
+interface SearchOption { key: string; name: string; skill: Skill | null; note?: string }
+
+const fromSkill = (skill: Skill): SearchOption => ({ key: skill.skill_id, name: skill.name, skill });
+function fromSuggestion(s: SkillSuggestion): SearchOption {
+  const skill = s.skill_id ? { skill_id: s.skill_id, code: s.code, name: s.name } : null;
+  const note = !skill ? '아직 등록할 수 없는 기술'
+    : s.match_type === 'alias' ? `‘${s.matched}’로 찾음`
+    : s.match_type === 'ambiguous' ? `‘${s.matched}’: 여러 기술 중 골라 주세요`
+    // 동의어 앞부분·일부로 찾은 경우(예: '리액' → 리액트) 어떤 표기로 찾았는지 보여 준다
+    : s.matched !== s.code && normalizeSkillTerm(s.matched) !== normalizeSkillTerm(s.name) ? `‘${s.matched}’` : undefined;
+  return { key: s.code, name: s.name, skill, note };
 }
 
 const sameSkills = (a: UserSkill[], b: UserSkill[]) =>
@@ -55,20 +72,25 @@ export function MySkillsPage() {
   const [active, setActive] = useState(-1);
   const [hint, setHint] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const composing = useRef(false);
+  const suggestMode = env.skillAutocomplete;
   const listboxId = useId();
   const inputId = useId();
 
   const trimmed = query.trim();
-  const searchable = trimmed.length >= SEARCH_MIN_LENGTH;
+  // T139 는 정규화 후 1글자부터(한글 한 음절도 의미가 있음), T17 은 2글자부터
+  const searchable = suggestMode ? normalizeSkillTerm(trimmed).length >= 1 : trimmed.length >= SEARCH_MIN_LENGTH;
   // 입력이 SEARCH_DELAY_MS 동안 멈추면 검색합니다. 검색어가 바뀌면 useQuery 가 이전 요청을 취소하고,
   // 늦게 돌아온 이전 응답(성공·실패 모두)은 화면을 덮어쓰지 않습니다.
   const settledQuery = useDebouncedValue(trimmed, SEARCH_DELAY_MS);
-  const found = useQuery(searchable && settledQuery === trimmed && ['skill-search', trimmed], async (signal) => {
-    const result = await api.skills.search({ q: trimmed, limit: 10 }, signal);
-    if (!signal.aborted) setActive(result.items.length ? 0 : -1);
-    return result;
+  const found = useQuery(searchable && settledQuery === trimmed && ['skill-search', suggestMode, trimmed], async (signal) => {
+    const options = suggestMode
+      ? (await api.skills.suggest({ q: trimmed, limit: 10 }, signal)).items.map(fromSuggestion)
+      : (await api.skills.search({ q: trimmed, limit: 10 }, signal)).items.map(fromSkill);
+    if (!signal.aborted) setActive(options.length ? 0 : -1);
+    return options;
   });
-  const results: Skill[] = found.status === 'ready' ? found.data.items : [];
+  const results: SearchOption[] = found.status === 'ready' ? found.data : [];
   const searchStatus: 'idle' | 'loading' | 'done' | 'error' =
     !searchable ? 'idle' : found.status === 'error' ? 'error' : found.status === 'ready' ? 'done' : 'loading';
 
@@ -76,10 +98,12 @@ export function MySkillsPage() {
   const dirty = !sameSkills(draft, saved);
   const full = draft.length >= MAX_SKILLS;
 
-  function add(skill: Skill) {
+  function add(option: SearchOption) {
     // 저장 중에 추가하면 PUT 응답으로 목록을 바꿀 때 사라지므로 막는다
     if (saving) return;
     setNotice(''); setError('');
+    const skill = option.skill;
+    if (!skill) { setHint(`${option.name}은(는) 아직 등록할 수 있는 기술 목록에 없습니다. 다른 기술을 골라 주세요.`); return; }
     if (owned.has(skill.skill_id)) { setHint(`${skill.name}은(는) 이미 추가한 기술입니다.`); return; }
     if (full) { setHint(`기술은 최대 ${MAX_SKILLS}개까지 등록할 수 있습니다.`); return; }
     setDraft(d => [...d, { skill, proficiency: null }]);
@@ -89,6 +113,8 @@ export function MySkillsPage() {
   }
 
   function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    // 한글 조합 중 키(조합 확정 Enter 등)는 목록 조작으로 쓰지 않는다. keyCode 229 는 일부 브라우저의 조합 중 표시.
+    if (e.nativeEvent.isComposing || composing.current || e.keyCode === 229) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!results.length) return;
       e.preventDefault(); setOpen(true);
@@ -130,7 +156,8 @@ export function MySkillsPage() {
   function revert() { setEdits(null); setError(''); setHint(''); setNotice('저장된 상태로 되돌렸습니다.'); }
 
   const showList = open && searchable && !saving;
-  const activeId = showList && active >= 0 && results[active] ? `${listboxId}-${results[active]!.skill_id}` : undefined;
+  const optionId = (o: SearchOption) => `${listboxId}-${o.key}`;
+  const activeId = showList && active >= 0 && results[active] ? optionId(results[active]!) : undefined;
 
   return <section className="skills-page" aria-labelledby="skills-title">
     <h1 id="skills-title">나의 기술</h1>
@@ -143,24 +170,29 @@ export function MySkillsPage() {
       : <>
         <div className="skills-search">
           <label htmlFor={inputId}>기술 검색</label>
-          <p id={`${inputId}-hint`} className="skills-hint">{SEARCH_MIN_LENGTH}글자 이상 입력한 뒤 목록에서 골라 주세요. 화살표 키로 이동, Enter로 추가합니다.</p>
+          <p id={`${inputId}-hint`} className="skills-hint">{suggestMode
+            ? '한글·영문 이름이나 줄임말(예: 파이썬, k8s)로 찾은 뒤 목록에서 골라 주세요. 화살표 키로 이동, Enter로 추가, Esc로 닫습니다.'
+            : `${SEARCH_MIN_LENGTH}글자 이상 입력한 뒤 목록에서 골라 주세요. 화살표 키로 이동, Enter로 추가합니다.`}</p>
           <input id={inputId} ref={inputRef} type="search" role="combobox" autoComplete="off"
             maxLength={SEARCH_MAX_LENGTH} value={query} disabled={saving || full}
             aria-expanded={showList} aria-controls={listboxId} aria-autocomplete="list"
             aria-activedescendant={activeId} aria-describedby={`${inputId}-hint`}
             onChange={e => { setQuery(e.target.value); setOpen(true); setHint(''); }}
-            onFocus={() => setOpen(true)} onKeyDown={onSearchKeyDown} />
+            onFocus={() => setOpen(true)} onKeyDown={onSearchKeyDown}
+            onCompositionStart={() => { composing.current = true; }}
+            onCompositionEnd={() => { composing.current = false; }} />
           {showList && <ul id={listboxId} role="listbox" aria-label="기술 검색 결과" className="skills-results">
             {searchStatus === 'loading' && <li role="presentation" className="skills-results-note">검색 중…</li>}
             {searchStatus === 'error' && <li role="presentation" className="skills-results-note">검색하지 못했습니다. 잠시 후 다시 시도해 주세요.</li>}
             {searchStatus === 'done' && results.length === 0 && <li role="presentation" className="skills-results-note">검색 결과가 없습니다. 다른 이름으로 찾아보세요.</li>}
-            {searchStatus === 'done' && results.map((skill, i) => {
-              const already = owned.has(skill.skill_id);
-              return <li key={skill.skill_id} id={`${listboxId}-${skill.skill_id}`} role="option"
-                aria-selected={i === active} aria-disabled={already}
+            {searchStatus === 'done' && results.map((option, i) => {
+              const already = option.skill !== null && owned.has(option.skill.skill_id);
+              return <li key={option.key} id={optionId(option)} role="option"
+                aria-selected={i === active} aria-disabled={already || option.skill === null}
                 className={i === active ? 'is-active' : undefined}
-                onMouseDown={e => e.preventDefault()} onClick={() => add(skill)}>
-                {skill.name} {already && <span className="skills-tag">추가됨</span>}
+                onMouseDown={e => e.preventDefault()} onClick={() => add(option)}>
+                {option.name} {option.note && <span className="skills-note">{option.note}</span>}
+                {already && <span className="skills-tag">추가됨</span>}
               </li>;
             })}
           </ul>}

@@ -1,0 +1,58 @@
+{
+  "mode": "mock",
+  "steps": [
+    {
+      "name": "desktop: type 'pyth' + Enter adds Python",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: '파이썬' (mock alias) → Python marked 추가됨",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: 'K8S' (mock alias) → Kubernetes",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: ArrowDown moves active option, Esc closes",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: already-added Python is aria-disabled",
+      "result": "PASS"
+    },
+    {
+      "name": "desktop: no horizontal overflow",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: type 'pyth' + Enter adds Python",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: '파이썬' (mock alias) → Python marked 추가됨",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: 'K8S' (mock alias) → Kubernetes",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: ArrowDown moves active option, Esc closes",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: already-added Python is aria-disabled",
+      "result": "PASS"
+    },
+    {
+      "name": "mobile: no horizontal overflow",
+      "result": "PASS"
+    }
+  ],
+  "failed": 0,
+  "api_calls": 0,
+  "suggest_calls": 0,
+  "legacy_calls": 0,
+  "non_2xx": []
+}
