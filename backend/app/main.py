@@ -6,12 +6,12 @@ from fastapi import FastAPI
 from starlette.concurrency import run_in_threadpool
 
 from app.core.auth_config import AuthSettings
-from app.core.config import APP_NAME, get_settings
+from app.core.config import API_V1_PREFIX, APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, system
+from app.routers import api_v1, job_postings, system
 from app.services.behavior_events import BehaviorEventSettings
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,9 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(system.router)
     app.include_router(api_v1.api_router)
+    # 공고 목록: 기본 T18 확정 계약, JOB_SEARCH_ADVANCED=true 일 때만 T98 제안 계약(T99)
+    list_router = job_postings.advanced_list_router if settings.job_search_advanced else job_postings.legacy_list_router
+    app.include_router(list_router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 

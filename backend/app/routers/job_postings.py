@@ -19,9 +19,12 @@ from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import CurrentUser, get_access_claims, get_auth_service, get_auth_settings
 from app.repositories.job_postings import PostingFilter, SqlJobPostingRepository
-from app.schemas.job_postings import CompanyDetail, CompanyPage, JobPostingDetail, JobPostingPage, PostingSort
+from app.schemas.job_postings import (
+    CompanyDetail, CompanyPage, EmploymentType, JobPostingDetail, JobPostingPage, PostedWithin, PostingSort, RegionCode,
+)
 from app.services.auth import AuthService
 from app.services.job_postings import JobPostingService, ListCursor, derive_cursor_key
+from app.services.job_search import normalize_q, unique
 
 _optional_bearer = HTTPBearer(auto_error=False)
 
@@ -75,8 +78,14 @@ def get_company(company_id: UUID, service: ServiceDep, _user: OptionalUser) -> C
     return service.get_company(company_id)
 
 
-@router.get("/job-postings", response_model=JobPostingPage, summary="채용공고 목록·필터 (기본은 게시 중인 공고만)",
-            responses=error_responses(400))
+# 공고 목록은 두 가지 중 하나만 등록됩니다(app.main.create_app): 기본은 T18 확정 계약(legacy_list_router),
+# JOB_SEARCH_ADVANCED=true 일 때만 T98 제안 계약(advanced_list_router). 승인 전 운영 활성화 금지.
+legacy_list_router = APIRouter(tags=["catalog"], responses=error_responses(503))
+advanced_list_router = APIRouter(tags=["catalog"], responses=error_responses(503))
+
+
+@legacy_list_router.get("/job-postings", response_model=JobPostingPage,
+                        summary="채용공고 목록·필터 (기본은 게시 중인 공고만)", responses=error_responses(400))
 def list_job_postings(
     service: ServiceDep,
     _user: OptionalUser,
@@ -89,6 +98,34 @@ def list_job_postings(
     cursor: Cursor = None,
 ) -> JobPostingPage:
     f = PostingFilter(q=q, company_id=company_id, job_role_id=job_role_id, include_closed=include_closed, sort=sort)
+    return service.list_postings(f, limit, cursor)
+
+
+Many = Annotated[list[UUID] | None, Query(description="여러 개면 OR. 중복 제거 전 최대 10개")]
+
+
+@advanced_list_router.get("/job-postings", response_model=JobPostingPage,
+                          summary="채용공고 목록·고급 필터 (T98 제안 계약, 기능 플래그)", responses=error_responses(400))
+def list_job_postings_advanced(
+    service: ServiceDep,
+    _user: OptionalUser,
+    q: Annotated[str | None, Query(max_length=500, description="제목 또는 기업명 부분 일치. 공백 정리 후 1~100자")] = None,
+    company_id: Many = None,
+    job_role_id: Many = None,
+    employment_type: Annotated[list[EmploymentType] | None, Query(description="여러 개면 OR, 최대 4개")] = None,
+    region: Annotated[list[RegionCode] | None, Query(description="시·도 코드(location_text 파생), 최대 5개")] = None,
+    posted_within: Annotated[PostedWithin | None, Query(description="게시일이 요청 시각 기준 이 기간 안")] = None,
+    include_closed: Annotated[bool, Query(description="true면 마감 공고 포함")] = False,
+    sort: PostingSort = "-published_at",
+    limit: Limit = 20,
+    cursor: Cursor = None,
+) -> JobPostingPage:
+    f = PostingFilter(
+        q=normalize_q(q), company_id=None, job_role_id=None, include_closed=include_closed, sort=sort,
+        company_ids=unique("company_id", company_id), job_role_ids=unique("job_role_id", job_role_id),
+        employment_types=unique("employment_type", employment_type), regions=unique("region", region),
+        posted_within=posted_within, q_matches_company=True, advanced=True,
+    )
     return service.list_postings(f, limit, cursor)
 
 
