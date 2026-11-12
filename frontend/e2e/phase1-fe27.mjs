@@ -11,7 +11,7 @@
 // E2E_READONLY=1 aborts and FAILS on any non-GET request (use on shared Staging; then only R and H can run).
 // playwright-core is not a repo dependency (T118 lock/SBOM policy); pass its path.
 import { createRequire } from 'node:module';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 
@@ -23,6 +23,8 @@ const ADMIN = process.env.E2E_ADMIN;
 const PASSWORD = process.env.E2E_PASSWORD;
 if (READONLY && (TIERS.has('A') || TIERS.has('W'))) throw new Error('E2E_READONLY=1 allows only tiers R and H');
 const NOT_FOUND = '페이지를 찾을 수 없습니다';
+const SHOTS = process.env.E2E_SHOTS || '';   // directory: one PNG per check (evidence)
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const results = [];
 
 async function api(path) {
@@ -31,7 +33,7 @@ async function api(path) {
 }
 
 function watch(page) {
-  const log = { console: [], failed: [], server: [], nonGet: [], api: [] };
+  const log = { console: [], failed: [], server: [], nonGet: [], api: [], requests: [] };
   // Network-level 'Failed to load resource' lines duplicate the response log below (expected 401 refresh probe,
   // 404 empty states); HTTP problems are judged from responses (5xx, failed, external) instead.
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) log.console.push(m.text().slice(0, 200)); });
@@ -39,12 +41,17 @@ function watch(page) {
   page.on('requestfailed', (r) => {
     const path = new URL(r.url()).pathname;
     if (READONLY && r.method() === 'POST' && path === '/api/v1/auth/refresh') return;   // blocked by the guard on purpose
-    if (!r.failure()?.errorText.includes('ERR_ABORTED') || READONLY) log.failed.push(`${r.method()} ${path}`);
+    const aborted = r.failure()?.errorText.includes('ERR_ABORTED');
+    // GETs cancelled by the app itself (AbortSignal when the query changes) are normal; the guard only aborts non-GET.
+    if (aborted && r.method() === 'GET') return;
+    if (!aborted || READONLY) log.failed.push(`${r.method()} ${path}`);
   });
   page.on('response', (r) => {
     const u = new URL(r.url());
     if (u.origin !== new URL(BASE).origin) log.failed.push(`EXTERNAL ${u.origin}`);
     if (u.pathname.startsWith('/api/')) log.api.push(`${r.request().method()} ${u.pathname} ${r.status()}`);
+    // Evidence: every same-origin request with method, URL (query kept, no credentials) and status.
+    log.requests.push(`${r.request().method()} ${u.pathname}${u.search} ${r.status()}`);
     if (r.status() >= 500) log.server.push(`${r.request().method()} ${u.pathname} ${r.status()}`);
   });
   return log;
@@ -66,16 +73,24 @@ async function guard(page, log) {
 
 async function check(task, tier, name, page, log, fn) {
   if (!TIERS.has(tier)) { results.push({ task, tier, name, result: 'NOT_RUN', reason: 'tier not selected' }); return; }
-  const before = { c: log.console.length, f: log.failed.length, s: log.server.length, n: log.nonGet.length, a: log.api.length };
+  const before = { c: log.console.length, f: log.failed.length, s: log.server.length, n: log.nonGet.length, a: log.api.length, q: log.requests.length };
+  const shot = async (suffix) => {
+    if (!SHOTS) return null;
+    const file = `${SHOTS}/${task}-${tier}-${results.length + 1}${suffix}.png`;
+    await page.screenshot({ path: file, fullPage: false }).catch(() => {});
+    return file.split(/[\/]/).pop();
+  };
   try {
     const evidence = (await fn()) || {};
     const fresh = { console: log.console.slice(before.c), failed: log.failed.slice(before.f), server: log.server.slice(before.s),
       nonGet: log.nonGet.slice(before.n), api: [...new Set(log.api.slice(before.a))] };
     const problems = [...fresh.console.map((x) => `console: ${x}`), ...fresh.failed.map((x) => `failed: ${x}`),
       ...fresh.server.map((x) => `5xx: ${x}`), ...fresh.nonGet.map((x) => `blocked non-GET: ${x}`)];
-    results.push({ task, tier, name, result: problems.length ? 'FAIL' : 'PASS', problems, api: fresh.api, evidence });
+    results.push({ task, tier, name, result: problems.length ? 'FAIL' : 'PASS', url: page.url(), problems, api: fresh.api,
+      requests: log.requests.slice(before.q), console: fresh.console, screenshot: await shot(''), evidence });
   } catch (error) {
-    results.push({ task, tier, name, result: 'FAIL', error: String(error).slice(0, 300), api: [...new Set(log.api.slice(before.a))] });
+    results.push({ task, tier, name, result: 'FAIL', url: page.url(), error: String(error).slice(0, 300), api: [...new Set(log.api.slice(before.a))],
+      requests: log.requests.slice(before.q), console: log.console.slice(before.c), screenshot: await shot('-fail') });
   }
 }
 
@@ -99,6 +114,7 @@ async function login(page, email) {
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, headless: true });
+const BROWSER_VERSION = browser.version();
 try {
   // ---------- R: anonymous, GET only ----------
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, timezoneId: 'America/Los_Angeles', locale: 'ko-KR' });
@@ -145,6 +161,23 @@ try {
     await page.getByRole('heading', { name: postings[0].title }).first().waitFor({ timeout: 10000 });
     expectApi(log, start, /^GET \/api\/v1\/job-postings\/[0-9a-f-]+ 200/);
     return { h1: title, firstTitles: postings.slice(0, 5).map((p) => p.title) };
+  });
+  await check('T24', 'R', 'search filters the list via the API; reload keeps the URL state', page, log, async () => {
+    const start = log.api.length; const target = postings[0];
+    await open(page, '/job-postings');
+    const word = target.title.replace(/^\[[^\]]*\]\s*/, '').split(/\s+/)[0];
+    const box = page.getByRole('searchbox', { name: '공고 검색' }); await box.fill(word);
+    const isSearch = (r) => new URL(r.url()).pathname === '/api/v1/job-postings' && new URL(r.url()).searchParams.get('q') === word;
+    const [searched] = await Promise.all([page.waitForResponse(isSearch, { timeout: 15000 }), box.press('Enter')]);
+    if (searched.status() !== 200) throw new Error(`search API ${searched.status()}`);
+    const hit = `GET /api/v1/job-postings?q=${word} ${searched.status()} items=${(await searched.json()).items.length}`;
+    expectApi(log, start, /^GET \/api\/v1\/job-postings 200/);
+    const [reloaded] = await Promise.all([page.waitForResponse(isSearch, { timeout: 15000 }), page.reload()]);
+    if (reloaded.status() !== 200) throw new Error(`search API after reload ${reloaded.status()}`);
+    await page.locator('#root h1').first().waitFor();
+    if (new URL(page.url()).searchParams.get('q') !== word) throw new Error('search lost after reload');
+    await page.getByText(target.title, { exact: false }).first().waitFor({ timeout: 10000 });
+    return { q: word, api: hit, afterReload: new URL(page.url()).search };
   });
   await check('T94', 'R', 'password reset screen renders (no submit)', page, log, async () => {
     const title = await open(page, '/password-reset');
@@ -271,7 +304,8 @@ try {
 }
 const summary = results.reduce((acc, r) => ({ ...acc, [r.result]: (acc[r.result] || 0) + 1 }), {});
 const tasks = [...new Set(results.filter((r) => r.result !== 'NOT_RUN').map((r) => r.task))].sort();
-const out = { base: BASE, tiers: [...TIERS], readonly: READONLY, summary, tasksCovered: tasks.length, tasks, results };
+const out = { base: BASE, browser: `chromium ${BROWSER_VERSION}`, ranAt: new Date().toISOString(), tiers: [...TIERS], readonly: READONLY,
+  summary, tasksCovered: tasks.length, tasks, results };
 if (process.env.E2E_OUT) writeFileSync(process.env.E2E_OUT, JSON.stringify(out, null, 1));
 console.log(JSON.stringify({ summary, tasksCovered: tasks.length }, null, 1));
 for (const r of results) if (r.result === 'FAIL') console.log('FAIL', r.task, r.tier, r.name, r.error || (r.problems || []).join('; '));
