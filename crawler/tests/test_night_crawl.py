@@ -95,6 +95,30 @@ class GateTests(unittest.TestCase):
         self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=at(13, 21),
                                       approval_loader=lambda p: approval()), ('OUT_OF_SCOPE', None))
 
+    def test_listed_search_url_with_bounded_discovery_is_admitted(self):
+        # CRAWLER_NIGHT_09: the gate now has a search URL type. Still needs every layer above.
+        env = {'CRAWLER_LIVE_SCHEDULE_APPROVED': '1', 'CRAWLER_NIGHT_POLICY_FILE': 'x'}
+        scoped = approval(allowed_urls=(nc.search_url('AX'),), max_discovered_details=nc.DETAIL_LIMIT)
+        state, granted = nc.live_gate(environ=env, keyword='AX', now=at(13, 21), approval_loader=lambda p: scoped)
+        self.assertEqual((state, granted), ('ALLOWED', scoped))
+        # only the listed keyword
+        self.assertEqual(nc.live_gate(environ=env, keyword='LLM', now=at(13, 21), approval_loader=lambda p: scoped),
+                         ('OUT_OF_SCOPE', None))
+        # HOLD, a too-small request budget, or no env activation stay closed
+        hold = approval(allowed_urls=(nc.search_url('AX'),), max_discovered_details=5, approval_status='HOLD')
+        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=at(13, 21), approval_loader=lambda p: hold),
+                         ('NOT_APPROVED', None))
+        small = approval(allowed_urls=(nc.search_url('AX'),), max_discovered_details=5, max_requests=6)
+        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=at(13, 21), approval_loader=lambda p: small),
+                         ('OUT_OF_SCOPE', None))
+        self.assertEqual(nc.live_gate(environ={}, keyword='AX', now=at(13, 21), approval_loader=lambda p: scoped),
+                         ('PM_ACTIVATION_REQUIRED', None))
+
+    def test_every_night_keyword_search_url_is_canonical(self):
+        from crawler.policy.source_approval_gate import _canonical_jobkorea_search
+        for keyword in nc.NIGHT_KEYWORDS:
+            self.assertTrue(_canonical_jobkorea_search(nc.search_url(keyword)), keyword)
+
     def test_search_url_is_the_existing_public_search_page(self):
         self.assertEqual(nc.search_url('데이터 분석'),
                          'https://www.jobkorea.co.kr/Search/?stext=%EB%8D%B0%EC%9D%B4%ED%84%B0%20%EB%B6%84%EC%84%9D&tabType=recruit')

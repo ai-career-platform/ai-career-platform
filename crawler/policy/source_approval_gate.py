@@ -10,7 +10,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from urllib.parse import urlsplit
+import re
+import unicodedata
+from urllib.parse import parse_qsl, quote, urlsplit
+
+SEARCH_HOST = "www.jobkorea.co.kr"
+SEARCH_PATH = "/Search/"
+SEARCH_TAB = "recruit"
+MAX_SEARCH_TEXT = 100
+MAX_DISCOVERED_DETAILS = 5
+# The one spelling the list parser emits; discovered links must match it exactly.
+_STRICT_DETAIL = re.compile(r"https://www\.jobkorea\.co\.kr/Recruit/GI_Read/[0-9]+")
 
 
 class GateReason(str, Enum):
@@ -46,6 +56,10 @@ class SourceApproval:
     max_requests: int | None = None
     retention_days: int | None = None
     stop_on_block: bool = False
+    # CRAWLER_NIGHT_09: opt-in. 0 keeps the original rule (every detail URL listed exactly).
+    # 1..5 also admits /Recruit/GI_Read/<id> pages discovered on a search page that is itself
+    # listed exactly in allowed_urls, at most this many per search (bounded by requested_calls).
+    max_discovered_details: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,6 +70,8 @@ class CollectionIntent:
     purpose: str
     requested_calls: int
     at_utc: datetime
+    # Set only by the fetcher, for a detail link it extracted from this (already permitted) search page.
+    discovered_from: str | None = None
 
 
 @dataclass(frozen=True)
@@ -91,6 +107,78 @@ def _canonical_jobkorea(url: object) -> bool:
         return False
 
 
+def _canonical_jobkorea_search(url: object) -> bool:
+    """Exactly https://www.jobkorea.co.kr/Search/?stext=<quoted keyword>[&tabType=recruit].
+
+    One spelling per keyword: the raw query must equal its own canonical re-encoding, so
+    percent-encoding tricks, '+', repeated or extra parameters and other tabs never match.
+    """
+    if not isinstance(url, str) or not url.isascii() or "#" in url:
+        return False
+    try:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != "https" or parsed.hostname != SEARCH_HOST or parsed.netloc != SEARCH_HOST
+            or parsed.path != SEARCH_PATH or parsed.fragment or not parsed.query
+        ):
+            return False
+        pairs = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+    except ValueError:
+        return False
+    keys = [k for k, _ in pairs]
+    if keys not in (["stext"], ["stext", "tabType"]):
+        return False
+    values = dict(pairs)
+    text = values["stext"]
+    if not _visible_keyword(text):
+        return False
+    if "tabType" in values and values["tabType"] != SEARCH_TAB:
+        return False
+    canonical = "stext=" + quote(text) + ("&tabType=" + SEARCH_TAB if "tabType" in values else "")
+    return parsed.query == canonical
+
+
+def _visible_keyword(text: str) -> bool:
+    """1..100 chars, at least one visible character; no control, format (zero-width),
+    private-use, unassigned or replacement characters."""
+    return (
+        0 < len(text) <= MAX_SEARCH_TEXT
+        and any(not c.isspace() for c in text)
+        and "�" not in text
+        and all(c == " " or unicodedata.category(c) not in {"Cc", "Cf", "Co", "Cs", "Cn", "Zl", "Zp", "Zs"}
+                for c in text)
+    )
+
+
+def _approvable(url: object) -> bool:
+    return _canonical_jobkorea(url) or _canonical_jobkorea_search(url)
+
+
+def _in_scope(approval: SourceApproval, intent: CollectionIntent) -> bool:
+    """URL-type scope. Exact listing always works; discovery is a narrow, opt-in extension."""
+    limit = approval.max_discovered_details
+    # robots + search page + at most `limit` discovered details
+    within_discovery = type(intent.requested_calls) is int and intent.requested_calls <= 2 + limit
+    if intent.discovered_from is None:
+        if not (_approvable(intent.url) and intent.url in approval.allowed_urls):
+            return False
+        # With discovery on, a search job larger than the discovery budget is refused up front,
+        # before robots.txt or the search page is requested.
+        return not (limit and _canonical_jobkorea_search(intent.url)) or within_discovery
+    # A discovered link: its search page must itself be listed, and the link must be a detail page
+    # in the exact form the list parser emits. ``discovered_from`` is trusted from the caller: only
+    # fetch_pages sets it, for links it extracted from that already-permitted page.
+    if not (
+        _canonical_jobkorea_search(intent.discovered_from)
+        and intent.discovered_from in approval.allowed_urls
+        and isinstance(intent.url, str) and _STRICT_DETAIL.fullmatch(intent.url)
+    ):
+        return False
+    if intent.url in approval.allowed_urls:
+        return True  # listed exactly, as before
+    return 1 <= limit <= MAX_DISCOVERED_DETAILS and within_discovery
+
+
 def check_collection_permission(
     approval: SourceApproval | None,
     intent: CollectionIntent,
@@ -124,12 +212,14 @@ def check_collection_permission(
         return GateDecision(False, GateReason.EXPIRED)
     if not isinstance(approval.allowed_urls, tuple) or not isinstance(approval.allowed_purposes, tuple):
         return GateDecision(False, GateReason.INVALID_POLICY)
+    limit = approval.max_discovered_details
+    if type(limit) is not int or not 0 <= limit <= MAX_DISCOVERED_DETAILS:
+        return GateDecision(False, GateReason.INVALID_POLICY)
     if (
         approval.source_code != "jobkorea"
         or intent.source_code != approval.source_code
-        or not _canonical_jobkorea(intent.url)
-        or any(not _canonical_jobkorea(u) for u in approval.allowed_urls)
-        or intent.url not in approval.allowed_urls
+        or any(not _approvable(u) for u in approval.allowed_urls)
+        or not _in_scope(approval, intent)
         or not intent.purpose or intent.purpose not in approval.allowed_purposes
     ):
         return GateDecision(False, GateReason.OUT_OF_SCOPE)

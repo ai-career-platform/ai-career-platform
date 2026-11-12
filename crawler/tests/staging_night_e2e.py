@@ -7,9 +7,10 @@ Opt-in only (``CRAWLER_NIGHT_E2E=1``). Everything here is SYNTHETIC:
   with ZERO network requests;
 - Slack goes to a capturing sender; every captured message is labelled ``[STAGING E2E TEST]``.
 
-The T61 evaluator is not changed or bypassed for detail pages: each detail URL is checked by the
-real gate against a test-only approval listing exactly those URLs. Only the keyword search page,
-which today's T61 scope cannot express, is let through in this harness (documented, test-only).
+Nothing is bypassed in the T61 path (CRAWLER_NIGHT_09): the real ``live_gate`` and the real
+evaluator check every keyword search page and every discovered detail page against a test-only
+approval that lists the six search URLs with ``max_discovered_details=5``. That record exists only
+in this process; no approval file is written.
 
 Refuses to run against the operational crawler DB (CRAWLER_DB_MODE=staging, or an enabled
 schedule). Results are left in the isolated DB as evidence and summarised to
@@ -34,6 +35,8 @@ from crawler.tests.local_night_integration import page
 
 KST = ZoneInfo('Asia/Seoul')
 ENV = {'CRAWLER_NIGHT_ENABLED': '1', 'SLACK_WEBHOOK_URL': 'https://hooks.slack.com/services/E2E/TEST/NOT-A-REAL-HOOK'}
+# In-process only: lets the real live_gate run; the policy 'file' is the in-memory test approval above.
+GATED_ENV = {**ENV, 'CRAWLER_LIVE_SCHEDULE_APPROVED': '1', 'CRAWLER_NIGHT_POLICY_FILE': 'in-memory-test-approval'}
 LABEL = '[STAGING E2E TEST]'
 RUN_ID = 'e2e-' + os.urandom(4).hex()
 BASE = date(2031, 1, 1) + timedelta(days=int.from_bytes(os.urandom(2), 'big') % 3000)
@@ -123,12 +126,14 @@ class StagingNightE2E(unittest.TestCase):
         c.close()
 
     # ---- helpers -------------------------------------------------------------------------
-    def approval(self, urls):
+    def approval(self):
+        """Test-only, in-memory: the six keyword search pages + bounded discovery of their details."""
         return SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test-only',
-                              evidence_ref='CRAWLER_NIGHT_04 synthetic E2E', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
-                              review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
-                              allowed_urls=tuple(urls), allowed_purposes=(nc.PURPOSE,), max_requests=20,
-                              retention_days=1, stop_on_block=True)
+                              evidence_ref='CRAWLER_NIGHT synthetic E2E', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                              review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                              allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
+                              allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
+                              retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)
 
     def notify(self, kind, night_date, rows, environ, **kw):
         def sender(url, payload):
@@ -137,15 +142,13 @@ class StagingNightE2E(unittest.TestCase):
             return True, 200, 'OK'
         return slack.notify_night(kind, night_date, rows, environ, sender=sender, **kw)
 
-    def poll(self, at, web, approved_ids):
-        """One dispatcher poll at a virtual time: the daily dispatch first, the night step only if it was IDLE."""
-        urls = [f'https://www.jobkorea.co.kr/Recruit/GI_Read/{i}' for i in approved_ids]
-        real = importer._permit
-        permit = lambda a, p, url, calls, now: None if '/Search/' in url else real(a, p, url, calls, now)
-        with patch.object(importer, '_get', side_effect=web), patch.object(importer.time, 'sleep'), \
-                patch.object(importer, '_permit', side_effect=permit), \
-                patch.object(nc, 'live_gate', return_value=('ALLOWED', self.approval(urls))):
-            return night_step(self.store, environ=ENV, now=at, notify=self.notify)
+    def poll(self, at, web):
+        """One dispatcher poll at a virtual time: the daily dispatch first, the night step only if it was IDLE.
+        Only HTTP is mocked; live_gate and every per-URL T61 check are the real ones."""
+        approval = self.approval()
+        with patch.object(importer, '_get', side_effect=web), patch.object(importer.time, 'sleep'):
+            return night_step(self.store, environ=GATED_ENV, now=at, notify=self.notify,
+                              approval_loader=lambda path: approval)
 
     def rows(self, night):
         return nc.NightStore(self.connection).results(night)
@@ -176,7 +179,7 @@ class StagingNightE2E(unittest.TestCase):
                 trace.append((t.strftime('%H:%M'), 'DAILY_' + daily['status']))
                 self.assertEqual(daily['status'], 'SUCCEEDED')
             else:
-                result = self.poll(t, web, self.all_ids(0))
+                result = self.poll(t, web)
                 trace.append((t.strftime('%H:%M'), result['night'] + ('/' + result.get('reason', '') if result.get('reason') else '')))
             t += timedelta(minutes=5)
         rows = self.rows(night)
@@ -216,7 +219,7 @@ class StagingNightE2E(unittest.TestCase):
         before = self.connection.execute('SELECT last_success_at FROM crawler_training.keyword_checkpoints WHERE keyword_id=%s',
                                          (ax_id,)).fetchone()[0]
         web = Web(self.listing(0), details={ax_ids[1]: page(ax_ids[1], 'Changed ')[1]})
-        result = self.poll(kst(night, 21, 0), web, self.all_ids(0))
+        result = self.poll(kst(night, 21, 0), web)
         row = self.rows(night)[0]
         self.assertEqual((result['night'], row['inserted'], row['updated'], row['unchanged']), ('SUCCEEDED', 0, 1, 1))
         total = self.connection.execute('''SELECT count(*) FROM crawler_training.postings WHERE source_code='jobkorea_live'
@@ -230,7 +233,7 @@ class StagingNightE2E(unittest.TestCase):
     def failure_night(self, offset, fail=None, details=None, at=(21, 0)):
         night = BASE + timedelta(days=offset)
         web = Web(self.listing(offset), details=details, fail=fail)
-        return night, web, self.poll(kst(night, *at), web, self.all_ids(offset))
+        return night, web, self.poll(kst(night, *at), web)
 
     def test_3_blocks_stop_the_night(self):
         for offset, marker, error, code, calls in (
@@ -239,7 +242,7 @@ class StagingNightE2E(unittest.TestCase):
             night, web, result = self.failure_night(offset, fail={marker: error})
             self.assertEqual((result['night'], result['error_code'], len(web.calls)), ('FAILED', code, calls))
             self.assertGreaterEqual(result['http_requests'], len(web.calls))  # recorded count never under-counts (F-08)
-            later = self.poll(kst(night, 22, 5), Web(self.listing(offset)), self.all_ids(offset))
+            later = self.poll(kst(night, 22, 5), Web(self.listing(offset)))
             self.assertEqual(later, {'night': 'IDLE', 'reason': 'NIGHT_HALTED'})
             EVIDENCE['scenarios'][f'block_{code}'] = {'night': str(night), 'http_calls_before_stop': calls}
 
@@ -248,7 +251,7 @@ class StagingNightE2E(unittest.TestCase):
         web = Web(self.listing(4), fail={'/Search/': importer.FetchError('TIMEOUT')})
         outcomes = []
         for minute in (0, 1, 3, 6, 10):  # backoff 60 s then 120 s; at most 3 attempts
-            outcomes.append(self.poll(kst(night, 21, minute), web, self.all_ids(4)))
+            outcomes.append(self.poll(kst(night, 21, minute), web))
         attempts = sorted((r['attempt'], r['outcome'], r['error_code']) for r in self.rows(night))
         self.assertEqual(attempts, [(1, 'FAILED', 'WORKER_TIMEOUT'), (2, 'FAILED', 'WORKER_TIMEOUT'), (3, 'FAILED', 'WORKER_TIMEOUT')])
         self.assertEqual(outcomes[-1], {'night': 'IDLE', 'reason': 'NOTHING_DUE'})
@@ -261,7 +264,7 @@ class StagingNightE2E(unittest.TestCase):
         night6 = BASE + timedelta(days=6)
         with patch('crawler.storage.postgres.PostgresPostingStore.upsert', side_effect=RuntimeError('db down: secret')):
             web = Web(self.listing(6))
-            saved = self.poll(kst(night6, 21, 0), web, self.all_ids(6))
+            saved = self.poll(kst(night6, 21, 0), web)
         row = self.rows(night6)[0]
         self.assertEqual((saved['night'], row['failed'], row['inserted']), ('FAILED', 2, 0))
         self.assertNotIn('secret', json.dumps(saved, default=str) + str(row['error_code']))
@@ -274,7 +277,7 @@ class StagingNightE2E(unittest.TestCase):
         try:
             holder = SchedulerStore(other)
             self.assertTrue(holder.lock(0))
-            locked = self.poll(kst(night, 21, 0), Web(self.listing(7)), self.all_ids(7))
+            locked = self.poll(kst(night, 21, 0), Web(self.listing(7)))
             holder.unlock(0)
         finally:
             other.close()
@@ -283,11 +286,11 @@ class StagingNightE2E(unittest.TestCase):
         job = store.start(nc.Choice(self.keywords[0][0], self.keywords[0][1], 1), night)
         self.connection.execute('UPDATE crawler_training.night_job_results SET started_at=%s WHERE job_id=%s',
                                 (kst(night, 21, 0), job))
-        running = self.poll(kst(night, 21, 5), Web(self.listing(7)), self.all_ids(7))
+        running = self.poll(kst(night, 21, 5), Web(self.listing(7)))
         self.assertEqual(running, {'night': 'IDLE', 'reason': 'JOB_RUNNING'})
         with self.assertRaises(Exception):
             store.start(nc.Choice(self.keywords[0][0], self.keywords[0][1], 1), night)  # same attempt twice
-        recovered = self.poll(kst(night, 21, 20), Web(self.listing(7)), self.all_ids(7))
+        recovered = self.poll(kst(night, 21, 20), Web(self.listing(7)))
         attempts = sorted((r['attempt'], r['outcome'], r['error_code']) for r in self.rows(night))
         self.assertEqual(attempts, [(1, 'FAILED', 'HEARTBEAT_TIMEOUT'), (2, 'SUCCEEDED', None)])
         self.assertEqual(recovered['night'], 'SUCCEEDED')

@@ -21,6 +21,8 @@ from crawler.storage.staging import connect_configured_database
 KST = ZoneInfo('Asia/Seoul')
 HTML = (Path(__file__).resolve().parents[1] / 'fixtures' / 'jobkorea_user_detail_jsonld.html').read_text(encoding='utf-8')
 ENV = {'CRAWLER_NIGHT_ENABLED': '1'}
+ROBOTS = 'User-agent: *\nAllow: /'
+GATED_ENV = {**ENV, 'CRAWLER_LIVE_SCHEDULE_APPROVED': '1', 'CRAWLER_NIGHT_POLICY_FILE': 'in-memory-test-approval'}
 
 
 def page(posting_id, title_suffix=''):
@@ -157,31 +159,32 @@ class NightIntegrationTests(unittest.TestCase):
             other.close()
 
 
-    def mocked_http(self, responses, approve):
-        """Real fetch_pages/_fetch_allowed with mocked HTTP. The search page is let through the
-        gate explicitly (outside today's T61 scope); every detail goes through the real evaluator."""
+    def mocked_http(self, responses, approve=(), discover=0):
+        """Real live_gate + fetch_pages + per-URL T61 checks; only HTTP is mocked (CRAWLER_NIGHT_09).
+        Test-only, in-memory approval: every night keyword search page, plus either exactly listed
+        details (``approve``) or bounded discovery (``discover``)."""
         from crawler.jobs import import_jobkorea_html as importer
         from crawler.policy.source_approval_gate import SourceApproval
         approval = SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
                                   evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
-                                  review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
-                                  allowed_urls=tuple(approve), allowed_purposes=(nc.PURPOSE,), max_requests=20,
-                                  retention_days=1, stop_on_block=True)
-        real = importer._permit
-        permit = lambda a, p, url, calls, now: None if '/Search/' in url else real(a, p, url, calls, now)
-        return approval, [patch.object(importer, '_get', side_effect=responses), patch.object(importer.time, 'sleep'),
-                          patch.object(importer, '_permit', side_effect=permit),
-                          patch.object(nc, 'live_gate', return_value=('ALLOWED', approval))]
+                                  review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                                  allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS) + tuple(approve),
+                                  allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
+                                  retention_days=1, stop_on_block=True, max_discovered_details=discover)
+        kwargs = dict(environ=GATED_ENV, approval_loader=lambda path: approval)
+        return kwargs, patch.object(importer, '_get', side_effect=responses), patch.object(importer.time, 'sleep')
 
     def test_full_pipeline_with_mocked_http_responses(self):
+        """AX search -> 2 discovered details -> parse -> PostgreSQL -> keyword links, through the real gate."""
         urls = [page(i)[0] for i in self.ids[:2]]
-        listing = ''.join(f'<a href="{u}">p</a>' for u in urls)
-        responses = ['User-agent: *\nAllow: /', listing, page(self.ids[0])[1], page(self.ids[1])[1]]
-        approval, patches = self.mocked_http(responses, urls)
+        listing = ''.join(f'<a href="{u}">p</a>' for u in urls) + '<a href="https://evil.example/Recruit/GI_Read/1">x</a>'
+        responses = [ROBOTS, listing, page(self.ids[0])[1], page(self.ids[1])[1]]
+        gate, get_patch, sleep_patch = self.mocked_http(responses, discover=nc.DETAIL_LIMIT)
         notify = lambda kind, night_date, rows, environ, **kw: self.sent.append((kind, rows[0]['inserted'])) or 200
-        with patches[0] as get, patches[1], patches[2], patches[3]:
-            result = nc.run_night_step(self.connection, environ=ENV, now=self.at(5), notify=notify)
-        self.assertEqual(get.call_count, 4)
+        with get_patch as get, sleep_patch:
+            result = nc.run_night_step(self.connection, now=self.at(5), notify=notify, **gate)
+        self.assertEqual([c.args[0] for c in get.call_args_list],
+                         ['https://www.jobkorea.co.kr/robots.txt', nc.search_url(nc.NIGHT_KEYWORDS[0])] + urls)
         row = self.result(result['job_id'])
         self.assertEqual((result['night'], row['http_requests'], row['fetched'], row['inserted'], row['failed']),
                          ('SUCCEEDED', 4, 2, 2, 0))
@@ -189,23 +192,26 @@ class NightIntegrationTests(unittest.TestCase):
         linked = self.connection.execute("""SELECT count(*) FROM crawler_training.keyword_posting_discoveries
             WHERE keyword_id=%s AND external_posting_id = ANY(%s)""", (row['keyword_id'], [str(i) for i in self.ids[:2]])).fetchone()[0]
         self.assertEqual(linked, 2)
+        checkpoint = self.connection.execute("""SELECT count(*) FROM crawler_training.keyword_checkpoints
+            WHERE keyword_id=%s""", (row['keyword_id'],)).fetchone()[0]
+        self.assertEqual(checkpoint, 1)
 
     def test_mocked_429_on_detail_and_unapproved_detail_stop_without_further_requests(self):
         from crawler.jobs.import_jobkorea_html import FetchBlocked
         urls = [page(i)[0] for i in self.ids[:2]]
         listing = ''.join(f'<a href="{u}">p</a>' for u in urls)
-        responses = ['User-agent: *\nAllow: /', listing, FetchBlocked('HTTP_429', http_status=429)]
-        approval, patches = self.mocked_http(responses, urls)
-        with patches[0] as get, patches[1], patches[2], patches[3]:
-            result = nc.run_night_step(self.connection, environ=ENV, now=self.at(5), notify=lambda *a, **k: 200)
+        responses = [ROBOTS, listing, FetchBlocked('HTTP_429', http_status=429)]
+        gate, get_patch, sleep_patch = self.mocked_http(responses, approve=urls)
+        with get_patch as get, sleep_patch:
+            result = nc.run_night_step(self.connection, now=self.at(5), notify=lambda *a, **k: 200, **gate)
         self.assertEqual((result['night'], result['error_code'], get.call_count), ('FAILED', 'RATE_LIMITED', 3))
-        # Next keyword hour: a detail URL not in the approval is never requested.
-        responses = ['User-agent: *\nAllow: /', ''.join(f'<a href="{page(self.ids[2])[0]}">p</a>')]
-        approval, patches = self.mocked_http(responses, urls)
+        # Next keyword hour: with discovery off, a detail URL not listed exactly is never requested.
+        responses = [ROBOTS, ''.join(f'<a href="{page(self.ids[2])[0]}">p</a>')]
+        gate, get_patch, sleep_patch = self.mocked_http(responses, approve=urls)
         self.connection.execute("UPDATE crawler_training.night_job_results SET error_code='TEMPORARY_IO' WHERE job_id=%s",
                                 (result['job_id'],))  # lift the night halt to exercise the next job
-        with patches[0] as get, patches[1], patches[2], patches[3]:
-            second = nc.run_night_step(self.connection, environ=ENV, now=self.at(65), notify=lambda *a, **k: 200)
+        with get_patch as get, sleep_patch:
+            second = nc.run_night_step(self.connection, now=self.at(65), notify=lambda *a, **k: 200, **gate)
         self.assertEqual((second['night'], second['error_code'], get.call_count), ('FAILED', 'UNAPPROVED_SOURCE', 2))
 
 

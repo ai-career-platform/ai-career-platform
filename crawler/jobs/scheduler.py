@@ -6,7 +6,7 @@ import json
 from crawler.jobs.offline_schedule import KST
 from crawler.jobs.run_state import RunRecord,RunStatus,_utc
 from crawler.jobs.offline_recovery import retry_decision,RecoveryDecision,RecoveryPolicy
-from crawler.policy.source_approval_gate import SourceApproval,CollectionIntent,check_collection_permission
+from crawler.policy.source_approval_gate import SourceApproval,CollectionIntent,check_collection_permission,_canonical_jobkorea
 
 
 def next_daily(now, local_time):
@@ -44,7 +44,8 @@ def eligible(schedule,now):
         return False,'PM_ACTIVATION_REQUIRED'
     try:
         urls=schedule['target_urls']
-        if not isinstance(urls,list) or not 1<=len(urls)<=5 or len(set(urls))!=len(urls):
+        # Daily live targets are explicit detail pages only; a search URL (CRAWLER_NIGHT_09) is not a target.
+        if not isinstance(urls,list) or not 1<=len(urls)<=5 or len(set(urls))!=len(urls) or not all(_canonical_jobkorea(u) for u in urls):
             return False,'INVALID_TARGETS'
         approval=schedule_approval(schedule)
         for url in urls:

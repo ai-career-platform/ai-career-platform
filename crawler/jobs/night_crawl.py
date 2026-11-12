@@ -11,9 +11,10 @@ T61 ``check_collection_permission``, #85 ``fetch_pages``/``import_pages`` (robot
 
 Nothing runs unless ``CRAWLER_NIGHT_ENABLED=1``. Live HTTP additionally needs
 ``CRAWLER_LIVE_SCHEDULE_APPROVED=1`` and a private T61 approval file
-(``CRAWLER_NIGHT_POLICY_FILE``) that admits the keyword search URL. The current T61 evaluator
-only admits explicit /Recruit/GI_Read/<id> URLs, so keyword search stays BLOCKED
-(OUT_OF_SCOPE) until the T61 policy scope itself is decided. Blocked steps write nothing.
+(``CRAWLER_NIGHT_POLICY_FILE``) that lists the exact keyword search URL (CRAWLER_NIGHT_09) and
+either lists each detail URL or sets ``max_discovered_details`` (1..5) for details found on that
+search page. No such approval exists while T61 is HOLD, so live stays BLOCKED. Blocked steps
+write nothing.
 """
 from __future__ import annotations
 
