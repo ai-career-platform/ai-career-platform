@@ -17,21 +17,19 @@ only admits explicit /Recruit/GI_Read/<id> URLs, so keyword search stays BLOCKED
 """
 from __future__ import annotations
 
-import json
 import time as clock
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
-from pathlib import Path
 from urllib.parse import quote
 
 from crawler.jobs.fixture_night_window import KST, night_slot
-from crawler.jobs.import_jobkorea_html import FetchError, fetch_pages, import_pages
+from crawler.jobs.import_jobkorea_html import FetchError, fetch_pages, import_pages, load_approval_file
 from crawler.jobs.incremental_checkpoint import KeywordCheckpointStore
 from crawler.jobs.keyword_management import KeywordStore, normalize_keyword
 from crawler.jobs.offline_recovery import RETRYABLE_CODES, STOP_CODES
 from crawler.jobs.scheduled_worker import failure_code
 from crawler.jobs.scheduler import retry_at
-from crawler.policy.source_approval_gate import CollectionIntent, SourceApproval, check_collection_permission
+from crawler.policy.source_approval_gate import CollectionIntent, check_collection_permission
 
 NIGHT_KEYWORDS = ('AX', '데이터 분석', '빅데이터', 'AI 엔지니어', '머신러닝', '딥러닝')
 LAST_START_MINUTE = 10 * 60 + 45   # 07:45 KST: no new job after this point
@@ -104,30 +102,24 @@ def plan_next(now, keywords, results):
     return None, 'NOTHING_DUE'
 
 
-def load_approval(path):
-    """Private T61 approval JSON (same shape as the schedule approval). None if absent/invalid."""
-    try:
-        values = dict(json.loads(Path(path).read_text(encoding='utf-8')))
-        for key in ('valid_from_utc', 'review_due_utc'):
-            values[key] = datetime.fromisoformat(values[key].replace('Z', '+00:00'))
-        for key in ('allowed_urls', 'allowed_purposes'):
-            values[key] = tuple(values[key])
-        return SourceApproval(**values)
-    except Exception:
-        return None
+load_approval = load_approval_file  # shared with the import CLI
 
 
 def live_gate(*, environ, keyword, now, approval_loader=load_approval):
-    """Return 'ALLOWED' or a fixed reason code. No IO except reading the private policy file."""
+    """Return ('ALLOWED', approval) or (reason code, None). Only IO: the private policy file.
+
+    fetch_pages() re-checks every URL (search page and each discovered detail) with the same
+    approval before requesting it, so this early check only avoids creating a doomed job.
+    """
     if environ.get('CRAWLER_LIVE_SCHEDULE_APPROVED') != '1':
-        return 'PM_ACTIVATION_REQUIRED'
+        return 'PM_ACTIVATION_REQUIRED', None
     path = environ.get('CRAWLER_NIGHT_POLICY_FILE')
     approval = approval_loader(path) if path else None
     if approval is None:
-        return 'UNAPPROVED_SOURCE'
+        return 'UNAPPROVED_SOURCE', None
     decision = check_collection_permission(approval, CollectionIntent(
         'jobkorea', search_url(keyword), 'WEB', PURPOSE, DETAIL_LIMIT + 2, _aware(now)))
-    return 'ALLOWED' if decision.allowed else decision.reason.value
+    return ('ALLOWED', approval) if decision.allowed else (decision.reason.value, None)
 
 
 class _Recording:
@@ -239,7 +231,7 @@ def _outcome(report):
     return ('PARTIAL' if report['invalid'] else 'SUCCEEDED'), None
 
 
-def run_job(store, choice, night_date, *, fetcher=fetch_pages, now_mono=clock.monotonic):
+def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, now_mono=clock.monotonic):
     """Execute one keyword job; DB result is written before any notice. Never raises."""
     job_id = store.start(choice, night_date)
     counter = [0]
@@ -247,7 +239,7 @@ def run_job(store, choice, night_date, *, fetcher=fetch_pages, now_mono=clock.mo
     try:
         from crawler.storage.postgres import PostgresPostingStore
         recorder = _Recording(PostgresPostingStore(store.connection))
-        pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT)
+        pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval, purpose=PURPOSE)
         report = import_pages(_bounded(pages, now_mono() + JOB_DEADLINE_SECONDS, counter), recorder, live=True)
         report['fetched'] = report['inserted'] + report['updated'] + report['unchanged'] + report['duplicates'] + report['invalid']
         outcome, error = _outcome(report)
@@ -303,11 +295,11 @@ def run_night_step(connection, *, environ, now=None, fetcher=fetch_pages, notify
     choice, reason = plan_next(now, keywords, store.results(night_date))
     if choice is None:
         return {'night': 'IDLE', 'reason': reason}
-    gate = live_gate(environ=environ, keyword=choice.keyword, now=now, approval_loader=approval_loader)
+    gate, approval = live_gate(environ=environ, keyword=choice.keyword, now=now, approval_loader=approval_loader)
     if gate != 'ALLOWED':
         return {'night': 'BLOCKED', 'reason': gate, 'external_requests': 0}
     try:
-        job_id = run_job(store, choice, night_date, fetcher=fetcher)
+        job_id = run_job(store, choice, night_date, approval=approval, fetcher=fetcher)
     except Exception:
         return {'night': 'ERROR', 'reason': 'JOB_START_FAILED'}
     row = next(r for r in store.results(night_date) if r['job_id'] == job_id)

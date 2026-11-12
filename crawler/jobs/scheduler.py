@@ -25,6 +25,16 @@ def retry_at(code,attempt,now):
     return _utc(now)+timedelta(seconds=min(60*2**(attempt-1),300))
 
 
+def schedule_approval(schedule):
+    """The schedule's stored T61 approval record as a SourceApproval (raises if malformed)."""
+    values=dict(schedule['approval'])
+    for key in ('valid_from_utc','review_due_utc'):
+        values[key]=datetime.fromisoformat(values[key].replace('Z','+00:00'))
+    for key in ('allowed_urls','allowed_purposes'):
+        values[key]=tuple(values[key])
+    return SourceApproval(**values)
+
+
 def eligible(schedule,now):
     if not schedule['enabled']:
         return False,'DISABLED'
@@ -36,12 +46,7 @@ def eligible(schedule,now):
         urls=schedule['target_urls']
         if not isinstance(urls,list) or not 1<=len(urls)<=5 or len(set(urls))!=len(urls):
             return False,'INVALID_TARGETS'
-        values=dict(schedule['approval'])
-        for key in ('valid_from_utc','review_due_utc'):
-            values[key]=datetime.fromisoformat(values[key].replace('Z','+00:00'))
-        for key in ('allowed_urls','allowed_purposes'):
-            values[key]=tuple(values[key])
-        approval=SourceApproval(**values)
+        approval=schedule_approval(schedule)
         for url in urls:
             decision=check_collection_permission(approval,CollectionIntent('jobkorea',url,'WEB','scheduled_collection',len(urls)+1,_utc(now)))
             if not decision.allowed:

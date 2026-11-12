@@ -3,6 +3,11 @@
 Imported HTML is labeled separately from live HTTP results. Only use inputs
 and URLs whose collection, storage and display are permitted by the provider.
 No live compatibility is implied by constructed HTML tests.
+
+Every live HTTP path goes through ``fetch_pages``, which checks each target URL against the
+caller-supplied T61 approval (``check_collection_permission``) before any network request,
+including detail URLs discovered on a search page. Without an ALLOWED decision it raises
+``FetchBlocked('UNAPPROVED_SOURCE')`` and sends nothing.
 """
 from __future__ import annotations
 
@@ -16,10 +21,12 @@ from urllib.robotparser import RobotFileParser
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from datetime import datetime, timezone
 
 from crawler.adapters.jobkorea_html_offline import parse_jobkorea_html, parse_jobkorea_list_html, _source_id
 from crawler.storage.postgres import connect_local_training_db, PostgresPostingStore
 from crawler.storage.staging import connect_configured_database
+from crawler.policy.source_approval_gate import CollectionIntent, SourceApproval, check_collection_permission
 
 USER_AGENT = 'AICareerPlatform-Learning/1.0'
 MAX_BYTES = 2_000_000
@@ -78,8 +85,31 @@ def _fetch_allowed(url, robots):
     return html
 
 
-def fetch_pages(urls=None, *, list_url=None, limit=10):
-    """One optional public search page, then at most ten explicit detail URLs."""
+def load_approval_file(path):
+    """Private T61 approval JSON -> SourceApproval, or None when absent/invalid. Never raises."""
+    try:
+        values = dict(json.loads(Path(path).read_text(encoding='utf-8')))
+        for key in ('valid_from_utc', 'review_due_utc'):
+            values[key] = datetime.fromisoformat(values[key].replace('Z', '+00:00'))
+        for key in ('allowed_urls', 'allowed_purposes'):
+            values[key] = tuple(values[key])
+        return SourceApproval(**values)
+    except Exception:
+        return None
+
+
+def _permit(approval, purpose, url, calls, now):
+    decision = check_collection_permission(approval, CollectionIntent('jobkorea', url, 'WEB', purpose or '', calls, now))
+    if not decision.allowed:
+        raise FetchBlocked('UNAPPROVED_SOURCE')
+
+
+def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None):
+    """One optional public search page, then at most ten explicit detail URLs.
+
+    T61 gate: ``approval`` (SourceApproval) and ``purpose`` must admit every URL before it is
+    requested; robots.txt is the one compliance request counted in the budget, not a target.
+    """
     if type(limit) is not int or not 1 <= limit <= 10:
         raise ValueError('limit must be between 1 and 10')
     urls = urls or []
@@ -95,6 +125,10 @@ def fetch_pages(urls=None, *, list_url=None, limit=10):
         _source_id(url)
         if urlsplit(url).hostname != 'www.jobkorea.co.kr':
             raise ValueError('Live fetch requires the www.jobkorea.co.kr origin')
+    now = now or datetime.now(timezone.utc)
+    calls = 1 + (1 + limit if list_url else len(urls))
+    for target in [list_url] if list_url else urls:
+        _permit(approval, purpose, target, calls, now)
     robots = RobotFileParser()
     robots_text = _get('https://www.jobkorea.co.kr/robots.txt')
     if 'user-agent:' not in robots_text.lower():
@@ -104,6 +138,8 @@ def fetch_pages(urls=None, *, list_url=None, limit=10):
         urls = parse_jobkorea_list_html(_fetch_allowed(list_url, robots), limit=limit)
         if not urls:
             raise FetchError('NO_POSTING_LINKS')
+        for url in urls:
+            _permit(approval, purpose, url, calls, now)
     for url in dict.fromkeys(urls):
         try:
             yield url, _fetch_allowed(url, robots)
@@ -157,6 +193,7 @@ def main():
     parser.add_argument('--list-url', help='Permitted public search URL; fetch then follow up to --limit detail links')
     parser.add_argument('--limit', type=int, default=10, choices=range(1, 11))
     parser.add_argument('--html', action='append', help='Permitted UTF-8 HTML files, one per URL; omitted: live HTTP')
+    parser.add_argument('--policy-file', help='Private T61 approval JSON; required for live HTTP (checked per URL)')
     args = parser.parse_args()
     if args.list_html:
         if args.url or args.html or args.list_url:
@@ -183,7 +220,9 @@ def main():
                     raise ValueError('HTML exceeds size limit')
                 pages.append((url, path.read_text(encoding='utf-8')))
         else:
-            pages = fetch_pages(args.url, list_url=args.list_url, limit=args.limit)
+            approval = load_approval_file(args.policy_file) if args.policy_file else None
+            pages = fetch_pages(args.url, list_url=args.list_url, limit=args.limit,
+                                approval=approval, purpose='manual_collection')
         with connect_configured_database() as connection:
             report = import_pages(pages, PostgresPostingStore(connection), live=not args.html)
         print(json.dumps({'mode': 'imported_html' if args.html else 'live_http', **report}))

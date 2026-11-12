@@ -13,6 +13,17 @@ from crawler.storage.postgres import connect_local_training_db, PostgresPostingS
 from crawler.tests.test_html_import import sample
 
 
+
+def allow(*urls):
+    """T61 approval admitting exactly these detail URLs (test-only; never a real grant)."""
+    from datetime import datetime, timezone
+    from crawler.policy.source_approval_gate import SourceApproval
+    return SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
+                          evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                          review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                          allowed_urls=tuple(urls), allowed_purposes=('test',), max_requests=20,
+                          retention_days=1, stop_on_block=True)
+
 class Rollback(Exception):
     pass
 
@@ -29,7 +40,7 @@ class LocalHtmlPipeline(unittest.TestCase):
                 with connection.transaction():
                     with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', sample()]):
                         with patch.object(crawler.time, 'sleep'):
-                            report = import_pages(crawler.fetch_pages([url]), store, live=True)
+                            report = import_pages(crawler.fetch_pages([url], approval=allow(url), purpose='test'), store, live=True)
                     self.assertEqual(report['inserted'], 1)
                     self.assertEqual(import_pages([(url, sample())], store, live=True)['unchanged'], 1)
                     with patch('backend.training_jobs_api.connect_local_training_db', return_value=nullcontext(connection)):

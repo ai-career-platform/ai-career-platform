@@ -5,7 +5,7 @@ from datetime import datetime,timezone
 from uuid import UUID
 from crawler.storage.staging import connect_configured_database
 from crawler.storage.postgres import PostgresPostingStore
-from crawler.jobs.scheduler import SchedulerStore,eligible
+from crawler.jobs.scheduler import SchedulerStore,eligible,schedule_approval
 from crawler.jobs.run_crawler import run,DEFAULT_FIXTURE
 from crawler.jobs.import_jobkorea_html import fetch_pages,import_pages
 
@@ -15,6 +15,7 @@ def failure_code(report):
     for error in errors:
         if error.get('http_status') in (401,403):return 'ACCESS_FORBIDDEN'
         if error.get('http_status')==429:return 'RATE_LIMITED'
+        if error.get('reason')=='UNAPPROVED_SOURCE':return 'UNAPPROVED_SOURCE'
         if error.get('reason') in ('ROBOTS_DISALLOW','ACCESS_CHALLENGE','INVALID_ROBOTS_RESPONSE'):
             return 'ACCESS_FORBIDDEN'
         if error.get('reason')=='TIMEOUT':return 'WORKER_TIMEOUT'
@@ -45,7 +46,8 @@ def execute(run_id):
                 fetched=0
                 def counted_pages():
                     nonlocal fetched
-                    for url,html in fetch_pages(schedule['target_urls'],limit=5):
+                    for url,html in fetch_pages(schedule['target_urls'],limit=5,
+                                                approval=schedule_approval(schedule),purpose='scheduled_collection'):
                         if isinstance(html,str):fetched+=1
                         yield url,html
                 report=import_pages(counted_pages(),repository,live=True)
