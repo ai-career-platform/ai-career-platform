@@ -15,6 +15,17 @@ def sample(title='Example job'):
     }) + '</script>'
 
 
+
+def allow(*urls):
+    """T61 approval admitting exactly these detail URLs (test-only; never a real grant)."""
+    from datetime import datetime, timezone
+    from crawler.policy.source_approval_gate import SourceApproval
+    return SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
+                          evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                          review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                          allowed_urls=tuple(urls), allowed_purposes=('test',), max_requests=20,
+                          retention_days=1, stop_on_block=True)
+
 class HtmlImportTests(unittest.TestCase):
     def test_import_repeat_and_update(self):
         store = MemoryPostingStore()
@@ -40,7 +51,7 @@ class HtmlImportTests(unittest.TestCase):
     def test_fetch_obeys_robots_without_posting_request(self):
         with patch.object(importer, '_get', return_value='User-agent: *\nDisallow: /') as get:
             with self.assertRaises(importer.FetchBlocked):
-                list(importer.fetch_pages(['https://www.jobkorea.co.kr/Recruit/GI_Read/123']))
+                list(importer.fetch_pages(['https://www.jobkorea.co.kr/Recruit/GI_Read/123'], approval=allow('https://www.jobkorea.co.kr/Recruit/GI_Read/123'), purpose='test'))
         self.assertEqual(get.call_count, 1)
 
     def test_apex_url_rejected_before_any_request(self):
@@ -54,14 +65,14 @@ class HtmlImportTests(unittest.TestCase):
         with patch.object(importer, '_get', side_effect=['User-agent: *\nAllow: /', importer.FetchBlocked('403')]) as get:
             with patch.object(importer.time, 'sleep'):
                 with self.assertRaises(importer.FetchBlocked):
-                    list(importer.fetch_pages(urls))
+                    list(importer.fetch_pages(urls, approval=allow(*urls), purpose='test'))
         self.assertEqual(get.call_count, 2)
 
     def test_fetch_error_continues_and_throttles(self):
         urls = ['https://www.jobkorea.co.kr/Recruit/GI_Read/' + str(i) for i in (123, 456)]
         with patch.object(importer, '_get', side_effect=['User-agent: *\nAllow: /', OSError('timeout'), sample()]):
             with patch.object(importer.time, 'sleep') as sleep:
-                result = list(importer.fetch_pages(urls))
+                result = list(importer.fetch_pages(urls, approval=allow(*urls), purpose='test'))
         self.assertEqual(result[0][0], urls[0])
         self.assertEqual(result[0][1].reason, 'NETWORK_ERROR')
         self.assertEqual(result[1], (urls[1], sample()))
