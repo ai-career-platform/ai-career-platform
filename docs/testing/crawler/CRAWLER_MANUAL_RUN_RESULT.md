@@ -2,6 +2,9 @@
 
 > 판정: **미실행(BLOCKED)**. 수동 실행 명령(`manual-fixture`)은 이 PR 의 신규 코드라서, 병합·Auto-CD 배포 전에는 Staging 에서 실행할 수 없습니다.
 > Staging DB 의 `next_run_at` 을 과거로 바꾸거나 워커를 직접 실행하는 우회는 하지 않았습니다.
+> 갱신(CRAWLER_SLACK_02, 2026-11-12 18:41 KST)
+> - 서버 Slack 설정은 완료했습니다(구현 문서 §6).
+> - 남은 조건은 이 PR 의 독립 승인 리뷰 → 병합 → Auto-CD 배포입니다. 그 전까지 수동 실행은 BLOCKED 입니다.
 
 ## 1. 실행 상태
 
