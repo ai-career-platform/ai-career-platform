@@ -36,7 +36,11 @@ function watch(page) {
   // 404 empty states); HTTP problems are judged from responses (5xx, failed, external) instead.
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) log.console.push(m.text().slice(0, 200)); });
   page.on('pageerror', (e) => log.console.push(String(e).slice(0, 200)));
-  page.on('requestfailed', (r) => { if (!r.failure()?.errorText.includes('ERR_ABORTED') || READONLY) log.failed.push(`${r.method()} ${new URL(r.url()).pathname}`); });
+  page.on('requestfailed', (r) => {
+    const path = new URL(r.url()).pathname;
+    if (READONLY && r.method() === 'POST' && path === '/api/v1/auth/refresh') return;   // blocked by the guard on purpose
+    if (!r.failure()?.errorText.includes('ERR_ABORTED') || READONLY) log.failed.push(`${r.method()} ${path}`);
+  });
   page.on('response', (r) => {
     const u = new URL(r.url());
     if (u.origin !== new URL(BASE).origin) log.failed.push(`EXTERNAL ${u.origin}`);
@@ -49,7 +53,13 @@ function watch(page) {
 async function guard(page, log) {
   await page.route('**/*', (route) => {
     const m = route.request().method();
-    if (READONLY && m !== 'GET' && m !== 'HEAD') { log.nonGet.push(`${m} ${new URL(route.request().url()).pathname}`); return route.abort(); }
+    if (READONLY && m !== 'GET' && m !== 'HEAD') {
+      const path = new URL(route.request().url()).pathname;
+      // The app's start-up session probe (no cookie -> 401, nothing written) is blocked as expected, not a failure.
+      if (m === 'POST' && path === '/api/v1/auth/refresh') log.expectedBlocked = (log.expectedBlocked || 0) + 1;
+      else log.nonGet.push(`${m} ${path}`);
+      return route.abort();
+    }
     return route.continue();
   });
 }
