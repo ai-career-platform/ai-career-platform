@@ -8,6 +8,7 @@ import { FilterChips } from '../components/FilterChips';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
 import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
+import { PostingBookmarkToggle } from './PostingBookmarkToggle';
 import {
   EMPLOYMENT_TYPES, MAX_VALUES, POSTED_WITHIN, POSTED_WITHIN_LABELS, REGIONS,
   type EmploymentType, type JobSearchService, type PostedWithin, type RegionCode,
@@ -342,6 +343,8 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
               </span>
               <h3>{detail.data.title}</h3>
               <p className="t24-detail-company">{detail.data.company.name} · {detail.data.job_role?.name ?? '직무 미등록'}</p>
+              <PostingBookmarkToggle key={`${detail.data.job_posting_id}:${String(detail.data.is_bookmarked)}`}
+                postingId={detail.data.job_posting_id} initial={detail.data.is_bookmarked ?? null} />
               <p>{detail.data.description || '등록된 상세 설명이 없습니다.'}</p>
               <dl className="t24-detail-facts">
                 <div><dt>근무 지역</dt><dd>{detail.data.location_text ?? '미등록'}</dd></div>

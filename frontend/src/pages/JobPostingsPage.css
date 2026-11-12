@@ -70,3 +70,6 @@
 .t100-check { display: inline-flex; gap: .4rem; align-items: center; min-height: 44px; }
 .t100-check input { width: 1.1rem; height: 1.1rem; }
 .t100-regions summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+
+/* T40 관심 공고 저장 */
+.t40-bookmark{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}.t40-bookmark-status{margin:0;font-size:13px;color:#4b5565}.t40-bookmark-hint{margin:12px 0;font-size:13px;color:#4b5565}
