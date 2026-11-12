@@ -12,3 +12,6 @@ services:
       CRAWLER_DB_MODE: ${CRAWLER_DB_MODE:-local}
       CRAWLER_STAGING_DATABASE_URL: ${CRAWLER_STAGING_DATABASE_URL:-}
       CRAWLER_LIVE_SCHEDULE_APPROVED: ${CRAWLER_LIVE_SCHEDULE_APPROVED:-0}
+      # Optional crawler run notice; value only in the server's private .env (never in git/images/CI).
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SLACK_WEBHOOK_RUL: ${SLACK_WEBHOOK_RUL:-}

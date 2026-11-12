@@ -103,7 +103,8 @@ class SchedulerStore:
                 if not row or row[3]!='RUNNING':return False
                 record=RunRecord.pending(run_id=str(run_id),source_id=row[0],requested_at=row[1]).transition(RunStatus.RUNNING,at=row[1])
                 record.transition(RunStatus(status),at=now,counters=metrics,error_code=error)
-                retry=retry_at(error,row[2],now) if status=='FAILED' else None
+                # Manual one-shot runs are never auto-retried by the dispatcher.
+                retry=retry_at(error,row[2],now) if status=='FAILED' and not self.is_manual(run_id) else None
                 m=metrics or {}
                 c.execute('''UPDATE crawler_training.runs SET status=%s,ended_at=%s,heartbeat_at=%s,
                     retry_at=%s,error_code=%s,fetched_count=%s,inserted_count=%s,updated_count=%s,
@@ -158,6 +159,47 @@ class SchedulerStore:
                     VALUES (%s,%s,%s,%s,%s,%s,%s,'RUNNING',%s,%s)''',
                     (run_id,s['schedule_id'],s['source_id'],trigger,s['mode'],slot,attempt,now,now))
                 c.execute('UPDATE crawler_training.schedules SET last_run_at=%s,updated_at=%s WHERE schedule_id=%s',(now,now,s['schedule_id']))
+            self.event(run_id,'CLAIMED')
+            return str(run_id)
+
+    def is_manual(self,run_id):
+        with self.connection.cursor() as c:
+            c.execute("SELECT 1 FROM crawler_training.run_events WHERE run_id=%s AND event_type='MANUAL_RUN' LIMIT 1",(run_id,))
+            return c.fetchone() is not None
+
+    def claim_manual(self,now=None,schedule_id='jobkorea-daily'):
+        """One operator-requested FIXTURE run outside the daily slot.
+
+        Reuses the schedule row lock, eligibility gate and single-RUNNING rule. It never moves
+        next_run_at/last_run_at, so the 03:00 KST slot is unchanged. runs.trigger only allows
+        'scheduled'/'retry' (0002 CHECK); without a migration the run is stored as 'scheduled'
+        at the request time and marked by a MANUAL_RUN event written before CLAIMED.
+        """
+        self.last_decision='NOT_DUE_OR_DISABLED'
+        now=_utc(now or datetime.now(timezone.utc))
+        self.recover(now)
+        from psycopg.rows import dict_row
+        with self.connection.transaction():
+            with self.connection.cursor(row_factory=dict_row) as c:
+                c.execute('SELECT * FROM crawler_training.schedules WHERE schedule_id=%s FOR UPDATE',(schedule_id,))
+                s=c.fetchone()
+                if not s:
+                    self.last_decision='SCHEDULE_MISSING';return None
+                if s['mode']!='fixture':
+                    self.last_decision='MANUAL_FIXTURE_ONLY';return None
+                allowed,reason=eligible(s,now)
+                if not allowed:
+                    self.last_decision=reason;return None
+                c.execute("SELECT 1 FROM crawler_training.runs WHERE source_id=%s AND status='RUNNING'",(s['source_id'],))
+                if c.fetchone():
+                    self.last_decision='ALREADY_RUNNING';return None
+                run_id=uuid4()
+                c.execute('''INSERT INTO crawler_training.runs
+                    (run_id,schedule_id,source_id,trigger,mode,scheduled_for,attempt,status,started_at,heartbeat_at)
+                    VALUES (%s,%s,%s,'scheduled','fixture',%s,1,'RUNNING',%s,%s)''',
+                    (run_id,s['schedule_id'],s['source_id'],now,now,now))
+                c.execute('''INSERT INTO crawler_training.run_events(run_id,level,event_type,safe_message)
+                    VALUES (%s,'INFO','MANUAL_RUN','MANUAL_RUN')''',(run_id,))
             self.event(run_id,'CLAIMED')
             return str(run_id)
 
