@@ -1,0 +1,8 @@
+now=2026-11-12T11:35:15Z version=b1e6ad7
+server deploy.py sha256=b1e7a56f8ed407ce mtime=2026-11-06 00:11:43 per_page1=4 select_publish_run=0
+deploy timer active last=success
+{"at": "2026-11-12T11:30:01.515283+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+{"at": "2026-11-12T11:31:01.440626+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+{"at": "2026-11-12T11:32:01.535425+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+{"at": "2026-11-12T11:33:01.443496+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+{"at": "2026-11-12T11:34:01.213261+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}

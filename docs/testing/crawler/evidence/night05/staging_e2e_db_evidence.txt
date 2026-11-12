@@ -1,0 +1,79 @@
+== DB EVIDENCE (isolated test DB, before removal)
+ night_date |   keyword   | attempt |  outcome  |    error_code     | req | fetched | inserted | updated | unchanged | dup | failed | notified
+------------+-------------+---------+-----------+-------------------+-----+---------+----------+---------+-----------+-----+--------+----------
+ 2031-08-31 | AX          |       1 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-08-31 | 데이터 분석 |       1 | SUCCEEDED |                   |   4 |       2 |        1 |       0 |         1 |   0 |      0 | t
+ 2031-08-31 | 빅데이터    |       1 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-08-31 | AI 엔지니어 |       1 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-08-31 | 머신러닝    |       1 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-08-31 | 딥러닝      |       1 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-09-01 | AX          |       1 | SUCCEEDED |                   |   4 |       2 |        0 |       1 |         1 |   0 |      0 | t
+ 2031-09-02 | AX          |       1 | FAILED    | ACCESS_FORBIDDEN  |   3 |       0 |        0 |       0 |         0 |   0 |      0 | t
+ 2031-09-03 | AX          |       1 | FAILED    | RATE_LIMITED      |   3 |       0 |        0 |       0 |         0 |   0 |      0 | t
+ 2031-09-04 | AX          |       1 | FAILED    | WORKER_TIMEOUT    |   3 |       0 |        0 |       0 |         0 |   0 |      0 | t
+ 2031-09-04 | AX          |       2 | FAILED    | WORKER_TIMEOUT    |   3 |       0 |        0 |       0 |         0 |   0 |      0 | t
+ 2031-09-04 | AX          |       3 | FAILED    | WORKER_TIMEOUT    |   3 |       0 |        0 |       0 |         0 |   0 |      0 | t
+ 2031-09-05 | AX          |       1 | FAILED    | INVALID_CONTRACT  |   4 |       2 |        0 |       0 |         0 |   0 |      2 | t
+ 2031-09-06 | AX          |       1 | FAILED    | INVALID_CONTRACT  |   4 |       2 |        0 |       0 |         0 |   0 |      2 | t
+ 2031-09-07 | AX          |       2 | SUCCEEDED |                   |   4 |       2 |        2 |       0 |         0 |   0 |      0 | t
+ 2031-09-07 | AX          |       1 | FAILED    | HEARTBEAT_TIMEOUT |   0 |         |          |         |           |     |        | f
+(16 rows)
+
+ night_date | http_status
+------------+-------------
+ 2031-08-31 |         200
+(1 row)
+
+  status   | count
+-----------+-------
+ COMPLETED |     8
+ FAILED    |     8
+(2 rows)
+
+  source_code  | postings
+---------------+----------
+ jobkorea      |        2
+ jobkorea_live |       13
+(2 rows)
+
+   keyword   | linked_postings
+-------------+-----------------
+ 딥러닝      |               2
+ 머신러닝    |               2
+ 빅데이터    |               2
+ 데이터 분석 |               2
+ AI 엔지니어 |               2
+ AX          |               4
+(6 rows)
+
+ external_posting_id | keywords
+---------------------+----------
+ 10227300000         |        2
+(1 row)
+
+   keyword   | has_checkpoint
+-------------+----------------
+ 딥러닝      | t
+ 머신러닝    | t
+ 빅데이터    | t
+ 데이터 분석 | t
+ AI 엔지니어 | t
+ AX          | t
+(6 rows)
+
+  trigger  |  mode   |  status   | fetched_count | inserted_count | duplicate_count
+-----------+---------+-----------+---------------+----------------+-----------------
+ scheduled | fixture | SUCCEEDED |             2 |              2 |               0
+(1 row)
+
+                   updated_title
+----------------------------------------------------
+ Changed 2027 쿠도커뮤니케이션㈜ 신입/경력 공개채용
+(1 row)
+
+ enabled |  mode
+---------+---------
+ f       | fixture
+(1 row)
+
+== cleanup: 0 e2e containers left
