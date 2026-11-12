@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { useCrawlerNavigationEnabled } from '../admin/CrawlerNavigationContext';
+import { useCrawlerNavigationEnabled } from '../admin/crawlerNavigation';
 import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
