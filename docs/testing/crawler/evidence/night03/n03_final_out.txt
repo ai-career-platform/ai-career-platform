@@ -1,0 +1,17 @@
+now=2026-11-12 19:54:50 KST
+version={"application":"ai-career-platform","environment":"staging-poc","version":"b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588"}
+/api/health 200
+/api/health/db 200
+/api/v1/job-postings?limit=1 200
+/api/jobs/collected?limit=1 200
+/ 200
+/staging-status.html 200
+backend running healthy
+db running healthy
+frontend running healthy
+deploy timer enabled/active last=success; crawler timer enabled/active
+-- dispatcher polls since migration (KST 19:53+)
+{"configured": true, "source": "SLACK_WEBHOOK_URL", "conflict": false}
+CRAWLER_NIGHT_ENABLED=<unset> LIVE_FLAG=<unset>
+schedule enabled=true mode=fixture tz=Asia/Seoul time=03:00:00 next=2026-11-13 03:00 KST targets=0
+postings=35 (jobkorea=2 jobkorea_imported=28 jobkorea_live=5) runs=2 events=8 keyword_jobs=14 night_results=0 night_summaries=0 live_last=11-08 09:50

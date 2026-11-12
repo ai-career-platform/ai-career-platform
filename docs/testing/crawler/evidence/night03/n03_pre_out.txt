@@ -1,0 +1,97 @@
+now=2026-11-12 19:51:53 KST
+version={"application":"ai-career-platform","environment":"staging-poc","version":"b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588"}
+/api/health 200
+/api/health/db 200
+/api/v1/job-postings?limit=1 200
+/api/jobs/collected?limit=1 200
+/ 200
+backend running healthy ghcr.io/ai-career-platform/ai-career-platform-backend@sha256:04e51ee8418b…
+db running healthy postgres:18.1
+frontend running healthy ghcr.io/ai-career-platform/ai-career-platform-frontend@sha256:b867710c6e51…
+8+00:00" "event": "deploy-start" "sha": "410062a "at": "2026-11-12T10:09:21.866217+00:00" "event": "deploy-end" "sha": "410062a "at": "2026-11-12T10:27:05.844621+00:00" "event": "checked" "sha": "d21cb2d "at": "2026-11-12T10:27:05.956589+00:00" "event": "deploy-start" "sha": "d21cb2d "at": "2026-11-12T10:28:21.660129+00:00" "event": "deploy-end" "sha": "d21cb2d "at": "2026-11-12T10:43:05.391733+00:00" "event": "checked" "sha": "b1e6ad7 "at": "2026-11-12T10:43:05.490651+00:00" "event": "deploy-start" "sha": "b1e6ad7 "at": "2026-11-12T10:44:20.989371+00:00" "event": "deploy-end" "sha": "b1e6ad7
+
+deploy timer enabled=enabled active=active last=success
+crawler timer enabled=enabled active=active
+{"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0, "night": {"night": "DISABLED"}}
+{"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0, "night": {"night": "DISABLED"}}
+{"configured": true, "source": "SLACK_WEBHOOK_URL", "conflict": false}
+CRAWLER_NIGHT_ENABLED=<unset> LIVE_FLAG=<unset> NIGHT_POLICY=
+night module present ('AX', '데이터 분석', '빅데이터', 'AI 엔지니어', '머신러닝', '딥러닝')
+server overlay night/live lines: 0; server .env night/live keys:
+      current_database      | current_user  | superuser
+----------------------------+---------------+-----------
+ ai_career_crawler_training | <db-owner-role> | t
+(1 row)
+
+              t              | present
+-----------------------------+---------
+ schedules                   | t
+ runs                        | t
+ run_events                  | t
+ postings                    | t
+ search_keywords             | t
+ keyword_jobs                | t
+ keyword_posting_discoveries | t
+ keyword_checkpoints         | t
+ fixture_night_slots         | t
+ admin_commands              | f
+ night_job_results           | f
+ night_summaries             | f
+(12 rows)
+
+          tablename          |   tableowner
+-----------------------------+-----------------
+ fixture_job_attempts        | <db-owner-role>
+ fixture_job_payloads        | <db-owner-role>
+ fixture_night_slots         | <db-owner-role>
+ keyword_audit_events        | <db-owner-role>
+ keyword_checkpoints         | <db-owner-role>
+ keyword_jobs                | <db-owner-role>
+ keyword_posting_discoveries | <db-owner-role>
+ postings                    | crawler_staging
+ raw_artifacts               | <db-owner-role>
+ raw_parse_results           | <db-owner-role>
+ run_events                  | crawler_staging
+ runs                        | crawler_staging
+ schedules                   | crawler_staging
+ search_keywords             | <db-owner-role>
+(14 rows)
+
+ public_ledger | ledgers
+---------------+---------
+               |
+(1 row)
+
+  ?column?
+-------------
+ postings 35
+(1 row)
+
+    source_code    | count
+-------------------+-------
+ jobkorea          |     2
+ jobkorea_imported |    28
+ jobkorea_live     |     5
+(3 rows)
+
+                           ?column?
+--------------------------------------------------------------
+ runs=2 events=8 keyword_jobs=14 discoveries=28 checkpoints=2
+(1 row)
+
+  schedule_id   | enabled |  mode   |  timezone  | local_time |     next_kst     | targets
+----------------+---------+---------+------------+------------+------------------+---------
+ jobkorea-daily | t       | fixture | Asia/Seoul | 03:00:00   | 2026-11-13 03:00 |       0
+(1 row)
+
+ keyword_id |                keyword                |          normalized_keyword           | enabled | priority | deleted | jobs | checkpoint
+------------+---------------------------------------+---------------------------------------+---------+----------+---------+------+-------------
+          1 | AI                                    | ai                                    | t       |        1 | f       |    0 |
+          2 | Python                                | python                                | t       |        2 | f       |    0 |
+          3 | 데이터 분석                           | 데이터 분석                           | t       |        3 | f       |    0 |
+          4 | LLM                                   | llm                                   | t       |        4 | f       |    0 |
+          5 | 업무 자동화                           | 업무 자동화                           | t       |        5 | f       |    0 |
+          6 | AI 엔지니어                           | ai 엔지니어                           | t       |        6 | f       |    0 |
+         34 | synthetic-night-retained-5a138adaa1ea | synthetic-night-retained-5a138adaa1ea | t       |      100 | f       |    1 | 11-09 00:57
+         35 | synthetic-night-2026-11-08            | synthetic-night-2026-11-08            | t       |      100 | f       |   13 | 11-09 07:30
+(8 rows)

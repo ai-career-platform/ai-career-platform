@@ -1,0 +1,39 @@
+== BEFORE 2026-11-12 19:53:03 KST
+postings=35 runs=2 events=8 keyword_jobs=14 keywords=8 discoveries=28 checkpoints=2 tables=14
+service_db tables=329 schema_md5=b2d28503651df45de540bab394de13d5
+== BACKUP
+backup=backups/crawler_training_pre0012_20261112105303.dump bytes=51943 sha256=34a544174c8c1b1b mode=600
+restore list entries=80
+== APPLY 0012
+sql sha256=2a265a984ddcab9d
+BEGIN
+DO
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE TABLE
+DO
+COMMIT
+apply exit=0
+== AFTER
+postings=35 runs=2 events=8 keyword_jobs=14 keywords=8 discoveries=28 checkpoints=2 tables=16
+service_db tables=329 schema_md5=b2d28503651df45de540bab394de13d5
+table night_job_results owner=<db-owner-role>
+table night_summaries owner=<db-owner-role>
+index night_job_results_night_date_keyword_id_attempt_key
+index night_job_results_night_idx
+index night_job_results_one_running
+index night_job_results_pkey
+index night_summaries_pkey
+grant night_job_results SELECT=true
+grant night_job_results INSERT=true
+grant night_job_results UPDATE=true
+grant night_job_results DELETE=false
+grant night_summaries SELECT=true
+grant night_summaries INSERT=true
+grant night_summaries UPDATE=true
+rows night_job_results=0 night_summaries=0
+ERROR:  operator is not unique: text || "char"
+LINE 1: SELECT 'constraint '||conrelid::regclass||' '||contype||' '|...
+                                                     ^
+HINT:  Could not choose a best candidate operator. You might need to add explicit type casts.
