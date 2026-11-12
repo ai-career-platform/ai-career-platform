@@ -1,0 +1,13 @@
+now=2026-11-12 20:20:53 KST
+version=b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588
+backend running healthy
+db running healthy
+frontend running healthy
+deploy timer enabled/active; last deploy result="reason": "PUBLISH_NOT_SUCCESS"
+crawler timer enabled/active; last poll: {"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0, "night": {"night": "DISABLED"}}
+{"configured": true, "source": "SLACK_WEBHOOK_URL", "conflict": false}
+CRAWLER_NIGHT_ENABLED=<unset> LIVE_FLAG=<unset>
+migration0012=true
+night_keywords=6
+schedule enabled=true mode=fixture tz=Asia/Seoul time=03:00:00 next=2026-11-13 03:00
+postings=35 (jobkorea=2 jobkorea_imported=28 jobkorea_live=5) runs=2 events=8 keyword_jobs=14 night_results=0

@@ -1,0 +1,27 @@
+now=2026-11-12T11:13:47Z version=b1e6ad7
+deploy timer active last=exit-code
+Starting ai-career-staging-deploy.service - Verified AI Career Staging pull deployment...
+{"at": "2026-11-12T11:09:01.762476+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+ai-career-staging-deploy.service: Main process exited, code=exited, status=1/FAILURE
+ai-career-staging-deploy.service: Failed with result 'exit-code'.
+Failed to start ai-career-staging-deploy.service - Verified AI Career Staging pull deployment.
+Starting ai-career-staging-deploy.service - Verified AI Career Staging pull deployment...
+{"at": "2026-11-12T11:10:01.710365+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+ai-career-staging-deploy.service: Main process exited, code=exited, status=1/FAILURE
+ai-career-staging-deploy.service: Failed with result 'exit-code'.
+Failed to start ai-career-staging-deploy.service - Verified AI Career Staging pull deployment.
+Starting ai-career-staging-deploy.service - Verified AI Career Staging pull deployment...
+{"at": "2026-11-12T11:11:01.106290+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+ai-career-staging-deploy.service: Main process exited, code=exited, status=1/FAILURE
+ai-career-staging-deploy.service: Failed with result 'exit-code'.
+Failed to start ai-career-staging-deploy.service - Verified AI Career Staging pull deployment.
+Starting ai-career-staging-deploy.service - Verified AI Career Staging pull deployment...
+{"at": "2026-11-12T11:12:01.697930+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+ai-career-staging-deploy.service: Main process exited, code=exited, status=1/FAILURE
+ai-career-staging-deploy.service: Failed with result 'exit-code'.
+Failed to start ai-career-staging-deploy.service - Verified AI Career Staging pull deployment.
+Starting ai-career-staging-deploy.service - Verified AI Career Staging pull deployment...
+{"at": "2026-11-12T11:13:01.796030+00:00", "status": "HOLD", "reason": "PUBLISH_NOT_SUCCESS", "previous_sha": "b1e6ad720fa33ee1ff313c1eee34ae9a7a67f588", "sha": null}
+ai-career-staging-deploy.service: Main process exited, code=exited, status=1/FAILURE
+ai-career-staging-deploy.service: Failed with result 'exit-code'.
+Failed to start ai-career-staging-deploy.service - Verified AI Career Staging pull deployment.
