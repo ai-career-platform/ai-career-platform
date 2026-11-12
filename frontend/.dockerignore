@@ -1,0 +1,7 @@
+# Staging image build (poc/staging/frontend/Dockerfile.integrated, named context "app"):
+# dependencies are installed fresh from package-lock.json inside the image.
+node_modules
+dist
+.env
+.env.local
+.env.*.local

@@ -75,6 +75,11 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./poc/staging/frontend
+          # F-02: React app (frontend/) built into the same frontend image; status page kept at /staging-status.html.
+          file: ./poc/staging/frontend/Dockerfile.integrated
+          build-contexts: |
+            app=./frontend
+            docs=./docs
           platforms: linux/amd64
           push: true
           tags: ghcr.io/ai-career-platform/ai-career-platform-frontend:${{ env.SOURCE_SHA }}

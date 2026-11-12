@@ -48,6 +48,25 @@ def main():
         else:
             raise AssertionError('Integrated image did not become healthy')
         assert request('/api/version')[0] == 200
+        # F-02: React app at / (SPA shell), deep-link fallback, hashed assets, PoC status page preserved.
+        import re
+        status, shell, headers = request('/')
+        assert status == 200 and b'<div id="root"></div>' in shell, status
+        assert "script-src 'self'" in headers['Content-Security-Policy'] and headers['X-Frame-Options'] == 'DENY'
+        assert headers['Cache-Control'] == 'no-cache'
+        for deep_link in ['/login', '/job-postings', '/me/skills']:
+            status, body, _ = request(deep_link)
+            assert status == 200 and body == shell, deep_link
+        scripts = re.findall(rb'src="(/assets/[^"]+[.]js)"', shell)
+        assert len(scripts) == 1, scripts
+        status, _, headers = request(scripts[0].decode())
+        assert status == 200 and 'javascript' in headers['Content-Type']
+        assert 'immutable' in headers['Cache-Control'] and headers['Content-Security-Policy']
+        assert request('/assets/does-not-exist.js')[0] == 404
+        status, body, _ = request('/staging-status.html')
+        assert status == 200 and b'STAGING PoC' in body and b'/status.js' in body
+        assert request('/status.js')[0] == 200 and request('/status.css')[0] == 200
+        print('REACT_SPA_AND_STATUS_PAGE=PASS')
         assert request('/api/health/db')[0] == 503  # no test DB supplied
         assert request('/api/jobs/collected')[0] == 503  # route present, DB intentionally absent
         spec = json.loads(request('/api/openapi.json')[1])

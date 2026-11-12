@@ -1,0 +1,27 @@
+# Staging frontend image with the React app (F-02, S8 plan option A).
+# Build: docker build --build-context app=frontend --build-context docs=docs \
+#          -f poc/staging/frontend/Dockerfile.integrated poc/staging/frontend
+# - Stage 1 builds frontend/ (named context "app") with every Mock/unapproved UI flag pinned off.
+#   The repo layout is mirrored (/repo/frontend + /repo/docs) because contract tests read ../docs.
+# - Stage 2 is the same nginx image as the PoC Dockerfile. The PoC status page stays at /staging-status.html.
+# The original Dockerfile is kept unchanged for the server's base compose build.
+FROM node:24.19.0-slim AS build
+WORKDIR /repo/frontend
+COPY --from=docs . /repo/docs
+COPY --from=app package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY --from=app . .
+ENV VITE_API_BASE_URL=/api \
+    VITE_API_MOCK=false \
+    VITE_BEHAVIOR_TRACKING=false \
+    VITE_CRAWLER_ADMIN_UI=false \
+    VITE_SKILL_AUTOCOMPLETE=false
+RUN rm -f .env .env.local .env.production .env.production.local
+# Fail closed: the publish gate only checks ci.yml, so lint and unit tests run here before the build.
+RUN npm run lint && npm test && npm run build
+
+FROM nginx:1.27.5-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /repo/frontend/dist /usr/share/nginx/html
+COPY index.html /usr/share/nginx/html/staging-status.html
+COPY status.js status.css /usr/share/nginx/html/

@@ -64,6 +64,20 @@ df -h /
 free -h
 ```
 
+## React 앱 배포 (F-02, S8 방안 A)
+
+- `frontend` 이미지는 `poc/staging/frontend/Dockerfile.integrated` 로 빌드합니다. 게시 워크플로가 `build-contexts: app=./frontend` 로 React 앱을 넣습니다.
+  - 컨테이너·서비스 이름·포트(`127.0.0.1:18080`)·`compose.yaml`·`compose.release.yaml`·`deploy.py`·`publish.py` 는 바뀌지 않습니다.
+  - Backend·DB·크롤러 이미지와 설정도 바뀌지 않습니다.
+- `/` 는 React 앱입니다. 기존 PoC 상태 페이지는 `/staging-status.html` 로 옮겼습니다(`/status.js`·`/status.css` 그대로). React 의 `/system-status` 화면도 Backend·DB Health 와 버전을 보여 줍니다.
+- 화면 경로(`/login`, `/job-postings` …)는 nginx 가 `index.html` 로 돌려줍니다. `/api/`·`/api/v1/` 은 기존 프록시 그대로이고, `/assets/` 의 없는 파일은 404 입니다.
+- 이미지 빌드 단계에서 `npm run lint && npm test && npm run build` 가 실패하면 게시가 멈춥니다(게시 게이트가 Frontend CI 를 보지 않으므로).
+- Mock·승인 전 화면 플래그는 빌드 시 모두 꺼짐입니다. Mock 전용 화면은 Staging 에 나타나지 않습니다.
+- **로그인 유지 제약**: refresh 쿠키는 `Secure` 입니다(`AUTH_COOKIE_SECURE=false` 금지). HTTP 로 접속하면 새로고침 시 로그아웃됩니다. 브라우저 QA 는 HTTPS 또는 `http://127.0.0.1:18080`(SSH 터널)로 합니다.
+- **되돌리기**: `docs/release/RELEASE_RUNBOOK.md` §3 을 따릅니다.
+  - 기본: 이 변경을 revert 한 PR 을 병합해 앞으로 배포합니다.
+  - 긴급: PM 승인 후 `previous.json` 의 **frontend digest 만** 지정해 `up -d --no-build --no-deps frontend` 로 되돌립니다. backend·db 는 손대지 않습니다.
+
 ## 운영 보호 조건
 - 현재 호스트에는 **다른 운영 컨테이너 18개**가 있어 프로젝트명·네트워크·볼륨·포트를 반드시 구분.
 - `.env`는 Git 미추적, 소유자 권한 600 유지. 공개 채팅/로그로 비밀번호 출력 금지.
