@@ -110,3 +110,64 @@ def notify_run(store, run_id, environ, *, sender=send):
                 'source': config['source'], 'conflict': config['conflict']}
     except Exception:
         return {'slack': 'ERROR'}
+
+
+# ---- CRAWLER_NIGHT_01: night keyword jobs and the morning summary ----
+def _n(value):
+    return 0 if value is None else value
+
+
+def format_night_job(row):
+    status = row['outcome']
+    icon = {'SUCCEEDED': ':white_check_mark:', 'PARTIAL': ':warning:', 'FAILED': ':x:'}.get(status, ':grey_question:')
+    error = row.get('error_code')
+    lines = [
+        f"{icon} *AI Career Platform night crawl {status}* (Staging)",
+        f"Keyword: {row.get('keyword', '-')} · Mode: {str(row['mode']).upper()} · Attempt {row['attempt']}",
+        f"Job ID: `{row['job_id']}`",
+        f"Start: {_kst(row.get('started_at'))} · End: {_kst(row.get('ended_at'))}",
+        (f"Requests {_count(row.get('http_requests'))} · Fetched {_count(row.get('fetched'))}"
+         f" · Inserted {_count(row.get('inserted'))} · Updated {_count(row.get('updated'))}"
+         f" · Duplicate/unchanged {_n(row.get('unchanged')) + _n(row.get('duplicates'))}"
+         f" · Failed {_count(row.get('failed'))}"),
+    ]
+    if error:
+        lines.append(f"Error code: `{error if _SAFE_CODE.match(str(error)) else 'UNKNOWN'}`")
+    return {'text': '\n'.join(lines)}
+
+
+def format_night_summary(night_date, rows, *, planned, missing):
+    finals = [r for r in rows if r['outcome'] != 'RUNNING']
+    succeeded = {r['keyword_id'] for r in finals if r['outcome'] in ('SUCCEEDED', 'PARTIAL')}
+    done = {r['keyword'] for r in finals if r['keyword_id'] in succeeded}
+    unprocessed = [k for k in planned if k not in done] + list(missing)
+    total = lambda key: sum(_n(r.get(key)) for r in finals)
+    lines = [
+        f":crescent_moon: *AI Career Platform night crawl summary* (Staging) · {night_date} 21:00 → 08:00 KST",
+        (f"Jobs {len(finals)} · Succeeded {sum(r['outcome'] == 'SUCCEEDED' for r in finals)}"
+         f" · Partial {sum(r['outcome'] == 'PARTIAL' for r in finals)}"
+         f" · Failed {sum(r['outcome'] == 'FAILED' for r in finals)}"),
+        (f"Requests {total('http_requests')} · Inserted {total('inserted')} · Updated {total('updated')}"
+         f" · Duplicate/unchanged {total('unchanged') + total('duplicates')} · Failed items {total('failed')}"),
+        f"Unprocessed keywords: {', '.join(unprocessed) if unprocessed else 'none'}",
+    ]
+    codes = sorted({r['error_code'] for r in finals if r.get('error_code') and _SAFE_CODE.match(str(r['error_code']))})
+    if codes:
+        lines.append('Error codes: ' + ', '.join(f'`{c}`' for c in codes))
+    return {'text': '\n'.join(lines)}
+
+
+def notify_night(kind, night_date, rows, environ, *, planned=(), missing=(), sender=send):
+    """Send one night notice; returns the HTTP status or None. Never raises, never echoes the URL.
+
+    De-duplication is done by the caller in the DB (slack_notified_at / night_summaries) before sending.
+    """
+    try:
+        url, _ = webhook_config(environ)
+        if url is None:
+            return None
+        payload = format_night_job(rows[0]) if kind == 'job' else format_night_summary(
+            night_date, rows, planned=list(planned), missing=list(missing))
+        return sender(url, payload)[1]
+    except Exception:
+        return None

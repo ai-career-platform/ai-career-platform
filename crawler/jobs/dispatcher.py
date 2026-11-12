@@ -64,6 +64,21 @@ def dispatch(store,*,timeout=120,heartbeat_seconds=10,worker_command=None,manual
     finally:store.unlock(0)
 
 
+def night_step(store,*,environ=None,**kwargs):
+    """CRAWLER_NIGHT_01: after an IDLE daily dispatch, one night keyword step under the same
+    dispatcher lock (never concurrent with the 03:00 fixture or a manual run). Never raises;
+    the daily result and exit status are unaffected."""
+    environ=os.environ if environ is None else environ
+    if environ.get('CRAWLER_NIGHT_ENABLED')!='1':return {'night':'DISABLED'}
+    if not store.lock(0):return {'night':'LOCKED'}
+    try:
+        from crawler.jobs.night_crawl import run_night_step
+        return run_night_step(store.connection,environ=environ,**kwargs)
+    except Exception:
+        return {'night':'ERROR','reason':'NIGHT_STEP_FAILED'}
+    finally:store.unlock(0)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='action',required=True)
@@ -87,6 +102,8 @@ def main():
             store=SchedulerStore(connection)
             if args.action=='dispatch':
                 result=dispatch(store)
+                if result['status']=='IDLE':
+                    result['night']=night_step(store)
                 print(json.dumps(result));return 0 if result['status'] in ('IDLE','LOCKED','SUCCEEDED') else 1
             if args.action=='manual-fixture':
                 result=dispatch(store,manual=True)
