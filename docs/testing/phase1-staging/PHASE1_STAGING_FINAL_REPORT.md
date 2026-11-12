@@ -2,7 +2,7 @@
 
 > 작성: 2026-11-12 · 실행 SORNET(Claude Code) · 코디네이터 GPT-Web · PM 문길래
 >
-> **판정: PARTIAL.** 완료 조건 10개 중 4개가 충족되지 않았습니다(§10).
+> **판정: PARTIAL.** 완료 조건 10개 중 4개가 충족되지 않았습니다(§10). **S10 재점검 결과는 §11** 에 있습니다(변화 없음: 승인 0건 → 병합·배포 없음).
 > - **PR 병합은 0건입니다.** `main` 규칙셋이 승인 리뷰 1건을 요구하는데, 리뷰가 0건입니다. 지시에 따라 자체 승인과 우회 병합은 하지 않았습니다.
 > - 병합이 없으니 Auto-CD 도 돌지 않았습니다. 그래서 **Staging 의 React 배포와 배포 후 검증은 `NOT_VERIFIED`** 입니다.
 > - Phase 1 대상 목록은 원본 관리표가 없어 여전히 `PHASE1_SCOPE_PENDING` 입니다.
@@ -137,3 +137,66 @@ PRS_MERGED=0 (MERGE_BLOCKED: required review)
 STAGING_WRITE_REQUESTS=0
 PRODUCTION_CHANGED=NO
 ```
+
+## 11. S10 재점검 (2026-11-12)
+
+### 11.1 PR·main·Staging 상태
+- `origin/main`·Staging 실행 SHA 는 둘 다 `c7dc2e1` 로 그대로입니다.
+- 5개 PR 모두 OPEN 이고 Draft 가 아닙니다. 승인 리뷰는 **0건**, `mergeStateStatus=BLOCKED` 입니다.
+
+| PR | HEAD | 필수 CI | 승인 | 판정 |
+|---|---|---|---|---|
+| #244 | `f52f72d` | 5/5 success | 0 | MERGE_BLOCKED |
+| #248 | `12c3f3d` | 4/4 success | 0 | MERGE_BLOCKED |
+| #247 | `2c3f334` | 4/4 success | 0 | **HOLD** (리뷰 승인 없음 + **별도 배포 승인 없음**) |
+| #246 | `61cee43` | 3/3 success | 0 | MERGE_BLOCKED |
+| #245 | 이 커밋 | — | 0 | MERGE_BLOCKED |
+
+### 11.2 순차 병합 시뮬레이션 (로컬, 원격 변경 없음)
+권장 순서(#244 → #248 → #247 → #246 → #245)대로 최신 `main` 위에 squash 를 차례로 적용했습니다.
+
+- **충돌은 0건입니다.** #248 이 먼저 들어가면 #247 의 같은 lint 수정 3파일은 빈 변경으로 빠집니다(#247: 12 → 9 파일).
+- 합친 상태의 검증 결과
+
+| 영역 | 결과 |
+|---|---|
+| Frontend | oxlint 0 · `tsc -b` 0 · vitest **590 passed** · production build 성공 |
+| `poc/staging/tests` | 17 passed |
+| automation unittest | OK |
+| Backend 전체(Windows) | 1645 passed, 1 failed + 31 errors = 기존 0700 기준선과 같음 |
+
+### 11.3 #247 배포 안전 조건
+
+| # | 조건 | 상태 |
+|---|---|---|
+| 1 | React 이미지 빌드 | PASS (CI Crawler MVP) |
+| 2 | Docker route smoke | PASS (`REACT_SPA_AND_STATUS_PAGE`, `DOCKER_BUILD_NGINX_AND_T16_ROUTES`) |
+| 3 | Frontend lint·typecheck·test·build | PASS (Frontend CI + 이미지 안 실행) |
+| 4 | nginx 설정 검증 | PASS (컨테이너 `nginx -t` + 정적 시험 4건) |
+| 5 | 기존 Backend API 경로 유지 | PASS (`/api/`·`/api/v1/` 블록 불변, smoke 의 T16 경로) |
+| 6 | 상태 페이지 보존 | PASS (`/staging-status.html`) |
+| 7 | 기능 플래그 기본값 | PASS (빌드 플래그 꺼짐, `env.ts` 전수 대조 시험) |
+| 8 | Staging 접근 범위 검토 | **결정 필요**: `:18080` 이 내부망에 열려 있음(O-1). React 가입 화면이 공유 DB 에 쓸 수 있음(S8 R4) |
+| 9 | 배포 전 정상 digest·복구 절차 | **기록함**(아래) / 절차는 `RELEASE_RUNBOOK.md` §3 |
+| 10 | 배포 승인 | **없음 → HOLD** |
+
+배포 전 정상 이미지(롤백 기준, 게시 run `43051867953` #207, `c7dc2e1`):
+- backend `ghcr.io/ai-career-platform/ai-career-platform-backend@sha256:4e8a5e0018eddc8197e3d86e99029e42c9a580bbcda0f9d37be42ea48b740c50`
+- frontend `ghcr.io/ai-career-platform/ai-career-platform-frontend@sha256:72ba1693761f419e8a234a60fd6b0da424dd2229e1b14698d1a3cb4e0a8018b5`
+
+### 11.4 Staging 회귀 (읽기 전용, `c7dc2e1`)
+- HTTP 시험 **81/81 PASS**: health 3, 무토큰·위조 토큰 401 52, 공개 카탈로그 7, 공개 조회 3, 플래그 꺼짐 9, 정적·헤더 7
+- 데이터 정합성 PASS: 페이지 중복 0, 비게시·만료 0, 참조 누락 0, seed 일치
+- **F-01 은 Staging 에 그대로 남아 있습니다.** 런타임 OpenAPI 의 4경로가 여전히 `[{"HTTPBearer": []}]` 입니다. #244 가 배포되지 않았으므로 예상대로입니다.
+- R·H·A 브라우저 시험은 **NOT_VERIFIED**(React 미배포)입니다. 실행 조건인 "#247 이 Staging 에 배포됨"이 충족되지 않아 실행하지 않았습니다.
+
+### 11.5 판정
+
+| 구분 | 판정 |
+|---|---|
+| GitHub 병합 | 0건 (MERGE_BLOCKED) |
+| CI | PASS (5 PR + 합친 상태 로컬 재현) |
+| 격리 PostgreSQL·E2E | PASS (36/36, 34/34, 1874 passed) |
+| Staging 실제 연동 | 부분: Backend·간접 DB PASS / React·F-01~F-03 반영 NOT_VERIFIED / DB 직접 BLOCKED |
+| Phase 1 전체 | `PHASE1_SCOPE_PENDING` |
+| 릴리스 | **NO_GO** (T150 Gate NO_GO 유지, Staging 미반영) |
