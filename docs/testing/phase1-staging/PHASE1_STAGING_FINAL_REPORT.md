@@ -200,3 +200,29 @@ PRODUCTION_CHANGED=NO
 | Staging 실제 연동 | 부분: Backend·간접 DB PASS / React·F-01~F-03 반영 NOT_VERIFIED / DB 직접 BLOCKED |
 | Phase 1 전체 | `PHASE1_SCOPE_PENDING` |
 | 릴리스 | **NO_GO** (T150 Gate NO_GO 유지, Staging 미반영) |
+
+## 12. S11 재점검 (2026-11-12)
+
+S10 이후 상태가 바뀌지 않았습니다. 같은 시험은 반복하지 않았고(§11 증빙 재사용), 상태 조회와 접근 수단 1회 확인만 했습니다.
+
+| 항목 | 결과 |
+|---|---|
+| `origin/main`, Staging `/api/version` | 둘 다 `c7dc2e1` |
+| #244 `f52f72d` · #248 `12c3f3d` · #247 `2c3f334` · #246 `61cee43` · #245 | CI 전부 success. 충돌 없음(`MERGEABLE`). **승인 0건**, 리뷰 요청(Crasnec) 유지 → `MERGE_BLOCKED`. #247 은 배포 승인도 없어 **HOLD** |
+| Auto-CD | 실행되지 않음(병합 없음). 롤백 기준 digest 는 §11.3 |
+| SSH 키 인증 | 여전히 거부 → DB 스키마·Migration 원장·서비스 로그 **BLOCKED** |
+| 테스트 계정·HTTPS 경로 | 제공되지 않음 → A 등급 **BLOCKED** |
+| Phase 1 원본 관리표 | 저장소 TSV 5개 모두 우선순위 왼쪽 열이 '작업 제목'. `read:project` 권한 없음 → `PHASE1_SCOPE_PENDING` |
+| `:18080` 접근 범위 | 변경하지 않음. **PM 결정 사항**: 127.0.0.1 바인딩 복원 또는 내부망 허용 유지 |
+
+결함 상태(상태를 서로 대체하지 않음)
+
+| ID | FIXED_IN_PR | MERGED | DEPLOYED | VERIFIED_STAGING |
+|---|---|---|---|---|
+| F-01 | #244 | 아니오 | 아니오 | 아니오(Staging OpenAPI 에 결함 남아 있음) |
+| F-02 | #247 | 아니오 | 아니오 | 아니오 |
+| F-03 | #248 | 아니오 | 아니오 | 아니오(격리 E2E PASS) |
+| F-04 | #247·#248 | 아니오 | — (CI 전용) | — (main Frontend CI 는 아직 실패) |
+| F-05 | #247 | 아니오 | 아니오 | — (CI PASS) |
+
+판정: **Staging PARTIAL**, **Release NO_GO**(T150 Gate 유지).
