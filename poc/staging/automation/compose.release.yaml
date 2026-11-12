@@ -15,3 +15,5 @@ services:
       # Optional crawler run notice; value only in the server's private .env (never in git/images/CI).
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       SLACK_WEBHOOK_RUL: ${SLACK_WEBHOOK_RUL:-}
+      # CRAWLER_NIGHT_01 keyword night collection: off unless explicitly enabled on the server.
+      CRAWLER_NIGHT_ENABLED: ${CRAWLER_NIGHT_ENABLED:-0}
