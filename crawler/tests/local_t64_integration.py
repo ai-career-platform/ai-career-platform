@@ -142,3 +142,67 @@ class DurableSchedulerTests(unittest.TestCase):
             self.assertEqual(self.store.read('run',run_id)[0]['error_code'],'HEARTBEAT_TIMEOUT')
         finally:
             if process.poll() is None:process.kill();process.wait(timeout=5)
+
+    # ---- manual one-shot FIXTURE run + Slack notice (CRAWLER_SLACK_01) ----
+    def future_slot(self):
+        slot=self.now+timedelta(hours=6)
+        self.connection.execute('UPDATE crawler_training.schedules SET next_run_at=%s',(slot,))
+        return self.store.schedule()
+
+    def test_manual_fixture_runs_once_now_and_keeps_daily_slot(self):
+        before=self.future_slot()
+        sent=[]
+        notifier=lambda store,run_id,env:sent.append(run_id) or {'slack':'SENT','http_status':200}
+        with patch('crawler.jobs.import_jobkorea_html._get') as get:
+            result=dispatch(self.store,manual=True,notifier=notifier)
+        self.ids.append(result['run_id'])
+        get.assert_not_called()
+        self.assertEqual((result['status'],result['manual'],result['slack']),('SUCCEEDED',True,'SENT'))
+        self.assertEqual(sent,[result['run_id']])
+        row=self.store.read('run',result['run_id'])[0]
+        self.assertEqual((row['mode'],row['fetched_count'],row['failed_count']),('fixture',2,0))
+        self.assertEqual(row['inserted_count']+row['updated_count']+row['duplicate_count'],2)
+        kinds=[e['event_type'] for e in self.store.read('events',result['run_id'])]
+        self.assertEqual(kinds[:3],['MANUAL_RUN','CLAIMED','WORKER_STARTED'])
+        self.assertIn('SUCCEEDED',kinds)
+        after=self.store.schedule()
+        self.assertEqual((after['next_run_at'],after['last_run_at']),(before['next_run_at'],before['last_run_at']))
+        # The timer's dispatch stays IDLE until the real slot: manual work never consumes it.
+        self.assertEqual(dispatch(self.store)['status'],'IDLE')
+
+    def test_manual_refuses_live_disabled_and_concurrent(self):
+        self.future_slot()
+        self.connection.execute("UPDATE crawler_training.schedules SET mode='live'")
+        with patch('subprocess.Popen') as spawn:
+            self.assertEqual(dispatch(self.store,manual=True)['reason'],'MANUAL_FIXTURE_ONLY')
+            self.connection.execute("UPDATE crawler_training.schedules SET mode='fixture',enabled=false")
+            self.assertEqual(dispatch(self.store,manual=True)['reason'],'DISABLED')
+            self.connection.execute("UPDATE crawler_training.schedules SET enabled=true")
+            running=self.store.claim_manual();self.ids.append(running)
+            self.assertEqual(dispatch(self.store,manual=True)['reason'],'ALREADY_RUNNING')
+        spawn.assert_not_called()
+
+    def test_failed_manual_run_is_not_auto_retried(self):
+        self.future_slot()
+        result=dispatch(self.store,manual=True,timeout=0.2,heartbeat_seconds=0.05,
+                        worker_command=[sys.executable,'-c','import time;time.sleep(30)'],environ={})
+        self.ids.append(result['run_id'])
+        row=self.store.read('run',result['run_id'])[0]
+        self.assertEqual((row['status'],row['error_code']),('FAILED','WORKER_TIMEOUT'))
+        self.assertIsNone(row['retry_at'])
+        self.assertEqual(result['slack'],'DISABLED')
+
+    def test_slack_notice_is_deduplicated_in_run_events(self):
+        from crawler.notifications.slack import notify_run
+        self.future_slot()
+        result=dispatch(self.store,manual=True,environ={})
+        self.ids.append(result['run_id'])
+        hook={'SLACK_WEBHOOK_RUL':'https://hooks.slack.com/services/T0/B0/TESTONLY'}
+        calls=[]
+        sender=lambda url,payload:calls.append(payload) or (True,200,'OK')
+        self.assertEqual(notify_run(self.store,result['run_id'],hook,sender=sender)['slack'],'SENT')
+        self.assertEqual(notify_run(self.store,result['run_id'],hook,sender=sender)['slack'],'DUPLICATE_SKIPPED')
+        self.assertEqual(len(calls),1)
+        self.assertIn('Trigger: MANUAL',calls[0]['text'])
+        kinds=[e['event_type'] for e in self.store.read('events',result['run_id'])]
+        self.assertEqual(kinds.count('SLACK_NOTIFIED'),1)
