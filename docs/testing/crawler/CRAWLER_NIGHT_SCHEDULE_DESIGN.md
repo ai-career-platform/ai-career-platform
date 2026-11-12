@@ -65,6 +65,7 @@
    - 서버 private 승인 파일 `CRAWLER_NIGHT_POLICY_FILE`
    - 그 승인 기록에 대한 T61 판정 ALLOWED(목적 `night_keyword_collection`, 요청 상한 ≥ 7)
 4. robots 준수, 2초 이상 간격, 차단 시 즉시 중단은 #85 코드를 그대로 씁니다. 프록시·IP 변경·세션 교체는 없습니다.
+4-1. `fetch_pages()` 가 요청 전에 모든 URL(검색 목록과 거기서 찾은 상세 각각)을 같은 승인 기록으로 다시 검사합니다. CLI·T64 스케줄·야간 실행기 모두 이 한 곳을 지나므로 게이트를 우회하는 Live 경로가 없습니다(CRAWLER_NIGHT_02).
 5. **현재 판정**: T61 승인 HOLD, 그리고 검색 URL 은 T61 범위 밖입니다. 따라서 `LIVE_COLLECTION=BLOCKED`.
    - 해제하려면 PM/T61 이 두 가지를 결정해야 합니다: ① 출처 승인 ② 키워드 검색 페이지를 승인 범위에 넣는 정책(evaluator 확장 포함)
    - 이 PR 은 evaluator 를 바꾸지 않습니다.

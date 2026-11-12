@@ -84,16 +84,16 @@ def approval(**extra):
 class GateTests(unittest.TestCase):
     def test_fail_closed_layers(self):
         now = at(13, 21)
-        self.assertEqual(nc.live_gate(environ={}, keyword='AX', now=now), 'PM_ACTIVATION_REQUIRED')
+        self.assertEqual(nc.live_gate(environ={}, keyword='AX', now=now), ('PM_ACTIVATION_REQUIRED', None))
         env = {'CRAWLER_LIVE_SCHEDULE_APPROVED': '1'}
-        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=now), 'UNAPPROVED_SOURCE')
+        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=now), ('UNAPPROVED_SOURCE', None))
         env['CRAWLER_NIGHT_POLICY_FILE'] = '/nonexistent/policy.json'
-        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=now), 'UNAPPROVED_SOURCE')
+        self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=now), ('UNAPPROVED_SOURCE', None))
 
     def test_current_t61_scope_rejects_keyword_search_even_with_full_approval(self):
         env = {'CRAWLER_LIVE_SCHEDULE_APPROVED': '1', 'CRAWLER_NIGHT_POLICY_FILE': 'x'}
         self.assertEqual(nc.live_gate(environ=env, keyword='AX', now=at(13, 21),
-                                      approval_loader=lambda p: approval()), 'OUT_OF_SCOPE')
+                                      approval_loader=lambda p: approval()), ('OUT_OF_SCOPE', None))
 
     def test_search_url_is_the_existing_public_search_page(self):
         self.assertEqual(nc.search_url('데이터 분석'),
