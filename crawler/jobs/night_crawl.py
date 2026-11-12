@@ -147,7 +147,9 @@ def _bounded(pages, deadline, counter):
             counter[0] += 2 if first else 0
             return
         except Exception:
-            counter[0] += 2 if first else 1   # upper bound: robots+list, or the blocked detail
+            # Upper bound (F-08): on the first pull the failure may come from robots, the list or the
+            # first detail. Never under-count a request budget, so count all three.
+            counter[0] += 3 if first else 1
             raise
         counter[0] += 3 if first else 1
         first = False
