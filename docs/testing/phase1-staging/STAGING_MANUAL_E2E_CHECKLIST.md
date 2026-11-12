@@ -7,10 +7,10 @@
 
 | 방식 | 주소 | 언제 |
 |---|---|---|
-| **A. Staging 배포본** (기본) | `http://<staging-host>:18080/` | PR #247 이 병합·배포된 뒤. 호스트 주소는 `docs/STAGING.md` "환경" 절에 있습니다. 배포 확인: `http://<staging-host>:18080/api/version` 의 `version` 이 최신 main SHA 인지 확인 |
-| **B. 읽기 전용 미리보기** (#247 배포 전 임시) | `http://127.0.0.1:18098/` | 로컬에서 React 를 띄우고 API 는 **실제 Staging** 으로 보냅니다. GET 이외 요청은 도구가 403 으로 막습니다. 준비 방법은 §8 |
+| **A. Staging 배포본** (기본, **지금 사용**) | `http://<staging-host>:18080/` | #247 배포 완료(2026-11-12, `c1551a4`). 호스트 주소는 `docs/STAGING.md` "환경" 절에 있습니다. 시작 전 확인: `http://<staging-host>:18080/api/version` 의 `version` 이 최신 main SHA 인지 봅니다 |
+| **B. 읽기 전용 미리보기** (배포 전 임시, 지금은 불필요) | `http://127.0.0.1:18098/` | 로컬에서 React 를 띄우고 API 는 **실제 Staging** 으로 보냅니다. GET 이외 요청은 도구가 403 으로 막습니다. 준비 방법은 §8 |
 
-- 기존 상태 페이지: A 방식은 `/staging-status.html` 입니다(배포 전에는 `/` 가 상태 페이지).
+- 기존 상태 페이지: `/staging-status.html`.
 - 사내망 PC 에서 접속합니다. 다른 프로젝트 포트(80·443·8000)는 열지 않습니다.
 
 ## 2. 브라우저 준비 (Chrome)

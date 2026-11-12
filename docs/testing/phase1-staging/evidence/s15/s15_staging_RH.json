@@ -1,0 +1,525 @@
+{
+ "base": "http://<staging-host>:18080",
+ "browser": "chromium 157.0.8103.78",
+ "ranAt": "2026-11-12T08:40:26.409Z",
+ "tiers": [
+  "R",
+  "H"
+ ],
+ "readonly": true,
+ "summary": {
+  "PASS": 22
+ },
+ "tasksCovered": 17,
+ "tasks": [
+  "T100",
+  "T103",
+  "T124",
+  "T127",
+  "T130",
+  "T143",
+  "T146",
+  "T156",
+  "T19",
+  "T20",
+  "T21",
+  "T23",
+  "T24",
+  "T82",
+  "T85",
+  "T94",
+  "T97"
+ ],
+ "results": [
+  {
+   "task": "T19",
+   "tier": "R",
+   "name": "app boots; /system-status shows backend version from /api/version",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/system-status",
+   "problems": [],
+   "api": [
+    "GET /api/version 200",
+    "GET /api/health 200",
+    "GET /api/health/db 200"
+   ],
+   "requests": [
+    "GET /system-status 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/version 200",
+    "GET /api/health 200",
+    "GET /api/health/db 200"
+   ],
+   "console": [],
+   "screenshot": "T19-R-1.png",
+   "evidence": {
+    "h1": "AI Career Platform",
+    "shown": "Checking...",
+    "version": "c1551a469bfcef19f788a6507181ee3468581f5a"
+   }
+  },
+  {
+   "task": "T20",
+   "tier": "R",
+   "name": "layout landmarks; no horizontal overflow at 320 and 1280px",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET / 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET / 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T20-R-2.png",
+   "evidence": {
+    "320": {
+     "nav": 2,
+     "main": 1
+    },
+    "1280": {
+     "nav": 2,
+     "main": 1
+    },
+    "lang": "ko"
+   }
+  },
+  {
+   "task": "T21",
+   "tier": "R",
+   "name": "login screen renders (no submit)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/login",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /login 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T21-R-3.png",
+   "evidence": {
+    "h1": "로그인"
+   }
+  },
+  {
+   "task": "T23",
+   "tier": "R",
+   "name": "job roles screen lists the API first page",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/job-roles",
+   "problems": [],
+   "api": [
+    "GET /api/v1/job-roles 200"
+   ],
+   "requests": [
+    "GET /job-roles 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/v1/job-roles?limit=20 200"
+   ],
+   "console": [],
+   "screenshot": "T23-R-4.png",
+   "evidence": {
+    "h1": "어떤 일이 나와 맞을까요?",
+    "matchedNames": [
+     "데이터베이스 관리자",
+     "안드로이드 개발자",
+     "프론트엔드 개발자",
+     "블록체인 개발자",
+     "임베디드 개발자"
+    ]
+   }
+  },
+  {
+   "task": "T24",
+   "tier": "R",
+   "name": "job postings list = API, detail title matches",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/job-postings",
+   "problems": [],
+   "api": [
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/companies 200",
+    "GET /api/v1/job-postings 200",
+    "GET /api/v1/job-postings/f8ee5614-7009-e2bc-3692-7d0ec41677b1 200"
+   ],
+   "requests": [
+    "GET /job-postings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/v1/job-roles?limit=100 200",
+    "GET /api/v1/companies?limit=100 200",
+    "GET /api/v1/job-postings?limit=20&sort=-published_at&include_closed=false 200",
+    "GET /api/v1/job-postings/f8ee5614-7009-e2bc-3692-7d0ec41677b1 200"
+   ],
+   "console": [],
+   "screenshot": "T24-R-5.png",
+   "evidence": {
+    "h1": "새로운 기회를 찾아보세요",
+    "firstTitles": [
+     "[Seed] 테스트 자동화 엔지니어 채용 #058",
+     "[Seed] 테스트 자동화 엔지니어 채용 #028",
+     "[Seed] 테스트 자동화 엔지니어 채용 #088",
+     "[Seed] 테크니컬 라이터 채용 #087",
+     "[Seed] 테크니컬 라이터 채용 #057"
+    ]
+   }
+  },
+  {
+   "task": "T24",
+   "tier": "R",
+   "name": "search filters the list via the API; reload keeps the URL state",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/job-postings?q=%ED%85%8C%EC%8A%A4%ED%8A%B8",
+   "problems": [],
+   "api": [
+    "GET /api/v1/companies 200",
+    "GET /api/v1/job-postings 200",
+    "GET /api/v1/job-roles 200"
+   ],
+   "requests": [
+    "GET /job-postings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/v1/companies?limit=100 200",
+    "GET /api/v1/job-postings?limit=20&sort=-published_at&include_closed=false 200",
+    "GET /api/v1/job-roles?limit=100 200",
+    "GET /api/v1/job-postings?limit=20&sort=-published_at&include_closed=false&q=%ED%85%8C%EC%8A%A4%ED%8A%B8 200",
+    "GET /job-postings?q=%ED%85%8C%EC%8A%A4%ED%8A%B8 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/v1/job-roles?limit=100 200",
+    "GET /api/v1/companies?limit=100 200",
+    "GET /api/v1/job-postings?limit=20&sort=-published_at&include_closed=false&q=%ED%85%8C%EC%8A%A4%ED%8A%B8 200"
+   ],
+   "console": [],
+   "screenshot": "T24-R-6.png",
+   "evidence": {
+    "q": "테스트",
+    "api": "GET /api/v1/job-postings?q=테스트 200 items=3",
+    "afterReload": "?q=%ED%85%8C%EC%8A%A4%ED%8A%B8"
+   }
+  },
+  {
+   "task": "T94",
+   "tier": "R",
+   "name": "password reset screen renders (no submit)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/password-reset",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /password-reset 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T94-R-7.png",
+   "evidence": {
+    "h1": "비밀번호 재설정 준비 중",
+    "emailField": 0
+   }
+  },
+  {
+   "task": "T146",
+   "tier": "R",
+   "name": "dates are KST although the browser runs in America/Los_Angeles; html lang=ko",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/job-postings",
+   "problems": [],
+   "api": [
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/companies 200",
+    "GET /api/v1/job-postings 200"
+   ],
+   "requests": [
+    "GET /job-postings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200",
+    "GET /api/v1/job-roles?limit=100 200",
+    "GET /api/v1/companies?limit=100 200",
+    "GET /api/v1/job-postings?limit=20&sort=-published_at&include_closed=false 200"
+   ],
+   "console": [],
+   "screenshot": "T146-R-8.png",
+   "evidence": {
+    "lang": "ko",
+    "kst": "2026년 12월 12일",
+    "browserTz": "America/Los_Angeles"
+   }
+  },
+  {
+   "task": "T82",
+   "tier": "H",
+   "name": "/admin/moderation is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/admin/moderation",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /admin/moderation 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T82-H-9.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T85",
+   "tier": "H",
+   "name": "/admin/audit-events is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/admin/audit-events",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /admin/audit-events 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T85-H-10.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T85",
+   "tier": "H",
+   "name": "/admin/ai-usage is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/admin/ai-usage",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /admin/ai-usage 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T85-H-11.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T97",
+   "tier": "H",
+   "name": "/me/notifications is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/me/notifications",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /me/notifications 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T97-H-12.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T97",
+   "tier": "H",
+   "name": "/me/notification-settings is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/me/notification-settings",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /me/notification-settings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T97-H-13.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T103",
+   "tier": "H",
+   "name": "/me/applications is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/me/applications",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /me/applications 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T103-H-14.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T124",
+   "tier": "H",
+   "name": "/company is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/company",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /company 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T124-H-15.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T124",
+   "tier": "H",
+   "name": "/company-invitations/accept is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/company-invitations/accept",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /company-invitations/accept 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T124-H-16.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T127",
+   "tier": "H",
+   "name": "/company/postings is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/company/postings",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /company/postings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T127-H-17.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T130",
+   "tier": "H",
+   "name": "/me/public-profile is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/me/public-profile",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /me/public-profile 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T130-H-18.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T130",
+   "tier": "H",
+   "name": "/p/synthetic-token is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/p/synthetic-token",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /p/synthetic-token 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T130-H-19.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T143",
+   "tier": "H",
+   "name": "/me/data is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/me/data",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /me/data 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T143-H-20.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T156",
+   "tier": "H",
+   "name": "/admin/crawler is not routed (404 screen)",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/admin/crawler",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /admin/crawler 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T156-H-21.png",
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T100",
+   "tier": "H",
+   "name": "advanced (Mock) filters hidden on /job-postings",
+   "result": "PASS",
+   "url": "http://<staging-host>:18080/job-postings",
+   "problems": [],
+   "api": [],
+   "requests": [
+    "GET /job-postings 200",
+    "GET /assets/index-BSXoFbDm.css 200",
+    "GET /assets/index-w42BMSfM.js 200"
+   ],
+   "console": [],
+   "screenshot": "T100-H-22.png",
+   "evidence": {
+    "basicSearch": 2
+   }
+  }
+ ]
+}

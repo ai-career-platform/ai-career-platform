@@ -1,0 +1,731 @@
+[
+ {
+  "cat": "health",
+  "name": "/api/health",
+  "path": "/api/health",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "{\"status\":\"ok\",\"service\":\"ai-career-backend\"}"
+ },
+ {
+  "cat": "health",
+  "name": "/api/version",
+  "path": "/api/version",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "{\"application\":\"ai-career-platform\",\"environment\":\"staging-poc\",\"version\":\"c1551a469bfcef19f788a6507181ee3468581f5a\"}"
+ },
+ {
+  "cat": "health",
+  "name": "/api/health/db",
+  "path": "/api/health/db",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "{\"status\":\"ok\",\"service\":\"ai-career-database\"}"
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me",
+  "path": "/api/v1/me",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me",
+  "path": "/api/v1/me",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/permissions",
+  "path": "/api/v1/me/permissions",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/permissions",
+  "path": "/api/v1/me/permissions",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/sessions",
+  "path": "/api/v1/me/sessions",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/sessions",
+  "path": "/api/v1/me/sessions",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/skills",
+  "path": "/api/v1/me/skills",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/skills",
+  "path": "/api/v1/me/skills",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/target-roles",
+  "path": "/api/v1/me/target-roles",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/target-roles",
+  "path": "/api/v1/me/target-roles",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/experiences",
+  "path": "/api/v1/me/experiences",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/experiences",
+  "path": "/api/v1/me/experiences",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/projects",
+  "path": "/api/v1/me/projects",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/projects",
+  "path": "/api/v1/me/projects",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/bookmarks",
+  "path": "/api/v1/me/bookmarks",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/bookmarks",
+  "path": "/api/v1/me/bookmarks",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/keywords",
+  "path": "/api/v1/admin/crawler/keywords",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/keywords",
+  "path": "/api/v1/admin/crawler/keywords",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/jobs",
+  "path": "/api/v1/admin/crawler/jobs",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/jobs",
+  "path": "/api/v1/admin/crawler/jobs",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/schedules",
+  "path": "/api/v1/admin/crawler/schedules",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/schedules",
+  "path": "/api/v1/admin/crawler/schedules",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/runs",
+  "path": "/api/v1/admin/crawler/runs",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/runs",
+  "path": "/api/v1/admin/crawler/runs",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/runs/{run_id}/events",
+  "path": "/api/v1/admin/crawler/runs/00000000-0000-4000-8000-000000000000/events",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/runs/{run_id}/events",
+  "path": "/api/v1/admin/crawler/runs/00000000-0000-4000-8000-000000000000/events",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/crawler/stats/keywords",
+  "path": "/api/v1/admin/crawler/stats/keywords",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/crawler/stats/keywords",
+  "path": "/api/v1/admin/crawler/stats/keywords",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/companies",
+  "path": "/api/v1/companies",
+  "status": 200,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/companies/{company_id}",
+  "path": "/api/v1/companies/00000000-0000-4000-8000-000000000000",
+  "status": 404,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/job-postings/{job_posting_id}",
+  "path": "/api/v1/job-postings/00000000-0000-4000-8000-000000000000",
+  "status": 404,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/recommendation-runs/latest",
+  "path": "/api/v1/recommendation-runs/latest",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/recommendation-runs/latest",
+  "path": "/api/v1/recommendation-runs/latest",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/recommendation-runs/{recommendation_run_id}",
+  "path": "/api/v1/recommendation-runs/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/recommendation-runs/{recommendation_run_id}",
+  "path": "/api/v1/recommendation-runs/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/job-roles",
+  "path": "/api/v1/job-roles",
+  "status": 200,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/job-roles/{job_role_id}",
+  "path": "/api/v1/job-roles/00000000-0000-4000-8000-000000000000",
+  "status": 404,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/skills",
+  "path": "/api/v1/skills",
+  "status": 422,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/matches/{match_id}",
+  "path": "/api/v1/matches/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/matches/{match_id}",
+  "path": "/api/v1/matches/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/market-trends",
+  "path": "/api/v1/market-trends",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/market-trends",
+  "path": "/api/v1/market-trends",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/consents",
+  "path": "/api/v1/me/consents",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/consents",
+  "path": "/api/v1/me/consents",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/me/deletion-request",
+  "path": "/api/v1/me/deletion-request",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/me/deletion-request",
+  "path": "/api/v1/me/deletion-request",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/documents",
+  "path": "/api/v1/documents",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/documents",
+  "path": "/api/v1/documents",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/documents/{document_id}",
+  "path": "/api/v1/documents/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/documents/{document_id}",
+  "path": "/api/v1/documents/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/documents/{document_id}/file",
+  "path": "/api/v1/documents/00000000-0000-4000-8000-000000000000/file",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/documents/{document_id}/file",
+  "path": "/api/v1/documents/00000000-0000-4000-8000-000000000000/file",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/document-analyses/{analysis_id}",
+  "path": "/api/v1/document-analyses/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/document-analyses/{analysis_id}",
+  "path": "/api/v1/document-analyses/00000000-0000-4000-8000-000000000000",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/audit-events",
+  "path": "/api/v1/admin/audit-events",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/audit-events",
+  "path": "/api/v1/admin/audit-events",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "authz-noauth",
+  "name": "/api/v1/admin/ai-usage",
+  "path": "/api/v1/admin/ai-usage",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": "code=UNAUTHENTICATED"
+ },
+ {
+  "cat": "authz-badtoken",
+  "name": "/api/v1/admin/ai-usage",
+  "path": "/api/v1/admin/ai-usage",
+  "status": 401,
+  "expect": "401",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "cat": "public-catalog-noauth",
+  "name": "/api/v1/job-postings",
+  "path": "/api/v1/job-postings",
+  "status": 200,
+  "expect": "[200, 404, 422]",
+  "result": "PASS",
+  "note": "T148 PUBLIC_ROUTES"
+ },
+ {
+  "cat": "public",
+  "name": "/api/v1/consent-policies",
+  "path": "/api/v1/consent-policies",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "list len=3 t=0.03s"
+ },
+ {
+  "cat": "public",
+  "name": "/api/jobs",
+  "path": "/api/jobs",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "list len=2 t=0.01s"
+ },
+ {
+  "cat": "public",
+  "name": "/api/jobs/collected?limit=5",
+  "path": "/api/jobs/collected?limit=5",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "list len=5 t=0.04s"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/skills/suggest?q=py",
+  "path": "/api/v1/skills/suggest?q=py",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/me/data-requests",
+  "path": "/api/v1/me/data-requests",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/me/job-applications",
+  "path": "/api/v1/me/job-applications",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/me/notifications",
+  "path": "/api/v1/me/notifications",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/companies/me",
+  "path": "/api/v1/companies/me",
+  "status": 422,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"VALIDATION_FAILED\",\"status\":422,\"message\":\"입력값을 확인해 주�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/public/portfolios/x",
+  "path": "/api/v1/public/portfolios/x",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/job-postings/search",
+  "path": "/api/v1/job-postings/search",
+  "status": 422,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"VALIDATION_FAILED\",\"status\":422,\"message\":\"입력값을 확인해 주�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/me/company-postings",
+  "path": "/api/v1/me/company-postings",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "flag-off",
+  "name": "/api/v1/admin/crawler/settings",
+  "path": "/api/v1/admin/crawler/settings",
+  "status": 404,
+  "expect": "[404, 405, 422]",
+  "result": "PASS",
+  "note": "{\"code\":\"NOT_FOUND\",\"status\":404,\"message\":\"요청한 정보를 찾을 수 없�"
+ },
+ {
+  "cat": "frontend",
+  "name": "/",
+  "path": "/",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "ct=text/html size=403 csp=Y xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/status.js",
+  "path": "/status.js",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "ct=application/javascript size=889 csp=Y xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/status.css",
+  "path": "/status.css",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "ct=text/css size=497 csp=Y xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/api/training",
+  "path": "/api/training",
+  "status": 200,
+  "expect": "200",
+  "result": "PASS",
+  "note": "ct=text/html; charset=utf-8 size=8912 csp=N xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/login",
+  "path": "/login",
+  "status": 200,
+  "expect": "[404, 200]",
+  "result": "PASS",
+  "note": "ct=text/html size=403 csp=Y xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/jobs",
+  "path": "/jobs",
+  "status": 200,
+  "expect": "[404, 200]",
+  "result": "PASS",
+  "note": "ct=text/html size=403 csp=Y xfo=DENY nosniff=nosniff"
+ },
+ {
+  "cat": "frontend",
+  "name": "/assets/index.js",
+  "path": "/assets/index.js",
+  "status": 404,
+  "expect": "[404, 200]",
+  "result": "PASS",
+  "note": "ct=text/html size=153 csp=Y xfo=DENY nosniff=nosniff"
+ }
+]
