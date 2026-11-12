@@ -354,6 +354,9 @@ def test_openapi_lists_t18_paths(client):
     for p in ["/companies", "/companies/{company_id}", "/job-postings", "/job-postings/{job_posting_id}"]:
         responses = paths[f"{API_V1_PREFIX}{p}"]["get"]["responses"]
         assert "503" in responses and "401" not in responses  # 공개 API: 인증 실패는 비로그인 처리
+        # openapi.yaml 과 같이 인증 선택으로 표시(T17 catalog 와 동일). Staging 런타임 OpenAPI 에서 필수로 잘못 표시됐음
+        security = paths[f"{API_V1_PREFIX}{p}"]["get"]["security"]
+        assert len(security) == 2 and {} in security and {"HTTPBearer": []} in security, (p, security)
 
 
 def test_openapi_yaml_matches_public_catalog_contract():
@@ -361,3 +364,4 @@ def test_openapi_yaml_matches_public_catalog_contract():
     for p in ["/companies", "/companies/{company_id}", "/job-postings", "/job-postings/{job_posting_id}"]:
         responses = spec["paths"][p]["get"]["responses"]
         assert "503" in responses and "401" not in responses
+        assert spec["paths"][p]["get"]["security"] == [{}, {"bearerAuth": []}], p
