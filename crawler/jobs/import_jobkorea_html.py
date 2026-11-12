@@ -6,7 +6,8 @@ No live compatibility is implied by constructed HTML tests.
 
 Every live HTTP path goes through ``fetch_pages``, which checks each target URL against the
 caller-supplied T61 approval (``check_collection_permission``) before any network request,
-including detail URLs discovered on a search page. Without an ALLOWED decision it raises
+including detail URLs discovered on a search page (checked one by one, with ``discovered_from``
+set to the search page). Without an ALLOWED decision it raises
 ``FetchBlocked('UNAPPROVED_SOURCE')`` and sends nothing.
 """
 from __future__ import annotations
@@ -98,8 +99,9 @@ def load_approval_file(path):
         return None
 
 
-def _permit(approval, purpose, url, calls, now):
-    decision = check_collection_permission(approval, CollectionIntent('jobkorea', url, 'WEB', purpose or '', calls, now))
+def _permit(approval, purpose, url, calls, now, discovered_from=None):
+    decision = check_collection_permission(approval, CollectionIntent('jobkorea', url, 'WEB', purpose or '', calls, now,
+                                                                      discovered_from=discovered_from))
     if not decision.allowed:
         raise FetchBlocked('UNAPPROVED_SOURCE')
 
@@ -139,7 +141,9 @@ def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=No
         if not urls:
             raise FetchError('NO_POSTING_LINKS')
         for url in urls:
-            _permit(approval, purpose, url, calls, now)
+            # Each discovered link is checked on its own; an approved search page does not
+            # approve its links wholesale (exact listing, or the approval's bounded discovery scope).
+            _permit(approval, purpose, url, calls, now, discovered_from=list_url)
     for url in dict.fromkeys(urls):
         try:
             yield url, _fetch_allowed(url, robots)

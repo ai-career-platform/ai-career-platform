@@ -13,15 +13,18 @@ HTML = (Path(__file__).resolve().parents[1] / 'fixtures/jobkorea_user_detail_jso
 
 
 
-def allow(*urls):
-    """T61 approval admitting exactly these detail URLs (test-only; never a real grant)."""
+def allow(*urls, **extra):
+    """T61 approval admitting exactly these URLs (test-only; never a real grant)."""
     from datetime import datetime, timezone
     from crawler.policy.source_approval_gate import SourceApproval
-    return SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
-                          evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
-                          review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
-                          allowed_urls=tuple(urls), allowed_purposes=('test',), max_requests=20,
-                          retention_days=1, stop_on_block=True)
+    values = dict(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
+                  evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
+                  review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                  allowed_urls=tuple(urls), allowed_purposes=('test',), max_requests=20,
+                  retention_days=1, stop_on_block=True)
+    values.update(extra)
+    return SourceApproval(**values)
+
 
 class LiveHttpTests(unittest.TestCase):
     def test_http_success_has_timeout_user_agent_and_no_redirects(self):
@@ -96,7 +99,7 @@ class LiveHttpTests(unittest.TestCase):
 
 class GateTests(unittest.TestCase):
     """STEP 03: every live HTTP path is checked against T61 before any request."""
-    SEARCH = 'https://www.jobkorea.co.kr/Search/?stext=ax'
+    SEARCH = 'https://www.jobkorea.co.kr/Search/?stext=AX&tabType=recruit'
 
     def blocked(self, call):
         with patch.object(crawler, '_get') as get:
@@ -112,20 +115,104 @@ class GateTests(unittest.TestCase):
         disabled = allow(URL).__class__(**{**allow(URL).__dict__, 'enabled': False})
         self.blocked(lambda: crawler.fetch_pages([URL], approval=disabled, purpose='test'))
 
-    def test_keyword_search_is_outside_current_t61_scope(self):
+    def test_unlisted_keyword_search_sends_nothing(self):
         self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, approval=allow(URL), purpose='test'))
+        # a search URL that is approvable but not the listed one
+        self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH.replace('AX', 'LLM'),
+                                                 approval=allow(self.SEARCH, max_discovered_details=5), purpose='test'))
+        # HOLD / expired records stay closed even with the search URL listed
+        hold = allow(self.SEARCH, max_discovered_details=5, approval_status='HOLD')
+        self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, approval=hold, purpose='test'))
+        # non-canonical search spellings never reach the network
+        for url in (self.SEARCH + '&page=2', 'https://www.jobkorea.co.kr/Search/?stext=%41X&tabType=recruit'):
+            self.blocked(lambda: crawler.fetch_pages(list_url=url, approval=allow(url, max_discovered_details=5), purpose='test'))
 
     def test_discovered_detail_must_also_be_approved(self):
+        # Search page approved, discovery OFF: a link that is not listed exactly is never requested.
         other = 'https://www.jobkorea.co.kr/Recruit/GI_Read/1'
         listing = f'<a href="{other}">x</a>'
-        real = crawler._permit
-        permit = lambda approval, purpose, url, calls, now: None if url == self.SEARCH else real(approval, purpose, url, calls, now)
         with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing]) as get:
-            with patch.object(crawler.time, 'sleep'), patch.object(crawler, '_permit', side_effect=permit):
-                report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, approval=allow(URL), purpose='test'),
-                                              MemoryPostingStore(), live=True)
+            with patch.object(crawler.time, 'sleep'):
+                report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, approval=allow(self.SEARCH, URL),
+                                                                  purpose='test'), MemoryPostingStore(), live=True)
         self.assertEqual(get.call_count, 2)  # robots + list, never the unapproved detail
         self.assertEqual(report['stopped']['reason'], 'UNAPPROVED_SOURCE')
+
+    def test_listed_search_with_exact_detail_listing(self):
+        listing = f'<a href="{URL}">x</a>'
+        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing, HTML]) as get:
+            with patch.object(crawler.time, 'sleep'):
+                report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, limit=1, approval=allow(self.SEARCH, URL),
+                                                                  purpose='test'), MemoryPostingStore(), live=True)
+        self.assertEqual((get.call_count, report['inserted']), (3, 1))
+
+    def test_search_to_discovered_details_real_gate_and_request_accounting(self):
+        """AX search -> 2 discovered details through the real gate; every request is counted and spaced."""
+        second = 'https://www.jobkorea.co.kr/Recruit/GI_Read/50242500'
+        listing = f'<a href="{URL}">a</a><a href="{second}">b</a><a href="https://evil.example/Recruit/GI_Read/9">c</a>'
+        html2 = HTML.replace('50242499', '50242500')
+        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing, HTML, html2]) as get:
+            with patch.object(crawler.time, 'sleep') as sleep:
+                store = MemoryPostingStore()
+                report = crawler.import_pages(crawler.fetch_pages(
+                    list_url=self.SEARCH, limit=5, approval=allow(self.SEARCH, max_discovered_details=5, max_requests=7),
+                    purpose='test'), store, live=True)
+        requested = [c.args[0] for c in get.call_args_list]
+        self.assertEqual(requested, ['https://www.jobkorea.co.kr/robots.txt', self.SEARCH, URL, second])
+        self.assertEqual(sleep.call_count, 3)                       # list + 2 details, each spaced
+        self.assertTrue(all(c.args[0] >= 2 for c in sleep.call_args_list))
+        self.assertEqual((report['inserted'], report['invalid']), (2, 0))
+        self.assertIsNotNone(store.get('jobkorea_live', '50242500'))
+
+    def test_discovery_scope_smaller_than_job_budget_stops_before_details(self):
+        listing = f'<a href="{URL}">a</a>'
+        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing]) as get:
+            with patch.object(crawler.time, 'sleep'):
+                report = crawler.import_pages(crawler.fetch_pages(
+                    list_url=self.SEARCH, limit=5, approval=allow(self.SEARCH, max_discovered_details=2), purpose='test'),
+                    MemoryPostingStore(), live=True)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(report['stopped']['reason'], 'UNAPPROVED_SOURCE')
+
+    def test_job_budget_above_max_requests_sends_nothing(self):
+        self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, limit=5,
+                                                 approval=allow(self.SEARCH, max_discovered_details=5, max_requests=6),
+                                                 purpose='test'))
+
+    def test_search_redirect_403_429_and_challenge_stop_the_job(self):
+        approval = allow(self.SEARCH, max_discovered_details=5)
+        stops = {'redirect': crawler.FetchBlocked('HTTP_302', http_status=302),
+                 '403': crawler.FetchBlocked('HTTP_403', http_status=403),
+                 '429': crawler.FetchBlocked('HTTP_429', http_status=429),
+                 'challenge': '<html>captcha required</html>'}
+        for name, response in stops.items():
+            with self.subTest(name), patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', response]) as get:
+                with patch.object(crawler.time, 'sleep'):
+                    report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, approval=approval, purpose='test'),
+                                                  MemoryPostingStore(), live=True)
+                self.assertEqual(get.call_count, 2)
+                self.assertIn(report['stopped']['reason'], ('HTTP_302', 'HTTP_403', 'HTTP_429', 'ACCESS_CHALLENGE'))
+        # a 403/429 on a discovered detail also stops the job (no further details)
+        second = 'https://www.jobkorea.co.kr/Recruit/GI_Read/50242500'
+        listing = f'<a href="{URL}">a</a><a href="{second}">b</a>'
+        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing,
+                                                        crawler.FetchBlocked('HTTP_429', http_status=429)]) as get:
+            with patch.object(crawler.time, 'sleep'):
+                report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, limit=5, approval=approval,
+                                                                  purpose='test'),
+                                              MemoryPostingStore(), live=True)
+        self.assertEqual(get.call_count, 3)
+        self.assertEqual(report['stopped']['http_status'], 429)
+
+    def test_redirects_are_never_followed(self):
+        opener = MagicMock()
+        opener.open.side_effect = HTTPError(self.SEARCH, 301, 'moved', {'Location': 'https://evil.example/'}, io.BytesIO())
+        with patch.object(crawler, 'build_opener', return_value=opener) as build:
+            with self.assertRaises(crawler.FetchBlocked) as raised:
+                crawler._get(self.SEARCH)
+        self.assertIsInstance(build.call_args.args[0], crawler._NoRedirect)
+        self.assertEqual((raised.exception.reason, opener.open.call_count), ('HTTP_301', 1))
+        self.assertIsNone(crawler._NoRedirect().redirect_request(None, None, 301, 'moved', {}, 'https://evil.example/'))
 
     def test_approved_url_is_fetched(self):
         with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', HTML]) as get:
