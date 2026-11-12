@@ -1,10 +1,13 @@
 # Staging frontend image with the React app (F-02, S8 plan option A).
-# Build: docker build --build-context app=frontend -f poc/staging/frontend/Dockerfile.integrated poc/staging/frontend
+# Build: docker build --build-context app=frontend --build-context docs=docs \
+#          -f poc/staging/frontend/Dockerfile.integrated poc/staging/frontend
 # - Stage 1 builds frontend/ (named context "app") with every Mock/unapproved UI flag pinned off.
+#   The repo layout is mirrored (/repo/frontend + /repo/docs) because contract tests read ../docs.
 # - Stage 2 is the same nginx image as the PoC Dockerfile. The PoC status page stays at /staging-status.html.
 # The original Dockerfile is kept unchanged for the server's base compose build.
 FROM node:24.19.0-slim AS build
-WORKDIR /app
+WORKDIR /repo/frontend
+COPY --from=docs . /repo/docs
 COPY --from=app package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY --from=app . .
@@ -19,6 +22,6 @@ RUN npm run lint && npm test && npm run build
 
 FROM nginx:1.27.5-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /repo/frontend/dist /usr/share/nginx/html
 COPY index.html /usr/share/nginx/html/staging-status.html
 COPY status.js status.css /usr/share/nginx/html/

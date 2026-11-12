@@ -79,6 +79,7 @@ jobs:
           file: ./poc/staging/frontend/Dockerfile.integrated
           build-contexts: |
             app=./frontend
+            docs=./docs
           platforms: linux/amd64
           push: true
           tags: ghcr.io/ai-career-platform/ai-career-platform-frontend:${{ env.SOURCE_SHA }}

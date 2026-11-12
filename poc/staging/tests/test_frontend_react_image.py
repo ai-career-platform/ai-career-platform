@@ -47,6 +47,7 @@ def test_image_keeps_status_page_and_disables_mock_and_unapproved_flags():
     assert 'VITE_API_BASE_URL=/api' in DOCKERFILE and 'VITE_API_MOCK=false' in DOCKERFILE
     assert not re.search(r'VITE_[A-Z_]+=true', DOCKERFILE)
     assert 'npm run lint && npm test && npm run build' in DOCKERFILE
+    assert 'COPY --from=docs . /repo/docs' in DOCKERFILE  # contract tests read ../docs; none may be skipped
     # Every VITE_* flag read by the app is either pinned off here or only effective with VITE_API_MOCK=true.
     env_ts = (ROOT / 'frontend' / 'src' / 'config' / 'env.ts').read_text(encoding='utf-8')
     standalone = set(re.findall(r"crawlerAdminUi: import.meta.env.(VITE_\w+) === 'true'", env_ts)) | \
@@ -62,8 +63,9 @@ def test_image_keeps_status_page_and_disables_mock_and_unapproved_flags():
 
 def test_publish_and_ci_build_the_integrated_image():
     publish = (ROOT / '.github' / 'workflows' / 'staging-publish.yml').read_text(encoding='utf-8')
-    assert 'file: ./poc/staging/frontend/Dockerfile.integrated' in publish and 'app=./frontend' in publish
+    assert 'file: ./poc/staging/frontend/Dockerfile.integrated' in publish
+    assert 'app=./frontend' in publish and 'docs=./docs' in publish
     crawler_ci = (ROOT / '.github' / 'workflows' / 'crawler-mvp.yml').read_text(encoding='utf-8')
-    assert '--build-context app=frontend -f poc/staging/frontend/Dockerfile.integrated' in crawler_ci
+    assert '--build-context app=frontend --build-context docs=docs -f poc/staging/frontend/Dockerfile.integrated' in crawler_ci
     # Server-side files are intentionally untouched by F-02 (protected compose hash, deploy logic).
     assert (FRONTEND / 'Dockerfile').read_text(encoding='utf-8').startswith('FROM nginx:1.27.5-alpine')
