@@ -122,6 +122,15 @@ class BoundedPagesTests(unittest.TestCase):
         with self.assertRaises(nc.FetchError):
             next(nc._bounded(iter([('u', 'h')]), deadline=0, counter=[0]))
 
+    def test_first_pull_failure_is_counted_as_upper_bound(self):
+        def pages():
+            raise nc.FetchError('HTTP_429')
+            yield
+        counter = [0]
+        with self.assertRaises(nc.FetchError):
+            next(nc._bounded(pages(), deadline=float('inf'), counter=counter))
+        self.assertEqual(counter[0], 3)  # robots + list + first detail: never under-count (F-08)
+
 
 class WiringTests(unittest.TestCase):
     class Store:

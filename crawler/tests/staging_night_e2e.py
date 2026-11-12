@@ -238,6 +238,7 @@ class StagingNightE2E(unittest.TestCase):
                 (3, '/GI_Read/', importer.FetchBlocked('HTTP_429', http_status=429), 'RATE_LIMITED', 3)):
             night, web, result = self.failure_night(offset, fail={marker: error})
             self.assertEqual((result['night'], result['error_code'], len(web.calls)), ('FAILED', code, calls))
+            self.assertGreaterEqual(result['http_requests'], len(web.calls))  # recorded count never under-counts (F-08)
             later = self.poll(kst(night, 22, 5), Web(self.listing(offset)), self.all_ids(offset))
             self.assertEqual(later, {'night': 'IDLE', 'reason': 'NIGHT_HALTED'})
             EVIDENCE['scenarios'][f'block_{code}'] = {'night': str(night), 'http_calls_before_stop': calls}
