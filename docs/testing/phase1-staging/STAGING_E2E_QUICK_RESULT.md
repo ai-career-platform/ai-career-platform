@@ -82,3 +82,27 @@
 2. 병합 후 Auto-CD 를 확인합니다: `/api/version` = 새 SHA, `/`·`/login`·`/job-postings` 에서 React 화면, `/staging-status.html` 은 상태 페이지.
 3. 실제 Staging 주소로 `phase1-fe27.mjs` R·H 를 다시 실행하고 체크리스트 A 방식으로 수동 점검합니다. 이때 `ENV=READY` 를 판정합니다.
 4. 테스트 계정과 HTTPS/터널이 준비되면 A 그룹을 진행합니다.
+
+## 8. S13 (2026-11-12) — PM 배포 승인 반영
+
+**PM 승인(S13)**
+- 승인됨: #247 의 Staging 배포, 기존 Auto-CD 사용, 사내망 접근 유지
+- 남은 조건: 독립 승인 리뷰 1건
+
+**PR 상태**
+
+| PR | HEAD | CI | 승인 | 판정 |
+|---|---|---|---|---|
+| #248 | `12c3f3d` | 4/4 | 0 | MERGE_BLOCKED |
+| #247 | `5412f71` | 4/4 | 0 | MERGE_BLOCKED (배포 승인은 확보, 리뷰 대기) |
+| #244 | `f52f72d` | 5/5 | 0 | MERGE_BLOCKED (F-01 OPEN) |
+
+- #248 과 #247 에 Crasnec 리뷰 요청 댓글을 남겼습니다(검토 포인트, 롤백 기준, 병합 순서).
+- 병합이 없으므로 Auto-CD 는 실행되지 않았습니다. Staging SHA 는 `c7dc2e1`, `/` 는 PoC 상태 페이지 그대로입니다.
+- 그래서 **실제 Staging React 대상 자동 E2E 는 실행할 수 없었습니다.** 같은 스크립트로 배포 직후 바로 실행할 수 있습니다.
+  - 명령: `E2E_BASE_URL=http://<staging-host>:18080 E2E_TIERS=R,H E2E_READONLY=1 node e2e/phase1-fe27.mjs`
+  - 기준: 로컬 React + 실제 Staging API 22/22
+- **외부 인터넷 노출**
+  - Staging 주소는 사설 대역(RFC1918)이라 인터넷에서 직접 들어오는 경로는 없습니다.
+  - 호스트의 ngrok 등 터널로 `:18080` 이 공개되는지는 SSH 없이 확인할 수 없습니다 → **NOT_VERIFIED**. 호스트 운영자가 확인해야 합니다.
+- 판정: `STAGING_E2E_ENV=PARTIAL`
