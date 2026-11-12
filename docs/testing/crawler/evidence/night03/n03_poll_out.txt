@@ -1,0 +1,1 @@
+2026-11-12T10:55:26+00:00: {"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0, "night": {"night": "DISABLED"}}

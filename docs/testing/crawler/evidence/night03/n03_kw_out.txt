@@ -1,0 +1,54 @@
+constraint crawler_training.night_job_results c night_job_results_attempt_check
+constraint crawler_training.night_job_results c night_job_results_check
+constraint crawler_training.night_job_results c night_job_results_duplicates_check
+constraint crawler_training.night_job_results c night_job_results_error_code_check
+constraint crawler_training.night_job_results c night_job_results_failed_check
+constraint crawler_training.night_job_results c night_job_results_fetched_check
+constraint crawler_training.night_job_results c night_job_results_http_requests_check
+constraint crawler_training.night_job_results c night_job_results_inserted_check
+constraint crawler_training.night_job_results c night_job_results_mode_check
+constraint crawler_training.night_job_results c night_job_results_outcome_check
+constraint crawler_training.night_job_results c night_job_results_unchanged_check
+constraint crawler_training.night_job_results c night_job_results_updated_check
+constraint crawler_training.night_job_results f night_job_results_job_id_fkey
+constraint crawler_training.night_job_results f night_job_results_keyword_id_fkey
+constraint crawler_training.night_job_results n night_job_results_attempt_not_null
+constraint crawler_training.night_job_results n night_job_results_job_id_not_null
+constraint crawler_training.night_job_results n night_job_results_keyword_id_not_null
+constraint crawler_training.night_job_results n night_job_results_mode_not_null
+constraint crawler_training.night_job_results n night_job_results_night_date_not_null
+constraint crawler_training.night_job_results n night_job_results_outcome_not_null
+constraint crawler_training.night_job_results n night_job_results_started_at_not_null
+constraint crawler_training.night_job_results p night_job_results_pkey
+constraint crawler_training.night_job_results u night_job_results_night_date_keyword_id_attempt_key
+constraint crawler_training.night_summaries n night_summaries_claimed_at_not_null
+constraint crawler_training.night_summaries n night_summaries_night_date_not_null
+constraint crawler_training.night_summaries p night_summaries_pkey
+== register missing night keywords (existing KeywordStore, audited)
+[["AX", "added"], ["데이터 분석", "exists"], ["빅데이터", "added"], ["AI 엔지니어", "exists"], ["머신러닝", "added"], ["딥러닝", "added"]]
+ keyword_id |   keyword   | enabled | priority | deleted | jobs | checkpoints
+------------+-------------+---------+----------+---------+------+-------------
+          3 | 데이터 분석 | t       |        3 | f       |    0 |           0
+          6 | AI 엔지니어 | t       |        6 | f       |    0 |           0
+         37 | AX          | t       |      100 | f       |    0 |           0
+         38 | 빅데이터    | t       |      100 | f       |    0 |           0
+         39 | 머신러닝    | t       |      100 | f       |    0 |           0
+         40 | 딥러닝      | t       |      100 | f       |    0 |           0
+(6 rows)
+
+ normalized_keyword | count
+--------------------+-------
+(0 rows)
+
+ keyword_id |          actor          | action |   kst
+------------+-------------------------+--------+----------
+         37 | system:crawler_night_03 | CREATE | 19:53:40
+         38 | system:crawler_night_03 | CREATE | 19:53:40
+         39 | system:crawler_night_03 | CREATE | 19:53:40
+         40 | system:crawler_night_03 | CREATE | 19:53:40
+(4 rows)
+
+                                ?column?
+-------------------------------------------------------------------------
+ postings=35 runs=2 events=8 keyword_jobs=14 keywords=12 night_results=0
+(1 row)
