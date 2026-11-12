@@ -1,0 +1,5 @@
+# Backend full suite with CI-equivalent disposable PostgreSQL 18.6 (local, isolated; never Staging)
+# env: T15_TEST_DATABASE_URL, T15_SCHEMA_SQL=0001, T16_ISOLATED_DB_TEST=YES, T16_TEST_ADMIN_URL (loopback disposable DB)
+# tree: main c7dc2e1 + #244 (f52f72d)
+1 failed, 1874 passed, 82 skipped, 1 warning, 31 errors in 235.48s
+# failed/errors: only tests/test_documents.py + tests/security/test_security_upload.py — DOCUMENT_STORAGE_ROOT must have mode 0700 (Windows POSIX permission baseline, identical on main; Linux CI passes)

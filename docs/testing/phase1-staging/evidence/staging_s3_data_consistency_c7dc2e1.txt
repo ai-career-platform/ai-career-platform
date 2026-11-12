@@ -1,0 +1,8 @@
+/api/v1/job-roles pages 2 items 30 unique 30 ok
+/api/v1/job-postings pages 4 items 80 unique 80 ok
+/api/v1/companies pages 1 items 20 unique 20 ok
+status Counter({'published': 80})
+expired in public list 0
+distinct companies 16 missing 0
+distinct roles 24 missing 0
+sample company obj keys ['company_id', 'name'] role keys ['job_role_id', 'code', 'name']
