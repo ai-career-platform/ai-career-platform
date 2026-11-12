@@ -1,0 +1,18 @@
+now=2026-11-12 18:52:08 KST
+version={"application":"ai-career-platform","environment":"staging-poc","version":"2b19fd0a4b252e5272036f4039d56e924502d5a4"}
+backend running healthy 2026-11-12 09:51:19 +0000 UTC
+db running healthy 2026-11-05 13:23:04 +0000 UTC
+frontend running starting 2026-11-12 09:51:20 +0000 UTC
+{"at": "2026-11-12T09:45:05.025966+00:00", "event": "checked", "sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "previous_sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "ci": "PASS", "decision":
+{"at": "2026-11-12T09:46:05.722710+00:00", "event": "checked", "sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "previous_sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "ci": "PASS", "decision":
+{"at": "2026-11-12T09:47:04.844174+00:00", "event": "checked", "sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "previous_sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "ci": "PASS", "decision":
+{"at": "2026-11-12T09:48:05.001388+00:00", "event": "checked", "sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "previous_sha": "c1551a469bfcef19f788a6507181ee3468581f5a", "ci": "PASS", "decision":
+{"configured": true, "source": "SLACK_WEBHOOK_URL", "conflict": false}
+manual-fixture slack-status
+LIVE_FLAG=<unset>
+timer enabled=enabled active=active
+schedule enabled=true mode=fixture next=2026-11-13 03:00:00 KST last_run=11-08 15:59:17 targets=0
+postings total=35
+postings jobkorea=2@11-08 15:59:17 jobkorea_imported=28@11-09 07:30:01 jobkorea_live=5@11-08 09:50:48
+runs=1 running=0
+run_events=3
