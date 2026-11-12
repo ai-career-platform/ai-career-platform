@@ -35,6 +35,20 @@ def require(condition, reason):
         raise Hold(reason)
 
 
+def select_publish_run(runs):
+    """Newest publish run that is not 'skipped' (runs are newest first, as GitHub lists them).
+
+    A skipped run published nothing: the workflow's guard skips it when the triggering CI
+    belongs to an older commit than main. Taking it as 'latest' wedged Auto-CD on
+    PUBLISH_NOT_SUCCESS after two quick merges (F-07). Pending, failed or cancelled runs are
+    NOT passed over: a newer non-skipped run that is not a success still blocks.
+    """
+    for run in runs:
+        if not (run.get('status') == 'completed' and run.get('conclusion') == 'skipped'):
+            return run
+    raise Hold('NO_PUBLISHED_RELEASE')
+
+
 def validate_approvers(value):
     """Accept only a nonempty JSON array of GitHub user logins, or reject it all."""
     require(isinstance(value, list) and bool(value), 'INVALID_APPROVER_ARRAY')
@@ -139,9 +153,9 @@ class GitHub:
 
     def candidate(self):
         # Select latest run, not latest successful run: a newer failed/pending publication blocks.
-        listing = self.request(f'/repos/{REPO}/actions/workflows/staging-publish.yml/runs?branch=main&event=workflow_run&per_page=1')
-        require(bool(listing['workflow_runs']), 'NO_PUBLISHED_RELEASE')
-        run = self.run(listing['workflow_runs'][0]['id'])
+        # Only skipped runs (nothing published) are passed over; see select_publish_run (F-07).
+        listing = self.request(f'/repos/{REPO}/actions/workflows/staging-publish.yml/runs?branch=main&event=workflow_run&per_page=20')
+        run = self.run(select_publish_run(listing['workflow_runs'])['id'])
         require(run['status'] == 'completed' and run['conclusion'] == 'success', 'PUBLISH_NOT_SUCCESS')
         result = self.request(f'/repos/{REPO}/actions/runs/{run["id"]}/artifacts?per_page=100')
         require(result['total_count'] <= 100, 'ARTIFACT_PAGINATION_REQUIRED')
