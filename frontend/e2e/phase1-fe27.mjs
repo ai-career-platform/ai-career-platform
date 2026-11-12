@@ -80,7 +80,12 @@ async function check(task, tier, name, page, log, fn) {
 }
 
 const h1 = (page) => page.locator('main h1, h1').first();
-async function open(page, path) { await page.goto(BASE + path); await h1(page).waitFor({ timeout: 15000 }); return (await h1(page).textContent())?.trim(); }
+async function open(page, path) {
+  await page.goto(BASE + path);
+  // The React app must have rendered: a server 404 page also has an <h1>, which must not count as a screen.
+  await page.locator('#root h1').first().waitFor({ timeout: 15000 });
+  return (await page.locator('#root h1').first().textContent())?.trim();
+}
 function expectApi(log, start, pattern) {
   const hit = log.api.slice(start).find((x) => pattern.test(x));
   if (!hit) throw new Error(`expected API call ${pattern} not seen: ${log.api.slice(start).join(' | ')}`);
