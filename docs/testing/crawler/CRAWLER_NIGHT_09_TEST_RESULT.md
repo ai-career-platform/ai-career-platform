@@ -62,9 +62,9 @@ python -m unittest discover -s crawler/tests
 
 | 테스트 | 검증 내용 | 결과 |
 |---|---|---|
-| `local_night_integration` | **AX 검색 → 발견 상세 2건 → 파싱 → PostgreSQL INSERT → 키워드 관계 2건 → 체크포인트 1건**. 요청 순서·수 4, Slack 1회. 정확 나열 모드에서 429 중단, 나열되지 않은 상세는 요청 0 | PR CI 참조 |
-| `staging_night_e2e` | 실제 `live_gate` 와 발견 범위로 하룻밤 6키워드, 03:00 Fixture 공존, 중복·UPDATE·체크포인트, 403/429/Timeout/파싱·저장 실패, 중단 복구, Slack 라벨 | PR CI 참조 |
-| `local_t64_*`, `local_t152_*`, `local_t154_*`, `local_t155_*`, `local_html_pg_integration` | 기존 회귀 | PR CI 참조 |
+| `local_night_integration` | **AX 검색 → 발견 상세 2건 → 파싱 → PostgreSQL INSERT → 키워드 관계 2건 → 체크포인트 1건**. 요청 순서·수 4, Slack 1회. 정확 나열 모드에서 429 중단, 나열되지 않은 상세는 요청 0 | **PASS** (CI run 43225852924) |
+| `staging_night_e2e` | 실제 `live_gate` 와 발견 범위로 하룻밤 6키워드, 03:00 Fixture 공존, 중복·UPDATE·체크포인트, 403/429/Timeout/파싱·저장 실패, 중단 복구, Slack 라벨 | **PASS** (CI run 43225852924) |
+| `local_t64_*`, `local_t152_*`, `local_t154_*`, `local_t155_*`, `local_html_pg_integration` | 기존 회귀 | **PASS** (CI run 43225852924) |
 
 **첫 CI 실행(run 43224838190)은 `offline-tests` FAIL 이었습니다.**
 - 실패 테스트: `local_night_integration.test_mocked_429_…` 의 `KeyError: 'error_code'`
@@ -74,7 +74,12 @@ python -m unittest discover -s crawler/tests
   - 같은 회차의 다른 테스트는 날짜가 2099년 이전이라 우연히 통과했습니다.
 - 게이트는 의도대로 동작한 것입니다. 테스트 승인의 만료일을 9000년으로 바꿨습니다.
 
-최종 CI 결과는 PR 코멘트에 기록합니다. CI 를 확인하기 전에는 PASS 로 표시하지 않습니다.
+**최종 CI(run 43225852924, `1bcacb3`): 모두 PASS.**
+- `offline-tests`:
+  - `crawler/tests` 479 OK, `backend/training_tests` 21 OK
+  - `local_night_integration` 8/8, `staging_night_e2e` 7/7
+  - T64·T152·T154·T155 PostgreSQL 통합 OK
+- `Backend pytest`, `CI Smoke Test` PASS
 
 ## 5. 미완료 항목
 
