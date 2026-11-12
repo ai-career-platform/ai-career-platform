@@ -78,7 +78,7 @@ async function check(task, tier, name, page, log, fn) {
     if (!SHOTS) return null;
     const file = `${SHOTS}/${task}-${tier}-${results.length + 1}${suffix}.png`;
     await page.screenshot({ path: file, fullPage: false }).catch(() => {});
-    return file.split(/[\/]/).pop();
+    return file.split(/[/\\]/).pop();
   };
   try {
     const evidence = (await fn()) || {};
