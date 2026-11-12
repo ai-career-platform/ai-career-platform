@@ -55,3 +55,7 @@ class SchedulerPolicyTests(unittest.TestCase):
             self.assertTrue(eligible(s,now)[0])
             self.assertFalse(eligible(s,datetime(2026,11,10,tzinfo=timezone.utc))[0])
             self.assertFalse(eligible({**s,'target_urls':[url+'4']},now)[0])
+            # CRAWLER_NIGHT_09: a listed search URL is not a daily target (fetch_pages(urls) takes details only)
+            search='https://www.jobkorea.co.kr/Search/?stext=AX&tabType=recruit'
+            listed={**s,'target_urls':[search],'approval':{**approval,'allowed_urls':[url,search]}}
+            self.assertEqual(eligible(listed,now),(False,'INVALID_TARGETS'))

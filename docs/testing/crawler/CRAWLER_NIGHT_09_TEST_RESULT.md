@@ -10,7 +10,9 @@
 | `crawler/policy/source_approval_gate.py` | 검색 URL 유형, `max_discovered_details`, `discovered_from`, 범위 판정 `_in_scope` |
 | `crawler/jobs/import_jobkorea_html.py` | `_permit(..., discovered_from)`, 발견한 상세 URL 마다 출처 검색 URL 을 전달 |
 | `crawler/jobs/night_crawl.py` | 모듈 docstring 만 수정(동작 변경 없음) |
-| `crawler/tests/test_source_approval_gate.py` | T61 단위 테스트 13건 추가 |
+| `crawler/jobs/scheduler.py` | 일일 Live 대상은 정규 상세 URL 만(`INVALID_TARGETS`) |
+| `crawler/tests/test_source_approval_gate.py` | T61 단위 테스트 16건 추가(기존 26건 무수정) |
+| `crawler/tests/test_scheduler_policy.py` | 검색 URL 대상 거부 검증 추가 |
 | `crawler/tests/test_live_http.py` | HTTP 게이트 테스트 6건 추가, 2건 수정(검색 URL 우회 패치 제거) |
 | `crawler/tests/test_night_crawl.py` | `live_gate` 테스트 2건 추가 |
 | `crawler/tests/local_night_integration.py` | `_permit`·`live_gate` 패치 제거 → 실제 게이트 사용, AX 검색 → 발견 상세 2건 |
@@ -26,11 +28,11 @@
 | 3 | 기존 상세 URL 통과 | `test_03`, `test_13`, 기존 26건 | PASS |
 | 4 | 검색 결과의 상세 URL 처리 | `test_04`, `test_04b`, `test_04c`, `test_search_to_discovered_details_real_gate_and_request_accounting` | PASS |
 | 5 | 외부 도메인 차단 | `test_05` (외부·유사 도메인, 사용자정보, 포트, http), 목록 안의 외부 링크 | PASS |
-| 6 | 잘못된 공고번호 차단 | `test_06`, `test_04` (비 ASCII 숫자) | PASS |
-| 7 | 과도·이상 쿼리 매개변수 차단 | `test_07` (15가지) | PASS |
+| 6 | 잘못된 공고번호 차단 | `test_06`, `test_04` (비 ASCII 숫자), `test_12` (파서 형식 아닌 상세) | PASS |
+| 7 | 과도·이상 쿼리 매개변수 차단 | `test_07` (15가지), `test_12b` (빈 `#`, 보이지 않는 문자) | PASS |
 | 8 | 승인 만료 차단 | `test_08` (만료·HOLD·비활성·승인 없음) | PASS |
 | 9 | 목적 불일치 차단 | `test_09` | PASS |
-| 10 | 요청 상한 초과 차단 | `test_10`, `test_job_budget_above_max_requests_sends_nothing`, `test_discovery_scope_smaller_than_job_budget_stops_before_details` | PASS |
+| 10 | 요청 상한 초과 차단 | `test_10`, `test_11`, `test_job_budget_above_max_requests_sends_nothing`, `test_discovery_scope_smaller_than_job_budget_sends_nothing` (요청 0) | PASS |
 | 11 | 승인 없는 요청 HTTP 0 건 | `GateTests.blocked()` 계열 (`_get` 호출 0 확인) | PASS |
 | 12 | 리다이렉트 차단 | `test_redirects_are_never_followed`, `test_search_redirect_403_429_and_challenge_stop_the_job` | PASS |
 | 13 | 기존 상세 URL 회귀 | `test_13`, 기존 `test_source_approval_gate` 26건, `test_live_http` 기존 테스트 | PASS |
@@ -47,7 +49,7 @@ python -m unittest crawler.tests.test_source_approval_gate crawler.tests.test_li
 → OK
 
 python -m unittest discover -s crawler/tests
-→ Ran 471 tests, skipped 5, errors 1
+→ Ran 474 tests, skipped 5, errors 1
 ```
 
 - 오류 1건은 `test_t155_read_models` 의 `ModuleNotFoundError: psycopg` 입니다. 로컬 venv 에 패키지가 없어서이며 **main 에서도 같습니다**.
@@ -64,7 +66,15 @@ python -m unittest discover -s crawler/tests
 | `staging_night_e2e` | 실제 `live_gate` 와 발견 범위로 하룻밤 6키워드, 03:00 Fixture 공존, 중복·UPDATE·체크포인트, 403/429/Timeout/파싱·저장 실패, 중단 복구, Slack 라벨 | PR CI 참조 |
 | `local_t64_*`, `local_t152_*`, `local_t154_*`, `local_t155_*`, `local_html_pg_integration` | 기존 회귀 | PR CI 참조 |
 
-CI 결과(run 번호와 결론)는 PR 본문과 코멘트에 기록합니다. CI 를 확인하기 전에는 PASS 로 표시하지 않습니다.
+**첫 CI 실행(run 43224838190)은 `offline-tests` FAIL 이었습니다.**
+- 실패 테스트: `local_night_integration.test_mocked_429_…` 의 `KeyError: 'error_code'`
+- 원인은 테스트 데이터입니다.
+  - 이 테스트는 밤 날짜를 2030~2209년 사이에서 무작위로 고릅니다. 그런데 테스트용 승인의 `review_due_utc` 는 2099년이었습니다.
+  - 전에는 `live_gate` 가 패치되어 만료를 보지 않았습니다. 이제 실제 게이트가 늦은 날짜를 `EXPIRED` 로 막아 작업이 시작되지 않았습니다.
+  - 같은 회차의 다른 테스트는 날짜가 2099년 이전이라 우연히 통과했습니다.
+- 게이트는 의도대로 동작한 것입니다. 테스트 승인의 만료일을 9000년으로 바꿨습니다.
+
+최종 CI 결과는 PR 코멘트에 기록합니다. CI 를 확인하기 전에는 PASS 로 표시하지 않습니다.
 
 ## 5. 미완료 항목
 

@@ -130,7 +130,7 @@ class StagingNightE2E(unittest.TestCase):
         """Test-only, in-memory: the six keyword search pages + bounded discovery of their details."""
         return SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test-only',
                               evidence_ref='CRAWLER_NIGHT synthetic E2E', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
-                              review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                              review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
                               allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
                               allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
                               retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)

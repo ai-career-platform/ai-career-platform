@@ -249,6 +249,28 @@ class TestSearchAndDiscoveredScope(unittest.TestCase):
         self.assert_denied(GateReason.OUT_OF_SCOPE, search_approval(), search_intent(requested_calls=8))
         self.assert_denied(GateReason.OUT_OF_SCOPE, search_approval(max_requests=6), discovered())
 
+    def test_11_search_job_larger_than_discovery_scope_is_refused_up_front(self):
+        self.assert_denied(GateReason.OUT_OF_SCOPE, search_approval(max_discovered_details=3), search_intent())  # 7 > 2+3
+        self.assert_allowed(search_approval(max_discovered_details=3), search_intent(requested_calls=5))
+        # exact-listing mode (discovery off) keeps the old rule: only max_requests bounds the job
+        self.assert_allowed(search_approval(max_discovered_details=0), search_intent())
+
+    def test_12_discovered_link_must_be_in_parser_form(self):
+        for url in ("https://jobkorea.co.kr/Recruit/GI_Read/1", "https://WWW.JOBKOREA.CO.KR/Recruit/GI_Read/1",
+                    "https://www.jobkorea.co.kr/Recruit/GI_Read/1?", "https://www.jobkorea.co.kr/Recruit/GI_Read/1#",
+                    "https://www.jobkorea.co.kr/Recruit/GI_Read/1\n"):
+            with self.subTest(url=url):
+                self.assert_denied(GateReason.OUT_OF_SCOPE, search_approval(), discovered(url))
+
+    def test_12b_invisible_keywords_and_empty_fragment_denied(self):
+        base = "https://www.jobkorea.co.kr/Search/?stext="
+        for url in (SEARCH + "#", base + "%E2%80%8B", base + "%EF%BF%BD", base + "%C2%A0", base + "A%E2%80%8BX",
+                    base + "%E3%80%80"):
+            with self.subTest(url=url):
+                self.assert_denied(GateReason.OUT_OF_SCOPE, search_approval(allowed_urls=(SEARCH, url)), search_intent(url=url))
+        self.assert_allowed(search_approval(allowed_urls=(base + "AI%20%EC%97%94%EC%A7%80%EB%8B%88%EC%96%B4",)),
+                            search_intent(url=base + "AI%20%EC%97%94%EC%A7%80%EB%8B%88%EC%96%B4"))
+
     def test_13_detail_only_records_behave_as_before(self):
         self.assertEqual(check_collection_permission(synthetic_approval(), intent()).reason, GateReason.ALLOWED)
         self.assert_denied(GateReason.OUT_OF_SCOPE, synthetic_approval(), intent(url=URL.replace("50246410", "1")))

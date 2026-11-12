@@ -123,9 +123,11 @@ class GateTests(unittest.TestCase):
         # HOLD / expired records stay closed even with the search URL listed
         hold = allow(self.SEARCH, max_discovered_details=5, approval_status='HOLD')
         self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, approval=hold, purpose='test'))
-        # non-canonical search spellings never reach the network
-        for url in (self.SEARCH + '&page=2', 'https://www.jobkorea.co.kr/Search/?stext=%41X&tabType=recruit'):
-            self.blocked(lambda: crawler.fetch_pages(list_url=url, approval=allow(url, max_discovered_details=5), purpose='test'))
+        # non-canonical spellings of the listed search never reach the network (valid record, variant URL)
+        valid = allow(self.SEARCH, max_discovered_details=5)
+        for url in (self.SEARCH + '&page=2', self.SEARCH + '#', 'https://www.jobkorea.co.kr/Search/?stext=%41X&tabType=recruit'):
+            with self.subTest(url=url):
+                self.blocked(lambda: crawler.fetch_pages(list_url=url, limit=5, approval=valid, purpose='test'))
 
     def test_discovered_detail_must_also_be_approved(self):
         # Search page approved, discovery OFF: a link that is not listed exactly is never requested.
@@ -164,15 +166,12 @@ class GateTests(unittest.TestCase):
         self.assertEqual((report['inserted'], report['invalid']), (2, 0))
         self.assertIsNotNone(store.get('jobkorea_live', '50242500'))
 
-    def test_discovery_scope_smaller_than_job_budget_stops_before_details(self):
-        listing = f'<a href="{URL}">a</a>'
-        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing]) as get:
-            with patch.object(crawler.time, 'sleep'):
-                report = crawler.import_pages(crawler.fetch_pages(
-                    list_url=self.SEARCH, limit=5, approval=allow(self.SEARCH, max_discovered_details=2), purpose='test'),
-                    MemoryPostingStore(), live=True)
-        self.assertEqual(get.call_count, 2)
-        self.assertEqual(report['stopped']['reason'], 'UNAPPROVED_SOURCE')
+    def test_discovery_scope_smaller_than_job_budget_sends_nothing(self):
+        # A 5-detail job against a 2-detail discovery scope is refused before robots.txt.
+        self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, limit=5,
+                                                 approval=allow(self.SEARCH, max_discovered_details=2), purpose='test'))
+        self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, approval=allow(self.SEARCH, max_discovered_details=5),
+                                                 purpose='test'))  # default limit=10 > 5
 
     def test_job_budget_above_max_requests_sends_nothing(self):
         self.blocked(lambda: crawler.fetch_pages(list_url=self.SEARCH, limit=5,
@@ -188,7 +187,8 @@ class GateTests(unittest.TestCase):
         for name, response in stops.items():
             with self.subTest(name), patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', response]) as get:
                 with patch.object(crawler.time, 'sleep'):
-                    report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, approval=approval, purpose='test'),
+                    report = crawler.import_pages(crawler.fetch_pages(list_url=self.SEARCH, limit=5, approval=approval,
+                                                                      purpose='test'),
                                                   MemoryPostingStore(), live=True)
                 self.assertEqual(get.call_count, 2)
                 self.assertIn(report['stopped']['reason'], ('HTTP_302', 'HTTP_403', 'HTTP_429', 'ACCESS_CHALLENGE'))

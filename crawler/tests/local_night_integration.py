@@ -167,7 +167,7 @@ class NightIntegrationTests(unittest.TestCase):
         from crawler.policy.source_approval_gate import SourceApproval
         approval = SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
                                   evidence_ref='test-only', valid_from_utc=datetime(2020, 1, 1, tzinfo=timezone.utc),
-                                  review_due_utc=datetime(2099, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
+                                  review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
                                   allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS) + tuple(approve),
                                   allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
                                   retention_days=1, stop_on_block=True, max_discovered_details=discover)
