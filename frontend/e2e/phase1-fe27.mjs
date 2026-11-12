@@ -79,7 +79,6 @@ async function check(task, tier, name, page, log, fn) {
   }
 }
 
-const h1 = (page) => page.locator('main h1, h1').first();
 async function open(page, path) {
   await page.goto(BASE + path);
   // The React app must have rendered: a server 404 page also has an <h1>, which must not count as a screen.
