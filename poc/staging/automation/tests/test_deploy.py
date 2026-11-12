@@ -206,4 +206,28 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(self.invoke(), 'PASS')
 
 
+
+
+class SelectPublishRunTests(unittest.TestCase):
+    """F-07: a skipped publish run (older merge's CI finished last) must not wedge Auto-CD."""
+
+    def run_(self, rid, status, conclusion):
+        return {'id': rid, 'status': status, 'conclusion': conclusion}
+
+    def test_skipped_newest_is_passed_over(self):
+        runs = [self.run_(2, 'completed', 'skipped'), self.run_(1, 'completed', 'success')]
+        self.assertEqual(deploy.select_publish_run(runs)['id'], 1)
+
+    def test_newer_failed_or_pending_still_blocks(self):
+        for status, conclusion in (('completed', 'failure'), ('in_progress', None), ('completed', 'cancelled')):
+            runs = [self.run_(3, 'completed', 'skipped'), self.run_(2, status, conclusion), self.run_(1, 'completed', 'success')]
+            self.assertEqual(deploy.select_publish_run(runs)['id'], 2)
+
+    def test_no_real_run_holds(self):
+        for runs in ([], [self.run_(1, 'completed', 'skipped')]):
+            with self.assertRaises(deploy.Hold) as raised:
+                deploy.select_publish_run(runs)
+            self.assertEqual(str(raised.exception), 'NO_PUBLISHED_RELEASE')
+
+
 if __name__ == '__main__': unittest.main()
