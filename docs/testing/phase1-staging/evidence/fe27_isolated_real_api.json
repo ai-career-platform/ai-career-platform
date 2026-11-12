@@ -1,0 +1,606 @@
+{
+ "base": "http://127.0.0.1:18099",
+ "tiers": [
+  "R",
+  "H",
+  "A",
+  "W"
+ ],
+ "readonly": false,
+ "summary": {
+  "PASS": 36
+ },
+ "tasksCovered": 27,
+ "tasks": [
+  "T100",
+  "T103",
+  "T124",
+  "T127",
+  "T130",
+  "T140",
+  "T143",
+  "T146",
+  "T156",
+  "T19",
+  "T20",
+  "T21",
+  "T22",
+  "T23",
+  "T24",
+  "T32",
+  "T34",
+  "T36",
+  "T38",
+  "T40",
+  "T46",
+  "T50",
+  "T68",
+  "T82",
+  "T85",
+  "T94",
+  "T97"
+ ],
+ "results": [
+  {
+   "task": "T19",
+   "tier": "R",
+   "name": "app boots; /system-status shows backend version from /api/version",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "GET /api/health 200",
+    "GET /api/version 200",
+    "GET /api/health/db 200",
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "AI Career Platform",
+    "shown": "0.1.0",
+    "version": "0.1.0"
+   }
+  },
+  {
+   "task": "T20",
+   "tier": "R",
+   "name": "layout landmarks; no horizontal overflow at 320 and 1280px",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "320": {
+     "nav": 2,
+     "main": 1
+    },
+    "1280": {
+     "nav": 2,
+     "main": 1
+    },
+    "lang": "ko"
+   }
+  },
+  {
+   "task": "T21",
+   "tier": "R",
+   "name": "login screen renders (no submit)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "로그인"
+   }
+  },
+  {
+   "task": "T23",
+   "tier": "R",
+   "name": "job roles screen lists the API first page",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401",
+    "GET /api/v1/job-roles 200"
+   ],
+   "evidence": {
+    "h1": "어떤 일이 나와 맞을까요?",
+    "matchedNames": [
+     "AI 리서처",
+     "BI 개발자",
+     "DevOps 엔지니어",
+     "LLM 애플리케이션 개발자",
+     "MLOps 엔지니어"
+    ]
+   }
+  },
+  {
+   "task": "T24",
+   "tier": "R",
+   "name": "job postings list = API, detail title matches",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "GET /api/v1/job-roles 200",
+    "POST /api/v1/auth/refresh 401",
+    "GET /api/v1/job-postings 200",
+    "GET /api/v1/companies 200",
+    "GET /api/v1/job-postings/f8ee5614-7009-e2bc-3692-7d0ec41677b1 200"
+   ],
+   "evidence": {
+    "h1": "새로운 기회를 찾아보세요",
+    "firstTitles": [
+     "[Seed] 테스트 자동화 엔지니어 채용 #058",
+     "[Seed] 테스트 자동화 엔지니어 채용 #028",
+     "[Seed] 테스트 자동화 엔지니어 채용 #088",
+     "[Seed] 테크니컬 라이터 채용 #087",
+     "[Seed] 테크니컬 라이터 채용 #057"
+    ]
+   }
+  },
+  {
+   "task": "T94",
+   "tier": "R",
+   "name": "password reset screen renders (no submit)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "GET /api/v1/companies/a38e9911-2e8a-da73-aba3-55a6ad066eeb 200"
+   ],
+   "evidence": {
+    "h1": "비밀번호 재설정 준비 중",
+    "emailField": 0
+   }
+  },
+  {
+   "task": "T146",
+   "tier": "R",
+   "name": "dates are KST although the browser runs in America/Los_Angeles; html lang=ko",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401",
+    "GET /api/v1/job-postings 200",
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/companies 200"
+   ],
+   "evidence": {
+    "lang": "ko",
+    "kst": "2026년 12월 12일",
+    "browserTz": "America/Los_Angeles"
+   }
+  },
+  {
+   "task": "T82",
+   "tier": "H",
+   "name": "/admin/moderation is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T85",
+   "tier": "H",
+   "name": "/admin/audit-events is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T85",
+   "tier": "H",
+   "name": "/admin/ai-usage is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T97",
+   "tier": "H",
+   "name": "/me/notifications is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T97",
+   "tier": "H",
+   "name": "/me/notification-settings is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T103",
+   "tier": "H",
+   "name": "/me/applications is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T124",
+   "tier": "H",
+   "name": "/company is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T124",
+   "tier": "H",
+   "name": "/company-invitations/accept is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T127",
+   "tier": "H",
+   "name": "/company/postings is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T130",
+   "tier": "H",
+   "name": "/me/public-profile is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T130",
+   "tier": "H",
+   "name": "/p/synthetic-token is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401"
+   ],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T143",
+   "tier": "H",
+   "name": "/me/data is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T156",
+   "tier": "H",
+   "name": "/admin/crawler is not routed (404 screen)",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "h1": "페이지를 찾을 수 없습니다"
+   }
+  },
+  {
+   "task": "T100",
+   "tier": "H",
+   "name": "advanced (Mock) filters hidden on /job-postings",
+   "result": "PASS",
+   "problems": [],
+   "api": [],
+   "evidence": {
+    "basicSearch": 2
+   }
+  },
+  {
+   "task": "T21",
+   "tier": "A",
+   "name": "login with synthetic job seeker",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401",
+    "POST /api/v1/auth/login 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/permissions 200"
+   ],
+   "evidence": {
+    "landed": "/account"
+   }
+  },
+  {
+   "task": "T22",
+   "tier": "A",
+   "name": "/account renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200"
+   ],
+   "evidence": {
+    "h1": "내 계정",
+    "api": "GET /api/v1/me 200"
+   }
+  },
+  {
+   "task": "T32",
+   "tier": "A",
+   "name": "/account/privacy renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/consent-policies 200",
+    "GET /api/v1/me/deletion-request 404",
+    "GET /api/v1/me/consents 200"
+   ],
+   "evidence": {
+    "h1": "개인정보 설정",
+    "api": "GET /api/v1/me/consents 200"
+   }
+  },
+  {
+   "task": "T34",
+   "tier": "A",
+   "name": "/me/skills renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/skills 200"
+   ],
+   "evidence": {
+    "h1": "나의 기술",
+    "api": "GET /api/v1/me/skills 200"
+   }
+  },
+  {
+   "task": "T36",
+   "tier": "A",
+   "name": "/me/target-roles renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/me/target-roles 200"
+   ],
+   "evidence": {
+    "h1": "목표 직무 관리",
+    "api": "GET /api/v1/me/target-roles 200"
+   }
+  },
+  {
+   "task": "T38",
+   "tier": "A",
+   "name": "/me/career-history renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/projects 200",
+    "GET /api/v1/me/experiences 200"
+   ],
+   "evidence": {
+    "h1": "경력·프로젝트",
+    "api": "GET /api/v1/me/projects 200"
+   }
+  },
+  {
+   "task": "T40",
+   "tier": "A",
+   "name": "/me/bookmarks renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/bookmarks 200"
+   ],
+   "evidence": {
+    "h1": "저장한 채용공고",
+    "api": "GET /api/v1/me/bookmarks 200"
+   }
+  },
+  {
+   "task": "T46",
+   "tier": "A",
+   "name": "/recommendations renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/recommendation-runs/latest 404"
+   ],
+   "evidence": {
+    "h1": "맞춤 공고 추천",
+    "api": "GET /api/v1/recommendation-runs/latest 404"
+   }
+  },
+  {
+   "task": "T50",
+   "tier": "A",
+   "name": "/me/documents renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/documents 200"
+   ],
+   "evidence": {
+    "h1": "내 문서 관리",
+    "api": "GET /api/v1/documents 200"
+   }
+  },
+  {
+   "task": "T68",
+   "tier": "A",
+   "name": "/market-trends renders from the real API",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/market-trends 200"
+   ],
+   "evidence": {
+    "h1": "채용시장 추세",
+    "api": "GET /api/v1/market-trends 200"
+   }
+  },
+  {
+   "task": "T22",
+   "tier": "A",
+   "name": "account shows the same display name as GET /me",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200"
+   ],
+   "evidence": {
+    "displayName": "P1 seeker"
+   }
+  },
+  {
+   "task": "T140",
+   "tier": "A",
+   "name": "skill search falls back to T17 /skills (T139 suggest flag off)",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/skills 200",
+    "GET /api/v1/skills 200"
+   ],
+   "evidence": {
+    "api": "GET /api/v1/skills 200"
+   }
+  },
+  {
+   "task": "T34",
+   "tier": "W",
+   "name": "add Python and save; reload shows it",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/me/skills 200",
+    "GET /api/v1/skills 200",
+    "PUT /api/v1/me/skills 200"
+   ],
+   "evidence": {
+    "saved": "Python"
+   }
+  },
+  {
+   "task": "T40",
+   "tier": "W",
+   "name": "bookmark a posting from its detail; /me/bookmarks lists it",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "GET /api/v1/job-postings 200",
+    "GET /api/v1/job-roles 200",
+    "GET /api/v1/companies 200",
+    "POST /api/v1/auth/refresh 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "GET /api/v1/job-postings/f8ee5614-7009-e2bc-3692-7d0ec41677b1 200",
+    "GET /api/v1/companies/a38e9911-2e8a-da73-aba3-55a6ad066eeb 200",
+    "PUT /api/v1/me/bookmarks/f8ee5614-7009-e2bc-3692-7d0ec41677b1 204",
+    "GET /api/v1/me/bookmarks 200"
+   ],
+   "evidence": {
+    "bookmarked": "f8ee5614-7009-e2bc-3692-7d0ec41677b1"
+   }
+  },
+  {
+   "task": "T156",
+   "tier": "A",
+   "name": "admin: crawler/moderation/audit menus absent, routes 404",
+   "result": "PASS",
+   "problems": [],
+   "api": [
+    "POST /api/v1/auth/refresh 401",
+    "POST /api/v1/auth/login 200",
+    "GET /api/v1/me/permissions 200",
+    "GET /api/v1/me 200",
+    "POST /api/v1/auth/refresh 200"
+   ],
+   "evidence": {
+    "nav": "채용 탐색 AI 커리어 기업 탐색"
+   }
+  }
+ ]
+}

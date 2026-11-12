@@ -1,5 +1,7 @@
 # Staging 통합 테스트 중간 보고서 — `PHASE1_SCOPE_PENDING`
 
+> **이후 진행 결과는 [최종 보고서](PHASE1_STAGING_FINAL_REPORT.md)에 있습니다.** 이 문서는 2026-11-12 중간 시점의 기록입니다. F-02 는 #247, F-01 은 #244 로 수정했고(병합 대기), 이후 F-03(T40)·F-04·F-05 를 새로 찾았습니다.
+
 > 작성: 2026-11-12 · 실행 SORNET(Claude Code) · 코디네이터 GPT-Web · PM 문길래
 > - 기준 main `c7dc2e19e4ecd0ad6d9591d6fdc329f3a81ff7ce` 이며, Staging 실행 SHA 와 같습니다.
 > - **Phase 1 대상 확정은 보류 중입니다**(§7). 이 보고서는 대상 확정과 별도로 진행한 **구현 완료 기능의 Staging 읽기 전용 검증** 결과입니다.

@@ -1,0 +1,306 @@
+{
+  "mode": "real",
+  "base": "http://127.0.0.1:18099",
+  "generated_at": "2026-11-12T03:49:02.020Z",
+  "summary": {
+    "PASS": 34
+  },
+  "results": [
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "home renders",
+      "status": "PASS",
+      "ms": 169
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "open job postings",
+      "status": "PASS",
+      "ms": 51,
+      "detail": {
+        "h1": "새로운 기회를 찾아보세요"
+      }
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "back and forward keep the right screen",
+      "status": "PASS",
+      "ms": 72
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "protected URL redirects to login",
+      "status": "PASS",
+      "ms": 38
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "login returns to the requested screen",
+      "status": "PASS",
+      "ms": 237,
+      "detail": {
+        "url": "/account"
+      }
+    },
+    {
+      "scenario": "desktop:A anonymous",
+      "step": "reload keeps or drops the session (recorded)",
+      "status": "PASS",
+      "ms": 66,
+      "detail": {
+        "afterReload": "내 계정"
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /job-roles",
+      "status": "PASS",
+      "ms": 48,
+      "detail": {
+        "h1": "어떤 일이 나와 맞을까요?",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/skills",
+      "status": "PASS",
+      "ms": 12,
+      "detail": {
+        "h1": "나의 기술",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /recommendations",
+      "status": "PASS",
+      "ms": 12,
+      "detail": {
+        "h1": "맞춤 공고 추천",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /market-trends",
+      "status": "PASS",
+      "ms": 20,
+      "detail": {
+        "h1": "채용시장 추세",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/bookmarks",
+      "status": "PASS",
+      "ms": 12,
+      "detail": {
+        "h1": "저장한 채용공고",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:B job seeker",
+      "step": "open /me/target-roles",
+      "status": "PASS",
+      "ms": 11,
+      "detail": {
+        "h1": "목표 직무 관리",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "desktop:D roles",
+      "step": "seeker cannot open an admin screen",
+      "status": "PASS",
+      "ms": 9,
+      "detail": {
+        "h1": "페이지를 찾을 수 없습니다"
+      }
+    },
+    {
+      "scenario": "desktop:C keyboard",
+      "step": "skip link is the first tab stop and moves focus to main",
+      "status": "PASS",
+      "ms": 51,
+      "detail": {
+        "first": "본문으로 바로가기",
+        "hash": "#main-content"
+      }
+    },
+    {
+      "scenario": "desktop:D roles",
+      "step": "admin signs in and opens the account screen",
+      "status": "PASS",
+      "ms": 347,
+      "detail": {
+        "h1": "페이지를 찾을 수 없습니다"
+      }
+    },
+    {
+      "scenario": "desktop:E network",
+      "step": "slow API shows a loading state, then content",
+      "status": "PASS",
+      "ms": 178,
+      "detail": {
+        "loadingVisible": true
+      }
+    },
+    {
+      "scenario": "desktop:E network",
+      "step": "failing API shows an error with retry that recovers",
+      "status": "PASS",
+      "ms": 81
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "home renders",
+      "status": "PASS",
+      "ms": 125
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "open job postings",
+      "status": "PASS",
+      "ms": 65,
+      "detail": {
+        "h1": "새로운 기회를 찾아보세요"
+      }
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "back and forward keep the right screen",
+      "status": "PASS",
+      "ms": 43
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "protected URL redirects to login",
+      "status": "PASS",
+      "ms": 60
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "login returns to the requested screen",
+      "status": "PASS",
+      "ms": 231,
+      "detail": {
+        "url": "/account"
+      }
+    },
+    {
+      "scenario": "mobile:A anonymous",
+      "step": "reload keeps or drops the session (recorded)",
+      "status": "PASS",
+      "ms": 75,
+      "detail": {
+        "afterReload": "내 계정"
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /job-roles",
+      "status": "PASS",
+      "ms": 45,
+      "detail": {
+        "h1": "어떤 일이 나와 맞을까요?",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/skills",
+      "status": "PASS",
+      "ms": 12,
+      "detail": {
+        "h1": "나의 기술",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /recommendations",
+      "status": "PASS",
+      "ms": 13,
+      "detail": {
+        "h1": "맞춤 공고 추천",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /market-trends",
+      "status": "PASS",
+      "ms": 24,
+      "detail": {
+        "h1": "채용시장 추세",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/bookmarks",
+      "status": "PASS",
+      "ms": 14,
+      "detail": {
+        "h1": "저장한 채용공고",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:B job seeker",
+      "step": "open /me/target-roles",
+      "status": "PASS",
+      "ms": 15,
+      "detail": {
+        "h1": "목표 직무 관리",
+        "alerts": []
+      }
+    },
+    {
+      "scenario": "mobile:D roles",
+      "step": "seeker cannot open an admin screen",
+      "status": "PASS",
+      "ms": 7,
+      "detail": {
+        "h1": "페이지를 찾을 수 없습니다"
+      }
+    },
+    {
+      "scenario": "mobile:C keyboard",
+      "step": "skip link is the first tab stop and moves focus to main",
+      "status": "PASS",
+      "ms": 52,
+      "detail": {
+        "first": "본문으로 바로가기",
+        "hash": "#main-content"
+      }
+    },
+    {
+      "scenario": "mobile:D roles",
+      "step": "admin signs in and opens the account screen",
+      "status": "PASS",
+      "ms": 359,
+      "detail": {
+        "h1": "페이지를 찾을 수 없습니다"
+      }
+    },
+    {
+      "scenario": "mobile:E network",
+      "step": "slow API shows a loading state, then content",
+      "status": "PASS",
+      "ms": 127,
+      "detail": {
+        "loadingVisible": true
+      }
+    },
+    {
+      "scenario": "mobile:E network",
+      "step": "failing API shows an error with retry that recovers",
+      "status": "PASS",
+      "ms": 97
+    }
+  ]
+}
