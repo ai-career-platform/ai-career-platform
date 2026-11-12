@@ -84,7 +84,8 @@ systemd timer(5분, 기존) ─▶ dispatcher dispatch ─┐
 
 ## 6. 배포 상태
 
-- 코드: 이 PR. 병합에는 독립 승인 리뷰 1건이 필요합니다(보호 규칙 우회 안 함). 2026-11-12 기준 승인 0 → 병합 대기.
+- 코드: #250 병합 `2b19fd0`. Auto-CD 로 2026-11-12 09:51Z Staging 반영(게시 run `43194768990`). backend `slack-status` configured=true.
+- 수동 1회 실행 결과(SUCCEEDED, Slack HTTP 200): [CRAWLER_MANUAL_RUN_RESULT.md](CRAWLER_MANUAL_RUN_RESULT.md)
 - **서버 Slack 설정: 완료** (2026-11-12 18:41 KST, PM 승인 CRAWLER_SLACK_02)
   - 변경 파일은 2개뿐입니다: 서버 private `.env`, `automation/compose.release.yaml`
   - `.env` 에 `SLACK_WEBHOOK_URL` 1줄을 추가했습니다(값은 SSH stdin 으로만 전달). 로컬 `SLACK_WEBHOOK_RUL` 과 값이 같음을 확인했습니다.
@@ -96,9 +97,7 @@ systemd timer(5분, 기존) ─▶ dispatcher dispatch ─┐
     - `.env` 와 overlay 를 합친 compose 설정이 유효합니다(`config --quiet`).
     - 배포 로그에 Webhook 이 노출되지 않았습니다.
     - DB 정상, live 환경변수 미설정, 컨테이너 3개 healthy, Auto-CD 타이머 정상.
-- **backend 반영: 대기.** 실행 중인 컨테이너에는 아직 Slack 변수가 없습니다.
-  - 이 PR 병합 후 Auto-CD(`deploy.py`)가 backend 를 새 이미지로 재생성할 때 함께 적용됩니다.
-  - 배포 절차 밖의 수동 재생성은 하지 않았습니다. 현재 이미지에는 알림 코드가 없어 효과도 없습니다.
+- **backend 반영: 완료.** 수동 재생성 없이, #250 배포 때 Auto-CD 가 backend 를 재생성하면서 적용되었습니다.
 - 실행 결과는 [CRAWLER_MANUAL_RUN_RESULT.md](CRAWLER_MANUAL_RUN_RESULT.md) 에 있습니다.
 - 서버 설정 롤백: 두 백업 파일로 원본을 복원합니다. 복원 결과는 위 "변경 전" 해시와 일치해야 합니다.
 

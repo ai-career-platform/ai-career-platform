@@ -1,0 +1,4 @@
+start=2026-11-12 18:52:55 KST
+{"run_id": "061c7bae-0e2a-4dd7-8766-9c4a362b3711", "status": "SUCCEEDED", "worker_exit": 0, "manual": true, "slack": "SENT", "slack_http_status": 200}
+exit=0
+end=2026-11-12 18:52:56 KST

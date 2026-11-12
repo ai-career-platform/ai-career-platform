@@ -1,0 +1,40 @@
+                run_id                |  trigger  |  mode   |  status   | attempt |  scheduled_for_kst  |     started_kst     |      ended_kst      | fetched | inserted | updated | dup | failed | error_code | retry_at
+--------------------------------------+-----------+---------+-----------+---------+---------------------+---------------------+---------------------+---------+----------+---------+-----+--------+------------+----------
+ 061c7bae-0e2a-4dd7-8766-9c4a362b3711 | scheduled | fixture | SUCCEEDED |       1 | 2026-11-12 18:52:55 | 2026-11-12 18:52:55 | 2026-11-12 18:52:55 |       2 |        0 |       0 |   2 |      0 |            |
+(1 row)
+
+ event_id |     kst      | level |   event_type
+----------+--------------+-------+----------------
+        4 | 18:52:55.575 | INFO  | MANUAL_RUN
+        5 | 18:52:55.575 | INFO  | CLAIMED
+        6 | 18:52:55.712 | INFO  | WORKER_STARTED
+        7 | 18:52:55.716 | INFO  | SUCCEEDED
+        8 | 18:52:56.083 | INFO  | SLACK_NOTIFIED
+(5 rows)
+
+ postings_total
+----------------
+             35
+(1 row)
+
+    source_code    | n  |   last_saved
+-------------------+----+----------------
+ jobkorea          |  2 | 11-08 15:59:17
+ jobkorea_imported | 28 | 11-09 07:30:01
+ jobkorea_live     |  5 | 11-08 09:50:48
+(3 rows)
+
+ runs | running | run_events
+------+---------+------------
+    2 |       0 |          8
+(1 row)
+
+ enabled |  mode   |    next_run_kst     |  last_run_kst  | targets
+---------+---------+---------------------+----------------+---------
+ t       | fixture | 2026-11-13 03:00:00 | 11-08 15:59:17 |       0
+(1 row)
+
+timer enabled=enabled active=active
+Thu 2026-11-12 09:54:49 UTC 1min 38s Thu 2026-11-12 09:49:49 UTC 3min 21s ago ai-career-crawler-dispatch.timer ai-career-crawler-dispatch.service
+2026-11-12T09:49:49+00:00 kant flock[1059885]: {"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0}
+hook in backend logs (10m): 0
