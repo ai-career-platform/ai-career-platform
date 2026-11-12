@@ -48,6 +48,20 @@ function authedUser(token?: string | null) {
 }
 
 function resolveAuth(path: string, { method, body, token }: MockRequest): unknown {
+  if (method === 'POST' && path === '/v1/auth/signup') {
+    const { email, password, display_name: displayName, consents } = (body ?? {}) as {
+      email?: string; password?: string; display_name?: string; consents?: { policy_code: string; granted: boolean }[];
+    };
+    const granted = (code: string) => consents?.some((c) => c.policy_code === code && c.granted) ?? false;
+    if (!email || !displayName?.trim() || !password || password.length < 10 || !granted('terms') || !granted('privacy')) {
+      return problem(422, 'VALIDATION_FAILED');
+    }
+    const key = email.trim().toLowerCase();
+    if (mockUsers[key]) return problem(409, 'EMAIL_TAKEN');
+    // 가짜 계정은 이 탭의 메모리에만 있습니다. 로그인은 공통 Mock 비밀번호로 합니다.
+    mockUsers[key] = { display_name: displayName.trim(), roles: ['job_seeker'] };
+    return { access_token: `${MOCK_TOKEN_PREFIX}${key}`, token_type: 'Bearer', expires_in: 900 };
+  }
   if (method === 'POST' && path === '/v1/auth/login') {
     const { email, password } = (body ?? {}) as { email?: string; password?: string };
     if (email === 'locked@example.com') return problem(429, 'RATE_LIMITED');

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { BodyOf } from '../api/schema';
 
 export interface AuthUser {
   email: string;
@@ -18,6 +19,8 @@ export interface AuthContextValue {
   state: AuthState;
   login: (email: string, password: string, autoLogin?: boolean) => Promise<void>;
   logout: () => Promise<void>;
+  /** 가입 후 바로 로그인 상태가 됩니다 (FR-ACC-001). */
+  signup: (body: BodyOf<'signup'>) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

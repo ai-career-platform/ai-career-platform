@@ -26,7 +26,7 @@ afterEach(() => {
 const auth: AuthContextValue = {
   state: { status: 'authenticated', token: 'synthetic', user: { email: 'synthetic-admin', displayName: '합성 관리자',
     roles: ['job_seeker', 'admin'], userId: 'synthetic-admin' } },
-  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(),
+  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>(),
 };
 
 function setup<S extends AdminAuditService>(path: '/admin/audit-events' | '/admin/ai-usage', service: S): S {

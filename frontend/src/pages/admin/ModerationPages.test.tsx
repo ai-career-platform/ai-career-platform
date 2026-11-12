@@ -25,7 +25,7 @@ function setup(path: string, options: { latencyMs?: number; cases?: Parameters<t
   const auth: AuthContextValue = {
     state: { status: 'authenticated', token: 'synthetic', user: { email: MOCK_ADMIN_ID, displayName: '합성 관리자',
       roles: ['job_seeker', 'admin'], userId: MOCK_ADMIN_ID } },
-    login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(),
+    login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>(),
   };
   render(
     <AuthContext.Provider value={auth}>
@@ -86,7 +86,7 @@ describe('queue', () => {
     const service = createMockModerationService({ viewer: () => MOCK_ADMIN_ID });
     service.failNext(new ApiError(503, '/v1/admin/moderation-cases'));
     const auth: AuthContextValue = { state: { status: 'authenticated', token: 't', user: { email: MOCK_ADMIN_ID,
-      displayName: '합성 관리자', roles: ['admin'], userId: MOCK_ADMIN_ID } }, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
+      displayName: '합성 관리자', roles: ['admin'], userId: MOCK_ADMIN_ID } }, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>() };
     render(<AuthContext.Provider value={auth}><MemoryRouter initialEntries={['/admin/moderation']}><Routes>
       <Route element={<ModerationServiceProvider service={service} />}>
         <Route path="/admin/moderation" element={<ModerationQueuePage />} />

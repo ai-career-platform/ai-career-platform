@@ -23,7 +23,7 @@ function show(custom?: RequestFn) {
     state: { status: 'authenticated', token: 'mock-access-user@example.com',
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
-    logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined),
+    logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), signup: vi.fn<AuthContextValue['signup']>(),
   };
   render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/me/skills']}>
     <Routes><Route path="/me/skills" element={<MySkillsPage />} /></Routes>

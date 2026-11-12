@@ -34,10 +34,10 @@ afterEach(() => {
 });
 
 const anonymous: AuthContextValue = { state: { status: 'anonymous' },
-  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
+  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>() };
 const signedIn: AuthContextValue = { state: { status: 'authenticated', token: 'synthetic', user: { email: 'user@example.com',
   displayName: '일반 사용자', roles: ['job_seeker'], userId: 'synthetic-user' } }, login: vi.fn<AuthContextValue['login']>(),
-  logout: vi.fn<AuthContextValue['logout']>() };
+  logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>() };
 
 function open(path: string, service: AccountRecoveryService | null, auth: AuthContextValue = anonymous) {
   const router = createMemoryRouter([
