@@ -17,3 +17,16 @@ services:
       SLACK_WEBHOOK_RUL: ${SLACK_WEBHOOK_RUL:-}
       # CRAWLER_NIGHT_01 keyword night collection: off unless explicitly enabled on the server.
       CRAWLER_NIGHT_ENABLED: ${CRAWLER_NIGHT_ENABLED:-0}
+      # #328 Google SSO: both flags stay off unless set in the server's private .env (docs/ops/GOOGLE_SSO_STAGING_ROLLOUT.md).
+      # Secret and allowlist are files on the server only, mounted read-only below; never put their values here.
+      PUBLIC_PATH_PREFIX: ${PUBLIC_PATH_PREFIX:-}
+      GOOGLE_LOGIN_ENABLED: ${GOOGLE_LOGIN_ENABLED:-0}
+      GOOGLE_GATE_ENFORCED: ${GOOGLE_GATE_ENFORCED:-0}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET_FILE: ${GOOGLE_CLIENT_SECRET_FILE:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_ALLOWLIST_FILE: ${GOOGLE_ALLOWLIST_FILE:-}
+      GOOGLE_COOKIE_SECRET: ${GOOGLE_COOKIE_SECRET:-}
+    volumes:
+      # Server-only directory (0700 dir, 0600 files): client_secret, allowlist.txt. Create it before the first deploy.
+      - ./google-auth:/run/google-auth:ro
