@@ -192,7 +192,9 @@ class StagingNightE2E(unittest.TestCase):
         self.assertEqual(rows[1]['unchanged'], 1)
         before_21 = [s for h, s in trace if h < '21:00' and h >= '12:00']
         self.assertTrue(before_21 and all(s == 'IDLE/OUTSIDE_WINDOW' for s in before_21))
-        self.assertIn(('07:50', 'IDLE/START_CUTOFF'), trace)
+        # All approved keywords are already complete; 07:50 is inside the new window,
+        # not the old 07:45 job cutoff. Per-request guards enforce 08:00 independently.
+        self.assertIn(('07:50', 'IDLE/NOTHING_DUE'), trace)
         self.assertIn(('08:00', 'SUMMARY_SENT'), trace)          # first poll after the window
         self.assertIn(('08:05', 'IDLE/OUTSIDE_WINDOW'), trace)   # summary not sent twice
         self.assertIn(('08:10', 'IDLE/OUTSIDE_WINDOW'), trace)
