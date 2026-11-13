@@ -15,7 +15,7 @@ const ANON: AuthState = { status: 'anonymous' };
 const MEMBER: AuthState = { status: 'authenticated', token: 't', user: { email: 'a@example.com', displayName: '테스터', roles: [] } };
 
 function renderPage(state: AuthState = ANON, url = '/job-roles') {
-  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>() };
+  const value: AuthContextValue = { state, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>() };
   return render(
     <MemoryRouter initialEntries={[url]}>
       <AuthContext.Provider value={value}><WithApi request={(path) => (path.startsWith('/v1/me') ? request(path) : get(path))}><JobExplorerPage /></WithApi></AuthContext.Provider>

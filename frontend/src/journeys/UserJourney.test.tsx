@@ -98,9 +98,10 @@ describe('interruptions and access control', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  it('known gap is pinned: the sign-up link leads to 404 until a sign-up screen exists', async () => {
+  it('the sign-up link is no longer a gap: /signup opens the sign-up screen, not 404', async () => {
     const router = open('/signup');
-    expect(await h1('페이지를 찾을 수 없습니다')).toBeInTheDocument();
+    expect(await h1('회원가입')).toBeInTheDocument();
+    expect(screen.queryByText('페이지를 찾을 수 없습니다')).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/signup');
   });
 
@@ -130,7 +131,7 @@ const matches = (route: string, link: string) =>
   new RegExp('^' + route.replace(/:[^/]+/g, '[^/]+').replace(/\/$/, '') + '/?$').test(link.replace(/\/$/, '') || '/');
 
 // 알려진 공백(문서 T92 §4): 화면이 아직 없음 → 고쳐지면 이 목록에서 지워야 시험이 통과
-const KNOWN_DEAD_LINKS = new Set(['/signup']);
+const KNOWN_DEAD_LINKS = new Set<string>();
 // 앱 안 진입점이 없어도 되는 경로(사유): 운영 점검·개발 미리보기·상세(목록에서 동적 링크)·404·
 // 메일 링크로만 들어오는 화면(T124 기업 초대 수락 — 링크는 `#token=` fragment, Mock 메일함의 동적 링크)
 const NO_ENTRY_NEEDED = new Set(['/system-status', '/*', '/admin/moderation/:caseId', '/company-invitations/accept', '/p/:token']);

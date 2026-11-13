@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Api } from '../api';
+import type { BodyOf } from '../api/schema';
 import { ApiContext } from '../api/ApiContext';
 import { forgetSession, rememberSession, shouldKeepSession } from './loginPreferences';
 import { createSession } from './session';
@@ -65,6 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apply(next);
   }, [api, apply, signIn]);
 
+  const signup = useCallback(async (body: BodyOf<'signup'>) => {
+    const t = await api.auth.signup(body);
+    const next = await signIn(t.access_token);
+    rememberSession(false);
+    apply(next);
+  }, [api, apply, signIn]);
+
   const logout = useCallback(async () => {
     try {
       await api.auth.logout();
@@ -75,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [api, apply]);
 
-  const value = useMemo(() => ({ state, login, logout }), [state, login, logout]);
+  const value = useMemo(() => ({ state, login, logout, signup }), [state, login, logout, signup]);
   return (
     <AuthContext.Provider value={value}>
       <ApiContext.Provider value={api}>{children}</ApiContext.Provider>
