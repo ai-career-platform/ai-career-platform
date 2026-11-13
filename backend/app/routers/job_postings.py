@@ -27,6 +27,10 @@ from app.services.job_postings import JobPostingService, ListCursor, derive_curs
 from app.services.job_search import normalize_q, unique
 
 _optional_bearer = HTTPBearer(auto_error=False)
+# 위 HTTPBearer 의존성이 OpenAPI 에 {"HTTPBearer": []} 를 이미 넣으므로, 익명 허용 {} 만 덧붙인다
+# (FastAPI 는 openapi_extra 의 리스트를 이어 붙임). 결과는 openapi.yaml 의 `security: [{}, {bearerAuth: []}]`
+# 와 같은 "인증 선택" 이다. 이 표기가 없으면 공개 API 가 인증 필수로 문서화된다(Staging 런타임 OpenAPI 에서 발견).
+OPTIONAL_AUTH = {"security": [{}]}
 
 
 def get_job_posting_service(
@@ -66,14 +70,15 @@ Cursor = Annotated[str | None, Query(max_length=500, description="이전 응답�
 router = APIRouter(tags=["catalog"], responses=error_responses(503))
 
 
-@router.get("/companies", response_model=CompanyPage, summary="기업 목록·검색", responses=error_responses(400))
+@router.get("/companies", response_model=CompanyPage, summary="기업 목록·검색", responses=error_responses(400),
+            openapi_extra=OPTIONAL_AUTH)
 def list_companies(service: ServiceDep, _user: OptionalUser, q: Q = None, limit: Limit = 20,
                    cursor: Cursor = None) -> CompanyPage:
     return service.list_companies(q, limit, cursor)
 
 
 @router.get("/companies/{company_id}", response_model=CompanyDetail, summary="기업 상세 (진행 중 공고 수 포함)",
-            responses=error_responses(404))
+            responses=error_responses(404), openapi_extra=OPTIONAL_AUTH)
 def get_company(company_id: UUID, service: ServiceDep, _user: OptionalUser) -> CompanyDetail:
     return service.get_company(company_id)
 
@@ -85,7 +90,8 @@ advanced_list_router = APIRouter(tags=["catalog"], responses=error_responses(503
 
 
 @legacy_list_router.get("/job-postings", response_model=JobPostingPage,
-                        summary="채용공고 목록·필터 (기본은 게시 중인 공고만)", responses=error_responses(400))
+                        summary="채용공고 목록·필터 (기본은 게시 중인 공고만)", responses=error_responses(400),
+                        openapi_extra=OPTIONAL_AUTH)
 def list_job_postings(
     service: ServiceDep,
     _user: OptionalUser,
@@ -105,7 +111,8 @@ Many = Annotated[list[UUID] | None, Query(description="여러 개면 OR. 중복 
 
 
 @advanced_list_router.get("/job-postings", response_model=JobPostingPage,
-                          summary="채용공고 목록·고급 필터 (T98 제안 계약, 기능 플래그)", responses=error_responses(400))
+                          summary="채용공고 목록·고급 필터 (T98 제안 계약, 기능 플래그)", responses=error_responses(400),
+                          openapi_extra=OPTIONAL_AUTH)
 def list_job_postings_advanced(
     service: ServiceDep,
     _user: OptionalUser,
@@ -130,6 +137,7 @@ def list_job_postings_advanced(
 
 
 @router.get("/job-postings/{job_posting_id}", response_model=JobPostingDetail,
-            summary="공고 상세 (요구 기술, 로그인 시 내 저장 여부)", responses=error_responses(404))
+            summary="공고 상세 (요구 기술, 로그인 시 내 저장 여부)", responses=error_responses(404),
+            openapi_extra=OPTIONAL_AUTH)
 def get_job_posting(job_posting_id: UUID, service: ServiceDep, user: OptionalUser) -> JobPostingDetail:
     return service.get_posting(job_posting_id, None if user is None else user.user_id)
