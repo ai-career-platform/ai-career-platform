@@ -6,6 +6,8 @@ type StatePanelProps = {
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** 오류 응답의 X-Request-ID(displayRequestId). 있을 때만 문의용 요청 번호로 표시합니다. */
+  requestId?: string;
 };
 
 const defaultContent = {
@@ -33,6 +35,7 @@ export function StatePanel({
   description,
   actionLabel,
   onAction,
+  requestId,
 }: StatePanelProps) {
   const content = defaultContent[variant];
   const isLoading = variant === 'loading';
@@ -49,6 +52,12 @@ export function StatePanel({
       <p className="state-panel-description">
         {description ?? content.description}
       </p>
+
+      {variant === 'error' && requestId && (
+        <p className="state-panel-request-id">
+          문의용 요청 번호: <code className="state-panel-request-id-value">{requestId}</code>
+        </p>
+      )}
 
       {!isLoading && actionLabel && onAction && (
         <button

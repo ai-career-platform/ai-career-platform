@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApi } from '../api/ApiContext';
+import { displayRequestId } from '../api/errors';
 import { useQuery } from '../api/useQuery';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -146,7 +147,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
         {companies.status === 'loading' && <StatePanel variant="loading" title="기업을 불러오는 중입니다" />}
         {companies.status === 'error' && (
           <StatePanel variant="error" title="기업 목록을 불러오지 못했습니다"
-            actionLabel="다시 시도" onAction={companies.retry} />
+            actionLabel="다시 시도" onAction={companies.retry} requestId={displayRequestId(companies.error)} />
         )}
         {companies.status === 'ready' && companyItems.length === 0 && (
           <StatePanel variant="empty" title="등록된 기업이 없습니다" description="기업이 등록되면 이곳에 표시됩니다." />
@@ -277,7 +278,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
           {list.status === 'error' && (
             <StatePanel variant="error" title="채용공고를 불러오지 못했습니다"
               description="네트워크 또는 서버 상태를 확인한 뒤 다시 시도해 주세요."
-              actionLabel="다시 시도" onAction={list.retry} />
+              actionLabel="다시 시도" onAction={list.retry} requestId={displayRequestId(list.error)} />
           )}
           {list.status === 'ready' && list.data.items.length === 0 && (
             <StatePanel variant="empty" title="조건에 맞는 공고가 없습니다"
@@ -334,7 +335,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
           {selected && detail.status === 'loading' && <StatePanel variant="loading" title="상세 정보를 불러오는 중입니다" />}
           {selected && detail.status === 'error' && (
             <StatePanel variant="error" title="상세 정보를 불러오지 못했습니다"
-              actionLabel="다시 시도" onAction={detail.retry} />
+              actionLabel="다시 시도" onAction={detail.retry} requestId={displayRequestId(detail.error)} />
           )}
           {selected && detail.status === 'ready' && (
             <div className="t24-detail-content">
@@ -369,7 +370,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
               {companyDetail.status === 'loading' && <p role="status">기업 정보를 불러오는 중입니다.</p>}
               {companyDetail.status === 'error' && (
                 <StatePanel variant="error" title="기업 정보를 불러오지 못했습니다"
-                  actionLabel="다시 시도" onAction={companyDetail.retry} />
+                  actionLabel="다시 시도" onAction={companyDetail.retry} requestId={displayRequestId(companyDetail.error)} />
               )}
               {companyDetail.status === 'ready' && (() => {
                 const site = safeExternalUrl(companyDetail.data.website_url);

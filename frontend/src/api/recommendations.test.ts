@@ -57,7 +57,8 @@ describe('recommendations API client (OpenAPI contract)', () => {
   });
 
   it('defaults limit to 20 and encodes ids in paths', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(201, run));
+    // 호출마다 새 Response (같은 Response 를 두 번 쓰면 두 번째 본문 읽기가 실패합니다 — 실제 fetch 와 같게)
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse(201, run));
     await apiFor(fetchImpl).create();
     expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ limit: 20 }) });
 

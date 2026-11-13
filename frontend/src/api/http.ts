@@ -1,4 +1,4 @@
-import { ApiError } from './errors';
+import { ApiError, INVALID_RESPONSE_CODE } from './errors';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type QueryValue = string | number | boolean | null | undefined;
@@ -120,8 +120,27 @@ export function createHttpClient(config: HttpClientConfig): HttpClient {
         throw new ApiError(0, path, 'Network error');
       }
     }
-    // 204 No Content 등 본문이 없는 성공 응답
-    return (await response.json().catch(() => undefined)) as T;
+    // 204/205 또는 본문이 빈 성공 응답은 undefined (본문 없는 Promise<void> 계약)
+    if (response.status === 204 || response.status === 205) return undefined as T;
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      if (isAbort(error)) throw error;
+      throw new ApiError(0, path, 'Network error');
+    }
+    if (text.trim() === '') return undefined as T;
+    // 성공 상태여도 HTML(프록시·점검 페이지·SPA 대체 응답)이나 깨진 JSON은 정상 결과가 아닙니다(E2E-006 D-1).
+    const invalid = () => new ApiError(
+      response.status, path, `API ${path} returned a non-JSON success response`, INVALID_RESPONSE_CODE, undefined,
+      response.headers.get(REQUEST_ID_HEADER) ?? undefined, response.headers,
+    );
+    if (/\btext\/html\b/i.test(response.headers.get('Content-Type') ?? '')) throw invalid();
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw invalid();
+    }
   }
 
   return { request };
