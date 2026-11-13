@@ -143,3 +143,17 @@
   padding: 0 4px;
   font-weight: 600;
 }
+
+/* #328 Google로 계속하기 (전체 페이지 이동 링크) */
+.login-google {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 12px 0;
+  text-decoration: none;
+}
+
+.login-google[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}

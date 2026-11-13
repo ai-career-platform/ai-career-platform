@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
+import { GoogleLoginButton } from '../auth/GoogleLoginButton';
+import { googleLoginError } from '../auth/google';
 import { getSavedEmail, saveEmail } from '../auth/loginPreferences';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
@@ -26,6 +28,8 @@ export function LoginPage() {
   const [savedEmail] = useState(getSavedEmail);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // #328 Google 인증 결과 안내(Backend 가 고정 코드만 넘김: failed·cancelled·email_conflict)
+  const googleError = googleLoginError(useSearchParams()[0].get('google_error'));
 
   if (state.status === 'authenticated') return <Navigate to={from} replace />;
 
@@ -59,6 +63,9 @@ export function LoginPage() {
           로그인
         </h1>
         {locationState?.privacyNotice && <p role="status">{locationState.privacyNotice}</p>}
+        {googleError && <p role="alert" className="login-error">{googleError}</p>}
+        {/* #328 Google 로그인. 서버에서 기능이 꺼져 있으면(GET /auth/gate 404) 버튼을 그리지 않습니다. */}
+        <GoogleLoginButton returnPath={from} />
         <form onSubmit={onSubmit} className="login-form">
           <TextField
             label="이메일"

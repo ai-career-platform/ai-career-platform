@@ -1,10 +1,12 @@
 import { Link } from 'react-router';
+import { useGoogleAvailable } from '../auth/useGoogleAvailable';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 
 /** 로그인 사용자 확인용 계정 화면. 프로필 조회·수정은 T22 에서 구현합니다. */
 export function AccountPage() {
-  const { state, logout } = useAuth();
+  const { state, logout, fullLogout } = useAuth();
+  const googleAvailable = useGoogleAvailable();
   if (state.status !== 'authenticated') return null;
   return (
     <section aria-labelledby="account-title">
@@ -23,6 +25,18 @@ export function AccountPage() {
       <Button variant="outline" onClick={() => void logout()}>
         로그아웃
       </Button>
+      {googleAvailable && (
+        <>
+          {' '}
+          <Button variant="outline" onClick={() => void fullLogout()} aria-describedby="full-logout-help">
+            완전 로그아웃
+          </Button>
+          <p id="full-logout-help">
+            완전 로그아웃은 이 브라우저에서 AI Career 로그인과 Google 접근 확인을 모두 지웁니다. Google 계정 자체는
+            로그아웃되지 않습니다.
+          </p>
+        </>
+      )}
     </section>
   );
 }

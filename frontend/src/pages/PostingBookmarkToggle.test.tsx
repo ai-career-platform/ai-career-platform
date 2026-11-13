@@ -9,9 +9,9 @@ import { PostingBookmarkToggle } from './PostingBookmarkToggle';
 const ID = '44444444-4444-4444-8444-444444444444';
 const signedIn: AuthContextValue = {
   state: { status: 'authenticated', token: 't', user: { email: 'u@example.invalid', displayName: 'U', roles: ['job_seeker'] } },
-  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>(),
+  login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>(), googleSignup: vi.fn<AuthContextValue['googleSignup']>(), fullLogout: vi.fn<AuthContextValue['fullLogout']>(),
 };
-const anonymous: AuthContextValue = { state: { status: 'anonymous' }, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>() };
+const anonymous: AuthContextValue = { state: { status: 'anonymous' }, login: vi.fn<AuthContextValue['login']>(), logout: vi.fn<AuthContextValue['logout']>(), signup: vi.fn<AuthContextValue['signup']>(), googleSignup: vi.fn<AuthContextValue['googleSignup']>(), fullLogout: vi.fn<AuthContextValue['fullLogout']>() };
 
 function renderToggle(request: RequestFn, auth: AuthContextValue | null, initial: boolean | null) {
   const tree = <WithApi request={request}><MemoryRouter><PostingBookmarkToggle postingId={ID} initial={initial} /></MemoryRouter></WithApi>;
