@@ -222,3 +222,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local generated artifacts (reports, zips, transfer scripts) and database dumps — never commit
+outputs/
+*.dump
