@@ -18,7 +18,9 @@ ENV VITE_API_BASE_URL=/api \
     VITE_SKILL_AUTOCOMPLETE=false
 RUN rm -f .env .env.local .env.production .env.production.local
 # Fail closed: the publish gate only checks ci.yml, so lint and unit tests run here before the build.
-RUN npm run lint && npm test && npm run build
+# Staging serves the app under /career/ on a shared origin (Redmine owns /). Only the build sees the
+# base path; tests keep the default '/'. See docs/ops/STAGING_CAREER_BASEPATH.md.
+RUN npm run lint && npm test && VITE_BASE_PATH=/career/ VITE_API_BASE_URL=/career/api npm run build
 
 FROM nginx:1.27.5-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

@@ -1,12 +1,17 @@
 /// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { normalizeBasePath } from './src/config/basePath.ts';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const proxyTarget = env.DEV_API_PROXY_TARGET || 'http://127.0.0.1:18080';
+  // 앱이 놓이는 URL 경로. 기본 '/'(로컬·테스트). Staging 이미지는 공유 Origin의 /career/ 아래에서 서비스되므로
+  // VITE_BASE_PATH=/career/ 로 빌드합니다(poc/staging/frontend/Dockerfile.integrated, docs/ops/STAGING_CAREER_BASEPATH.md).
+  const basePath = normalizeBasePath(env.VITE_BASE_PATH);
 
   return {
+    base: basePath,
     plugins: [react()],
     server: {
       host: '127.0.0.1',

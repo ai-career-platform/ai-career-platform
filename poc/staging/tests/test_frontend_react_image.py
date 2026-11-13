@@ -46,7 +46,8 @@ def test_image_keeps_status_page_and_disables_mock_and_unapproved_flags():
     assert 'COPY status.js status.css /usr/share/nginx/html/' in DOCKERFILE
     assert 'VITE_API_BASE_URL=/api' in DOCKERFILE and 'VITE_API_MOCK=false' in DOCKERFILE
     assert not re.search(r'VITE_[A-Z_]+=true', DOCKERFILE)
-    assert 'npm run lint && npm test && npm run build' in DOCKERFILE
+    # Tests run with the default base '/'; only the build is placed under /career/ (shared origin, Redmine at /).
+    assert 'npm run lint && npm test && VITE_BASE_PATH=/career/ VITE_API_BASE_URL=/career/api npm run build' in DOCKERFILE
     assert 'COPY --from=docs . /repo/docs' in DOCKERFILE  # contract tests read ../docs; none may be skipped
     # Every VITE_* flag read by the app is either pinned off here or only effective with VITE_API_MOCK=true.
     env_ts = (ROOT / 'frontend' / 'src' / 'config' / 'env.ts').read_text(encoding='utf-8')
@@ -59,6 +60,14 @@ def test_image_keeps_status_page_and_disables_mock_and_unapproved_flags():
     flags = set(re.findall(r'import\.meta\.env\.(VITE_\w+)', env_ts))
     mock_gated = {f for f in flags if re.search(rf"VITE_API_MOCK === 'true' &&[^,]*{f}", env_ts, re.S)}
     assert flags - mock_gated - standalone == {'VITE_API_BASE_URL', 'VITE_API_MOCK'}
+
+
+def test_career_prefixed_assets_are_served_but_never_fall_back_to_the_shell():
+    b = blocks()
+    assert 'alias /usr/share/nginx/html/assets/;' in b['/career/assets/']
+    assert 'try_files' not in b['/career/assets/'] and 'immutable' in b['/career/assets/']
+    for header in SECURITY_HEADERS:
+        assert header in b['/career/assets/'], header
 
 
 def test_publish_and_ci_build_the_integrated_image():
