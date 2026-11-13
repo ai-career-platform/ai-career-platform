@@ -1,0 +1,93 @@
+# DESIGN DRAFT (#265) - not a deploy file. Replaces /etc/nginx/snippets/ai-career-route.conf in #266.
+# Included inside the shared server block (dbresting-shared.conf, server_name sulfite-footbath-next.ngrok-free.dev)
+# BEFORE its "location /" (Redmine). Redmine "/" and "/church/" blocks are not edited.
+# Assumes PR #271 is deployed (bundle built for /career/, so the old sub_filter is dropped here).
+#
+# Location selection (nginx): exact "=" first, then the longest prefix:
+#   = /career                  -> 301 /career/
+#   = /career/oauth2/auth      -> internal only (auth_request subrequest); external clients get 404
+#   /career/oauth2/            -> oauth2-proxy (sign_in, start, callback, sign_out) - no auth_request (no loop)
+#   /career/api/               -> auth_request; 401 JSON for API clients (no redirect)
+#   /career/                   -> auth_request; 401 -> 302 to Google sign-in for browsers
+#   everything else            -> existing blocks (/church/, / Redmine) - unchanged, no auth
+
+location = /career {
+    return 301 /career/;
+}
+
+# oauth2-proxy endpoints. proxy_pass without a URI keeps the full /career/oauth2/... path (= proxy_prefix).
+location /career/oauth2/ {
+    proxy_pass http://127.0.0.1:4180;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $dbresting_forwarded_proto;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Auth-Request-Redirect $request_uri;
+}
+
+# auth_request target: 202 = signed in with an allowed email, 401 = not.
+location = /career/oauth2/auth {
+    internal;
+    proxy_pass http://127.0.0.1:4180;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $dbresting_forwarded_proto;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Uri $request_uri;
+}
+
+location @career_signin {
+    # Relative rd only (no open redirect). Deep links with several query params may lose params after '&'.
+    return 302 /career/oauth2/sign_in?rd=$request_uri;
+}
+
+location @career_api_unauthorized {
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    return 401 '{"code":"EDGE_AUTH_REQUIRED","status":401,"message":"Google sign-in required."}';
+}
+
+# Platform API: first gate = Google allowlist; second gate = the app's own Bearer login (unchanged).
+location /career/api/ {
+    auth_request /career/oauth2/auth;
+    error_page 401 = @career_api_unauthorized;
+
+    proxy_pass http://127.0.0.1:18080/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $dbresting_forwarded_proto;
+    # Never forward identity headers a client could forge (the app does not read them; defence in depth).
+    proxy_set_header X-Forwarded-User "";
+    proxy_set_header X-Forwarded-Email "";
+    proxy_set_header X-Auth-Request-User "";
+    proxy_set_header X-Auth-Request-Email "";
+    # The app's refresh cookie is issued for /api/v1/auth; the browser calls /career/api/v1/auth/* (PR #271 doc §4).
+    proxy_cookie_path /api/v1/auth /career/api/v1/auth;
+    proxy_read_timeout 60s;
+}
+
+# Platform SPA and assets.
+location /career/ {
+    auth_request /career/oauth2/auth;
+    error_page 401 = @career_signin;
+
+    proxy_pass http://127.0.0.1:18080/;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $dbresting_forwarded_proto;
+    proxy_set_header X-Forwarded-User "";
+    proxy_set_header X-Forwarded-Email "";
+    proxy_set_header X-Auth-Request-User "";
+    proxy_set_header X-Auth-Request-Email "";
+    proxy_read_timeout 60s;
+}

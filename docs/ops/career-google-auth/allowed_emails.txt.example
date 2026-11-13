@@ -1,0 +1,5 @@
+# DESIGN DRAFT (#265). Real file: /etc/oauth2-proxy/career/allowed_emails.txt on Staging only.
+# Never commit real addresses. One exact Google address per line; '#' lines are comments.
+# Empty file = nobody allowed (fail closed). Wildcards and domains are NOT supported here by design.
+alice@example.com
+bob@example.com

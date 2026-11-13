@@ -1,0 +1,48 @@
+# DESIGN DRAFT (#265) - not a deploy file. Target path on Staging (#266):
+#   /etc/oauth2-proxy/career/oauth2-proxy.cfg   (root:oauth2-proxy 0640)
+# Verified against oauth2-proxy v7.15.6 docs + source (validator.go, pkg/validation/options.go).
+# No secret values here: the client secret and cookie secret live in separate 0600 files.
+
+## Google provider (standard Google Auth Platform "Web application" client, NOT gcloud iam oauth-clients)
+provider = "google"
+client_id = "<GOOGLE_OAUTH_WEB_CLIENT_ID>"
+client_secret_file = "/etc/oauth2-proxy/career/client_secret"   # secret only, no trailing newline
+scope = "openid email profile"                                   # minimal; keeps Testing-mode tokens from 7-day expiry
+insecure_oidc_allow_unverified_email = false                     # unverified Google emails are rejected
+
+## Public URLs: must match the shared nginx exactly (prefix /career/oauth2, callback registered in Google)
+redirect_url = "https://sulfite-footbath-next.ngrok-free.dev/career/oauth2/callback"
+proxy_prefix = "/career/oauth2"
+skip_provider_button = true            # /career/oauth2/sign_in goes straight to Google
+
+## Network: loopback only, behind the host nginx
+http_address = "127.0.0.1:4180"
+reverse_proxy = true
+trusted_proxy_ips = ["127.0.0.1/32"]   # only the host nginx may supply X-Forwarded-* (default trusts everyone)
+# NEVER set trusted_ips: "list of client IPs ... allowed to bypass authentication". nginx is 127.0.0.1,
+# so trusted_ips = ["127.0.0.1"] would switch authentication off for every request.
+
+## Allowlist: exact emails only. email_domains is intentionally NOT set (never "*").
+# Source: only listed addresses are valid; an empty file allows nobody; a missing file aborts startup.
+authenticated_emails_file = "/etc/oauth2-proxy/career/allowed_emails.txt"
+
+## Session cookie (separate from Redmine "_redmine_session" and the app's "refresh_token")
+cookie_name = "_oauth2_proxy_career"
+cookie_secret_file = "/etc/oauth2-proxy/career/cookie_secret"  # 32 random bytes, base64
+cookie_path = "/career/"
+cookie_secure = true                   # ngrok terminates TLS; the browser only sees https
+cookie_httponly = true
+cookie_samesite = "lax"                # lax so the cookie survives the top-level redirect back from Google
+cookie_expire = "12h"
+cookie_refresh = "1h"                  # Google docs recommend a short refresh interval
+
+## Do not touch the app's own (second-factor) auth
+set_xauthrequest = false               # do not emit X-Auth-Request-* identity headers
+pass_authorization_header = false      # never overwrite the app's "Authorization: Bearer" (2nd login)
+set_authorization_header = false
+pass_access_token = false
+skip_jwt_bearer_tokens = false         # the app's own Bearer token is never accepted as a Google session
+
+## Logging (no tokens)
+request_logging = true
+auth_logging = true
