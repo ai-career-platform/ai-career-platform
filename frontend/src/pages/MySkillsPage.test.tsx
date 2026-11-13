@@ -20,7 +20,7 @@ function show({ anonymous = false, custom }: { anonymous?: boolean; custom?: Req
     state: anonymous ? { status: 'anonymous' } : { status: 'authenticated', token: 'mock-access-user@example.com',
       user: { email: 'user@example.com', displayName: '합성 사용자', roles: ['job_seeker'] } },
     login: vi.fn<AuthContextValue['login']>().mockResolvedValue(undefined),
-    logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), signup: vi.fn<AuthContextValue['signup']>(),
+    logout: vi.fn<AuthContextValue['logout']>().mockResolvedValue(undefined), signup: vi.fn<AuthContextValue['signup']>(), googleSignup: vi.fn<AuthContextValue['googleSignup']>(), fullLogout: vi.fn<AuthContextValue['fullLogout']>(),
   };
   const view = render(<AuthContext.Provider value={value}><WithApi request={request}><MemoryRouter initialEntries={['/me/skills']}>
     <Routes><Route element={<Outlet />}><Route element={<RequireAuth />}>

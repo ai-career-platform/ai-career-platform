@@ -21,6 +21,10 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
   /** 가입 후 바로 로그인 상태가 됩니다 (FR-ACC-001). */
   signup: (body: BodyOf<'signup'>) => Promise<void>;
+  /** #328 Google 최초 가입(약관 동의 후). 성공하면 바로 로그인 상태가 됩니다. */
+  googleSignup: (body: BodyOf<'completeGoogleSignup'>) => Promise<void>;
+  /** #328 완전 로그아웃(앱 세션 + Google 게이트). Google 계정 자체는 로그아웃하지 않습니다. */
+  fullLogout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
