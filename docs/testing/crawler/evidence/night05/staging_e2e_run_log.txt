@@ -1,0 +1,18 @@
+== image=6109a92b30e174163d3 pg=aicp-night-e2e-pg-20261112113656 start=2026-11-12 20:36:56 KST
+pg network=none ports=0
+migrations applied: 12 files, tables=17
+== RUN (exactly once)
+harness exit=0 end=2026-11-12 20:37:04 KST
+== UNITTEST LOG
+test_1_full_night_window_pacing_fixture_coexistence_and_summary (crawler.tests.staging_night_e2e.StagingNightE2E.test_1_full_night_window_pacing_fixture_coexistence_and_summary) ... ok
+test_2_next_night_duplicates_updates_and_checkpoint_advance (crawler.tests.staging_night_e2e.StagingNightE2E.test_2_next_night_duplicates_updates_and_checkpoint_advance) ... ok
+test_3_blocks_stop_the_night (crawler.tests.staging_night_e2e.StagingNightE2E.test_3_blocks_stop_the_night) ... ok
+test_4_timeout_retries_are_bounded (crawler.tests.staging_night_e2e.StagingNightE2E.test_4_timeout_retries_are_bounded) ... ok
+test_5_parse_and_db_save_failures_are_recorded_safely (crawler.tests.staging_night_e2e.StagingNightE2E.test_5_parse_and_db_save_failures_are_recorded_safely) ... ok
+test_6_duplicate_execution_and_worker_abort (crawler.tests.staging_night_e2e.StagingNightE2E.test_6_duplicate_execution_and_worker_abort) ... ok
+test_7_slack_messages_are_labelled_and_not_duplicated (crawler.tests.staging_night_e2e.StagingNightE2E.test_7_slack_messages_are_labelled_and_not_duplicated) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.465s
+
+OK

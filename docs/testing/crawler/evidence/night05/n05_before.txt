@@ -1,0 +1,15 @@
+now=2026-11-12 20:36:14 KST version=d5dd380
+backend running healthy 5cf244357a60
+db running healthy 9570b2c2ad79
+frontend running starting c0ce0865a683
+timers deploy=enabled/active crawler=enabled/active
+last crawler poll: {"status": "IDLE", "reason": "NOT_DUE_OR_DISABLED", "external_requests": 0, "night": {"night": "DISABLED"}}
+CRAWLER_NIGHT_ENABLED=<unset> LIVE_FLAG=<unset>
+/app/crawler/fixtures/jobkorea_user_detail_jsonld.html
+/app/crawler/tests/local_night_integration.py
+/app/crawler/tests/staging_night_e2e.py
+{"configured": true, "source": "SLACK_WEBHOOK_URL", "conflict": false}
+containers total=22 names=ai-career-db-lan-proxy ai-career-staging-poc-backend-1 ai-career-staging-poc-db-1 ai-career-staging-poc-frontend-1 ax2-integrated-platform-db-1 ax2-integrated-platform-face-service-1 ax2-integrated-platform-prd-worker-1 ax2-integrated-platform-web-1 cat-game-production-backend-1 cat-game-production-frontend-1 cat-game-production-grader-docker-1 cat-game-production-grading-worker-1 cat-game-production-sql-grader-db-1 dbresting-db-1 dbresting-nginx-1 dbresting-scheduler-1 dbresting-web-1 kant-google-20261028t013909z-f5b11c9-api-1 kant-google-20261028t013909z-f5b11c9-gateway-1 kant-google-20261028t013909z-f5b11c9-web-1 kant-site-20261027t112518z-602d436c-api-1 kant-site-20261027t112518z-602d436c-web-1
+schedule enabled=true mode=fixture tz=Asia/Seoul time=03:00:00 next=2026-11-13 03:00 targets=0
+postings=35 (jobkorea=2 jobkorea_imported=28 jobkorea_live=5) runs=2 events=8 keyword_jobs=14 discoveries=28 checkpoints=2 keywords=12 night_results=0 night_summaries=0
+crawler_db_md5=7abd40684d543ae8805f066148ad6e25

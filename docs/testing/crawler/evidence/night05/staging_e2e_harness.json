@@ -1,0 +1,945 @@
+{
+ "run_id": "e2e-9423cb26",
+ "mode": "FIXTURE_MOCK_HTTP",
+ "synthetic": true,
+ "scenarios": {
+  "full_night": {
+   "night": "2031-08-31",
+   "trace": [
+    [
+     "20:50",
+     "IDLE/OUTSIDE_WINDOW"
+    ],
+    [
+     "20:55",
+     "IDLE/OUTSIDE_WINDOW"
+    ],
+    [
+     "21:00",
+     "SUCCEEDED"
+    ],
+    [
+     "21:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "21:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:00",
+     "SUCCEEDED"
+    ],
+    [
+     "22:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "22:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:00",
+     "SUCCEEDED"
+    ],
+    [
+     "23:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "23:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:00",
+     "SUCCEEDED"
+    ],
+    [
+     "00:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "00:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:00",
+     "SUCCEEDED"
+    ],
+    [
+     "01:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "01:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:00",
+     "SUCCEEDED"
+    ],
+    [
+     "02:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "02:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:00",
+     "DAILY_SUCCEEDED"
+    ],
+    [
+     "03:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "03:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:00",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "04:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:00",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "05:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:00",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:50",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "06:55",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:00",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:05",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:10",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:15",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:20",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:25",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:30",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:35",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:40",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:45",
+     "IDLE/NOTHING_DUE"
+    ],
+    [
+     "07:50",
+     "IDLE/START_CUTOFF"
+    ],
+    [
+     "07:55",
+     "IDLE/START_CUTOFF"
+    ],
+    [
+     "08:00",
+     "SUMMARY_SENT"
+    ],
+    [
+     "08:05",
+     "IDLE/OUTSIDE_WINDOW"
+    ],
+    [
+     "08:10",
+     "IDLE/OUTSIDE_WINDOW"
+    ]
+   ],
+   "mocked_http_calls": 24
+  },
+  "next_night_dup_update": {
+   "night": "2031-09-01",
+   "inserted": 0,
+   "updated": 1,
+   "unchanged": 1
+  },
+  "block_ACCESS_FORBIDDEN": {
+   "night": "2031-09-02",
+   "http_calls_before_stop": 2
+  },
+  "block_RATE_LIMITED": {
+   "night": "2031-09-03",
+   "http_calls_before_stop": 3
+  },
+  "timeout_retry_limit": {
+   "night": "2031-09-04",
+   "attempts": [
+    [
+     1,
+     "FAILED",
+     "WORKER_TIMEOUT"
+    ],
+    [
+     2,
+     "FAILED",
+     "WORKER_TIMEOUT"
+    ],
+    [
+     3,
+     "FAILED",
+     "WORKER_TIMEOUT"
+    ]
+   ]
+  },
+  "parse_failure": {
+   "night": "2031-09-05",
+   "error_code": "INVALID_CONTRACT"
+  },
+  "db_save_failure": {
+   "night": "2031-09-06",
+   "error_code": "INVALID_CONTRACT"
+  },
+  "duplicate_and_abort": {
+   "night": "2031-09-07",
+   "attempts": [
+    [
+     1,
+     "FAILED",
+     "HEARTBEAT_TIMEOUT"
+    ],
+    [
+     2,
+     "SUCCEEDED",
+     null
+    ]
+   ]
+  }
+ },
+ "slack": [
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `5b7b6d79-35ad-4f28-8951-5d89962b652a`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: 데이터 분석 · Mode: LIVE · Attempt 1\nJob ID: `e7fd0501-ae8d-4b34-92f9-0d32821961d9`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 1 · Updated 0 · Duplicate/unchanged 1 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: 빅데이터 · Mode: LIVE · Attempt 1\nJob ID: `f5227169-8940-4b23-aa21-5e54ff6ae8be`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: AI 엔지니어 · Mode: LIVE · Attempt 1\nJob ID: `35b9da7c-1280-4433-bd8a-3c005e19cd41`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: 머신러닝 · Mode: LIVE · Attempt 1\nJob ID: `6f83883b-0dd2-444e-8562-b5fa5944a08a`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: 딥러닝 · Mode: LIVE · Attempt 1\nJob ID: `64f775e6-ff67-4036-b16f-1b699df51df9`\nStart: 2026-11-12 20:37:03 KST · End: 2026-11-12 20:37:03 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  },
+  {
+   "kind": "summary",
+   "night": "2031-08-31",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:crescent_moon: *AI Career Platform night crawl summary* (Staging) · 2031-08-31 21:00 → 08:00 KST\nJobs 6 · Succeeded 6 · Partial 0 · Failed 0\nRequests 24 · Inserted 11 · Updated 0 · Duplicate/unchanged 1 · Failed items 0\nUnprocessed keywords: none"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-01",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `07756364-8026-4bbd-80c4-c28136467f4c`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 4 · Fetched 2 · Inserted 0 · Updated 1 · Duplicate/unchanged 1 · Failed 0"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-02",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `586f361f-3391-45d8-a8ec-51fdcc13e9b2`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 3 · Fetched 0 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 0\nError code: `ACCESS_FORBIDDEN`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-03",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `f314f73b-42a1-40d5-ae42-1dd7fd0d75f7`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 3 · Fetched 0 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 0\nError code: `RATE_LIMITED`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-04",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `04f7d98c-bc8c-4e7e-b4b7-d9aeb5c14069`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 3 · Fetched 0 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 0\nError code: `WORKER_TIMEOUT`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-04",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 2\nJob ID: `9027402f-a9fb-483e-9b3a-52aba18d34e0`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 3 · Fetched 0 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 0\nError code: `WORKER_TIMEOUT`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-04",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 3\nJob ID: `eb18b291-00ed-42d9-b8bd-ea0cce97712b`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 3 · Fetched 0 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 0\nError code: `WORKER_TIMEOUT`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-05",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `dd3949d6-2aed-474d-82f5-55f3cc5f6697`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 4 · Fetched 2 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 2\nError code: `INVALID_CONTRACT`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-06",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:x: *AI Career Platform night crawl FAILED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 1\nJob ID: `9ddcfe26-9f1d-4fb3-bc96-5e63ddc60304`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 4 · Fetched 2 · Inserted 0 · Updated 0 · Duplicate/unchanged 0 · Failed 2\nError code: `INVALID_CONTRACT`"
+  },
+  {
+   "kind": "job",
+   "night": "2031-09-07",
+   "text": "[STAGING E2E TEST] run=e2e-9423cb26\n:white_check_mark: *AI Career Platform night crawl SUCCEEDED* (Staging)\nKeyword: AX · Mode: LIVE · Attempt 2\nJob ID: `1ec9ba2c-95a5-43b0-99bc-6a65ec79651c`\nStart: 2026-11-12 20:37:04 KST · End: 2026-11-12 20:37:04 KST\nRequests 4 · Fetched 2 · Inserted 2 · Updated 0 · Duplicate/unchanged 0 · Failed 0"
+  }
+ ],
+ "db_rows": [
+  {
+   "night_date": "2031-08-31",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-08-31",
+   "keyword": "데이터 분석",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 1,
+   "updated": 0,
+   "unchanged": 1,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-08-31",
+   "keyword": "빅데이터",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-08-31",
+   "keyword": "AI 엔지니어",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-08-31",
+   "keyword": "머신러닝",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-08-31",
+   "keyword": "딥러닝",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:03"
+  },
+  {
+   "night_date": "2031-09-01",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 0,
+   "updated": 1,
+   "unchanged": 1,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-02",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "ACCESS_FORBIDDEN",
+   "http_requests": 3,
+   "fetched": 0,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-03",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "RATE_LIMITED",
+   "http_requests": 3,
+   "fetched": 0,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-04",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "WORKER_TIMEOUT",
+   "http_requests": 3,
+   "fetched": 0,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-04",
+   "keyword": "AX",
+   "attempt": 2,
+   "outcome": "FAILED",
+   "error_code": "WORKER_TIMEOUT",
+   "http_requests": 3,
+   "fetched": 0,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-04",
+   "keyword": "AX",
+   "attempt": 3,
+   "outcome": "FAILED",
+   "error_code": "WORKER_TIMEOUT",
+   "http_requests": 3,
+   "fetched": 0,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-05",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "INVALID_CONTRACT",
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 2,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-06",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "INVALID_CONTRACT",
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 0,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 2,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-07",
+   "keyword": "AX",
+   "attempt": 2,
+   "outcome": "SUCCEEDED",
+   "error_code": null,
+   "http_requests": 4,
+   "fetched": 2,
+   "inserted": 2,
+   "updated": 0,
+   "unchanged": 0,
+   "duplicates": 0,
+   "failed": 0,
+   "started_kst_wallclock": "2026-11-12 20:37:04"
+  },
+  {
+   "night_date": "2031-09-07",
+   "keyword": "AX",
+   "attempt": 1,
+   "outcome": "FAILED",
+   "error_code": "HEARTBEAT_TIMEOUT",
+   "http_requests": 0,
+   "fetched": null,
+   "inserted": null,
+   "updated": null,
+   "unchanged": null,
+   "duplicates": null,
+   "failed": null,
+   "started_kst_wallclock": "2031-09-07 21:00:00"
+  }
+ ],
+ "db_summaries": [
+  "2031-08-31"
+ ]
+}

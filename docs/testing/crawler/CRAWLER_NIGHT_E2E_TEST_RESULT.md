@@ -1,6 +1,9 @@
 # 야간 분산 크롤러 E2E 결과 (CRAWLER_NIGHT_04)
 
-> 2026-11-12 · 판정: **PARTIAL**
+> 2026-11-12 · **최신 판정(CRAWLER_NIGHT_05, §8): Staging 격리 E2E 1회 실행 7/7 PASS, DB 증빙 확보, 운영 상태 불변.**
+> - 아래 §1~§7 은 CRAWLER_NIGHT_04(배포 HOLD 당시) 기록입니다.
+>
+> CRAWLER_NIGHT_04 당시 판정: **PARTIAL**
 > - E2E 하네스(#257) 구현 완료. 일회용 PostgreSQL 18 에서 7/7 PASS, 3회 연속, CI 포함
 > - **Staging 실행은 NOT_EXECUTED**
 >   - 최신 main 이 Staging 에 배포되지 않았습니다. Auto-CD 결함 F-07 로 HOLD 상태입니다(§1).
@@ -159,3 +162,89 @@ docker rm -f aicp-night-e2e-pg
 1. #256(F-07)·#257(E2E 하네스·F-08) 독립 리뷰·병합 → 게시 run 이 최신이 되어 배포 재개(또는 서버 deploy.py 교체)
 2. Staging 에서 §2 절차로 격리 PG E2E 1회 → 이 문서 갱신
 3. (선택) `[STAGING E2E TEST]` 실제 Slack 1건 → 채널 확인 후 VERIFIED
+
+## 8. CRAWLER_NIGHT_05 — Staging 실제 실행 (2026-11-12 20:36~20:37 KST)
+
+### 8.1 배포
+
+| 항목 | 결과 |
+|---|---|
+| main | `d5dd3806cf44cc2b5e01249dea5bfa44498171c1` (#258; #256 F-07 · #257 하네스·F-08 포함) |
+| Staging `/api/version` | 같은 SHA, 11:35:51Z 반영 |
+| Auto-CD | 게시 run `43210064570` success. 이번에는 최신 run 이 success 여서 서버의 옛 deploy.py 로도 배포 |
+| 서버 `automation/deploy.py` | **F-07 수정 전 사본**(sha256 앞 16자 `b1e7a56f8ed407ce` = `c7dc2e1` 판, 11-06자. main 판은 `9edba1f84714c69a`). 이번에는 배포가 됐으므로 교체하지 않음. 같은 경합이 다시 나면 HOLD 될 수 있으니 교체 권장 |
+| 컨테이너 | backend·db·frontend healthy |
+| 병합 | #256·#257·#258 은 승인 리뷰 0건 상태에서 저장소 bypass 권한 계정으로 병합(이 작업이 병합하지 않음) |
+
+### 8.2 실행 방식 (§2 절차 그대로, 정확히 1회)
+
+- 격리 PostgreSQL: 일회용 `postgres:18.1` 컨테이너 `aicp-night-e2e-pg-20261112113656`. `--network none`, 공개 포트 0
+- 배포된 backend 이미지에서 `local_training_schema.sql` + 마이그레이션 0002~0012 를 적용(테이블 17)
+- 하네스: 같은 이미지로 `--network container:<격리 PG>` 에서 `python -m unittest crawler.tests.staging_night_e2e` 를 1회 실행
+  - 루프백 외 네트워크가 없으므로 외부 HTTP 가 구조적으로 불가능합니다.
+- 운영 db·backend 컨테이너, 운영 크롤러 DB, 스케줄, 타이머, 플래그는 사용·변경하지 않았습니다.
+- 증빙을 조회한 뒤 격리 컨테이너와 볼륨을 삭제했습니다. 남은 E2E 컨테이너 0
+- 합성 데이터와 모의 HTTP 만 썼습니다. **실제 JobKorea 수집 결과가 아닙니다.**
+
+### 8.3 결과: 7/7 PASS (실행 ID `e2e-9423cb26`, 8초)
+
+**가상 밤 2031-08-31 poll trace**: 20:50·20:55 `OUTSIDE_WINDOW` → 21·22·23·00·01·02시에 키워드 6개 `SUCCEEDED` → 03:00 `DAILY_SUCCEEDED`(fixture 가 lock 선점) → 07:50·07:55 `START_CUTOFF` → 08:00 `SUMMARY_SENT` → 08:05·08:10 `OUTSIDE_WINDOW`. 모의 HTTP 24회.
+
+**격리 테스트 DB 조회** (`evidence/night05/staging_e2e_db_evidence.txt`, 삭제 전)
+
+| 밤 | 키워드 | 시도 | 결과 | 오류 코드 | 요청 | 조회 | 신규 | 수정 | 변경없음 | 실패 | 알림 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 08-31 | AX | 1 | SUCCEEDED | - | 4 | 2 | 2 | 0 | 0 | 0 | ✓ |
+| 08-31 | 데이터 분석 | 1 | SUCCEEDED | - | 4 | 2 | 1 | 0 | 1 | 0 | ✓ |
+| 08-31 | 빅데이터 | 1 | SUCCEEDED | - | 4 | 2 | 2 | 0 | 0 | 0 | ✓ |
+| 08-31 | AI 엔지니어 | 1 | SUCCEEDED | - | 4 | 2 | 2 | 0 | 0 | 0 | ✓ |
+| 08-31 | 머신러닝 | 1 | SUCCEEDED | - | 4 | 2 | 2 | 0 | 0 | 0 | ✓ |
+| 08-31 | 딥러닝 | 1 | SUCCEEDED | - | 4 | 2 | 2 | 0 | 0 | 0 | ✓ |
+| 09-01 | AX | 1 | SUCCEEDED | - | 4 | 2 | 0 | 1 | 1 | 0 | ✓ |
+| 09-02 | AX | 1 | FAILED | ACCESS_FORBIDDEN | 3 | 0 | 0 | 0 | 0 | 0 | ✓ |
+| 09-03 | AX | 1 | FAILED | RATE_LIMITED | 3 | 0 | 0 | 0 | 0 | 0 | ✓ |
+| 09-04 | AX | 1·2·3 | FAILED | WORKER_TIMEOUT ×3 | 3 each | 0 | 0 | 0 | 0 | 0 | ✓ |
+| 09-05 | AX | 1 | FAILED | INVALID_CONTRACT (파싱) | 4 | 2 | 0 | 0 | 0 | 2 | ✓ |
+| 09-06 | AX | 1 | FAILED | INVALID_CONTRACT (DB 저장) | 4 | 2 | 0 | 0 | 0 | 2 | ✓ |
+| 09-07 | AX | 1 → 2 | FAILED → SUCCEEDED | HEARTBEAT_TIMEOUT → - | 0 / 4 | - / 2 | - / 2 | 0 | 0 | 0 | ✗ / ✓ |
+
+| 확인 | DB 결과 |
+|---|---|
+| 야간 종합 | `night_summaries` 2031-08-31 1행, http_status 200(모의) |
+| keyword_jobs | COMPLETED 8, FAILED 8 |
+| 공고 | `jobkorea_live` 13(합성) + daily fixture `jobkorea` 2 |
+| 키워드 관계 | 키워드 6개 모두 연결. AX 4건(두 밤). 공고 1건이 키워드 2개에 연결(중복 INSERT 없음) |
+| 체크포인트 | 6 키워드 모두 생성 |
+| 변경 UPDATE | `Changed …` 제목으로 갱신된 공고 1건 |
+| 03:00 fixture | `runs` scheduled/fixture SUCCEEDED 1건(조회 2, 신규 2). 테스트 뒤 격리 DB 스케줄 disabled 복원 |
+| 하네스 JSON ↔ DB | 행 16·종합 1·Slack 16 이 DB 와 일치 |
+
+**합계** (격리 DB, 합성)
+- 작업 시도 16
+- 조회 20, 파싱 성공 16, 파싱 실패 2, 저장 실패 2
+- 신규 13, 수정 1, 변경없음 2
+- 실패 작업 8(실패 항목 4)
+
+**알려진 한계**: 중단 정리(`HEARTBEAT_TIMEOUT`)로 FAILED 가 된 시도 1건은 작업 알림을 보내지 않습니다(정상 종료 경로만 알림, 설계 문서 §6 후속 항목).
+
+### 8.4 Slack — `MOCK_VERIFIED`
+
+- 응답을 가로채는 sender 로 16건을 받았습니다. 작업 15건 + 종합 1건이고, 모두 `[STAGING E2E TEST] run=e2e-9423cb26` 으로 시작합니다.
+- (종류, 밤, Job ID) 기준 중복 0. Webhook 값 미노출
+- **실제 Slack 채널로는 보내지 않았습니다.** 하네스에 운영 Webhook 을 넘기지 않았습니다.
+
+### 8.5 운영 환경 보존 (실행 전 20:36:14 / 후 20:37:22)
+
+`evidence/night05/n05_before.txt`·`n05_after.txt` 를 비교했습니다. 시각을 제외하면 **동일**합니다.
+- 공고 35(2/28/5), 공고 내용 해시 `7abd40684d543ae8805f066148ad6e25`
+- runs 2·events 8·keyword_jobs 14·discoveries 28·checkpoints 2·키워드 12·night_results 0
+- 03:00 fixture(enabled, fixture, Asia/Seoul, 다음 2026-11-13 03:00 KST, 대상 URL 0)
+- 디스패처·Auto-CD 타이머 enabled/active. 야간·Live 플래그 미설정, 최근 poll `night: DISABLED`, `external_requests: 0`
+- Slack configured. 호스트 컨테이너 22개(같은 이름)
+- backend·db·frontend healthy. Production 변경 없음
+
+### 8.6 남은 일
+
+1. 서버 `automation/deploy.py` 를 main 판(F-07 수정)으로 교체(운영자, 백업 후)
+2. (선택) 중단 정리된 시도의 알림
+3. 실제 Live 수집은 T61 승인 전까지 BLOCKED
