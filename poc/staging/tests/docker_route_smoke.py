@@ -57,12 +57,16 @@ def main():
         for deep_link in ['/login', '/job-postings', '/me/skills']:
             status, body, _ = request(deep_link)
             assert status == 200 and body == shell, deep_link
-        scripts = re.findall(rb'src="(/assets/[^"]+[.]js)"', shell)
+        # The bundle is built for /career/ (shared origin). The shared nginx strips the prefix, so the
+        # same file must load as /assets/... and, for the legacy double-prefix case, /career/assets/...
+        scripts = re.findall(rb'src="(/career/assets/[^"]+[.]js)"', shell)
         assert len(scripts) == 1, scripts
-        status, _, headers = request(scripts[0].decode())
-        assert status == 200 and 'javascript' in headers['Content-Type']
-        assert 'immutable' in headers['Cache-Control'] and headers['Content-Security-Policy']
+        for path in [scripts[0].decode(), scripts[0].decode().removeprefix('/career')]:
+            status, _, headers = request(path)
+            assert status == 200 and 'javascript' in headers['Content-Type'], path
+            assert 'immutable' in headers['Cache-Control'] and headers['Content-Security-Policy']
         assert request('/assets/does-not-exist.js')[0] == 404
+        assert request('/career/assets/does-not-exist.js')[0] == 404
         status, body, _ = request('/staging-status.html')
         assert status == 200 and b'STAGING PoC' in body and b'/status.js' in body
         assert request('/status.js')[0] == 200 and request('/status.css')[0] == 200
