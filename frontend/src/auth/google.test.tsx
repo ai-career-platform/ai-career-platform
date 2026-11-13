@@ -363,7 +363,8 @@ describe('logout', () => {
   it('full logout calls the CSRF-protected POST and leaves the SPA for the static signed-out page', async () => {
     const assign = vi.spyOn(navigation, 'assign').mockImplementation(() => undefined);
     const { api } = await signedInAccount();
-    expect(screen.getByText(/Google 계정 자체는\s*로그아웃되지 않습니다/)).toBeInTheDocument();
+    // 완전 로그아웃 안내는 Google 사용 가능 확인(GET /auth/gate)이 끝난 뒤 그려지므로 기다린다(CI 에서 관찰된 경쟁)
+    expect(await screen.findByText(/Google 계정 자체는\s*로그아웃되지 않습니다/)).toBeInTheDocument();
     const refreshBefore = api.count('POST', '/v1/auth/refresh');
     await act(async () => {
       fireEvent.click(await screen.findByRole('button', { name: '완전 로그아웃' }));
@@ -377,11 +378,14 @@ describe('logout', () => {
   });
 
   it('hides full logout when Google login is off', async () => {
-    backend({ google: 'off', refresh: true });
+    const api = backend({ google: 'off', refresh: true });
     window.history.replaceState({}, '', '/auth/google/done?next=%2Faccount');
     open('/auth/google/done?next=%2Faccount');
     expect(await screen.findByRole('heading', { name: '내 계정' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument());
+    // 가용성 확인(404)이 끝난 뒤에도 버튼이 없어야 한다(확인 전 '아직 없음'으로 통과하지 않도록)
+    await waitFor(() => expect(api.count('GET', '/v1/auth/gate')).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '완전 로그아웃' })).not.toBeInTheDocument();
   });
 });
