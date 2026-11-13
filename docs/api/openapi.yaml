@@ -164,6 +164,179 @@ paths:
         '204':
           description: 로그아웃. refresh 쿠키 삭제 (Max-Age=0)
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/google/start:
+    get:
+      tags: [auth]
+      operationId: startGoogleLogin
+      summary: '#328 Google 로그인 시작 (GOOGLE_LOGIN_ENABLED=1 일 때만, 아니면 404)'
+      description: |
+        Authorization Code + PKCE(S256) + state + nonce. state·nonce·PKCE verifier·return_to 를 서명된 1회용
+        `career_g_tx` 쿠키(HttpOnly, Secure, SameSite=Lax, 10분, Path=<prefix>/api/v1/auth/google)에 담고 Google 로 302.
+        `return_to` 는 같은 사이트 SPA 경로만 허용(아니면 SPA 홈). 설계: docs/security/GOOGLE_SSO_AUTO_SIGNUP_DESIGN.md
+      x-requirements: [FR-ACC-002]
+      x-screens: [UI-001]
+      x-tables: [auth_identities]
+      security: []
+      parameters:
+        - { name: return_to, in: query, required: false, schema: { type: string, maxLength: 2048 } }
+        - { name: prompt, in: query, required: false, schema: { type: string, enum: [select_account] } }
+      responses:
+        '302': { description: Google 인가 화면으로 이동 }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/google/callback:
+    get:
+      tags: [auth]
+      operationId: googleLoginCallback
+      summary: '#328 Google 인증 결과 처리 (등록 Redirect URI)'
+      description: |
+        tx 쿠키 서명·만료·서버측 1회 사용·state 확인 → 서버에서 code+PKCE 교환 → ID Token(JWKS RS256, iss·aud·azp·exp·iat·nonce·
+        email_verified) 검증 → 이메일 Allowlist 정확 일치 → `auth_identities(google, sub)` 판정.
+        302 위치(토큰·이메일 없음): 연동 계정 `<prefix>/auth/google/done?next=…`(refresh·gate 쿠키), 신규 `<prefix>/auth/google/signup`
+        (pending·gate 쿠키, DB 쓰기 없음), 동일 이메일 기존 계정 `<prefix>/login?google_error=email_conflict`(자동 연결 금지),
+        그 밖의 실패 `<prefix>/login?google_error=failed|cancelled`. 게이트 쿠키가 없는 실패와 Allowlist 밖 계정은
+        리디렉트 루프를 막기 위해 정적 HTML(400/403)을 돌려준다.
+      x-requirements: [FR-ACC-001, FR-ACC-002, FR-ACC-003]
+      x-screens: [UI-001]
+      x-tables: [users, auth_identities, auth_sessions]
+      security: []
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string, maxLength: 2048 } }
+        - { name: state, in: query, required: false, schema: { type: string, maxLength: 512 } }
+        - { name: error, in: query, required: false, schema: { type: string, maxLength: 256 } }
+      responses:
+        '302':
+          description: 인증 결과에 따른 SPA 경로(연동 계정이면 refresh 쿠키 포함)
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/google/pending:
+    get:
+      tags: [auth]
+      operationId: getGooglePendingSignup
+      summary: '#328 약관 동의 화면에 보여 줄 Google 가입 대기 정보'
+      x-requirements: [FR-ACC-001]
+      x-screens: [UI-001]
+      x-tables: [users]
+      security:
+        - googlePendingCookie: []
+      responses:
+        '200':
+          description: 가입 대기 정보(본인 이메일·표시 이름·만료 시각)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GooglePendingSignup' }
+        '401':
+          description: pending 쿠키 없음·만료·이미 사용
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: GOOGLE_SIGNUP_EXPIRED, status: 401, message: Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요. }
+        '403':
+          description: Allowlist 에서 제외됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: GOOGLE_NOT_ALLOWED, status: 403, message: 이 Google 계정은 사용이 허용되지 않았습니다. }
+  /auth/google/signup:
+    post:
+      tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
+      operationId: completeGoogleSignup
+      summary: '#328 필수 약관 동의 후 Google 계정 생성·로그인'
+      description: |
+        pending 쿠키 검증(서버측 1회 사용) → Allowlist 재확인 → 현재 정책 버전으로 동의 검증 → 같은 sub 연동 재확인 → 이메일 충돌 재확인 →
+        users·auth_identities(provider=google, subject=sub, password_hash NULL)·user_roles(job_seeker)·user_consents·auth_sessions 를
+        한 트랜잭션으로 생성. 실패하면 ROLLBACK.
+      x-requirements: [FR-ACC-001, FR-ACC-006]
+      x-screens: [UI-001, UI-N04]
+      x-tables: [users, auth_identities, user_consents, auth_sessions]
+      security:
+        - googlePendingCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoogleSignupRequest' }
+            example:
+              display_name: 김구직
+              consents:
+                - { policy_code: terms, policy_version: '2026-11', granted: true }
+                - { policy_code: privacy, policy_version: '2026-11', granted: true }
+      responses:
+        '403':
+          description: CSRF 실패(FORBIDDEN) 또는 Allowlist 제외(GOOGLE_NOT_ALLOWED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: GOOGLE_NOT_ALLOWED, status: 403, message: 이 Google 계정은 사용이 허용되지 않았습니다. }
+        '201':
+          description: 가입·로그인 완료. pending 쿠키 삭제
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/RefreshCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401':
+          description: pending 쿠키 없음·만료·이미 사용
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: GOOGLE_SIGNUP_EXPIRED, status: 401, message: Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요. }
+        '409':
+          description: 같은 비교용 이메일의 기존 계정이 있음(자동 연결하지 않음)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: GOOGLE_EMAIL_CONFLICT, status: 409, message: 이 이메일로 가입된 계정이 있습니다. 기존 비밀번호로 로그인해 주세요. }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/gate:
+    get:
+      tags: [ops]
+      operationId: checkGoogleGate
+      summary: '#328 Google 게이트 판정 (nginx auth_request 용)'
+      x-requirements: [FR-ACC-002]
+      x-screens: []
+      x-tables: []
+      security:
+        - googleGateCookie: []
+      responses:
+        '204': { description: 허용된 Google 사용자 }
+        '401':
+          description: 게이트 쿠키 없음·위조·만료·Allowlist 제외
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: EDGE_AUTH_REQUIRED, status: 401, message: Google 인증이 필요합니다. }
+  /auth/google/signout:
+    post:
+      tags: [auth]
+      parameters:
+        - { $ref: '#/components/parameters/CsrfProtection' }
+      operationId: googleFullSignout
+      summary: '#328 완전 로그아웃 — 앱 세션 + Google 게이트 쿠키 종료 (Google 계정 자체는 로그아웃하지 않음)'
+      x-requirements: [FR-ACC-003]
+      x-screens: [UI-002]
+      x-tables: [auth_sessions]
+      security: []
+      responses:
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '204': { description: 'refresh·gate·pending 쿠키 삭제(Max-Age=0). 세션이 있으면 폐기' }
+  /auth/google/signed-out:
+    get:
+      tags: [auth]
+      operationId: googleSignedOutPage
+      summary: '#328 완전 로그아웃 뒤 정적 안내 페이지(게이트 밖, 데이터 없음)'
+      x-requirements: [FR-ACC-003]
+      x-screens: [UI-002]
+      x-tables: [auth_sessions]
+      security: []
+      responses:
+        '200':
+          description: 정적 HTML
+          content:
+            text/html: { schema: { type: string } }
   /auth/password-reset-requests:
     post:
       tags: [auth]
@@ -1856,6 +2029,19 @@ components:
       description: |
         access token (JWT, HS256 또는 RS256 — T15에서 결정). 수명 15분. `sub`=user_id, `sid`=session_id, `roles`=역할 코드.
         서버는 매 요청 `sub`로 소유권을 검사하며, 클라이언트가 보낸 user_id는 받지 않습니다.
+    googleGateCookie:
+      type: apiKey
+      in: cookie
+      name: career_gate
+      description: |
+        #328 Google 1차 게이트 쿠키(HS256 서명, HttpOnly, Secure, SameSite=Lax, 12시간, Path=<PUBLIC_PATH_PREFIX>/).
+        GOOGLE_GATE_ENFORCED=1 이면 `/api/v1` 의 모든 operation 이 이 쿠키도 요구한다(예외: google/start·callback·signout·signed-out, gate).
+        없거나 틀리면 401 EDGE_AUTH_REQUIRED. 기본값은 꺼짐.
+    googlePendingCookie:
+      type: apiKey
+      in: cookie
+      name: career_g_pending
+      description: '#328 Google 최초 가입 대기 쿠키(HS256 서명, HttpOnly, Secure, SameSite=Strict, 10분, 1회용)'
     refreshCookie:
       type: apiKey
       in: cookie
@@ -2035,6 +2221,25 @@ components:
           minItems: 1
           description: 필수 정책(is_required=true)은 모두 granted=true여야 함 (아니면 422)
           items: { $ref: '#/components/schemas/ConsentInput' }
+    GoogleSignupRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name, consents]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        consents:
+          type: array
+          minItems: 1
+          description: 필수 정책(is_required=true)은 모두 granted=true여야 함 (아니면 422). 현재 정책 버전만 허용
+          items: { $ref: '#/components/schemas/ConsentInput' }
+    GooglePendingSignup:
+      type: object
+      additionalProperties: false
+      required: [email, display_name, expires_at]
+      properties:
+        email: { type: string, format: email }
+        display_name: { type: string }
+        expires_at: { type: string, format: date-time }
     LoginRequest:
       type: object
       additionalProperties: false

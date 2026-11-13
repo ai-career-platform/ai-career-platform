@@ -123,7 +123,8 @@ def check(spec: dict, req_root: Path) -> tuple[list[str], dict]:
             errors.append(f"{where}: protected operation without 401")
         if path.startswith("/admin") and "403" not in responses:
             errors.append(f"{where}: admin operation without 403")
-        if not any(code.startswith("2") for code in responses):
+        # 브라우저 리디렉트 전용 operation(#328 Google start·callback)은 302 가 정상 응답이다.
+        if not any(code.startswith(("2", "3")) for code in responses):
             errors.append(f"{where}: no success response")
 
         bodies = []

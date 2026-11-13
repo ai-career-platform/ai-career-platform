@@ -6,7 +6,8 @@ from fastapi import FastAPI
 from app.routers import crawler_admin_write
 from starlette.concurrency import run_in_threadpool
 
-from app.core.auth_config import AuthSettings
+from app.core.auth_config import AuthSettings, GoogleSettings
+from app.core.google_gate import GoogleGateMiddleware
 from app.core.config import API_V1_PREFIX, APP_NAME, get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.observability import AccessLogMiddleware, RequestMetrics, install_uvicorn_access_filter
@@ -16,6 +17,8 @@ from app.db import create_db_engine, create_session_factory
 from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, personal_data_requests, public_portfolio, system
 from app.services.behavior_events import BehaviorEventSettings
 from app.routers import skill_suggest
+from app.routers import google_auth
+from app.services.google_oauth import GoogleRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +48,16 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.db_session_factory = None
     app.state.auth_settings = AuthSettings.from_env(settings.app_env)
+    # #328 Google 로그인·게이트: 기본 꺼짐. 켜면 설정 검증에 실패할 때 기동을 막는다(fail closed).
+    app.state.google_settings = GoogleSettings.from_env(settings.app_env, app.state.auth_settings)
+    app.state.google = GoogleRuntime.build(app.state.google_settings) if app.state.google_settings.login_enabled else None
     app.state.attempt_limiter = AttemptLimiter()
     app.state.behavior_event_settings = BehaviorEventSettings.from_env()
     # T112: 요청 로그·지표(안쪽) → request_id(바깥). add_middleware 는 나중에 넣은 것이 바깥이다.
     app.state.request_metrics = RequestMetrics()
+    if app.state.google_settings.gate_enforced:  # 가장 안쪽: 요청 ID·접근 로그가 401 에도 남는다
+        app.add_middleware(GoogleGateMiddleware, exempt_paths=google_auth.GATE_EXEMPT_PATHS,
+                           cookie_name=google_auth.GATE_COOKIE)
     app.add_middleware(AccessLogMiddleware, metrics=app.state.request_metrics)
     app.add_middleware(RequestIdMiddleware)
     install_uvicorn_access_filter()
@@ -72,6 +81,8 @@ def create_app() -> FastAPI:
         app.include_router(public_portfolio.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.personal_data_requests_api:  # T142: 기본 비활성
         app.include_router(personal_data_requests.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if app.state.google_settings.login_enabled:  # #328: 기본 비활성 (꺼져 있으면 Google 경로 404)
+        app.include_router(google_auth.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app
 
 

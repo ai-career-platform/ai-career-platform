@@ -70,6 +70,22 @@ def _rate(value: str) -> bool:
     return count.isdigit() and seconds.isdigit() and int(count) > 0 and int(seconds) > 0
 
 
+def _public_prefix(value: str) -> bool:
+    # auth_config.normalize_public_path_prefix 와 같은 규칙: '' 또는 '/career' 형태
+    if value in {"", "/"}:
+        return True
+    return (value.startswith("/") and not value.startswith("//")
+            and all(re.match(r"^[A-Za-z0-9_-]+$", seg) for seg in value.rstrip("/")[1:].split("/")))
+
+
+def _https_url(value: str) -> bool:
+    return value.startswith("https://") and len(value) > len("https://") and "?" not in value and "#" not in value
+
+
+GOOGLE_REQUIRED_WHEN_ENABLED = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET_FILE", "GOOGLE_REDIRECT_URI",
+                                "GOOGLE_ALLOWLIST_FILE", "GOOGLE_COOKIE_SECRET")
+
+
 def _reset_base(value: str) -> bool:
     # 같은 Origin 상대경로('/password-reset') 또는 https 절대 URL 만. 'http://'·'//host' 는 링크 가로채기 위험
     if value.startswith("/"):
@@ -127,6 +143,24 @@ CONTRACT: tuple[EnvVar, ...] = (
     EnvVar("SKILL_AUTOCOMPLETE_API", (), "false", False, "PM(승인)", "T139 기술 자동완성 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PUBLIC_PORTFOLIO_API", (), "false", False, "PM(승인)", "T129 공개 프로필 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PERSONAL_DATA_REQUESTS_API", (), "false", False, "PM(승인)", "T142 내 데이터 반출 요청 API. 승인 전 꺼짐", check=_flag),
+    # #328 Google 로그인·게이트 (기본 꺼짐). 켜면 아래 GOOGLE_* 가 모두 필요하고, 하나라도 틀리면 기동 거부.
+    EnvVar("PUBLIC_PATH_PREFIX", (), "", False, "DevOps",
+           "외부 공개 경로 접두사(Staging /career). refresh·Google 쿠키 Path 계산용. 비우면 기존 Path",
+           check=_public_prefix),
+    EnvVar("GOOGLE_LOGIN_ENABLED", (), "false", False, "PM(승인)", "#328 Google 로그인. 승인 전 꺼짐", check=_bool),
+    EnvVar("GOOGLE_GATE_ENFORCED", (), "false", False, "PM(승인)",
+           "#328 /api/v1 Google 게이트. GOOGLE_LOGIN_ENABLED 필요. 승인 전 꺼짐", check=_bool),
+    EnvVar("GOOGLE_CLIENT_ID", (), None, True, "보안 담당", "Google OAuth Web Client ID(공개 저장소·이슈 기록 금지)"),
+    EnvVar("GOOGLE_CLIENT_SECRET_FILE", (), None, False, "보안 담당",
+           "Client Secret 파일 경로(서버 전용, 600). 값은 환경변수에 넣지 않는다"),
+    EnvVar("GOOGLE_REDIRECT_URI", (), None, False, "Backend",
+           "등록한 Redirect URI(https, Path = PUBLIC_PATH_PREFIX + /api/v1/auth/google/callback)"),
+    EnvVar("GOOGLE_ALLOWLIST_FILE", (), None, False, "PM(승인)",
+           "허용 이메일 파일 경로(정확 일치, 빈 파일 = 전원 거부, 없으면 기동 거부)"),
+    EnvVar("GOOGLE_COOKIE_SECRET", (), None, True, "보안 담당",
+           "Google tx·pending·gate 쿠키 HS256 키(32자 이상, JWT_SECRET 과 달라야 함)", min_length=32),
+    EnvVar("GOOGLE_TEST_IDP_BASE_URL", (), None, False, "Backend",
+           "가짜 IdP 주소. local-dev/test 전용 — Staging 에 있으면 기동 거부"),
 )
 
 BY_NAME = {v.name: v for v in CONTRACT}
@@ -164,6 +198,14 @@ def check_environment(target: str, environ: Mapping[str, str]) -> list[Finding]:
                 findings.append(Finding(var.name, "forbidden_in_target"))
             elif var.name == "PASSWORD_RESET_LINK_BASE" and not _reset_base(value):
                 findings.append(Finding(var.name, "forbidden_in_target"))
+            elif var.name == "GOOGLE_TEST_IDP_BASE_URL":
+                findings.append(Finding(var.name, "forbidden_in_target"))
+            elif var.name == "GOOGLE_REDIRECT_URI" and not _https_url(value):
+                findings.append(Finding(var.name, "forbidden_in_target"))
+    if environ.get("GOOGLE_LOGIN_ENABLED", "").strip().lower() in {"1", "true", "yes"}:
+        for name in GOOGLE_REQUIRED_WHEN_ENABLED:
+            if not (environ.get(name) or "").strip():
+                findings.append(Finding(name, "missing"))
     return findings
 
 

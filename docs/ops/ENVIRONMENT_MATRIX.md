@@ -34,6 +34,15 @@
 | `SKILL_AUTOCOMPLETE_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T139 기술 자동완성 API. 승인 전 꺼짐 |
 | `PUBLIC_PORTFOLIO_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T129 공개 프로필 API. 승인 전 꺼짐 |
 | `PERSONAL_DATA_REQUESTS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T142 내 데이터 반출 요청 API. 승인 전 꺼짐 |
+| `PUBLIC_PATH_PREFIX` | 선택 | 선택 | 선택 | `''` | 아니오 | DevOps | 기동 거부 | 외부 공개 경로 접두사(Staging `/career`). refresh·Google 쿠키 Path 계산용. 비우면 기존 Path |
+| `GOOGLE_LOGIN_ENABLED` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 기동 거부 | #328 Google 로그인. 승인 전 꺼짐. 켜면 아래 GOOGLE_* 5개 필수 |
+| `GOOGLE_GATE_ENFORCED` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 기동 거부(로그인 꺼짐 상태에서 켜도 거부) | #328 `/api/v1` Google 게이트. 승인 전 꺼짐 |
+| `GOOGLE_CLIENT_ID` | 선택 | 선택 | 로그인 켜면 필수 | — | 예 | 보안 담당 | 기동 거부 | Google OAuth Web Client ID(공개 저장소·이슈 기록 금지) |
+| `GOOGLE_CLIENT_SECRET_FILE` | 선택 | 선택 | 로그인 켜면 필수 | — | 아니오(경로) | 보안 담당 | 파일 없음·빈 값이면 기동 거부 | Client Secret 파일 경로(서버 전용, 600) |
+| `GOOGLE_REDIRECT_URI` | 선택 | 선택 | 로그인 켜면 필수 | — | 아니오 | Backend | https·Path 불일치면 기동 거부 | Path = `PUBLIC_PATH_PREFIX` + `/api/v1/auth/google/callback` |
+| `GOOGLE_ALLOWLIST_FILE` | 선택 | 선택 | 로그인 켜면 필수 | — | 아니오(경로) | PM(승인) | 파일 없으면 기동 거부, 빈 파일은 전원 거부 | 허용 이메일 정확 일치 목록 |
+| `GOOGLE_COOKIE_SECRET` | 선택 | 선택 | 로그인 켜면 필수 | — | 예 | 보안 담당 | 32자 미만·JWT_SECRET 과 같으면 기동 거부 | Google tx·pending·gate 쿠키 서명 키 |
+| `GOOGLE_TEST_IDP_BASE_URL` | 선택 | 선택 | **금지** | — | 아니오 | Backend | local-dev/test 외에서 있으면 기동 거부 | 가짜 IdP 주소(시험 전용) |
 
 - **Local**: 아무 값도 없어도 기동합니다. `JWT_SECRET`이 없으면 프로세스마다 임의 키를 쓰고, 재시작하면 토큰이 무효가 됩니다.
 - **CI**: Local과 같습니다. Postgres 시험은 별도 변수(`T16_ISOLATED_DB_TEST` 등)를 써서 일회용 DB에서만 돕니다. 이 변수들은 앱 설정이 아니라 시험 설정입니다.

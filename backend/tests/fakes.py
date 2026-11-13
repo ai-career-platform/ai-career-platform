@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from app.repositories.auth import (
     EmailTaken,
+    IdentityTaken,
     LocalIdentity,
     NewUser,
     PolicyRecord,
@@ -35,7 +36,9 @@ class MemoryAuthRepository:
 
     @staticmethod
     def _empty() -> dict:
-        return {"users": {}, "identities": {}, "roles": {}, "sessions": {}, "consents": [], "last_login": {}}
+        # identities: local(비교용 이메일 → 행). external: (provider, subject) → 행. emails: 모든 계정의 비교용 이메일
+        return {"users": {}, "identities": {}, "external": {}, "emails": {}, "roles": {}, "sessions": {},
+                "consents": [], "last_login": {}}
 
     # ---- helpers for tests
     def grant_role(self, user_id: uuid.UUID, role: str) -> None:
@@ -62,18 +65,35 @@ class MemoryAuthRepository:
         return list(latest.values())
 
     def email_exists(self, email_canonical: str) -> bool:
-        return email_canonical in self._state["identities"]
+        return email_canonical in self._state["identities"] or email_canonical in self._state["emails"]
 
     def create_user(self, new: NewUser, now: datetime) -> uuid.UUID:
-        if new.email_canonical in self._state["identities"]:
+        # SqlAuthRepository 와 같은 의미: users.email_canonical UNIQUE, (provider, subject) UNIQUE
+        if self.email_exists(new.email_canonical):
             raise EmailTaken()
+        external_key = (new.identity_provider, new.identity_subject)
+        if new.identity_provider != "local" and external_key in self._state["external"]:
+            raise IdentityTaken()
+        if (new.identity_provider == "local") != (new.password_hash is not None):
+            raise ValueError("password_hash is required for local identities only")
         user_id = uuid.uuid4()
         self._state["users"][user_id] = UserRecord(user_id, new.email, new.display_name, "active", now)
-        self._state["identities"][new.email_canonical] = {"user_id": user_id, "password_hash": new.password_hash}
+        self._state["emails"][new.email_canonical] = user_id
+        if new.identity_provider == "local":
+            self._state["identities"][new.email_canonical] = {"user_id": user_id, "password_hash": new.password_hash}
+        else:
+            self._state["external"][external_key] = {"user_id": user_id, "password_hash": None}
         self._state["roles"][user_id] = {new.role_code}
         self._state["consents"].extend((user_id, *c, now) for c in new.consents)
         self._state["last_login"][user_id] = now
         return user_id
+
+    def find_identity(self, provider: str, subject: str) -> uuid.UUID | None:
+        if provider == "local":
+            row = self._state["identities"].get(subject)
+        else:
+            row = self._state["external"].get((provider, subject))
+        return row["user_id"] if row else None
 
     def find_local_identity(self, email_canonical: str) -> LocalIdentity | None:
         row = self._state["identities"].get(email_canonical)

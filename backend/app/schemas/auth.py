@@ -31,6 +31,18 @@ class SignupRequest(_Strict):
     consents: list[ConsentInput] = Field(min_length=1)
 
 
+class GoogleSignupRequest(_Strict):
+    """#328 Google 최초 가입: 이메일·비밀번호 대신 서명된 pending 쿠키가 신원을 증명한다."""
+    display_name: str = Field(min_length=1, max_length=100)
+    consents: list[ConsentInput] = Field(min_length=1)
+
+
+class GooglePendingSignup(_Strict):
+    email: str
+    display_name: str
+    expires_at: datetime
+
+
 class LoginRequest(_Strict):
     email: Email
     password: str = Field(min_length=1, max_length=128)
