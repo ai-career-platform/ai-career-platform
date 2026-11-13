@@ -24,7 +24,7 @@ from datetime import datetime, time, timedelta, timezone
 from urllib.parse import quote
 
 from crawler.jobs.fixture_night_window import KST, night_slot
-from crawler.jobs.import_jobkorea_html import FetchError, fetch_pages, import_pages, load_approval_file
+from crawler.jobs.import_jobkorea_html import FetchBlocked, FetchError, fetch_pages, import_pages, load_approval_file
 from crawler.jobs.incremental_checkpoint import KeywordCheckpointStore
 from crawler.jobs.keyword_management import KeywordStore, normalize_keyword
 from crawler.jobs.offline_recovery import RETRYABLE_CODES, STOP_CODES
@@ -33,13 +33,47 @@ from crawler.jobs.scheduler import retry_at
 from crawler.policy.source_approval_gate import CollectionIntent, check_collection_permission
 
 NIGHT_KEYWORDS = ('AX', '데이터 분석', '빅데이터', 'AI 엔지니어', '머신러닝', '딥러닝')
-LAST_START_MINUTE = 10 * 60 + 45   # 07:45 KST: no new job after this point
 DETAIL_LIMIT = 5                   # detail pages per keyword job
 JOB_DEADLINE_SECONDS = 150         # below the dispatcher unit's TimeoutStartSec=180
 STALE_RUNNING = timedelta(minutes=10)
 MAX_ATTEMPTS = 3
 PURPOSE = 'night_keyword_collection'
 SUMMARY_UNTIL = time(12, 0)        # summary for the night that just ended, sent 08:00-11:59 KST
+REQUESTS_PER_JOB = DETAIL_LIMIT + 2  # robots + search + at most five details
+MAX_NIGHT_REQUESTS = len(NIGHT_KEYWORDS) * MAX_ATTEMPTS * REQUESTS_PER_JOB
+
+
+@dataclass(frozen=True)
+class NightLimits:
+    """Never expands the existing hourly keyword pace or 6 x 3 x 7 request ceiling."""
+    interval_minutes: int = 60
+    max_requests_per_night: int = MAX_NIGHT_REQUESTS
+
+    def __post_init__(self):
+        if type(self.interval_minutes) is not int or not 60 <= self.interval_minutes <= 660:
+            raise ValueError('Night interval must be 60..660 minutes')
+        if type(self.max_requests_per_night) is not int or not 1 <= self.max_requests_per_night <= MAX_NIGHT_REQUESTS:
+            raise ValueError('Night request cap must not expand the existing bound')
+
+    @classmethod
+    def from_environ(cls, environ):
+        return cls(int(environ.get('CRAWLER_NIGHT_INTERVAL_MINUTES', '60')),
+                   int(environ.get('CRAWLER_NIGHT_MAX_REQUESTS', str(MAX_NIGHT_REQUESTS))))
+
+
+def request_guard(*, stop_at, deadline, now_utc=None, now_mono=clock.monotonic, approval_until=None):
+    """Checked immediately before every HTTP request, including after robots crawl-delay."""
+    stop_at = _aware(stop_at)
+    now_utc = now_utc or (lambda: datetime.now(timezone.utc))
+    def check():
+        now = _aware(now_utc())
+        if approval_until is not None and now >= _aware(approval_until):
+            raise FetchBlocked('UNAPPROVED_SOURCE')
+        if now >= stop_at:
+            raise FetchBlocked('NIGHT_WINDOW_CLOSED')
+        if now_mono() >= deadline:
+            raise FetchBlocked('TIMEOUT')
+    return check
 
 
 @dataclass(frozen=True)
@@ -68,31 +102,37 @@ def search_url(keyword):
     return 'https://www.jobkorea.co.kr/Search/?stext=' + quote(keyword) + '&tabType=recruit'
 
 
-def plan_next(now, keywords, results):
+def plan_next(now, keywords, results, *, limits=None):
     """Pick at most one keyword job. Pure.
 
     keywords: [(keyword_id, display)] in NIGHT_KEYWORDS order.
     results: tonight's rows as dicts (keyword_id, attempt, outcome, error_code, ended_at).
-    Keyword i may start from 21:00 + i hours (one per hour); after its hour it stays eligible
-    for bounded retries until 07:45. A stop code (403/429/robots/challenge/unapproved) halts the night.
+    Keyword i may start from 21:00 + i configured intervals (at least one hour).
+    Retries stay bounded inside the night; every HTTP start rechecks the 08:00 boundary.
+    A stop code (403/429/robots/challenge/unapproved) halts the night.
     """
     position = night_position(now)
     if position is None:
         return None, 'OUTSIDE_WINDOW'
-    if position[1] > LAST_START_MINUTE:
-        return None, 'START_CUTOFF'
+    limits = limits or NightLimits()
     if any(r['outcome'] == 'RUNNING' for r in results):
         return None, 'JOB_RUNNING'
     if any(r['error_code'] in STOP_CODES for r in results):
         return None, 'NIGHT_HALTED'
-    hour_index = position[1] // 60
+    # Every durable attempt reserves its entire worst-case budget, even after a crash.
+    # Counting actual successful responses alone would refund unknown requests after death.
+    if (len(results) + 1) * REQUESTS_PER_JOB > limits.max_requests_per_night:
+        return None, 'REQUEST_BUDGET'
     for index, (keyword_id, keyword) in enumerate(keywords):
-        if index > hour_index:
+        if index * limits.interval_minutes > position[1]:
             break
         mine = sorted((r for r in results if r['keyword_id'] == keyword_id), key=lambda r: r['attempt'])
         if any(r['outcome'] in ('SUCCEEDED', 'PARTIAL') for r in mine):
             continue
         if not mine:
+            starts = [r['started_at'] for r in results if r.get('started_at') is not None]
+            if starts and now < max(starts) + timedelta(minutes=limits.interval_minutes):
+                return None, 'WAIT_INTERVAL'
             return Choice(keyword_id, keyword, 1), 'DUE'
         last = mine[-1]
         if last['attempt'] >= MAX_ATTEMPTS or last['error_code'] not in RETRYABLE_CODES:
@@ -135,7 +175,7 @@ class _Recording:
         return result
 
 
-def _bounded(pages, deadline, counter):
+def _bounded(pages, deadline, counter, *, count_requests=True):
     """Stop pulling pages after the job deadline; count HTTP requests (robots + list on first pull)."""
     iterator = iter(pages)
     first = True
@@ -145,14 +185,17 @@ def _bounded(pages, deadline, counter):
         try:
             item = next(iterator)
         except StopIteration:
-            counter[0] += 2 if first else 0
+            if count_requests:
+                counter[0] += 2 if first else 0
             return
         except Exception:
             # Upper bound (F-08): on the first pull the failure may come from robots, the list or the
             # first detail. Never under-count a request budget, so count all three.
-            counter[0] += 3 if first else 1
+            if count_requests:
+                counter[0] += 3 if first else 1
             raise
-        counter[0] += 3 if first else 1
+        if count_requests:
+            counter[0] += 3 if first else 1
         first = False
         yield item
 
@@ -187,7 +230,7 @@ class NightStore:
         rows = self.connection.execute("""SELECT job_id FROM crawler_training.night_job_results
             WHERE outcome='RUNNING' AND started_at <= %s""", (now - STALE_RUNNING,)).fetchall()
         for (job_id,) in rows:
-            self.finish(job_id, 'FAILED', {}, 'HEARTBEAT_TIMEOUT', 0)
+            self.finish(job_id, 'FAILED', {}, 'HEARTBEAT_TIMEOUT', REQUESTS_PER_JOB)
             for status in ('RUNNING', 'FETCHED'):
                 KeywordStore(self.connection).transition(job_id, status, 'FAILED')
         return len(rows)
@@ -228,13 +271,15 @@ class NightStore:
 def _outcome(report):
     ok = report['inserted'] + report['updated'] + report['unchanged']
     if report.get('stopped'):
+        if report['stopped'].get('reason') == 'NIGHT_WINDOW_CLOSED':
+            return 'FAILED', 'NIGHT_WINDOW_CLOSED'
         return 'FAILED', failure_code(report)
     if report['invalid'] and not ok:
         return 'FAILED', failure_code(report)
     return ('PARTIAL' if report['invalid'] else 'SUCCEEDED'), None
 
 
-def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, now_mono=clock.monotonic):
+def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, now_mono=clock.monotonic, now_utc=None):
     """Execute one keyword job; DB result is written before any notice. Never raises."""
     job_id = store.start(choice, night_date)
     counter = [0]
@@ -242,8 +287,18 @@ def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, no
     try:
         from crawler.storage.postgres import PostgresPostingStore
         recorder = _Recording(PostgresPostingStore(store.connection))
-        pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval, purpose=PURPOSE)
-        report = import_pages(_bounded(pages, now_mono() + JOB_DEADLINE_SECONDS, counter), recorder, live=True)
+        deadline = now_mono() + JOB_DEADLINE_SECONDS
+        stop_at = datetime.combine(night_date + timedelta(days=1), time(8), KST)
+        guard = request_guard(stop_at=stop_at, deadline=deadline, now_utc=now_utc, now_mono=now_mono,
+                              approval_until=approval.review_due_utc if approval is not None else None)
+        def before_request():
+            guard()
+            if counter[0] >= REQUESTS_PER_JOB:
+                raise FetchBlocked('REQUEST_BUDGET')
+            counter[0] += 1
+        pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval,
+                        purpose=PURPOSE, before_request=before_request)
+        report = import_pages(_bounded(pages, deadline, counter, count_requests=False), recorder, live=True)
         report['fetched'] = report['inserted'] + report['updated'] + report['unchanged'] + report['duplicates'] + report['invalid']
         outcome, error = _outcome(report)
         for source_code, external_id in dict.fromkeys(recorder.keys):
@@ -270,10 +325,16 @@ def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, no
     return job_id
 
 
-def run_night_step(connection, *, environ, now=None, fetcher=fetch_pages, notify=None, approval_loader=load_approval):
+def run_night_step(connection, *, environ, now=None, fetcher=fetch_pages, notify=None, approval_loader=load_approval, now_utc=None):
     """One poll of the night collector. Returns a secret-free summary dict."""
     if environ.get('CRAWLER_NIGHT_ENABLED') != '1':
         return {'night': 'DISABLED'}
+    try:
+        limits = NightLimits.from_environ(environ)
+    except (TypeError, ValueError):
+        return {'night': 'BLOCKED', 'reason': 'INVALID_NIGHT_LIMITS', 'external_requests': 0}
+    if not getattr(connection, 'autocommit', False):
+        return {'night': 'BLOCKED', 'reason': 'AUTOCOMMIT_REQUIRED', 'external_requests': 0}
     now = _aware(now or datetime.now(timezone.utc))
     store = NightStore(connection)
     if not store.available():
@@ -289,20 +350,23 @@ def run_night_step(connection, *, environ, now=None, fetcher=fetch_pages, notify
             if rows and store.claim_summary(night_date):
                 planned, missing = store.night_keywords()
                 store.summary_status(night_date, notify('summary', night_date, rows, environ, missing=missing,
-                                                         planned=[k for _, k in planned]))
+                                                         planned=[k for _, k in planned],
+                                                         request_budget={'reserved': len(rows) * REQUESTS_PER_JOB,
+                                                                         'limit': limits.max_requests_per_night,
+                                                                         'per_job': REQUESTS_PER_JOB}))
                 return {'night': 'SUMMARY_SENT', 'night_date': str(night_date)}
         return {'night': 'IDLE', 'reason': 'OUTSIDE_WINDOW'}
     night_date = position[0]
     store.recover_stale(now)
     keywords, _ = store.night_keywords()
-    choice, reason = plan_next(now, keywords, store.results(night_date))
+    choice, reason = plan_next(now, keywords, store.results(night_date), limits=limits)
     if choice is None:
         return {'night': 'IDLE', 'reason': reason}
     gate, approval = live_gate(environ=environ, keyword=choice.keyword, now=now, approval_loader=approval_loader)
     if gate != 'ALLOWED':
         return {'night': 'BLOCKED', 'reason': gate, 'external_requests': 0}
     try:
-        job_id = run_job(store, choice, night_date, approval=approval, fetcher=fetcher)
+        job_id = run_job(store, choice, night_date, approval=approval, fetcher=fetcher, now_utc=now_utc)
     except Exception:
         return {'night': 'ERROR', 'reason': 'JOB_START_FAILED'}
     row = next(r for r in store.results(night_date) if r['job_id'] == job_id)
