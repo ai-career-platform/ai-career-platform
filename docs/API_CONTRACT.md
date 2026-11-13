@@ -89,12 +89,16 @@ Backend 구현: [`backend/app/core/exception_handlers.py`](../backend/app/core/e
 | 401 | `UNAUTHENTICATED` | 로그인이 필요합니다. | 토큰 없음·위조 |
 | 401 | `TOKEN_EXPIRED` | 로그인이 만료되었습니다. 다시 로그인해 주세요. | access token 만료 → 갱신 후 재시도 |
 | 401 | `INVALID_CREDENTIALS` | 이메일 또는 비밀번호가 올바르지 않습니다. | 로그인 실패 (계정 존재 여부 숨김) |
+| 401 | `EDGE_AUTH_REQUIRED` | Google 인증이 필요합니다. | #328 Google 게이트 쿠키 없음·위조·만료·Allowlist 제외 (게이트 켜짐) |
+| 401 | `GOOGLE_SIGNUP_EXPIRED` | Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요. | #328 pending 쿠키 없음·만료·이미 사용 |
 | 403 | `FORBIDDEN` | 접근 권한이 없습니다. | 역할 권한 없음 (/admin) |
+| 403 | `GOOGLE_NOT_ALLOWED` | 이 Google 계정은 사용이 허용되지 않았습니다. | #328 Allowlist 에서 제외된 Google 계정 |
 | 403 | `CONSENT_REQUIRED` | 이 기능을 사용하려면 동의가 필요합니다. | 필요한 동의 없음 |
 | 404 | `NOT_FOUND` | 요청한 정보를 찾을 수 없습니다. | 없음, 없는 경로, 다른 사람 소유 |
 | 405 | `METHOD_NOT_ALLOWED` | 지원하지 않는 요청입니다. | 허용하지 않는 메서드 (`Allow` 헤더) |
 | 409 | `CONFLICT` | 현재 상태에서는 처리할 수 없습니다. | 그 밖의 상태 충돌 (기본값) |
 | 409 | `EMAIL_TAKEN` | 이미 가입된 이메일입니다. | 비교용 이메일 중복 |
+| 409 | `GOOGLE_EMAIL_CONFLICT` | 이 이메일로 가입된 계정이 있습니다. 기존 비밀번호로 로그인해 주세요. | #328 Google 이메일 = 기존 계정 비교용 이메일 (자동 연결 금지) |
 | 409 | `DELETION_ALREADY_REQUESTED` | 이미 탈퇴 요청이 접수되었습니다. | 탈퇴 중복 요청 |
 | 409 | `DOCUMENT_NOT_READY` | 문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요. | 검사 전·거부된 문서 사용 |
 | 409 | `APPROVAL_CLOSED` | 이미 처리되었거나 만료된 요청입니다. | 이미 결정·만료된 승인 |

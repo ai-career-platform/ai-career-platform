@@ -32,8 +32,11 @@ class ErrorCode(StrEnum):
     UNAUTHENTICATED = "UNAUTHENTICATED"
     TOKEN_EXPIRED = "TOKEN_EXPIRED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    EDGE_AUTH_REQUIRED = "EDGE_AUTH_REQUIRED"
+    GOOGLE_SIGNUP_EXPIRED = "GOOGLE_SIGNUP_EXPIRED"
     # 403
     FORBIDDEN = "FORBIDDEN"
+    GOOGLE_NOT_ALLOWED = "GOOGLE_NOT_ALLOWED"
     CONSENT_REQUIRED = "CONSENT_REQUIRED"
     # 404 / 405
     NOT_FOUND = "NOT_FOUND"
@@ -41,6 +44,7 @@ class ErrorCode(StrEnum):
     # 409
     CONFLICT = "CONFLICT"
     EMAIL_TAKEN = "EMAIL_TAKEN"
+    GOOGLE_EMAIL_CONFLICT = "GOOGLE_EMAIL_CONFLICT"
     DELETION_ALREADY_REQUESTED = "DELETION_ALREADY_REQUESTED"
     DOCUMENT_NOT_READY = "DOCUMENT_NOT_READY"
     APPROVAL_CLOSED = "APPROVAL_CLOSED"
@@ -76,12 +80,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.UNAUTHENTICATED: ErrorSpec(401, "로그인이 필요합니다."),
     ErrorCode.TOKEN_EXPIRED: ErrorSpec(401, "로그인이 만료되었습니다. 다시 로그인해 주세요."),
     ErrorCode.INVALID_CREDENTIALS: ErrorSpec(401, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    ErrorCode.EDGE_AUTH_REQUIRED: ErrorSpec(401, "Google 인증이 필요합니다."),
+    ErrorCode.GOOGLE_SIGNUP_EXPIRED: ErrorSpec(401, "Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요."),
     ErrorCode.FORBIDDEN: ErrorSpec(403, "접근 권한이 없습니다."),
+    ErrorCode.GOOGLE_NOT_ALLOWED: ErrorSpec(403, "이 Google 계정은 사용이 허용되지 않았습니다."),
     ErrorCode.CONSENT_REQUIRED: ErrorSpec(403, "이 기능을 사용하려면 동의가 필요합니다."),
     ErrorCode.NOT_FOUND: ErrorSpec(404, "요청한 정보를 찾을 수 없습니다."),
     ErrorCode.METHOD_NOT_ALLOWED: ErrorSpec(405, "지원하지 않는 요청입니다."),
     ErrorCode.CONFLICT: ErrorSpec(409, "현재 상태에서는 처리할 수 없습니다."),
     ErrorCode.EMAIL_TAKEN: ErrorSpec(409, "이미 가입된 이메일입니다."),
+    ErrorCode.GOOGLE_EMAIL_CONFLICT: ErrorSpec(409, "이 이메일로 가입된 계정이 있습니다. 기존 비밀번호로 로그인해 주세요."),
     ErrorCode.DELETION_ALREADY_REQUESTED: ErrorSpec(409, "이미 탈퇴 요청이 접수되었습니다."),
     ErrorCode.DOCUMENT_NOT_READY: ErrorSpec(409, "문서를 아직 사용할 수 없습니다. 검사가 끝난 뒤 다시 시도해 주세요."),
     ErrorCode.APPROVAL_CLOSED: ErrorSpec(409, "이미 처리되었거나 만료된 요청입니다."),

@@ -17,11 +17,12 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
-from app.repositories.auth import AuthRepository, EmailTaken, NewUser, SessionRecord, UserRecord
-from app.schemas.auth import ConsentPolicy, LoginRequest, SignupRequest
+from app.repositories.auth import AuthRepository, EmailTaken, IdentityTaken, NewUser, SessionRecord, UserRecord
+from app.schemas.auth import ConsentInput, ConsentPolicy, LoginRequest, SignupRequest
 
 DEFAULT_ROLE = "job_seeker"
 USER_AGENT_MAX = 300
+GOOGLE_PROVIDER = "google"
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,17 @@ class IssuedTokens:
     access_token: str
     expires_in: int
     refresh_token: str
+
+
+@dataclass(frozen=True)
+class GoogleLoginOutcome:
+    """Google 인증(검증·Allowlist 통과) 뒤 계정 판정 결과.
+
+    kind: "login"(연동 계정 세션 발급) | "signup_required"(DB 쓰기 없음) | "email_conflict"(자동 연결 금지)
+          | "inactive"(비활성 계정, 화면에는 일반 실패로 안내)
+    """
+    kind: str
+    tokens: IssuedTokens | None = None
 
 
 def _now() -> datetime:
@@ -76,11 +88,11 @@ class AuthService:
             for p in self.repo.current_policies(_now())
         ]
 
-    def _validate_consents(self, request: SignupRequest, now: datetime) -> list[tuple[str, str, bool]]:
+    def _validate_consents(self, consents: list[ConsentInput], now: datetime) -> list[tuple[str, str, bool]]:
         policies = {p.policy_code: p for p in self.repo.current_policies(now)}
         errors: list[str] = []
         seen: set[str] = set()
-        for index, consent in enumerate(request.consents):
+        for index, consent in enumerate(consents):
             field = f"consents[{index}]"
             policy = policies.get(consent.policy_code)
             if consent.policy_code in seen:
@@ -88,14 +100,14 @@ class AuthService:
             elif policy is None or policy.version != consent.policy_version:
                 errors.append(f"{field}.policy_version:unknown_policy_version")
             seen.add(consent.policy_code)
-        granted = {c.policy_code for c in request.consents if c.granted}
+        granted = {c.policy_code for c in consents if c.granted}
         for code, policy in sorted(policies.items()):
             if policy.is_required and code not in granted:
                 errors.append(f"consents.{code}:required_consent_missing")
         if errors:
             # 응답은 공통 422 메시지만. 어떤 동의가 문제인지는 서버 로그에만 남긴다 (T06 공통 에러 계약).
             raise AppError(ErrorCode.VALIDATION_FAILED, log_detail="consents: " + ", ".join(errors))
-        return [(c.policy_code, c.policy_version, c.granted) for c in request.consents]
+        return [(c.policy_code, c.policy_version, c.granted) for c in consents]
 
     # ---------------------------------------------------------------- sessions
     def _start_session(self, user_id: uuid.UUID, user_agent: str | None, now: datetime) -> IssuedTokens:
@@ -122,7 +134,7 @@ class AuthService:
 
         now = _now()
         email_key = canonical_email(request.email)
-        consents = self._validate_consents(request, now)
+        consents = self._validate_consents(request.consents, now)
         if self.repo.email_exists(email_key):
             raise AppError(ErrorCode.EMAIL_TAKEN)
         try:
@@ -169,6 +181,81 @@ class AuthService:
                 self.repo.update_password_hash(identity.user_id, hash_password(request.password), now)
             self.repo.touch_last_login(identity.user_id, now)
             tokens = self._start_session(identity.user_id, user_agent, now)
+            self.repo.commit()
+        except Exception:
+            self.repo.rollback()
+            raise
+        return tokens
+
+    # ---------------------------------------------------------------- #328 Google
+    def google_login(self, sub: str, email: str, user_agent: str | None) -> GoogleLoginOutcome:
+        """검증된 Google sub·이메일로 계정을 판정한다. 이메일만 같은 기존 계정에는 연결하지 않는다."""
+        now = _now()
+        try:
+            user_id = self.repo.find_identity(GOOGLE_PROVIDER, sub)
+            if user_id is None:
+                kind = "email_conflict" if self.repo.email_exists(canonical_email(email)) else "signup_required"
+                return GoogleLoginOutcome(kind)
+            user = self.repo.get_user(user_id)
+            if user is None or user.status != "active":
+                return GoogleLoginOutcome("inactive")
+            self.repo.touch_last_login(user_id, now)
+            tokens = self._start_session(user_id, user_agent, now)
+            self.repo.commit()
+        except Exception:
+            self.repo.rollback()
+            raise
+        return GoogleLoginOutcome("login", tokens)
+
+    def google_signup(
+        self, sub: str, email: str, display_name: str, consents: list[ConsentInput], user_agent: str | None,
+    ) -> IssuedTokens:
+        """약관 동의 후 Google 계정 생성 + 세션 발급을 한 트랜잭션으로 처리한다.
+
+        - 동의는 현재 정책 버전으로 다시 검증(422). 같은 sub 가 이미 연동돼 있으면(다른 탭 등) 그 계정으로 로그인.
+        - 이메일 충돌은 409(자동 연결 금지). 동시 경쟁은 DB UNIQUE(EmailTaken·IdentityTaken)가 막는다.
+        """
+        now = _now()
+        consent_rows = self._validate_consents(consents, now)
+        email_key = canonical_email(email)
+        try:
+            user_id = self.repo.find_identity(GOOGLE_PROVIDER, sub)
+            if user_id is not None:
+                user = self.repo.get_user(user_id)
+                if user is None or user.status != "active":
+                    raise AppError(ErrorCode.GOOGLE_SIGNUP_EXPIRED, log_detail="google signup: linked user inactive")
+                self.repo.touch_last_login(user_id, now)
+            else:
+                if self.repo.email_exists(email_key):
+                    raise AppError(ErrorCode.GOOGLE_EMAIL_CONFLICT)
+                user_id = self.repo.create_user(
+                    NewUser(
+                        email=email, email_canonical=email_key, display_name=display_name, password_hash=None,
+                        consents=consent_rows, role_code=DEFAULT_ROLE,
+                        identity_provider=GOOGLE_PROVIDER, identity_subject=sub,
+                    ),
+                    now,
+                )
+            tokens = self._start_session(user_id, user_agent, now)
+            self.repo.commit()
+        except EmailTaken:
+            raise AppError(ErrorCode.GOOGLE_EMAIL_CONFLICT, log_detail="google signup: email race") from None
+        except IdentityTaken:
+            # 같은 Google 계정이 동시에 가입을 끝냈다. 새 트랜잭션에서 그 계정으로 로그인한다.
+            return self._google_login_after_race(sub, user_agent)
+        except Exception:
+            self.repo.rollback()
+            raise
+        return tokens
+
+    def _google_login_after_race(self, sub: str, user_agent: str | None) -> IssuedTokens:
+        now = _now()
+        try:
+            user_id = self.repo.find_identity(GOOGLE_PROVIDER, sub)
+            user = self.repo.get_user(user_id) if user_id else None
+            if user is None or user.status != "active":
+                raise AppError(ErrorCode.GOOGLE_SIGNUP_EXPIRED, log_detail="google signup race: no active user")
+            tokens = self._start_session(user.user_id, user_agent, now)
             self.repo.commit()
         except Exception:
             self.repo.rollback()

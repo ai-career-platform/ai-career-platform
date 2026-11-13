@@ -80,6 +80,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/google/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * #328 Google 로그인 시작 (GOOGLE_LOGIN_ENABLED=1 일 때만, 아니면 404)
+         * @description Authorization Code + PKCE(S256) + state + nonce. state·nonce·PKCE verifier·return_to 를 서명된 1회용
+         *     `career_g_tx` 쿠키(HttpOnly, Secure, SameSite=Lax, 10분, Path=<prefix>/api/v1/auth/google)에 담고 Google 로 302.
+         *     `return_to` 는 같은 사이트 SPA 경로만 허용(아니면 SPA 홈). 설계: docs/security/GOOGLE_SSO_AUTO_SIGNUP_DESIGN.md
+         */
+        get: operations["startGoogleLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * #328 Google 인증 결과 처리 (등록 Redirect URI)
+         * @description tx 쿠키 서명·만료·서버측 1회 사용·state 확인 → 서버에서 code+PKCE 교환 → ID Token(JWKS RS256, iss·aud·azp·exp·iat·nonce·
+         *     email_verified) 검증 → 이메일 Allowlist 정확 일치 → `auth_identities(google, sub)` 판정.
+         *     302 위치(토큰·이메일 없음): 연동 계정 `<prefix>/auth/google/done?next=…`(refresh·gate 쿠키), 신규 `<prefix>/auth/google/signup`
+         *     (pending·gate 쿠키, DB 쓰기 없음), 동일 이메일 기존 계정 `<prefix>/login?google_error=email_conflict`(자동 연결 금지),
+         *     그 밖의 실패 `<prefix>/login?google_error=failed|cancelled`. 게이트 쿠키가 없는 실패와 Allowlist 밖 계정은
+         *     리디렉트 루프를 막기 위해 정적 HTML(400/403)을 돌려준다.
+         */
+        get: operations["googleLoginCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** #328 약관 동의 화면에 보여 줄 Google 가입 대기 정보 */
+        get: operations["getGooglePendingSignup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * #328 필수 약관 동의 후 Google 계정 생성·로그인
+         * @description pending 쿠키 검증(서버측 1회 사용) → Allowlist 재확인 → 현재 정책 버전으로 동의 검증 → 같은 sub 연동 재확인 → 이메일 충돌 재확인 →
+         *     users·auth_identities(provider=google, subject=sub, password_hash NULL)·user_roles(job_seeker)·user_consents·auth_sessions 를
+         *     한 트랜잭션으로 생성. 실패하면 ROLLBACK.
+         */
+        post: operations["completeGoogleSignup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** #328 Google 게이트 판정 (nginx auth_request 용) */
+        get: operations["checkGoogleGate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/signout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** #328 완전 로그아웃 — 앱 세션 + Google 게이트 쿠키 종료 (Google 계정 자체는 로그아웃하지 않음) */
+        post: operations["googleFullSignout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google/signed-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** #328 완전 로그아웃 뒤 정적 안내 페이지(게이트 밖, 데이터 없음) */
+        get: operations["googleSignedOutPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password-reset-requests": {
         parameters: {
             query?: never;
@@ -1103,6 +1240,18 @@ export interface components {
             /** @description 필수 정책(is_required=true)은 모두 granted=true여야 함 (아니면 422) */
             consents: components["schemas"]["ConsentInput"][];
         };
+        GoogleSignupRequest: {
+            display_name: string;
+            /** @description 필수 정책(is_required=true)은 모두 granted=true여야 함 (아니면 422). 현재 정책 버전만 허용 */
+            consents: components["schemas"]["ConsentInput"][];
+        };
+        GooglePendingSignup: {
+            /** Format: email */
+            email: string;
+            display_name: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
         LoginRequest: {
             /** Format: email */
             email: string;
@@ -2087,6 +2236,275 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    startGoogleLogin: {
+        parameters: {
+            query?: {
+                return_to?: string;
+                prompt?: "select_account";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Google 인가 화면으로 이동 */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    googleLoginCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 인증 결과에 따른 SPA 경로(연동 계정이면 refresh 쿠키 포함) */
+            302: {
+                headers: {
+                    "Set-Cookie": components["headers"]["RefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getGooglePendingSignup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 가입 대기 정보(본인 이메일·표시 이름·만료 시각) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GooglePendingSignup"];
+                };
+            };
+            /** @description pending 쿠키 없음·만료·이미 사용 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "GOOGLE_SIGNUP_EXPIRED",
+                     *       "status": 401,
+                     *       "message": "Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Allowlist 에서 제외됨 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "GOOGLE_NOT_ALLOWED",
+                     *       "status": 403,
+                     *       "message": "이 Google 계정은 사용이 허용되지 않았습니다."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    completeGoogleSignup: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "display_name": "김구직",
+                 *       "consents": [
+                 *         {
+                 *           "policy_code": "terms",
+                 *           "policy_version": "2026-11",
+                 *           "granted": true
+                 *         },
+                 *         {
+                 *           "policy_code": "privacy",
+                 *           "policy_version": "2026-11",
+                 *           "granted": true
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["GoogleSignupRequest"];
+            };
+        };
+        responses: {
+            /** @description 가입·로그인 완료. pending 쿠키 삭제 */
+            201: {
+                headers: {
+                    "Set-Cookie": components["headers"]["RefreshCookie"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description pending 쿠키 없음·만료·이미 사용 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "GOOGLE_SIGNUP_EXPIRED",
+                     *       "status": 401,
+                     *       "message": "Google 가입 시간이 지났습니다. Google로 다시 시도해 주세요."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description CSRF 실패(FORBIDDEN) 또는 Allowlist 제외(GOOGLE_NOT_ALLOWED) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "GOOGLE_NOT_ALLOWED",
+                     *       "status": 403,
+                     *       "message": "이 Google 계정은 사용이 허용되지 않았습니다."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description 같은 비교용 이메일의 기존 계정이 있음(자동 연결하지 않음) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "GOOGLE_EMAIL_CONFLICT",
+                     *       "status": 409,
+                     *       "message": "이 이메일로 가입된 계정이 있습니다. 기존 비밀번호로 로그인해 주세요."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    checkGoogleGate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 허용된 Google 사용자 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 게이트 쿠키 없음·위조·만료·Allowlist 제외 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "EDGE_AUTH_REQUIRED",
+                     *       "status": 401,
+                     *       "message": "Google 인증이 필요합니다."
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    googleFullSignout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description same-origin CSRF 보호. 외부 Origin CORS를 허용하지 않는다. 누락·오류 또는 Sec-Fetch-Site가 존재하면서 same-origin이 아니면 403 FORBIDDEN. */
+                "X-CSRF-TOKEN": components["parameters"]["CsrfProtection"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description refresh·gate·pending 쿠키 삭제(Max-Age=0). 세션이 있으면 폐기 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    googleSignedOutPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 정적 HTML */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
         };
     };
     requestPasswordReset: {

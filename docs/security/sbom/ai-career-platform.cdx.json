@@ -4440,6 +4440,22 @@
       "version": "0.4.6"
     },
     {
+      "name": "cryptography",
+      "properties": [
+        {
+          "name": "t118:source",
+          "value": "backend/requirements.txt"
+        },
+        {
+          "name": "t118:scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:pypi/cryptography@50.0.2",
+      "type": "library",
+      "version": "50.0.2"
+    },
+    {
       "name": "fastapi",
       "properties": [
         {
@@ -5060,7 +5076,7 @@
       }
     ]
   },
-  "serialNumber": "urn:uuid:4138a5c0-8ef1-dd4e-bc39-b129aab4c266",
+  "serialNumber": "urn:uuid:4f308f7e-b52d-872b-3d47-3043f9b19356",
   "specVersion": "1.5",
   "version": 1
 }

@@ -70,13 +70,20 @@ class NewUser:
     email: str
     email_canonical: str
     display_name: str
-    password_hash: str
+    password_hash: str | None  # local 만 값이 있다. 외부 provider는 NULL (CHECK provider='local' OR NULL)
     consents: list[tuple[str, str, bool]]  # (policy_code, version, granted)
     role_code: str
+    # #328: 외부 로그인(Google)으로 만드는 계정은 provider='google', subject=Google sub.
+    identity_provider: str = "local"
+    identity_subject: str | None = None  # None 이면 local 규칙(비교용 이메일)
 
 
 class EmailTaken(Exception):
     pass
+
+
+class IdentityTaken(Exception):
+    """같은 (provider, subject) identity 가 이미 있음 (동시 가입 경쟁)."""
 
 
 class AuthRepository(Protocol):
@@ -84,6 +91,7 @@ class AuthRepository(Protocol):
     def email_exists(self, email_canonical: str) -> bool: ...
     def create_user(self, new: NewUser, now: datetime) -> uuid.UUID: ...
     def find_local_identity(self, email_canonical: str) -> LocalIdentity | None: ...
+    def find_identity(self, provider: str, subject: str) -> uuid.UUID | None: ...
     def update_password_hash(self, user_id: uuid.UUID, password_hash: str, now: datetime) -> None: ...
     def touch_last_login(self, user_id: uuid.UUID, now: datetime) -> None: ...
     def get_user(self, user_id: uuid.UUID) -> UserRecord | None: ...
@@ -136,10 +144,13 @@ class SqlAuthRepository:
             # 동시 가입 경쟁으로 비교용 이메일 UNIQUE 위반
             self._db.rollback()
             raise EmailTaken() from None
+        if (new.identity_provider == "local") != (new.password_hash is not None):
+            raise ValueError("password_hash is required for local identities only")
         self._db.add_all([
             UserProfile(user_id=user.user_id, created_at=now, updated_at=now),
             AuthIdentity(
-                user_id=user.user_id, provider="local", subject=new.email_canonical,
+                user_id=user.user_id, provider=new.identity_provider,
+                subject=new.identity_subject or new.email_canonical,
                 password_hash=new.password_hash, created_at=now, updated_at=now,
             ),
             UserRole(user_id=user.user_id, role_id=role_id, granted_by_user_id=None, granted_at=now),
@@ -150,8 +161,23 @@ class SqlAuthRepository:
                 for code, version, granted in new.consents
             ],
         ])
-        self._db.flush()
+        if new.identity_provider == "local":
+            self._db.flush()  # 기존 동작 그대로
+            return user.user_id
+        try:
+            self._db.flush()
+        except IntegrityError as exc:
+            self._db.rollback()
+            # (provider, subject) UNIQUE 위반만 경쟁으로 본다. 다른 제약 위반은 그대로 올린다.
+            if "ix_auth_identities_1" in str(exc.orig):
+                raise IdentityTaken() from None
+            raise
         return user.user_id
+
+    def find_identity(self, provider: str, subject: str) -> uuid.UUID | None:
+        return self._db.scalar(
+            select(AuthIdentity.user_id).where(AuthIdentity.provider == provider, AuthIdentity.subject == subject)
+        )
 
     def find_local_identity(self, email_canonical: str) -> LocalIdentity | None:
         row = self._db.execute(

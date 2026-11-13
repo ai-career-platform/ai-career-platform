@@ -13,6 +13,7 @@ from app.schemas.auth import ConsentPolicy, LoginRequest, SignupRequest, TokenRe
 from app.services.auth import AuthService, IssuedTokens
 
 REFRESH_COOKIE = "refresh_token"
+# 기본값. 실제 Path 는 settings.refresh_cookie_path (PUBLIC_PATH_PREFIX 반영, #328). 접두사가 없으면 이 값과 같다.
 REFRESH_COOKIE_PATH = f"{API_V1_PREFIX}/auth"
 
 router = APIRouter(
@@ -31,7 +32,7 @@ def _client_ip(request: Request) -> str:
 def _issue(response: Response, tokens: IssuedTokens, settings: AuthSettings) -> TokenResponse:
     response.set_cookie(
         REFRESH_COOKIE, tokens.refresh_token,
-        max_age=settings.refresh_token_ttl_seconds, path=REFRESH_COOKIE_PATH,
+        max_age=settings.refresh_token_ttl_seconds, path=settings.refresh_cookie_path,
         secure=settings.cookie_secure, httponly=True, samesite="strict",
     )
     response.headers["Cache-Control"] = "no-store"
@@ -61,7 +62,8 @@ def logout(service: ServiceDep, settings: SettingsDep, refresh_token: RefreshCoo
     service.logout(refresh_token)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     response.delete_cookie(
-        REFRESH_COOKIE, path=REFRESH_COOKIE_PATH, secure=settings.cookie_secure, httponly=True, samesite="strict",
+        REFRESH_COOKIE, path=settings.refresh_cookie_path, secure=settings.cookie_secure, httponly=True,
+        samesite="strict",
     )
     return response
 
