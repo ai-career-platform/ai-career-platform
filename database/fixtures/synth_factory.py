@@ -12,7 +12,8 @@ Environment isolation (refuses to produce anything otherwise):
   * --target-env must be one of local / ci / test
   * the CAREER_ENV environment variable must not say staging / production
   * the SQL starts with a guard that aborts unless current_database() looks disposable
-    (name contains test, ci, local, tmp or dev) and is not a staging/production name
+    (a whole name token test / ci / local / tmp / dev, e.g. ci_t147 or career_test) and
+    is not a staging/production name. Substrings do not count: career_social is refused.
 
 Usage:
   python3 database/fixtures/synth_factory.py --target-env local --seed 147 \
@@ -36,6 +37,13 @@ FACTORY_VERSION = "t147.2"
 NAMESPACE = uuid.UUID("6f1d3c3e-1470-4b47-9a1d-000000000147")
 ALLOWED_ENVS = ("local", "ci", "test")
 BLOCKED_ENV_WORDS = ("staging", "stage", "prod", "production", "live")
+# DB-name guard (same regex text is used by PostgreSQL ~* and by Python re, case-insensitive).
+# A disposable word must be a whole token separated by start/end, "_", "-" or digits.
+DISPOSABLE_DB_RE = r"(^|[_-])(test|ci|local|tmp|dev)([_0-9-]|$)"
+SHARED_DB_RE = r"(staging|stage|prod|live)"
+# The SYN_ catalog (roles, skills, role->skill links) is shared by every dataset, so it is
+# always generated from this fixed seed, independent of --seed.
+CATALOG_SEED = 147
 EMAIL_DOMAIN = "example.test"          # RFC 2606 reserved TLD
 URL_DOMAIN = "example.test"
 SOURCE_CODE = "synthetic_seed"         # T05 C05 (shared with the T10 seed, inserted if missing)
@@ -91,6 +99,11 @@ def check_environment(target_env: str, environ: dict | None = None) -> None:
         raise FactoryError(f"CAREER_ENV='{career_env}' looks like a shared environment; refused")
 
 
+def is_disposable_db_name(name: str) -> bool:
+    """Python mirror of the SQL guard (used by tests and other local tools)."""
+    return bool(re.search(DISPOSABLE_DB_RE, name, re.I)) and not re.search(SHARED_DB_RE, name, re.I)
+
+
 def check_sizes(users: int, companies: int, postings: int) -> None:
     for name, value in (("users", users), ("companies", companies), ("postings", postings)):
         low, high = LIMITS[name]
@@ -106,11 +119,11 @@ def generate(seed: int, users: int, companies: int, postings: int) -> Dataset:
     t = ds.tables
 
     # Codes are shared across datasets, so their IDs and relationships must also
-    # be shared. Keep the original seed-147 catalog for existing test databases.
-    catalog_rng = random.Random(147)
-    roles = [{"job_role_id": sid(147, "role", i), "code": f"SYN_ROLE_{i:02d}",
+    # be shared (CATALOG_SEED, not --seed).
+    catalog_rng = random.Random(CATALOG_SEED)
+    roles = [{"job_role_id": sid(CATALOG_SEED, "role", i), "code": f"SYN_ROLE_{i:02d}",
               "name": f"합성 직무 {i:02d} ({ROLE_NAMES[i - 1]})"} for i in range(1, len(ROLE_NAMES) + 1)]
-    skills = [{"skill_id": sid(147, "skill", i), "code": f"SYN_SKILL_{i:03d}",
+    skills = [{"skill_id": sid(CATALOG_SEED, "skill", i), "code": f"SYN_SKILL_{i:03d}",
                "name": f"합성 기술 {i:03d} ({SKILL_NAMES[i - 1]})"} for i in range(1, len(SKILL_NAMES) + 1)]
     t["job_roles"], t["skills"] = roles, skills
 
@@ -295,7 +308,7 @@ def render_sql(ds: Dataset) -> str:
         "SET client_encoding = 'UTF8';",
         "DO $$",
         "BEGIN",
-        "    IF current_database() !~* '(test|ci|local|tmp|dev)' OR current_database() ~* '(staging|stage|prod|live)' THEN",
+        f"    IF current_database() !~* '{DISPOSABLE_DB_RE}' OR current_database() ~* '{SHARED_DB_RE}' THEN",
         "        RAISE EXCEPTION 'T147 factory refused: database % is not a disposable dev/test database', current_database();",
         "    END IF;",
         "END $$;",
