@@ -33,9 +33,9 @@ class WindowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             nc.night_position(datetime(2026, 11, 13, 21))
 
-    def test_no_new_job_after_0745(self):
+    def test_jobs_may_start_until_0800_with_per_request_window_guard(self):
         self.assertEqual(nc.plan_next(at(14, 7, 45), KW, [])[1], 'DUE')
-        self.assertEqual(nc.plan_next(at(14, 7, 46), KW, []), (None, 'START_CUTOFF'))
+        self.assertEqual(nc.plan_next(at(14, 7, 59), KW, [])[1], 'DUE')
         self.assertEqual(nc.plan_next(at(14, 8, 0), KW, []), (None, 'OUTSIDE_WINDOW'))
         self.assertEqual(nc.plan_next(at(13, 12, 0), KW, []), (None, 'OUTSIDE_WINDOW'))
 

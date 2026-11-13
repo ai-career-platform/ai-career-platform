@@ -34,7 +34,7 @@ def execute(run_id):
             rows=store.read('run',run_id)
             if not rows or rows[0]['status']!='RUNNING':return 1
             record=rows[0];schedule=store.schedule(record['schedule_id'])
-            allowed,_=eligible(schedule,datetime.now(timezone.utc))
+            allowed,_=eligible(schedule,datetime.now(timezone.utc),manual_fixture=store.is_manual(run_id))
             if not allowed or schedule['mode']!=record['mode']:
                 store.finish(run_id,'CANCELLED')
                 return 1

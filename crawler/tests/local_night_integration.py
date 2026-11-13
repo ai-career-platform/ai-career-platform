@@ -83,7 +83,7 @@ class NightIntegrationTests(unittest.TestCase):
         self.assertEqual(first['night'], 'SUCCEEDED')
         row = self.result(first['job_id'])
         self.assertEqual((row['keyword'], row['inserted'], row['updated'], row['unchanged'], row['failed']), ('AX', 2, 0, 0, 0))
-        self.assertEqual(row['http_requests'], 4)
+        self.assertEqual(row['http_requests'], 0)  # injected HTML generator does not start HTTP
         status = self.connection.execute('SELECT status FROM crawler_training.keyword_jobs WHERE job_id=%s',
                                          (row['job_id'],)).fetchone()[0]
         self.assertEqual(status, 'COMPLETED')
@@ -157,6 +157,36 @@ class NightIntegrationTests(unittest.TestCase):
             holder.unlock(0)
         finally:
             other.close()
+
+    def test_failed_reservation_is_visible_and_consumes_budget_as_runtime(self):
+        """Runtime commits the attempt before HTTP; observer sees it on an independent session."""
+        import psycopg
+        from urllib.parse import urlsplit
+        dsn = os.environ.get('CRAWLER_NIGHT_TEST_DSN')
+        if not dsn:
+            self.skipTest('Isolated runtime DSN required')
+        self.assertIn(urlsplit(dsn).hostname, ('localhost', '127.0.0.1', '::1'))
+        with psycopg.connect(dsn, autocommit=True) as runtime:
+            identity = 'SELECT current_database(),inet_server_port()'
+            self.assertEqual(runtime.execute(identity).fetchone(), self.connection.execute(identity).fetchone())
+            self.assertFalse(runtime.execute('SELECT rolsuper FROM pg_roles WHERE rolname=current_user').fetchone()[0])
+            store = nc.NightStore(runtime)
+            keywords, _ = store.night_keywords()
+            job_id = store.start(nc.Choice(keywords[0][0], keywords[0][1], 1), self.night)
+            self.assertEqual(self.connection.execute('SELECT outcome FROM crawler_training.night_job_results WHERE job_id=%s',
+                                                     (job_id,)).fetchone()[0], 'RUNNING')
+            store.finish(job_id, 'FAILED', {}, 'WORKER_CRASH', 0)
+            KeywordStore(runtime).transition(job_id, 'RUNNING', 'FAILED')
+            with patch.object(nc, 'live_gate', side_effect=AssertionError('budget must block before approval/HTTP')):
+                result = nc.run_night_step(runtime, environ={**ENV, 'CRAWLER_NIGHT_MAX_REQUESTS': '7'}, now=self.at(65))
+            self.assertEqual(result, {'night': 'IDLE', 'reason': 'REQUEST_BUDGET'})
+
+    def test_late_start_does_not_launch_next_keyword_on_next_five_minute_poll(self):
+        first = self.step(5, [page(self.ids[0])])
+        self.connection.execute('UPDATE crawler_training.night_job_results SET started_at=%s WHERE job_id=%s',
+                                (self.at(30), first['job_id']))
+        self.assertEqual(self.step(65, [])['reason'], 'WAIT_INTERVAL')
+        self.assertEqual(self.step(90, [page(self.ids[1])])['night'], 'SUCCEEDED')
 
 
     def mocked_http(self, responses, approve=(), discover=0):

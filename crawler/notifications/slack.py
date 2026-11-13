@@ -136,7 +136,7 @@ def format_night_job(row):
     return {'text': '\n'.join(lines)}
 
 
-def format_night_summary(night_date, rows, *, planned, missing):
+def format_night_summary(night_date, rows, *, planned, missing, request_budget=None):
     finals = [r for r in rows if r['outcome'] != 'RUNNING']
     succeeded = {r['keyword_id'] for r in finals if r['outcome'] in ('SUCCEEDED', 'PARTIAL')}
     done = {r['keyword'] for r in finals if r['keyword_id'] in succeeded}
@@ -151,13 +151,17 @@ def format_night_summary(night_date, rows, *, planned, missing):
          f" · Duplicate/unchanged {total('unchanged') + total('duplicates')} · Failed items {total('failed')}"),
         f"Unprocessed keywords: {', '.join(unprocessed) if unprocessed else 'none'}",
     ]
+    if request_budget is not None:
+        reserved, limit = request_budget['reserved'], request_budget['limit']
+        reached = reserved + request_budget.get('per_job', 1) > limit
+        lines.append(f"Request budget reserved {reserved}/{limit} · Limit reached: {'yes' if reached else 'no'}")
     codes = sorted({r['error_code'] for r in finals if r.get('error_code') and _SAFE_CODE.match(str(r['error_code']))})
     if codes:
         lines.append('Error codes: ' + ', '.join(f'`{c}`' for c in codes))
     return {'text': '\n'.join(lines)}
 
 
-def notify_night(kind, night_date, rows, environ, *, planned=(), missing=(), sender=send):
+def notify_night(kind, night_date, rows, environ, *, planned=(), missing=(), request_budget=None, sender=send):
     """Send one night notice; returns the HTTP status or None. Never raises, never echoes the URL.
 
     De-duplication is done by the caller in the DB (slack_notified_at / night_summaries) before sending.
@@ -167,7 +171,7 @@ def notify_night(kind, night_date, rows, environ, *, planned=(), missing=(), sen
         if url is None:
             return None
         payload = format_night_job(rows[0]) if kind == 'job' else format_night_summary(
-            night_date, rows, planned=list(planned), missing=list(missing))
+            night_date, rows, planned=list(planned), missing=list(missing), request_budget=request_budget)
         return sender(url, payload)[1]
     except Exception:
         return None

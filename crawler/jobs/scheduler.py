@@ -35,7 +35,9 @@ def schedule_approval(schedule):
     return SourceApproval(**values)
 
 
-def eligible(schedule,now):
+def eligible(schedule,now,*,manual_fixture=False):
+    if manual_fixture:
+        return (True,'FIXTURE') if schedule['mode']=='fixture' else (False,'MANUAL_FIXTURE_ONLY')
     if not schedule['enabled']:
         return False,'DISABLED'
     if schedule['mode']=='fixture':
@@ -193,7 +195,7 @@ class SchedulerStore:
                     self.last_decision='SCHEDULE_MISSING';return None
                 if s['mode']!='fixture':
                     self.last_decision='MANUAL_FIXTURE_ONLY';return None
-                allowed,reason=eligible(s,now)
+                allowed,reason=eligible(s,now,manual_fixture=True)
                 if not allowed:
                     self.last_decision=reason;return None
                 c.execute("SELECT 1 FROM crawler_training.runs WHERE source_id=%s AND status='RUNNING'",(s['source_id'],))

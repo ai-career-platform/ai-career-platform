@@ -170,16 +170,30 @@ class DurableSchedulerTests(unittest.TestCase):
         # The timer's dispatch stays IDLE until the real slot: manual work never consumes it.
         self.assertEqual(dispatch(self.store)['status'],'IDLE')
 
-    def test_manual_refuses_live_disabled_and_concurrent(self):
+    def test_manual_refuses_live_and_concurrent_even_when_daily_fixture_disabled(self):
         self.future_slot()
         self.connection.execute("UPDATE crawler_training.schedules SET mode='live'")
         with patch('subprocess.Popen') as spawn:
             self.assertEqual(dispatch(self.store,manual=True)['reason'],'MANUAL_FIXTURE_ONLY')
             self.connection.execute("UPDATE crawler_training.schedules SET mode='fixture',enabled=false")
-            self.assertEqual(dispatch(self.store,manual=True)['reason'],'DISABLED')
-            self.connection.execute("UPDATE crawler_training.schedules SET enabled=true")
             running=self.store.claim_manual();self.ids.append(running)
             self.assertEqual(dispatch(self.store,manual=True)['reason'],'ALREADY_RUNNING')
+        spawn.assert_not_called()
+
+    def test_manual_fixture_worker_succeeds_with_daily_schedule_disabled(self):
+        before=self.future_slot()
+        self.connection.execute("UPDATE crawler_training.schedules SET enabled=false")
+        with patch('crawler.jobs.import_jobkorea_html._get') as get:
+            result=dispatch(self.store,manual=True,environ={})
+        self.ids.append(result['run_id'])
+        get.assert_not_called()
+        self.assertEqual(result['status'],'SUCCEEDED')
+        self.assertEqual(self.store.read('run',result['run_id'])[0]['mode'],'fixture')
+        after=self.store.schedule()
+        self.assertFalse(after['enabled'])
+        self.assertEqual((after['next_run_at'],after['last_run_at']),(before['next_run_at'],before['last_run_at']))
+        with patch('subprocess.Popen') as spawn:
+            self.assertEqual(dispatch(self.store)['status'],'IDLE')
         spawn.assert_not_called()
 
     def test_failed_manual_run_is_not_auto_retried(self):

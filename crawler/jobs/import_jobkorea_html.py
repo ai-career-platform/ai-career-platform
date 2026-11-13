@@ -76,10 +76,12 @@ def _get(url):
         raise FetchError('INVALID_ENCODING') from None
 
 
-def _fetch_allowed(url, robots):
+def _fetch_allowed(url, robots, before_request=None):
     if not robots.can_fetch(USER_AGENT, url):
         raise FetchBlocked('ROBOTS_DISALLOW')
     time.sleep(max(2, robots.crawl_delay(USER_AGENT) or 0))
+    if before_request is not None:
+        before_request()
     html = _get(url)
     if any(marker in html.lower() for marker in ('captcha', 'access denied')):
         raise FetchBlocked('ACCESS_CHALLENGE')
@@ -106,7 +108,7 @@ def _permit(approval, purpose, url, calls, now, discovered_from=None):
         raise FetchBlocked('UNAPPROVED_SOURCE')
 
 
-def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None):
+def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None, before_request=None):
     """One optional public search page, then at most ten explicit detail URLs.
 
     T61 gate: ``approval`` (SourceApproval) and ``purpose`` must admit every URL before it is
@@ -132,12 +134,14 @@ def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=No
     for target in [list_url] if list_url else urls:
         _permit(approval, purpose, target, calls, now)
     robots = RobotFileParser()
+    if before_request is not None:
+        before_request()
     robots_text = _get('https://www.jobkorea.co.kr/robots.txt')
     if 'user-agent:' not in robots_text.lower():
         raise FetchBlocked('INVALID_ROBOTS_RESPONSE')
     robots.parse(robots_text.splitlines())
     if list_url:
-        urls = parse_jobkorea_list_html(_fetch_allowed(list_url, robots), limit=limit)
+        urls = parse_jobkorea_list_html(_fetch_allowed(list_url, robots, before_request), limit=limit)
         if not urls:
             raise FetchError('NO_POSTING_LINKS')
         for url in urls:
@@ -146,7 +150,7 @@ def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=No
             _permit(approval, purpose, url, calls, now, discovered_from=list_url)
     for url in dict.fromkeys(urls):
         try:
-            yield url, _fetch_allowed(url, robots)
+            yield url, _fetch_allowed(url, robots, before_request)
         except FetchBlocked:
             raise
         except FetchError as exc:
