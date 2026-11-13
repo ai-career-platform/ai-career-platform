@@ -32,12 +32,27 @@ const detail = (id: string, name: string, skills: [string, string, number][] = [
 beforeEach(() => { get.mockReset(); request.mockReset(); });
 
 describe('job role explorer (T17 API)', () => {
+  it('names each card from its visible code and title, with guidance as a separate description', async () => {
+    get.mockResolvedValueOnce(page([role('1', '개발자'), role('2', '개발자')]));
+    renderPage();
+    const first = await screen.findByRole('button', { name: 'CODE_1 개발자' });
+    const second = screen.getByRole('button', { name: 'CODE_2 개발자' });
+    for (const card of [first, second]) {
+      expect(card).toHaveAccessibleDescription('선택하면 소개와 요구 기술을 볼 수 있어요.');
+      expect(card).not.toHaveAccessibleName(/선택하면/);
+      for (const id of (card.getAttribute('aria-labelledby') ?? '').split(' ')) {
+        expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1);
+      }
+      expect(card.querySelector('button,a,input')).toBeNull();
+    }
+  });
+
   it('shows role cards and loads the selected role detail from its own endpoint', async () => {
     get.mockResolvedValueOnce(page([role('1', '개발자')]));
     get.mockResolvedValueOnce(detail('1', '개발자', [['s1', 'Python', 3]]));
     renderPage();
     expect(await screen.findByText('CODE_1')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '개발자 상세 보기' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CODE_1 개발자' }));
     expect(await screen.findByText('Python')).toBeInTheDocument();
     expect(screen.getByText('요구 3 / 5 · 실무 가능')).toBeInTheDocument();
     expect(get).toHaveBeenLastCalledWith('/v1/job-roles/1');
@@ -83,8 +98,8 @@ describe('job role explorer (T17 API)', () => {
     get.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve as typeof resolveFirst; }));
     get.mockResolvedValueOnce(detail('2', '나', [['s2', 'SQL', 2]]));
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '가 상세 보기' }));
-    fireEvent.click(screen.getByRole('button', { name: '나 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'CODE_1 가' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CODE_2 나' }));
     expect(await screen.findByText('SQL')).toBeInTheDocument();
     resolveFirst(detail('1', '가', [['s1', 'LATE-ONLY', 5]]));
     await Promise.resolve();
@@ -98,7 +113,7 @@ describe('my skills comparison (T33 /me/skills)', () => {
     get.mockResolvedValueOnce(page([role('1', '개발자')]));
     get.mockResolvedValueOnce(detail('1', '개발자', [['s1', 'Python', 3]]));
     renderPage(ANON);
-    fireEvent.click(await screen.findByRole('button', { name: '개발자 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'CODE_1 개발자' }));
     expect(await screen.findByRole('link', { name: '로그인' })).toHaveAttribute('href', '/login');
     expect(request).not.toHaveBeenCalled();
   });
@@ -112,7 +127,7 @@ describe('my skills comparison (T33 /me/skills)', () => {
       { skill: { skill_id: 'c', name: 'Git' }, proficiency: null },
     ]);
     renderPage(MEMBER);
-    fireEvent.click(await screen.findByRole('button', { name: '개발자 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'CODE_1 개발자' }));
     expect(await screen.findByText('요구 기술 4개 중 1개 충족')).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/v1/me/skills');
     const rows = screen.getByRole('list', { name: '내 보유 기술 비교 결과' });
@@ -127,7 +142,7 @@ describe('my skills comparison (T33 /me/skills)', () => {
     get.mockResolvedValueOnce(detail('1', '개발자', [['a', 'Python', 3]]));
     request.mockRejectedValueOnce(new ApiError(500, '/v1/me/skills')).mockResolvedValueOnce([]);
     renderPage(MEMBER);
-    fireEvent.click(await screen.findByRole('button', { name: '개발자 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'CODE_1 개발자' }));
     expect(await screen.findByText('Python')).toBeInTheDocument();
     const retry = await screen.findByRole('button', { name: '다시 시도' });
     fireEvent.click(retry);

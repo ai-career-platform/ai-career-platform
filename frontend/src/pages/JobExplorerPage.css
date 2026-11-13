@@ -18,9 +18,13 @@
 .role-explorer-count,.role-explorer-subtitle{color:#657086;font-size:12px;font-weight:600}
 .role-explorer-results,.role-explorer-skills{padding:0;margin:0;list-style:none}
 .role-explorer-results{display:grid;gap:12px}
-.role-explorer-card{display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;min-height:108px;padding:18px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;text-align:left;color:var(--color-text);font:inherit;cursor:pointer;transition:border-color .16s,box-shadow .16s}
+.role-explorer-card{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;min-height:108px;padding:18px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;text-align:left;color:var(--color-text);font:inherit;cursor:pointer;transition:border-color .16s,box-shadow .16s}
+.role-explorer-card-action{padding:0;border:0;background:none;color:inherit;font:inherit;text-align:inherit;cursor:inherit}
+.role-explorer-card-action::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.role-explorer-card:has(.role-explorer-card-action:focus-visible){outline:3px solid var(--color-primary);outline-offset:3px}
+.role-explorer-card .role-explorer-card-action:focus-visible{outline:none}
 .role-explorer-card:hover{border-color:#9db0ed;box-shadow:0 6px 20px rgb(27 49 102 / 7%)}
-.role-explorer-card[aria-pressed=true]{border-color:#3454d1;box-shadow:inset 3px 0 #3454d1;background:#f6f8ff}
+.role-explorer-card:has(.role-explorer-card-action[aria-pressed=true]){border-color:#3454d1;box-shadow:inset 3px 0 #3454d1;background:#f6f8ff}
 .role-explorer-card-top{display:flex;justify-content:space-between;align-items:center;color:#8797b5}
 .role-explorer-category{display:inline-flex;width:fit-content;padding:5px 10px;border-radius:999px;background:#edf1ff;color:#3454d1;font-size:12px;font-weight:700}
 .role-explorer-card-title{font-size:17px;letter-spacing:-.03em}

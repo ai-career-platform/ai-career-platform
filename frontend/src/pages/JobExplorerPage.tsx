@@ -108,18 +108,19 @@ export function JobExplorerPage() {
             <>
               <ul className="role-explorer-results" aria-label="직무 검색 결과">
                 {list.data.items.map((role) => (
-                  <li key={role.job_role_id}>
-                    <button type="button" className="role-explorer-card"
+                  <li key={role.job_role_id} className="role-explorer-card">
+                    <span className="role-explorer-card-top">
+                      <span id={`role-card-code-${role.job_role_id}`} className="role-explorer-category">{role.code}</span>
+                      <span aria-hidden="true">↗</span>
+                    </span>
+                    <button type="button" className="role-explorer-card-action"
                       aria-pressed={selected === role.job_role_id}
-                      aria-label={`${role.name} 상세 보기`}
+                      aria-labelledby={`role-card-code-${role.job_role_id} role-card-title-${role.job_role_id}`}
+                      aria-describedby={`role-card-description-${role.job_role_id}`}
                       onClick={() => setSelected(role.job_role_id)}>
-                      <span className="role-explorer-card-top">
-                        <span className="role-explorer-category">{role.code}</span>
-                        <span aria-hidden="true">↗</span>
-                      </span>
-                      <strong className="role-explorer-card-title">{role.name}</strong>
-                      <span className="role-explorer-description">선택하면 소개와 요구 기술을 볼 수 있어요.</span>
+                      <strong id={`role-card-title-${role.job_role_id}`} className="role-explorer-card-title">{role.name}</strong>
                     </button>
+                    <span id={`role-card-description-${role.job_role_id}`} className="role-explorer-description">선택하면 소개와 요구 기술을 볼 수 있어요.</span>
                   </li>
                 ))}
               </ul>
