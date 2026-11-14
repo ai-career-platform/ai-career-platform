@@ -12,13 +12,13 @@ permissions:
 
 jobs:
   migration-runner:
-    name: Lint + disposable PostgreSQL 18.1 migration tests
+    name: Lint + disposable PostgreSQL 18.3 migration tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
       postgres:
-        # Disposable CI-only database. Never Staging.
-        image: postgres:18.1
+        # Disposable CI-only database. Never Staging. 18.3 = GCP Cloud SQL minor version (#344).
+        image: postgres:18.3
         env:
           POSTGRES_USER: t08ci
           POSTGRES_PASSWORD: t08ci-disposable-only
@@ -47,6 +47,12 @@ jobs:
         run: python3 -B database/migrate.py lint
       - name: Unit + integration tests
         run: python3 -B -m unittest discover -s database/tests -p 'test_migration_runner.py' -v
+      # #344: GCP-like rehearsal (owner ai_career_poc, no ledger -> bootstrap + 0001 baseline -> 0002 -> 0003).
+      # Synthetic seed only, no cloud access. Evidence goes to the job summary.
+      - name: '#344 GCP-like PostgreSQL 18.3 migration rehearsal'
+        env:
+          T344_EXPECT_PG: '18.3'
+        run: python3 -B -m unittest discover -s database/tests -p 'test_t344_*.py' -v
       # T115: base 대비 migration 변경 규칙(적용 후 불변·번호·호환성·데이터 영향·앱 DDL·자동 적용 금지). 적용은 하지 않음
       - name: T115 migration safety gate (PR only)
         if: github.event_name == 'pull_request'
