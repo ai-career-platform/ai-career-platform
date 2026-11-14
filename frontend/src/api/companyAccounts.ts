@@ -1,7 +1,7 @@
 /**
  * 기업 조직·멤버·초대 (T124 화면). 계약: docs/enterprise/t122_openapi_proposal.yaml — **PROPOSED, docs/api/openapi.yaml 에 없음**.
- * 서버(T123)는 `COMPANY_ACCOUNTS_API=true` 일 때만 경로가 생기고(기본 꺼짐), DB 저장소가 없어 켜도 503 입니다.
- * 그래서 화면은 Mock 전용 플래그 뒤에 둡니다. 권한: 소속 아님 404, 같은 조직 역할 부족 403(T121).
+ * 서버(T123, backend/app/routers/company_accounts.py)는 `COMPANY_ACCOUNTS_API=true` 일 때만 경로가 생기고(기본 꺼짐),
+ * 저장소는 PostgreSQL(migration 0008). 화면은 VITE_COMPANY_CONSOLE_UI(기본 꺼짐) 뒤. 권한: 소속 아님 404, 같은 조직 역할 부족 403(T121).
  */
 import type { HttpClient } from './http';
 
@@ -47,7 +47,7 @@ export interface CompanyAccountService {
 
 const org = (id: string) => `/v1/organizations/${encodeURIComponent(id)}`;
 
-/** 실제 API 어댑터(준비만, 연결하지 않음 — T122 승인·migration 전). */
+/** 실제 API 어댑터(createApi 의 api.companyAccounts). Mock 모드가 아닐 때 CompanyServiceProvider 가 씁니다. */
 export function createHttpCompanyAccountService(http: HttpClient): CompanyAccountService {
   return {
     myOrganizations: (signal) => http.request('/v1/me/organizations', { signal }),

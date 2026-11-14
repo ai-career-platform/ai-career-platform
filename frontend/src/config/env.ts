@@ -35,10 +35,11 @@ export const env = {
    */
   crawlerAdminUi: import.meta.env.VITE_CRAWLER_ADMIN_UI === 'true',
   /**
-   * T124 기업 콘솔(조직·멤버·초대). T121·T122 미승인, T123 서버는 플래그 뒤·저장소 없음 → **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐.
+   * T124 기업 콘솔(조직·멤버·초대, /company·/company-invitations/accept). 기본 꺼짐. Mock 모드면 Mock Adapter,
+   * 아니면 실제 API(T123). 실제 API 로 켜려면 서버 COMPANY_ACCOUNTS_API=true 와 migration 0008 이 먼저 필요합니다
+   * (운영은 별도 승인. 메일 공급자 연결 전에는 초대 생성·재전송이 503).
    */
-  companyConsoleUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
+  companyConsoleUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
   /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
   companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
     && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
