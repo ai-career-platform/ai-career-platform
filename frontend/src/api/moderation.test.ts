@@ -114,6 +114,19 @@ describe('mock adapter enforces the rules like a server would', () => {
     await rejects(asFirst.assign('mc-00006', { version: 4 }), 403);
   });
 
+  it('release returns an in-review case to PENDING (or APPEALED in the appeal stage), only while IN_REVIEW', async () => {
+    const s = service();
+    const released = await s.release('mc-00003', { version: 2 });
+    expect([released.status, released.assignee_id, released.events.at(-1)!.event]).toEqual(['PENDING', null, 'RELEASE']);
+    await rejects(s.release('mc-00003', { version: 3 }), 409, 'CONFLICT');
+    await rejects(s.release('mc-00007', { version: 3 }), 409, 'APPROVAL_CLOSED');
+    const asThird = createMockModerationService({ viewer: () => THIRD_ADMIN_ID });
+    await asThird.assign('mc-00005', { version: 4 });
+    const back = await asThird.release('mc-00005', { version: 5 });
+    expect([back.status, back.events.at(-1)!.event, back.events.at(-1)!.actor_user_id])
+      .toEqual(['APPEALED', 'RELEASE_APPEAL', THIRD_ADMIN_ID]);
+  });
+
   it('reject requires a valid reason and a note for OTHER (422)', async () => {
     const s = service();
     await rejects(s.decide('mc-00003', { version: 2, decision: 'REJECT', reason_code: '' as never }), 422, 'VALIDATION_FAILED');

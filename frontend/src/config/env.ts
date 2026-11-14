@@ -8,10 +8,11 @@ export const env = {
   /** T72 행동 이벤트 실제 전송 스위치. 운영 승인 전까지 기본 꺼짐 */
   behaviorTrackingEnabled: import.meta.env.VITE_BEHAVIOR_TRACKING === 'true',
   /**
-   * T82 관리자 검수 화면. T81 API·T80 정책 승인 전이라 **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드(Mock 아님)에서는 항상 꺼짐.
+   * T82 관리자 검수 화면. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T81, migration 0010)를 씁니다.
+   * 실제 API 로 켜려면 서버 ADMIN_MODERATION_API=true 와 migration 0010 이 먼저 필요합니다(T80 정책 승인 후, 운영은 별도 승인).
+   * 켜져도 admin 역할만 메뉴·경로에 들어갑니다(권한 판단은 서버).
    */
-  adminModerationUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_MODERATION_UI === 'true',
+  adminModerationUi: import.meta.env.VITE_ADMIN_MODERATION_UI === 'true',
   /**
    * T85 운영 감사·AI 사용량 화면. T60(사용량 기록)·T84 정책(D1~D5) 전이라 **Mock 모드에서만** 켤 수 있습니다.
    * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 admin 역할만 들어갑니다.

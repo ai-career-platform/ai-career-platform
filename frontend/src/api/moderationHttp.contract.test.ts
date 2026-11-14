@@ -1,8 +1,8 @@
 /// <reference types="node" />
 /**
- * T82 HTTP Adapter 독립 계약 테스트 — 실제 HttpClient 로 "어떤 요청이 나가는지"만 고정합니다.
- * 기준은 T80 구현 계약 §4의 **제안** 경로입니다(T81 API·OpenAPI 없음). 서버가 없으므로 fetch 는 가짜이고,
- * 이 테스트 PASS는 실제 API 연동 PASS가 아닙니다. T81 OpenAPI가 나오면 그 계약으로 다시 맞춥니다.
+ * T82 HTTP Adapter 계약 테스트 — 실제 HttpClient 로 "어떤 요청이 나가는지"를 고정하고, T81 백엔드 라우터
+ * (backend/app/routers/admin_moderation.py) 소스와 경로·필드·enum 이 맞는지 확인합니다. fetch 는 가짜이므로
+ * 이 테스트 PASS는 실제 서버 연동 PASS가 아닙니다(실제 DB 시험: backend/tests/test_t81_moderation_postgres.py).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -101,15 +101,57 @@ describe('server errors become ApiError and the UI messages', () => {
   });
 });
 
-describe('T81 not ready: the HTTP adapter is not wired', () => {
-  it('the provider only creates the in-memory mock adapter', () => {
+describe('T81 wiring: mock only in mock mode, otherwise the real API (flag still default off)', () => {
+  it('the provider picks the mock adapter only when env.mockEnabled, else api.moderation', () => {
     const provider = readFileSync(resolve(cwd(), 'src/admin/ModerationServiceProvider.tsx'), 'utf8');
-    expect(provider).toContain('createMockModerationService');
-    expect(provider).not.toMatch(/import[^;]*createHttpModerationService/);
+    expect(provider).toContain('env.mockEnabled ? createMockModerationService');
+    expect(provider).toContain(': api.moderation');
+    const index = readFileSync(resolve(cwd(), 'src/api/index.ts'), 'utf8');
+    expect(index).toContain('moderation: createHttpModerationService(http)');
   });
 
-  it('the feature flag still requires mock mode', () => {
+  it('the feature flag is its own switch and is off unless set to "true"', () => {
     const env = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
-    expect(env).toContain("adminModerationUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_MODERATION_UI === 'true'");
+    expect(env).toContain("adminModerationUi: import.meta.env.VITE_ADMIN_MODERATION_UI === 'true'");
+  });
+});
+
+describe('T81 backend contract (backend/app/routers/admin_moderation.py)', () => {
+  it('release: POST {version} to /assignment/release', async () => {
+    const { service, sent } = setup();
+    await service.release('mc-1', { version: 3 });
+    expect([sent[0]!.method, sent[0]!.url, sent[0]!.body]).toEqual(
+      ['POST', '/api/v1/admin/moderation-cases/mc-1/assignment/release', { version: 3 }]);
+    expect(sent[0]!.headers[CSRF_HEADER]).toBe('1');
+  });
+
+  it('list passes limit and cursor as query and returns next_cursor', async () => {
+    const { service, sent } = setup({ status: 200, body: { items: [], next_cursor: 'c2' } });
+    const page = await service.list({ status: 'IN_REVIEW', limit: 100 });
+    expect(sent[0]!.url).toBe('/api/v1/admin/moderation-cases?status=IN_REVIEW&limit=100');
+    expect(page.next_cursor).toBe('c2');
+  });
+
+  it('every path, method, request field and enum used by the UI exists in the backend router', () => {
+    const router = readFileSync(resolve(cwd(), '../backend/app/routers/admin_moderation.py'), 'utf8');
+    expect(router).toContain('prefix="/admin/moderation-cases"');
+    for (const route of ['@router.get("",', '@router.get("/{case_id}",', '@router.post("/{case_id}/assignment",',
+      '@router.post("/{case_id}/assignment/release",', '@router.post("/{case_id}/decision",']) {
+      expect(router).toContain(route);
+    }
+    for (const field of ['version: int', 'decision: Literal["APPROVE", "REJECT"]', 'reason_code: ReasonCode | None',
+      'note: str | None', 'actor_user_id: UUID | None', 'target_summary: str | None', 'next_cursor: str | None']) {
+      expect(router).toContain(field);
+    }
+    for (const code of ['RIGHTS_UNCLEAR', 'INACCURATE', 'PERSONAL_DATA', 'HARMFUL', 'DISCRIMINATORY', 'DUPLICATE',
+      'EXPIRED', 'MALWARE', 'OTHER', 'company_posting', 'recommendation_run']) {
+      expect(router).toContain(`"${code}"`);
+    }
+  });
+
+  it('503 (no content effect / DB) tells the admin nothing changed', () => {
+    const mapped = moderationErrorMessage(new ApiError(503, 'x', undefined, 'DEPENDENCY_UNAVAILABLE'));
+    expect(mapped.message).toContain('아무것도 바뀌지 않았습니다');
+    expect(moderationErrorMessage(new ApiError(400, 'x', undefined, 'INVALID_CURSOR')).reload).toBe(true);
   });
 });

@@ -71,7 +71,7 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
               {showCompany && <NavLink to="/company">기업 콘솔 (Mock)</NavLink>}
               {showPortfolio && <NavLink to="/me/public-profile">{env.mockEnabled ? '공개 포트폴리오 (Mock)' : '공개 포트폴리오'}</NavLink>}
               {showPersonalData && <NavLink to="/me/data">{env.mockEnabled ? '내 데이터 내려받기 (Mock)' : '내 데이터 내려받기'}</NavLink>}
-              {showModeration && <NavLink to="/admin/moderation">콘텐츠 검수 (Mock)</NavLink>}
+              {showModeration && <NavLink to="/admin/moderation">{env.mockEnabled ? '콘텐츠 검수 (Mock)' : '콘텐츠 검수'}</NavLink>}
               {showAudit && <NavLink to="/admin/audit-events">운영 감사 (Mock)</NavLink>}
               {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용 (Mock)</NavLink>}
               {showCrawler && <NavLink to="/admin/crawler">크롤러 관리</NavLink>}

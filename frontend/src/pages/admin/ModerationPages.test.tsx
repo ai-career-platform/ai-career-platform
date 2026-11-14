@@ -8,6 +8,9 @@ import { MOCK_ADMIN_ID, createMockModerationService, type MockModerationService 
 import { ModerationCasePage } from './ModerationCasePage';
 import { ModerationQueuePage } from './ModerationQueuePage';
 
+// 이 파일은 Mock Adapter 화면 시험입니다(실제 API 경로는 admin/ModerationServiceProvider.test.tsx).
+vi.mock('../../config/env', () => ({ env: { apiBaseUrl: '/api', mockEnabled: true, adminModerationUi: true } }));
+
 let fetchSpy: ReturnType<typeof vi.fn<typeof fetch>>;
 beforeEach(() => {
   fetchSpy = vi.fn<typeof fetch>();

@@ -1,10 +1,10 @@
 /**
  * T82 운영 콘텐츠 검수 화면의 도메인 타입과 서비스 인터페이스.
  *
- * - 타입은 T80 구현 계약(docs/admin/MODERATION_IMPLEMENTATION_CONTRACT.md §1~§4)의 **제안 DTO**를 따릅니다.
- *   T81 API·OpenAPI가 없으므로 schema.gen.ts 에서 가져오지 않습니다. T81 병합 후 생성 타입으로 바꿉니다.
- * - 화면은 ModerationService 인터페이스만 씁니다. 지금은 메모리 Mock(mocks/moderation.ts)만 연결되고,
- *   T81 이후 moderationHttp.ts 를 연결합니다.
+ * - 타입은 T81 백엔드(backend/app/routers/admin_moderation.py, 제안 docs/admin/t81_openapi_proposal.yaml)와 같습니다.
+ *   확정 OpenAPI(T06) 병합 전이라 schema.gen.ts 에서 가져오지 않습니다. 병합 후 생성 타입으로 바꿉니다.
+ * - 화면은 ModerationService 인터페이스만 씁니다. Mock 모드면 메모리 Mock(mocks/moderation.ts), 아니면
+ *   moderationHttp.ts(실제 API)를 ModerationServiceProvider 가 고릅니다.
  * - availableActions 는 버튼 표시용(UX)입니다. 권한·상태 판단의 기준은 서버(T81)이며, Mock Adapter도
  *   같은 규칙으로 따로 거부합니다.
  */
@@ -15,7 +15,7 @@ export type ModerationStatus = (typeof MODERATION_STATUSES)[number];
 
 export const TARGET_TYPES = [
   'job_posting', 'company', 'shared_document', 'document_analysis', 'retrieval_run', 'agent_run',
-  'match_evaluation', 'recommendation_run',
+  'match_evaluation', 'recommendation_run', 'company_posting',
 ] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
 
@@ -34,8 +34,8 @@ export interface ModerationCaseSummary {
   case_id: string;
   target_type: TargetType;
   target_id: string;
-  /** 목록에 보여도 되는 대상 요약(공개 제목 등). 비공개 원문·신고자 정보는 넣지 않습니다. (PROPOSED 필드) */
-  target_summary: string;
+  /** 목록에 보여도 되는 대상 요약(공개 제목 등). 비공개 원문·신고자 정보는 넣지 않습니다. 대상이 지워졌으면 null */
+  target_summary: string | null;
   trigger: ReviewTrigger;
   status: ModerationStatus;
   priority: Priority;
@@ -53,7 +53,7 @@ export interface ModerationCaseEvent {
   from_status: ModerationStatus | null;
   to_status: ModerationStatus;
   /** null 이면 system */
-  actor_id: string | null;
+  actor_user_id: string | null;
   reason_code: string | null;
   occurred_at: string;
 }
@@ -76,6 +76,8 @@ export interface ModerationListQuery {
   status?: ModerationStatus;
   target_type?: TargetType;
   priority?: Priority;
+  /** 1~100 (서버 기본 20). 큐 화면은 최대치로 한 번에 불러옵니다. */
+  limit?: number;
 }
 
 export type Decision =
@@ -84,9 +86,11 @@ export type Decision =
 
 /** 화면이 쓰는 유일한 데이터 경로. 실패는 ApiError(status, code)로 던집니다. */
 export interface ModerationService {
-  list(query: ModerationListQuery, signal?: AbortSignal): Promise<{ items: ModerationCaseSummary[]; next_cursor: null }>;
+  list(query: ModerationListQuery, signal?: AbortSignal): Promise<{ items: ModerationCaseSummary[]; next_cursor: string | null }>;
   get(caseId: string, signal?: AbortSignal): Promise<ModerationCaseDetail>;
   assign(caseId: string, body: { version: number }): Promise<ModerationCaseDetail>;
+  /** 담당 해제(T04 → PENDING, 재검토 단계면 T05 → APPEALED). 담당자 또는 다른 관리자. */
+  release(caseId: string, body: { version: number }): Promise<ModerationCaseDetail>;
   decide(caseId: string, body: { version: number } & Decision): Promise<ModerationCaseDetail>;
 }
 
@@ -113,18 +117,22 @@ function selfReview(c: ModerationCaseDetail, viewerId: string): Allowed | null {
 
 /** 버튼 활성화용 판정 (T80 상태 모델 T02·T06·T07·T09). 서버 판단을 대신하지 않습니다. */
 export function availableActions(c: ModerationCaseDetail, viewerId: string | null | undefined): {
-  assign: Allowed; decide: Allowed;
+  assign: Allowed; decide: Allowed; release: Allowed;
 } {
-  if (!viewerId) return { assign: deny('로그인 정보를 확인할 수 없습니다.'), decide: deny('로그인 정보를 확인할 수 없습니다.') };
+  if (!viewerId) {
+    const anonymous = deny('로그인 정보를 확인할 수 없습니다.');
+    return { assign: anonymous, decide: anonymous, release: anonymous };
+  }
   const closed = closedReason(c);
-  if (closed) return { assign: closed, decide: closed };
+  if (closed) return { assign: closed, decide: closed, release: closed };
   const self = selfReview(c, viewerId);
   const assign = c.status === 'IN_REVIEW' ? deny('이미 담당자가 있습니다.') : self ?? ok;
   let decide: Allowed;
   if (c.status !== 'IN_REVIEW') decide = deny('담당을 시작한 뒤 결정할 수 있습니다.');
   else if (c.assignee_id !== viewerId) decide = deny('담당자만 승인·반려할 수 있습니다.');
   else decide = self ?? ok;
-  return { assign, decide };
+  const release = c.status === 'IN_REVIEW' ? ok : deny('담당 중인 건만 해제할 수 있습니다.');
+  return { assign, decide, release };
 }
 
 /** 반려 입력 검사 (정책 §5.1). 화면과 Mock 이 같은 규칙을 씁니다. */
@@ -148,6 +156,13 @@ export function moderationErrorMessage(error: unknown): { message: string; reloa
       return { message: '다른 관리자가 먼저 이 건을 바꿨습니다. 최신 내용을 다시 불러온 뒤 처리해 주세요.', reload: true };
     }
     if (error.status === 422) return { message: '입력값을 확인해 주세요. 반려 사유와 설명이 필요합니다.', reload: false };
+    if (error.status === 400 && error.code === 'INVALID_CURSOR') {
+      return { message: '목록 정보가 만료되었습니다. 처음부터 다시 불러오세요.', reload: true };
+    }
+    if (error.status === 503) {
+      // 서버는 검수 결과를 공개 상태에 반영할 수 없으면(대상별 처리 미연결) 아무것도 바꾸지 않고 503 을 돌려줍니다.
+      return { message: '지금은 처리할 수 없어 아무것도 바뀌지 않았습니다. 잠시 후 다시 시도해 주세요.', reload: false };
+    }
   }
   return { message: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', reload: false };
 }
@@ -159,6 +174,7 @@ export const STATUS_LABELS: Record<ModerationStatus, string> = {
 export const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   job_posting: '채용공고', company: '기업', shared_document: '공용 자료', document_analysis: 'AI 문서 분석',
   retrieval_run: 'AI 질의응답', agent_run: 'AI 작업', match_evaluation: 'AI 적합도', recommendation_run: 'AI 추천',
+  company_posting: '기업 직접 등록 공고',
 };
 export const TRIGGER_LABELS: Record<ReviewTrigger, string> = {
   PRE_PUBLISH: '게시 전 검수', REPORT: '신고', EXPIRY: '만료 재검수', SOURCE_CHANGE: '출처 변경 재검수',
