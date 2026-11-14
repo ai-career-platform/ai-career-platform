@@ -57,9 +57,9 @@ const worker = (module) => py(['-m', module]).trim();
 
 /** 화면이 없는 운영 절차(조직 승인 등)는 같은 Origin 의 실제 API 로 한다 — 결과에 'api' 로 표시 */
 async function api(email, method, url, body) {
-  const login = await fetch(`${BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '1' }, body: JSON.stringify({ email, password: PASSWORD }) });
-  if (login.status !== 200) throw new Error(`api login ${email} -> ${login.status}`);
-  const { access_token } = await login.json();
+  const auth = await fetch(`${BASE}/api/v1/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '1' }, body: JSON.stringify({ email, password: PASSWORD }) });
+  if (auth.status !== 200) throw new Error(`api login ${email} -> ${auth.status}`);
+  const { access_token } = await auth.json();
   const r = await fetch(`${BASE}${url}`, { method, headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '1' }, body: body ? JSON.stringify(body) : undefined });
   const text = await r.text();
   let json = null; try { json = JSON.parse(text); } catch { /* not json */ }
@@ -177,7 +177,7 @@ const posting = STATE.browser_posting;
   await step('PUBLIC_POSTINGS', 'A-search', 'search postings, open detail panel', async () => {
     await page.goto(`${BASE}/job-postings`);
     await expectH1(page, '새로운 기회를 찾아보세요');
-    await page.getByLabel('공고 검색').fill(posting.title);
+    await page.getByRole('search', { name: '채용공고 검색 조건' }).locator('input[name="q"]').fill(posting.title);
     await page.getByRole('button', { name: '검색', exact: true }).click();
     const btn = page.getByRole('list', { name: '채용공고 검색 결과' }).getByRole('button', { name: `${posting.title} 상세 보기` }).first();
     await btn.click();
@@ -430,7 +430,8 @@ for (const [key] of Object.entries(uiTitles)) {
     caseIds[key] = before.json.items.find((i) => i.target_id === postingIds[key]).case_id;
     mark('MODERATION', 'policy', `UI submit auto-created exactly 1 case (${key})`, 'PASS', 'observed 1');
   } else {
-    mark('MODERATION', 'policy', `UI submit auto-created exactly 1 case (${key})`, 'BLOCKED', `observed ${auto} cases; auto-creation is in unmerged PR #359 commits — case created by test fixture (e2e_helpers.py submit-case)`);
+    // PR #359(a93d8ae) 병합 후에는 검수 요청이 검수 건을 만들어야 한다 → 없으면 FAIL. 관리자 화면 흐름은 계속 보려고 fixture 로 보충
+    mark('MODERATION', 'policy', `UI submit auto-created exactly 1 case (${key})`, 'FAIL', `observed ${auto} cases; admin flow continues with a fixture case (e2e_helpers.py submit-case)`);
     caseIds[key] = JSON.parse(py([process.env.E2E_HELPERS, 'submit-case', postingIds[key], ACC.company.user_id])).case_id;
   }
 }
@@ -470,7 +471,9 @@ for (const [key] of Object.entries(uiTitles)) {
   await step('MODERATION', 'C-decide', 'open detail → assign → approve (company posting)', () => decide('approve', 'approve'));
   await step('MODERATION', 'C-decide', 'open detail → assign → reject with reason (company posting)', () => decide('reject', 'reject'));
   await step('MODERATION', 'C-audit', 'audit events record the admin case views (real API; audit UI is mock-only)', async () => {
-    const r = await api(ACC.admin.email, 'GET', '/api/v1/admin/audit-events?limit=100');
+    const from = new Date(Date.now() - 3600000).toISOString();
+    const to = new Date(Date.now() + 60000).toISOString();
+    const r = await api(ACC.admin.email, 'GET', `/api/v1/admin/audit-events?limit=100&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     if (r.status !== 200) throw new Error(`audit-events -> ${r.status} ${r.text.slice(0, 200)}`);
     const items = r.json.items || [];
     const review = items.filter((i) => (i.action_code || i.action || '').includes('admin.content.review'));

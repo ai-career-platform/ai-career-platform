@@ -197,95 +197,180 @@ def run(rec, api: str, accounts: dict, password: str, admin_db: str, env: dict) 
         return out
     rec.check("COMPANY", "B-authz", "non-member cannot list/create/read org postings (404), anonymous 401", authz_outsider)
 
-    def submit_case_count():
-        n = q("SELECT count(*) FROM career.moderation_cases WHERE target_type='company_posting' AND target_id=%s",
-              postings["pending"]["posting_id"])[0]
-        return n
-    try:
-        n = submit_case_count()
-        rec.add("MODERATION", "policy", "submit auto-creates exactly 1 moderation case (PR #359 pending)",
-                "PASS" if n == 1 else "BLOCKED",
-                {"observed_cases_for_submitted_posting": n, "expected_after_pr359": 1,
-                 "note": "35fe589 does not auto-create cases on submit; depends on unmerged PR #359 commits"})
-    except Exception as exc:  # noqa: BLE001
-        rec.add("MODERATION", "policy", "submit auto-creates exactly 1 moderation case", "FAIL", str(exc))
+    # ------------------------------------------------------------------ MODERATION 정책(PR #359 a93d8ae 병합 후)
+    MC = f"{V1}/admin/moderation-cases"
 
-    def non_admin_review():
-        out = {"seeker_queue": c.get(f"{V1}/admin/company-postings", headers=b).status_code,
-               "seeker_decision": c.post(f"{V1}/admin/company-postings/{postings['pending']['posting_id']}/decision",
-                                         headers=b, json={"decision": "approve", "version": postings['pending']['version']}
-                                         ).status_code,
-               "owner_decision": c.post(f"{V1}/admin/company-postings/{postings['pending']['posting_id']}/decision",
-                                        headers=company, json={"decision": "approve",
-                                                               "version": postings['pending']['version']}).status_code,
-               "seeker_moderation_queue": c.get(f"{V1}/admin/moderation-cases", headers=b).status_code,
-               "anon_moderation_queue": c.get(f"{V1}/admin/moderation-cases").status_code}
-        assert out["seeker_queue"] == 403 and out["seeker_decision"] == 403 and out["owner_decision"] == 403, out
-        assert out["seeker_moderation_queue"] == 403 and out["anon_moderation_queue"] == 401, out
-        st = q("SELECT status FROM career.organization_job_postings WHERE posting_id=%s",
-               postings["pending"]["posting_id"])[0]
-        assert st == "pending_review", st
-        return {**out, "posting_status_after": st}
-    rec.check("MODERATION", "C-authz", "non-admin (seeker, org owner) cannot review/decide; anon 401; state unchanged",
-              non_admin_review)
+    def cases_for(posting_id):
+        return db.execute("SELECT case_id::text, status, version FROM career.moderation_cases WHERE "
+                          "target_type='company_posting' AND target_id=%s ORDER BY created_at", (posting_id,)).fetchall()
 
-    def api_reject():
-        p = postings["rejected"]
-        r = expect(c.post(f"{V1}/admin/company-postings/{p['posting_id']}/decision", headers=admin2,
-                          json={"decision": "reject", "reason_code": "missing_required_info", "note": "E2E 반려",
-                                "version": p["version"]}), 200).json()
-        assert r["status"] == "rejected" and r["public_posting_id"] is None, r
-        own = expect(c.get(f"{base}/{p['posting_id']}", headers=company), 200).json()
-        assert own["status"] == "rejected" and own["reason_code"] == "missing_required_info"
-        postings["rejected"] = own
-        return {"status": own["status"], "reason_code": own["reason_code"], "public_posting_id": None}
-    rec.check("COMPANY", "B-review", "admin reject (T126 decision) → owner sees rejected + reason; no public row",
-              api_reject)
+    def snap(posting_id):
+        post = q("SELECT status, version, public_posting_id FROM career.organization_job_postings WHERE posting_id=%s",
+                 posting_id)
+        return {"posting": [str(x) if x is not None else None for x in post], "cases": cases_for(posting_id),
+                "job_postings": q("SELECT count(*) FROM career.job_postings")[0],
+                "events": q("SELECT count(*) FROM career.moderation_case_events")[0]}
+
+    def p1_submit_creates_one_case():
+        got = {k: len(cases_for(postings[k]["posting_id"])) for k in ("pending", "rejected")}
+        drafts = len(cases_for(postings["draft"]["posting_id"]))
+        assert got == {"pending": 1, "rejected": 1} and drafts == 0, (got, drafts)
+        st = cases_for(postings["pending"]["posting_id"])[0][1]
+        assert st == "PENDING", st
+        return {"cases_per_submitted_posting": got, "draft_cases": drafts, "status": st}
+    rec.check("MODERATION", "policy", "P1 company submit creates exactly 1 moderation case (same transaction)",
+              p1_submit_creates_one_case)
+
+    def p2_failed_submit_rolls_back():
+        incomplete = expect(c.post(base, headers=company, json={"title": "E2EAPI-INCOMPLETE 필수 누락"}), 201).json()
+        r = c.post(f"{base}/{incomplete['posting_id']}/submit", headers=company, json={"version": incomplete["version"]})
+        assert r.status_code == 422, (r.status_code, r.text[:200])
+        after = q("SELECT status, version FROM career.organization_job_postings WHERE posting_id=%s",
+                  incomplete["posting_id"])
+        assert after == ("draft", incomplete["version"]) and cases_for(incomplete["posting_id"]) == [], after
+        full_draft = expect(c.post(base, headers=company, json={"title": "E2EAPI-STALE 버전 충돌"}), 201).json()
+        full_draft = expect(c.patch(f"{base}/{full_draft['posting_id']}", headers=company,
+                                    json={**full, "version": full_draft["version"]}), 200).json()
+        stale = c.post(f"{base}/{full_draft['posting_id']}/submit", headers=company,
+                       json={"version": full_draft["version"] - 1}).status_code
+        assert stale == 409 and cases_for(full_draft["posting_id"]) == [], stale
+        postings["stale"] = full_draft
+        return {"incomplete_submit": 422, "posting_after": list(after), "cases": 0, "stale_version_submit": stale}
+    rec.check("MODERATION", "policy", "P2 failed submit (422 missing fields / 409 stale) → no case, posting unchanged",
+              p2_failed_submit_rolls_back)
+
+    def p3_concurrent_submit():
+        from concurrent.futures import ThreadPoolExecutor
+        p = postings["stale"]
+        def go(_):
+            with httpx.Client(base_url=api, timeout=60) as cc:
+                return cc.post(f"{base}/{p['posting_id']}/submit", headers=company, json={"version": p["version"]}).status_code
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            codes = sorted(pool.map(go, range(4)))
+        open_cases = [r for r in cases_for(p["posting_id"]) if r[1] in ("PENDING", "IN_REVIEW")]
+        assert codes.count(200) == 1 and len(open_cases) == 1, (codes, open_cases)
+        return {"status_codes": codes, "open_cases": 1}
+    rec.check("MODERATION", "policy", "P3 4 concurrent submits → one 200, one open case (no duplicate)",
+              p3_concurrent_submit)
+
+    def case_of(key):
+        return cases_for(postings[key]["posting_id"])[0][0]
+
+    def detail(case_id):
+        return expect(c.get(f"{MC}/{case_id}", headers=admin2), 200).json()
+
+    def p5_failed_approve_no_change():
+        cid = case_of("pending")
+        before = snap(postings["pending"]["posting_id"])
+        d = detail(cid)
+        unassigned = c.post(f"{MC}/{cid}/decision", headers=admin2, json={"version": d["version"], "decision": "APPROVE"})
+        expect(c.post(f"{MC}/{cid}/assignment", headers=admin2, json={"version": d["version"]}), 200)
+        d = detail(cid)
+        stale = c.post(f"{MC}/{cid}/decision", headers=admin2, json={"version": d["version"] - 1, "decision": "APPROVE"})
+        after = snap(postings["pending"]["posting_id"])
+        assert unassigned.status_code in (409, 422) and stale.status_code == 409, (unassigned.status_code, stale.status_code)
+        before_cmp = {**before, "cases": [r[:2] for r in before["cases"]], "events": None}
+        after_cmp = {**after, "cases": [r[:2] for r in after["cases"]], "events": None}
+        # 담당 시작으로 상태가 IN_REVIEW 가 된 것 외에는 공고·공개 행이 그대로여야 한다
+        assert after["posting"] == before["posting"] and after["job_postings"] == before["job_postings"], (before, after)
+        return {"approve_unassigned": unassigned.status_code, "approve_stale_version": stale.status_code,
+                "posting_before_after": [before_cmp["posting"], after_cmp["posting"]],
+                "public_rows_unchanged": after["job_postings"] == before["job_postings"]}
+    rec.check("MODERATION", "policy", "P5 failed approve (unassigned / stale version) → posting & public rows unchanged",
+              p5_failed_approve_no_change)
+
+    def p7_direct_decision_cannot_publish():
+        p = expect(c.get(f"{base}/{postings['pending']['posting_id']}", headers=company), 200).json()
+        before = snap(p["posting_id"])
+        admin_r = c.post(f"{V1}/admin/company-postings/{p['posting_id']}/decision", headers=admin2,
+                         json={"decision": "approve", "version": p["version"]})
+        seeker_r = c.post(f"{V1}/admin/company-postings/{p['posting_id']}/decision", headers=b,
+                          json={"decision": "approve", "version": p["version"]})
+        owner_r = c.post(f"{V1}/admin/company-postings/{p['posting_id']}/decision", headers=company,
+                         json={"decision": "approve", "version": p["version"]})
+        after = snap(p["posting_id"])
+        assert admin_r.status_code == 409 and seeker_r.status_code == 403 and owner_r.status_code == 403, \
+            (admin_r.status_code, seeker_r.status_code, owner_r.status_code)
+        assert after["posting"] == before["posting"] and after["job_postings"] == before["job_postings"]
+        assert after["posting"][0] == "pending_review" and after["posting"][2] is None
+        return {"admin": admin_r.status_code, "seeker": seeker_r.status_code, "owner": owner_r.status_code,
+                "posting_after": after["posting"], "public_rows_unchanged": True}
+    rec.check("MODERATION", "policy", "P7 direct /admin/company-postings/{id}/decision cannot publish (admin 409, others 403)",
+              p7_direct_decision_cannot_publish)
+
+    def p8_non_admin_rejected():
+        cid = case_of("pending")
+        out = {"seeker_queue": c.get(MC, headers=b).status_code, "owner_queue": c.get(MC, headers=company).status_code,
+               "seeker_detail": c.get(f"{MC}/{cid}", headers=b).status_code,
+               "seeker_assign": c.post(f"{MC}/{cid}/assignment", headers=b, json={"version": 1}).status_code,
+               "owner_decide": c.post(f"{MC}/{cid}/decision", headers=company,
+                                      json={"version": 1, "decision": "APPROVE"}).status_code,
+               "anon_queue": c.get(MC).status_code}
+        assert out["anon_queue"] == 401 and all(v == 403 for k, v in out.items() if k != "anon_queue"), out
+        perm = q("SELECT count(*) FROM career.role_permissions rp JOIN career.roles r USING (role_id) JOIN "
+                 "career.permissions p USING (permission_id) WHERE r.code='admin' AND p.code='admin.content.review'")[0]
+        return {**out, "admin_role_has_admin.content.review": perm}
+    rec.check("MODERATION", "policy", "P8 non-admin (seeker, org owner) rejected on moderation API; anon 401",
+              p8_non_admin_rejected)
+
+    def p4_approve_publishes_and_closes():
+        cid = case_of("pending")
+        d = detail(cid)
+        r = expect(c.post(f"{MC}/{cid}/decision", headers=admin2, json={"version": d["version"], "decision": "APPROVE"}),
+                   200).json()
+        assert r["status"] == "APPROVED", r["status"]
+        row = q("SELECT o.status, jp.status, jp.source_id = (SELECT source_id FROM career.data_sources WHERE "
+                "code='company_direct') FROM career.organization_job_postings o JOIN career.job_postings jp "
+                "ON jp.job_posting_id=o.public_posting_id WHERE o.posting_id=%s", postings["pending"]["posting_id"])
+        assert row == ("published", "published", True), row
+        items = expect(c.get(f"{V1}/job-postings", params={"q": "E2EAPI-PENDING"}), 200).json()["items"]
+        assert len(items) == 1, items
+        again = c.post(f"{MC}/{cid}/decision", headers=admin2, json={"version": r["version"], "decision": "REJECT",
+                                                                     "reason_code": "INACCURATE"}).status_code
+        open_after = [x for x in cases_for(postings["pending"]["posting_id"]) if x[1] in ("PENDING", "IN_REVIEW")]
+        assert again in (409, 422) and not open_after, (again, open_after)
+        return {"case": r["status"], "posting/public/company_direct": row, "public_hits": 1,
+                "second_decision": again, "open_cases_after": 0}
+    rec.check("MODERATION", "policy", "P4 approve via moderation case → case APPROVED (closed), posting + public row published",
+              p4_approve_publishes_and_closes)
+
+    def p6_reject_stays_private():
+        cid = case_of("rejected")
+        d = detail(cid)
+        expect(c.post(f"{MC}/{cid}/assignment", headers=admin2, json={"version": d["version"]}), 200)
+        d = detail(cid)
+        r = expect(c.post(f"{MC}/{cid}/decision", headers=admin2, json={"version": d["version"], "decision": "REJECT",
+                                                                         "reason_code": "INACCURATE", "note": "E2E 반려"}),
+                   200).json()
+        own = expect(c.get(f"{base}/{postings['rejected']['posting_id']}", headers=company), 200).json()
+        items = expect(c.get(f"{V1}/job-postings", params={"q": "E2EAPI-REJECTED"}), 200).json()["items"]
+        assert r["status"] == "REJECTED" and own["status"] == "rejected" and own["public_posting_id"] is None, (r, own)
+        assert items == []
+        return {"case": r["status"], "posting": own["status"], "reason_code": own["reason_code"], "public_hits": 0}
+    rec.check("MODERATION", "policy", "P6 reject via moderation case → posting rejected (reason visible to owner), not public",
+              p6_reject_stays_private)
 
     def private_until_published():
         out = {}
-        for key, title in titles.items():
-            items = expect(c.get(f"{V1}/job-postings", params={"q": title.split()[0]}), 200).json()["items"]
+        for key in ("draft", "rejected"):
+            items = expect(c.get(f"{V1}/job-postings", params={"q": titles[key].split()[0]}), 200).json()["items"]
             out[key] = len(items)
-        assert out == {"draft": 0, "pending": 0, "rejected": 0}, out
-        rows = q("SELECT count(*) FROM career.job_postings jp JOIN career.organization_public_companies opc "
-                 "USING (company_id) WHERE opc.organization_id=%s", org["organization_id"])[0]
-        assert rows == 0, rows
-        return {"public_search_hits": out, "public_rows_for_org": rows}
-    rec.check("PUBLIC_POSTINGS", "D-anon", "company draft/pending/rejected not in public list (no public row)",
+        for key in ("draft", "rejected"):
+            d = c.get(f"{V1}/job-postings", params={"q": titles[key].split()[0]}, headers=b).json()["items"]
+            out[key + "_logged_in"] = len(d)
+        assert all(v == 0 for v in out.values()), out
+        return {"public_search_hits": out}
+    rec.check("PUBLIC_POSTINGS", "D-anon", "company draft/rejected not in public list (anon + logged in)",
               private_until_published)
 
-    def direct_decision_probe():
-        """정책(PR #359): /admin/company-postings/{id}/decision 으로는 게시할 수 없어야 한다. 현재 스택은 허용."""
-        p = expect(c.get(f"{base}/{postings['pending']['posting_id']}", headers=company), 200).json()
-        r = c.post(f"{V1}/admin/company-postings/{p['posting_id']}/decision", headers=admin2,
-                   json={"decision": "approve", "version": p["version"]})
-        published_now = r.status_code == 200 and r.json().get("status") == "published"
-        return {"status_code": r.status_code, "published": published_now,
-                "posting_status": (r.json().get("status") if r.status_code == 200 else r.json().get("code"))}
-    try:
-        ev = direct_decision_probe()
-        rec.add("MODERATION", "policy", "direct /admin/company-postings/{id}/decision cannot publish (PR #359 pending)",
-                "BLOCKED" if ev["published"] else "PASS",
-                {**ev, "note": "at 35fe589 the T126 direct decision path is the documented approve path; PR #359 "
-                               "is expected to route approval through moderation cases only"})
-        state["direct_decision"] = ev
-    except Exception as exc:  # noqa: BLE001
-        rec.add("MODERATION", "policy", "direct decision probe", "FAIL", str(exc))
-
-    def published_visible():
-        ev = state.get("direct_decision") or {}
-        if not ev.get("published"):
-            return {"skipped": "not published"}
-        items = expect(c.get(f"{V1}/job-postings", params={"q": "E2EAPI-PENDING"}), 200).json()["items"]
-        assert len(items) == 1, items
-        row = q("SELECT jp.status, jp.source_id = (SELECT source_id FROM career.data_sources WHERE code='company_direct') "
-                "FROM career.organization_job_postings o JOIN career.job_postings jp ON jp.job_posting_id=o.public_posting_id "
-                "WHERE o.posting_id=%s", postings["pending"]["posting_id"])
-        assert row == ("published", True), row
-        return {"public_hits": 1, "public_row": row}
-    rec.check("PUBLIC_POSTINGS", "D-anon", "approved company posting appears publicly (company_direct source)",
-              published_visible)
+    def p9_jobkorea_private():
+        st = q("SELECT status FROM career.job_postings WHERE job_posting_id=%s", JOBKOREA_DRAFT_ID)[0]
+        cases = q("SELECT count(*) FROM career.moderation_cases WHERE target_id=%s", JOBKOREA_DRAFT_ID)[0]
+        d = c.get(f"{V1}/job-postings/{JOBKOREA_DRAFT_ID}").status_code
+        assert st == "draft" and d == 404, (st, d)
+        return {"status_after_all_moderation": st, "detail": d, "cases": cases}
+    rec.check("MODERATION", "policy", "P9 JobKorea-like crawled draft stays private after moderation flows",
+              p9_jobkorea_private)
 
     # ------------------------------------------------------------------ NOTIFICATION / APPLICATION (B)
     def application_no_notification():

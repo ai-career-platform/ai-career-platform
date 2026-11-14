@@ -119,6 +119,9 @@ def prepare_database(rec: Recorder, admin_url: str, psql: str, out: Path) -> str
         rec.meta["server_version"] = version
         rec.meta["server_version_num"] = admin.info.server_version
         rec.meta["version_full"] = admin.execute("SELECT version()").fetchone()[0]
+        want = os.environ.get("E2E_REQUIRE_PG_MAJOR")
+        if want and admin.info.server_version // 10000 != int(want):
+            raise SystemExit(f"PostgreSQL major {admin.info.server_version // 10000} != required {want}")
         admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(DB_NAME)))
         admin.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(APP_ROLE)))
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(DB_NAME)))
