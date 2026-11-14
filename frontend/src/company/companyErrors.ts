@@ -8,6 +8,8 @@ export function explain(error: unknown, context: 'role' | 'remove' | 'invite' | 
       ? '이 작업은 운영 확인이 끝난 조직의 기업 관리자만 할 수 있습니다.' : '이 작업은 기업 관리자만 할 수 있습니다.';
     if (error.status === 404) return '조직이나 대상을 찾을 수 없거나 접근 권한이 없습니다.';
     if (error.status === 422) return '입력값을 확인해 주세요.';
+    if (error.status === 503) return context === 'invite' || context === 'resend'
+      ? '지금은 초대 메일을 보낼 수 없습니다. 잠시 후 다시 시도해 주세요.' : '지금은 기업 기능을 쓸 수 없습니다. 잠시 후 다시 시도해 주세요.';
     if (error.status === 409) {
       if (context === 'role' || context === 'remove') return '마지막 기업 관리자는 내리거나 제외할 수 없습니다. 또는 다른 곳에서 먼저 바뀌었습니다.';
       if (context === 'invite') return '이미 초대했거나 이미 멤버인 이메일입니다.';

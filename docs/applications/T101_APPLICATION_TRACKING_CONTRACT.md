@@ -2,7 +2,7 @@
 
 > 상태: **PROPOSED / 미승인** — 신규 확장 기능입니다. PM 승인 전에는 T102(API)·T103(화면)이 운영에서 켜지지 않습니다.
 > 기준 main `ceee31d` · 2026-11-11 · F-012·F-013 · 신규 요구사항 **FR-JOB-008(제안)** · 화면 **UI-N05(제안)**
-> 선행: T04·T05·T18 병합, T91 범위 기준선(병합, 확장 후보) · 산출물: 이 문서 · [제안 DDL](../../database/proposed/T101_job_applications.sql) · [제안 OpenAPI](t101_openapi_proposal.yaml) · [계약 시험](test_t101_application_contract.py)
+> 선행: T04·T05·T18 병합, T91 범위 기준선(병합, 확장 후보) · 산출물: 이 문서 · [DDL (migration 0004)](../../database/migrations/0004_job_applications.sql) · [제안 OpenAPI](t101_openapi_proposal.yaml) · [계약 시험](test_t101_application_contract.py)
 
 ## 1. 범위와 원칙
 

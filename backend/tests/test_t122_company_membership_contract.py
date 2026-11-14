@@ -1,6 +1,6 @@
-"""T122 기업 조직·소속·초대 데이터 계약(PROPOSED) — 일회용 PostgreSQL 18 에서 제안 DDL 제약을 검증한다.
+"""T122 기업 조직·소속·초대 데이터 계약 — 일회용 PostgreSQL 18 에서 migration 0008 제약을 검증한다.
 
-정식 migration 이 아니다(database/proposed). 공유 Staging DB 에 적용하지 않는다.
+database/migrations/0008_organizations.sql (제안 DDL 승격). 공유 Staging DB 에 적용하지 않는다.
 DDL 없이도 도는 문서·DTO 일치 시험은 항상 실행된다.
 """
 
@@ -14,7 +14,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-DDL_PATH = ROOT / "database" / "proposed" / "T122_organizations.sql"
+DDL_PATH = ROOT / "database" / "migrations" / "0008_organizations.sql"
 CONTRACT = ROOT / "docs" / "enterprise" / "T122_COMPANY_MEMBERSHIP_CONTRACT.md"
 OPENAPI = ROOT / "docs" / "enterprise" / "t122_openapi_proposal.yaml"
 MATRIX = json.loads((ROOT / "docs" / "enterprise" / "t121_role_matrix.json").read_text(encoding="utf-8"))
@@ -25,9 +25,11 @@ def token_hash(seed: str) -> str:
 
 
 # ------------------------------------------------------------------ 문서·DTO 일치(항상 실행)
-def test_ddl_is_marked_proposed_and_not_in_migrations():
-    assert DDL_PATH.read_text(encoding="utf-8").startswith("-- PROPOSED (T122)")
-    assert not list((ROOT / "database" / "migrations").glob("*organization*"))
+def test_ddl_is_promoted_to_migration_0008_and_no_proposed_copy_remains():
+    text = DDL_PATH.read_text(encoding="utf-8")
+    assert text.startswith("-- Purpose:") and "-- Recovery:" in "\n".join(text.splitlines()[:20])
+    assert [p.name for p in (ROOT / "database" / "migrations").glob("*organization*")] == ["0008_organizations.sql"]
+    assert not (ROOT / "database" / "proposed" / "T122_organizations.sql").exists()
 
 
 def test_dto_enums_match_ddl_and_t121_roles():

@@ -1,7 +1,7 @@
 # 기업 계정·소속·초대 데이터 계약 (T122)
 
-> 상태: **PROPOSED**. PM 승인 전이며, 정식 migration과 API 구현은 없습니다.
-> - 제안 DDL: [`database/proposed/T122_organizations.sql`](../../database/proposed/T122_organizations.sql). 러너가 읽지 않는 폴더이고, 공유 DB에는 적용하지 않습니다.
+> 상태: 정책(T121 역할·D-1~D-5)은 **PROPOSED**. 표는 migration 0008 로 승격되었고, API(T123)는 `COMPANY_ACCOUNTS_API=true` 일 때만 열립니다(기본 꺼짐).
+> - DDL: [`database/migrations/0008_organizations.sql`](../../database/migrations/0008_organizations.sql). 제안 `database/proposed/T122_organizations.sql` 을 열·키 이름 그대로 승격했고, 조직별 초대 목록 인덱스(`ix_organization_invitations_org`)와 조건부 GRANT 만 더했습니다. 운영(GCP) 적용은 별도 PM 승인 후에만 합니다.
 > - DTO 제안: [`t122_openapi_proposal.yaml`](t122_openapi_proposal.yaml). 확정 계약에 합치지 않습니다.
 > - 시험: `backend/tests/test_t122_company_membership_contract.py`. 일회용 PostgreSQL 18에서 제약을 검증합니다.
 > - 권한 규칙: T121 [`t121_role_matrix.json`](t121_role_matrix.json). 이 PR은 T121(#210) 위에 쌓여 있습니다.

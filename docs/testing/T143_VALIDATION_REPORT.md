@@ -22,7 +22,7 @@
 | `frontend/src/personal/PersonalDataServiceProvider.tsx`, `personalDataContext.ts` | 데이터 경로(Mock만) |
 | `frontend/src/pages/MyDataPage.tsx`, `MyDataPage.css` | 화면 |
 | `frontend/src/pages/MyData.test.tsx` | 14건 |
-| `frontend/src/config/env.ts` | `personalDataUi` = Mock 모드 && `VITE_PERSONAL_DATA_UI` |
+| `frontend/src/config/env.ts` | `personalDataUi` = `VITE_PERSONAL_DATA_UI`(기본 꺼짐). Mock 모드면 Mock Adapter, 아니면 실제 API(T142, migration 0006) — 후속 변경 |
 | `frontend/src/routes.tsx`, `frontend/src/layouts/AppLayout.tsx` | `/me/data` 경로·메뉴(플래그 뒤) |
 | `frontend/src/a11y/AccessibilityRegression.test.tsx` | `/me/data` 점검 추가 |
 

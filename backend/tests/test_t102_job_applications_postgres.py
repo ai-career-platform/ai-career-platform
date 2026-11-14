@@ -1,4 +1,4 @@
-"""T102 개인 지원 기록 API — 일회용 PostgreSQL 18 + 제안 DDL(T101) + 최소 권한 앱 역할 + 실제 FastAPI(JOB_APPLICATIONS_API=true).
+"""T102 개인 지원 기록 API — 일회용 PostgreSQL 18 + migration 0004(T101) + 최소 권한 앱 역할 + 실제 FastAPI(JOB_APPLICATIONS_API=true).
 
 합성 사용자 A·B(security_pg)와 seed 공고만 씁니다. 공유 Staging DB 는 쓰지 않습니다.
 """
@@ -12,7 +12,7 @@ import pytest
 from tests.security.security_pg import ROOT, USER_A, USER_B, disposable_pg, requires_pg
 
 pytestmark = requires_pg
-DDL = (ROOT / "database/proposed/T101_job_applications.sql").read_text(encoding="utf-8")
+DDL = (ROOT / "database/migrations/0004_job_applications.sql").read_text(encoding="utf-8")
 URL = "/api/v1/me/job-applications"
 
 

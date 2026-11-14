@@ -1,6 +1,6 @@
 /**
  * UI-N04 알림함 (T97, F-003). 읽음/안 읽음 목록, 한 건·전체 읽음 처리.
- * 지금은 Mock Adapter 만 연결됩니다(알림함 API 계약 없음 — docs/testing/T97_NOTIFICATION_UI_VALIDATION.md).
+ * Mock 모드면 Mock Adapter, 아니면 실제 API(T97, docs/testing/T97_NOTIFICATION_UI_VALIDATION.md §3).
  * 안 읽음은 색만이 아니라 "안 읽음" 글자와 굵은 제목으로 표시합니다.
  */
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { StatePanel } from '../components/StatePanel';
+import { env } from '../config/env';
 import { useNotificationService } from '../notifications/notificationContext';
 import './Notifications.css';
 
@@ -56,7 +57,7 @@ export function NotificationsPage() {
   return (
     <section className="notify-page" aria-labelledby="notify-title">
       <h1 id="notify-title">알림함</h1>
-      <p className="notify-notice">가상 데이터(Mock)입니다. 실제 알림 발송·서버 연동은 아직 없습니다.</p>
+      {env.mockEnabled && <p className="notify-notice">가상 데이터(Mock)입니다. 실제 알림 발송·서버 연동은 아직 없습니다.</p>}
       <p><Link to="/me/notification-settings">알림 수신 설정</Link></p>
       {message && (
         <p className={message.kind === 'error' ? 'notify-error' : 'notify-ok'} role={message.kind === 'error' ? 'alert' : 'status'}>

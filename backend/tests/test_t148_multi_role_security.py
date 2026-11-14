@@ -9,7 +9,8 @@
 검증 층(섞지 않는다)
 - [ROUTER+MEMORY] 실제 FastAPI 라우터·실제 인증(서명·세션·DB 역할 재조회)
   - 기업(T123)·공고(T126)·공개 포트폴리오(T129) 기능 플래그를 한 앱에서 모두 켠다.
-  - 저장소는 메모리다. 이 기능들은 정식 migration 이 없어 기본 의존성이 503 이다.
+  - 저장소는 메모리다(기업 기능은 정식 migration 이 없어 기본 의존성이 503, 공개 포트폴리오의 SQL 저장소(0007)는
+    test_t129_public_portfolio_postgres.py 가 따로 검증).
 - [POSTGRESQL] 일회용 PG 18.6 + 실제 0001 스키마·T10 Seed
   - 운영 관리자 경로의 역할 회수·세션 회수·IDOR 를 확인한다.
   - T86 `disposable_pg` 를 쓰고, 앱은 최소 권한 역할로 접속한다.
@@ -45,7 +46,7 @@ from tests.security.security_pg import ADMIN, USER_A, USER_B, disposable_pg, req
 
 API = API_V1_PREFIX
 NOW = datetime(2026, 11, 11, 3, 0, tzinfo=UTC)
-FLAGS = ("COMPANY_ACCOUNTS_API", "COMPANY_POSTINGS_API", "PUBLIC_PORTFOLIO_API", "JOB_APPLICATIONS_API")
+FLAGS = ("COMPANY_ACCOUNTS_API", "COMPANY_POSTINGS_API", "PUBLIC_PORTFOLIO_API", "JOB_APPLICATIONS_API", "NOTIFICATIONS_API")
 # 로그인 없이 허용된 경로(검토된 목록). 새 공개 경로가 생기면 이 시험이 실패해 검토를 강제한다.
 PUBLIC_ROUTES = {
     "GET /health", "GET /health/db", "GET /version", "GET /api/v1/consent-policies",
@@ -436,7 +437,7 @@ def test_10_default_flags_off_expose_no_company_or_portfolio_routes(monkeypatch)
     get_settings.cache_clear()
     paths = create_app().openapi()["paths"]
     assert not [p for p in paths if re.search(r"organization|company-postings|public-profile|public/portfolios|"
-                                              r"job-applications", p)]
+                                              r"job-applications|notification", p)]
     get_settings.cache_clear()
 
 

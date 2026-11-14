@@ -21,7 +21,7 @@ T141 정책을 따라 본인 데이터 반출 요청, 처리 상태 조회, 재�
 | `backend/app/routers/personal_data_requests.py` | 경로 7개 |
 | `backend/app/core/config.py`, `backend/app/main.py` | 플래그 등록(기본 꺼짐) |
 | `backend/app/core/env_contract.py`, `.env.example`, `docs/ops/ENVIRONMENT_MATRIX.md` | 환경 계약에 플래그 추가 |
-| `database/proposed/T142_personal_data_requests.sql` | 제안 DDL(적용 금지) |
+| `database/migrations/0006_personal_data_requests.sql` | (구 제안 DDL) migration 0006 으로 승격. 운영(GCP) 적용은 별도 PM 승인 |
 | `backend/tests/test_t142_personal_data_requests.py` | API 시험 25건 |
 | `backend/tests/test_t142_proposed_ddl_postgres.py` | 제안 DDL 시험 5건(`T142_ADMIN_URL`이 있을 때만) |
 | `docs/privacy/T142_PERSONAL_DATA_EXPORT_API.md` | API 설명 |
