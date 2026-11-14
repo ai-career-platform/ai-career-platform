@@ -183,3 +183,16 @@ def test_consent_policies_is_public(client):
     assert response.status_code == 200
     codes = {p["policy_code"]: p["is_required"] for p in response.json()}
     assert codes == {"terms": True, "privacy": True, "llm_processing": False}
+
+
+def test_consent_policies_skip_feature_policies_instead_of_500(client, repo):
+    """FSE-001: T128 'public_profile' 약관 행이 같은 표에 있어도 가입 화면의 약관 목록은 200 이고 그 행은 빠진다."""
+    from app.repositories.auth import PolicyRecord
+    from tests.fakes import POLICY_EFFECTIVE
+
+    repo.policies.append(PolicyRecord("public_profile", "t128-1", False, "https://docs.ai-career.invalid/pp",
+                                      POLICY_EFFECTIVE))
+    response = client.get(f"{API_V1_PREFIX}/consent-policies")
+    assert response.status_code == 200, response.text
+    assert {p["policy_code"] for p in response.json()} == {"terms", "privacy", "llm_processing"}
+    assert signup(client).status_code == 201
