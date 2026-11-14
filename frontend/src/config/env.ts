@@ -22,8 +22,12 @@ export const env = {
    * 실제 API 로 켜려면 서버 NOTIFICATIONS_API=true 와 migration 0005 적용이 먼저 필요합니다(운영은 별도 승인).
    */
   notificationsUi: import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
-  /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
-  jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
+  /**
+   * T100 고급 채용 검색 UI. 기본 꺼짐. 켜면 Mock 모드에서는 Mock 검색, 그 외에는 실제 API(`GET /v1/job-postings`)를 씁니다.
+   * 실제 API 로 쓰려면 서버 플래그 `JOB_SEARCH_ADVANCED=true` 도 함께 켜야 합니다(꺼져 있으면 서버가 T18 목록으로 응답해
+   * 고용형태·지역·게시일 조건은 무시되고, 화면은 기존 목록·오류·빈 상태 그대로 동작합니다).
+   */
+  jobSearchAdvancedUi: import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
   /**
    * T103 지원 현황 보드·공고 상세의 "지원 기록에 추가". 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T102)를 씁니다.
    * 실제 API 로 켜려면 서버 JOB_APPLICATIONS_API=true 와 migration 0004 적용이 먼저 필요합니다(운영은 별도 승인).

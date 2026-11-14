@@ -7,6 +7,7 @@ import { documentsApi } from './documents';
 import { systemApi } from './health';
 import type { HttpClient } from './http';
 import { createHttpJobApplicationService } from './jobApplications';
+import { createHttpJobSearchService } from './jobSearch';
 import { marketTrendsApi } from './marketTrends';
 import { meApi } from './me';
 import { createHttpNotificationService } from './notifications';
@@ -25,6 +26,8 @@ export function createApi(http: HttpClient) {
     notifications: createHttpNotificationService(http),
     // T85 운영 감사·AI 사용량(T84 API). 화면은 VITE_ADMIN_AUDIT_UI 플래그가 켜졌을 때만 씁니다.
     adminAudit: createHttpAdminAuditService(http),
+    // T100 고급 공고 검색(T99 API, 서버 JOB_SEARCH_ADVANCED). 화면은 VITE_JOB_SEARCH_ADVANCED_UI 가 켜졌을 때만 씁니다.
+    jobSearch: createHttpJobSearchService(http),
   };
 }
 
