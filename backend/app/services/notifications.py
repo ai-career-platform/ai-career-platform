@@ -8,6 +8,9 @@
 - 기본 템플릿 목록(`DEFAULT_TEMPLATES`)은 T95 대로 **전부 미승인**이라 enqueue 가 거부합니다.
 - outbox 표는 `database/migrations/0005_notifications.sql` (T96·T97).
 - 비밀 변수(링크·토큰)가 있는 템플릿은 outbox 에 넣지 않습니다(저장 금지). 비밀번호 재설정은 T93 즉시 발송 경로를 유지합니다.
+- 채널: worker 는 `channel='email'` 행만 꺼내고 메일 공급자에 넘깁니다. `in_app` 유형은 enqueue 시점에
+  바로 전달 완료(`status='sent'`, `sent_at`) 행으로 기록되어 T97 알림함(`channel='in_app' AND status='sent'`)에 보이며,
+  메일 공급자에는 절대 전달되지 않습니다.
 로그에는 delivery_id·유형·상태·마스킹된 주소만 남깁니다.
 """
 from __future__ import annotations
@@ -65,6 +68,8 @@ SPECS: dict[str, NotificationSpec] = {s.type: s for s in (
     _spec("marketing.newsletter", False, "marketing_notification", False, True, 7 * _D, 2, 90),
 )}
 INACTIVE_ALLOWED = frozenset({"account.deletion_receipt"})   # T95 §3-3
+CHANNELS = frozenset({"email", "in_app"})                     # migration 0005 CHECK
+MAIL_CHANNEL = "email"                                        # worker·메일 공급자가 다루는 유일한 채널
 
 
 @dataclass(frozen=True)
@@ -205,12 +210,19 @@ class NotificationOutbox(Protocol):
         """같은 dedupe_key 의 취소되지 않은 행이 window_start 이후에 있으면 False(중복)."""
 
     def claim_due(self, now: datetime, limit: int, lease_until: datetime) -> list[Delivery]:
-        """due 인 queued 행과 점유가 만료된 sending 행을 sending 으로 바꿔 돌려줌(동시 worker 간 겹치지 않음)."""
+        """`channel='email'` 중 due 인 queued 행과 점유가 만료된 sending 행을 sending 으로 바꿔 돌려줌
+        (동시 worker 간 겹치지 않음). in_app 행은 절대 꺼내지 않습니다."""
 
     def finish(self, delivery_id: UUID, *, status: str, attempts: int, next_attempt_at: datetime,
                sent_at: datetime | None, last_error_code: str | None) -> None: ...
 
     def purge_expired(self, now: datetime, retention: Mapping[str, timedelta]) -> int: ...
+
+
+class PreferenceStore(Protocol):
+    """T97 `notification_preferences` 사용자 선택 (행 없음 = T95 기본값). 예: SqlNotificationInboxRepository."""
+
+    def preferences(self, user_id: UUID) -> Mapping[tuple[str, str], bool]: ...
 
 
 # ---------------------------------------------------------------- 판정
@@ -248,15 +260,21 @@ class NotificationEvent:
 
 
 class NotificationDispatcher:
-    """이벤트 접수. 결과: queued | duplicate | blocked_consent | blocked_inactive | unknown_recipient."""
+    """이벤트 접수. 결과: queued(email) | delivered(in_app, 알림함에 바로 보임) | duplicate | blocked_consent |
+    blocked_preference | blocked_inactive | unknown_recipient.
+
+    `preferences` 를 주면 선택 유형은 사용자가 끈(`enabled=false`) (유형, 채널) 조합을 보내지 않습니다(필수 유형은 무시).
+    켜 둔 설정이 동의(consent) 부재를 덮어쓰지는 않습니다(동의가 발송 근거)."""
 
     def __init__(self, outbox: NotificationOutbox, directory: RecipientDirectory,
-                 templates: Mapping[str, Template] = DEFAULT_TEMPLATES, clock: Callable[[], datetime] | None = None):
+                 templates: Mapping[str, Template] = DEFAULT_TEMPLATES, clock: Callable[[], datetime] | None = None,
+                 *, specs: Mapping[str, NotificationSpec] = SPECS, preferences: PreferenceStore | None = None):
         self.outbox, self.directory, self.templates = outbox, directory, templates
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.specs, self.preferences = specs, preferences
 
     def enqueue(self, event: NotificationEvent) -> str:
-        spec = SPECS.get(event.type)
+        spec = self.specs.get(event.type)
         if spec is None:
             raise ValueError(f"unknown notification type {event.type!r}")
         template = self.templates.get(event.type)
@@ -275,15 +293,24 @@ class NotificationDispatcher:
             return "blocked_inactive"
         if not consent_allows(spec, recipient):
             return "blocked_consent"
+        if not spec.required and self.preferences is not None and \
+                self.preferences.preferences(event.user_id).get((spec.type, spec.channel)) is False:
+            return "blocked_preference"
+        if spec.channel not in CHANNELS:
+            raise ValueError(f"unknown channel {spec.channel!r}")
         now = self.clock()
-        delivery = Delivery(uuid4(), event.user_id, event.type, spec.channel, "queued", 0,
+        in_app = spec.channel == "in_app"
+        # in_app 은 메일 발송 대상이 아님 → 대기열을 거치지 않고 바로 전달 완료(알림함 표시) 행으로 기록
+        delivery = Delivery(uuid4(), event.user_id, event.type, spec.channel, "sent" if in_app else "queued", 0,
                             dedupe_key(event.user_id, event.type, event.subject_ref), template.code, template.version,
-                            dict(event.variables), now, release_time(spec, now))
+                            dict(event.variables), now, now if in_app else release_time(spec, now),
+                            sent_at=now if in_app else None)
         if not self.outbox.enqueue(delivery, now - spec.dedupe_window):
             logger.info("notification duplicate type=%s", event.type)
             return "duplicate"
-        logger.info("notification queued id=%s type=%s", delivery.delivery_id, event.type)
-        return "queued"
+        status = "delivered" if in_app else "queued"
+        logger.info("notification %s id=%s type=%s channel=%s", status, delivery.delivery_id, event.type, spec.channel)
+        return status
 
 
 @dataclass
@@ -301,12 +328,13 @@ class NotificationWorker:
 
     def __init__(self, outbox: NotificationOutbox, directory: RecipientDirectory, provider: NotificationProvider,
                  templates: Mapping[str, Template] = DEFAULT_TEMPLATES, clock: Callable[[], datetime] | None = None,
-                 batch: int = MAX_BATCH):
+                 batch: int = MAX_BATCH, *, specs: Mapping[str, NotificationSpec] = SPECS):
         if not 1 <= batch <= MAX_BATCH:
             raise ValueError("batch out of range")
         self.outbox, self.directory, self.provider, self.templates = outbox, directory, provider, templates
         self.clock = clock or (lambda: datetime.now(UTC))
         self.batch = batch
+        self.specs = specs
 
     def run(self) -> WorkerSummary:
         summary = WorkerSummary()
@@ -325,7 +353,11 @@ class NotificationWorker:
         logger.info("notification id=%s type=%s status=%s", item.delivery_id, item.type, status)
 
     def _process(self, item: Delivery, now: datetime, summary: WorkerSummary) -> None:
-        spec = SPECS[item.type]
+        if item.channel != MAIL_CHANNEL:   # 방어선: claim_due 가 이미 거르지만, 메일 공급자에는 절대 넘기지 않음
+            summary.cancelled += 1
+            logger.error("notification worker got non-email row id=%s channel=%s", item.delivery_id, item.channel)
+            return self._finish(item, "cancelled", error="channel_not_email")
+        spec = self.specs[item.type]
         recipient = self.directory.lookup(item.user_id) if item.user_id else None
         if recipient is None or (not recipient.active and item.type not in INACTIVE_ALLOWED):
             summary.cancelled += 1
@@ -386,8 +418,9 @@ class MemoryOutbox:
 
     def claim_due(self, now: datetime, limit: int, lease_until: datetime) -> list[Delivery]:
         due = [r for r in self.rows.values()
-               if (r.status == "queued" and r.next_attempt_at <= now)
-               or (r.status == "sending" and self.locked[r.delivery_id] <= now)]
+               if r.channel == MAIL_CHANNEL and (
+                   (r.status == "queued" and r.next_attempt_at <= now)
+                   or (r.status == "sending" and self.locked[r.delivery_id] <= now))]
         due.sort(key=lambda r: (r.next_attempt_at, str(r.delivery_id)))
         claimed = []
         for row in due[:limit]:

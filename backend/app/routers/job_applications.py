@@ -17,15 +17,26 @@ from app.repositories.job_applications import SqlJobApplicationRepository
 from app.schemas.job_applications import (
     ApplicationStage, JobApplication, JobApplicationCreate, JobApplicationPage, JobApplicationUpdate,
 )
+from app.repositories.notification_inbox import SqlNotificationInboxRepository
+from app.repositories.notifications import SqlNotificationOutbox, SqlRecipientDirectory
 from app.services.job_applications import JobApplicationService
 from app.services.job_postings import ListCursor, derive_cursor_key
+from app.services.notification_events import EventNotifier
+from app.services.notifications import NotificationDispatcher
 
 router = APIRouter(prefix="/me/job-applications", tags=["me"], responses=error_responses(401, 503))
 
 
+def _in_app_dispatcher(db: Session) -> NotificationDispatcher:
+    return NotificationDispatcher(SqlNotificationOutbox(db), SqlRecipientDirectory(db),
+                                  preferences=SqlNotificationInboxRepository(db))
+
+
 def get_job_application_service(db: Annotated[Session, Depends(get_db)],
                                 settings: Annotated[AuthSettings, Depends(get_auth_settings)]) -> JobApplicationService:
-    return JobApplicationService(SqlJobApplicationRepository(db), ListCursor(derive_cursor_key(settings.jwt_secret)))
+    # 단계 변경 in_app 알림: 스위치 꺼짐·유형 미승인이라 현재 DB 에 아무것도 쓰지 않음 (notification_events)
+    return JobApplicationService(SqlJobApplicationRepository(db), ListCursor(derive_cursor_key(settings.jwt_secret)),
+                                 events=EventNotifier(lambda: _in_app_dispatcher(db)))
 
 
 Service = Annotated[JobApplicationService, Depends(get_job_application_service)]

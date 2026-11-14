@@ -4,6 +4,7 @@
   부분 unique index(queued/sending)가 최종 방어선입니다.
 - 꺼내기: `FOR UPDATE SKIP LOCKED` 로 동시 worker 가 같은 행을 잡지 않습니다. 점유(locked_until)가 만료된 sending 행은
   worker 중단으로 보고 다시 꺼냅니다(최소 1회 전달 — 공급자에 delivery_id 를 멱등 키로 넘김).
+  `channel='email'` 행만 꺼냅니다 — in_app 행은 메일 worker 대상이 아니며 enqueue 때 바로 sent 로 기록됩니다.
 각 메서드는 스스로 커밋합니다(worker 가 행 단위로 상태를 확정).
 """
 from __future__ import annotations
@@ -47,9 +48,10 @@ class SqlNotificationOutbox:
                 return False
             s.execute(text(
                 "INSERT INTO career.notification_deliveries (delivery_id, user_id, notification_type, channel, status, "
-                "attempts, dedupe_key, template_code, template_version, variables, created_at, next_attempt_at) "
-                "VALUES (:id, :u, :t, :c, 'queued', 0, :k, :tc, :tv, CAST(:v AS jsonb), :at, :next)"),
+                "attempts, dedupe_key, template_code, template_version, variables, created_at, next_attempt_at, sent_at) "
+                "VALUES (:id, :u, :t, :c, :s, 0, :k, :tc, :tv, CAST(:v AS jsonb), :at, :next, :sent)"),
                 {"id": delivery.delivery_id, "u": delivery.user_id, "t": delivery.type, "c": delivery.channel,
+                 "s": delivery.status, "sent": delivery.sent_at,
                  "k": delivery.dedupe_key, "tc": delivery.template_code, "tv": delivery.template_version,
                  "v": json.dumps(dict(delivery.variables), ensure_ascii=False), "at": delivery.created_at,
                  "next": delivery.next_attempt_at})
@@ -63,7 +65,8 @@ class SqlNotificationOutbox:
         rows = self.session.execute(text(
             f"UPDATE career.notification_deliveries d SET status = 'sending', locked_until = :lease "
             f"WHERE d.delivery_id IN (SELECT delivery_id FROM career.notification_deliveries "
-            f"  WHERE (status = 'queued' AND next_attempt_at <= :now) OR (status = 'sending' AND locked_until <= :now) "
+            f"  WHERE channel = 'email' AND ((status = 'queued' AND next_attempt_at <= :now) "
+            f"    OR (status = 'sending' AND locked_until <= :now)) "
             f"  ORDER BY next_attempt_at, delivery_id LIMIT :limit FOR UPDATE SKIP LOCKED) "
             f"RETURNING {_COLUMNS}"), {"lease": lease_until, "now": now, "limit": limit}).all()
         self.session.commit()

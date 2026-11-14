@@ -19,6 +19,7 @@ from app.schemas.job_applications import (
     ApplicationPosting, JobApplication, JobApplicationCreate, JobApplicationPage, JobApplicationUpdate,
 )
 from app.services.job_postings import ListCursor
+from app.services.notification_events import EventNotifier
 
 KST = timezone(timedelta(hours=9))
 STAGES = ("interested", "preparing", "applied", "interviewing", "offered", "rejected", "withdrawn")
@@ -93,8 +94,16 @@ def _invalid(reason: str) -> AppError:
 
 class JobApplicationService:
     def __init__(self, repo: JobApplicationRepository, cursor: ListCursor,
-                 clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
+                 clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+                 events: EventNotifier | None = None) -> None:
         self.repo, self.cursor, self.clock = repo, cursor, clock
+        self.events = events
+
+    def _stage_changed(self, user_id: UUID, row: ApplicationRow) -> None:
+        """in_app 알림 연결 지점(T96 후속). 유형 미승인이라 현재 BLOCKED — notification_events 참고.
+        dedupe 대상 = (기록 ID, 새 version) 이라 같은 변경의 재시도는 1건. 단계·메모 등 내용은 넘기지 않습니다."""
+        if self.events is not None:
+            self.events.notify(user_id, "application.stage_changed", f"{row.application_id}:{row.version}")
 
     # ------------------------------------------------------------------ 규칙
     def _today(self) -> date:
@@ -198,6 +207,8 @@ class JobApplicationService:
             if self.repo.get(user_id, application_id) is None:
                 raise AppError(ErrorCode.NOT_FOUND, log_detail="job application deleted concurrently")
             raise _conflict("VERSION_CONFLICT")
+        if target != current.stage:
+            self._stage_changed(user_id, row)
         return self._view(row)
 
     def delete(self, user_id: UUID, application_id: UUID) -> None:
