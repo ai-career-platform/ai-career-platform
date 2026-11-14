@@ -239,7 +239,7 @@ def test_release_returns_to_pending_and_needs_in_review(w):
     ("shared_document", "PRE_PUBLISH", "APPROVE"),
     ("job_posting", "REPORT", "REJECT"),              # 게시 중단 효과 미구현(계약 §5 OPEN)
     ("document_analysis", "REPORT", "REJECT"),        # 결과 숨김 미구현
-    ("company_posting", "PRE_PUBLISH", "APPROVE"),    # T125 SQL 전이 없음
+    ("company_posting", "PRE_PUBLISH", "APPROVE"),    # T125 전이 미연결(이 시험 서비스에 effects 없음)
     ("company_posting", "PRE_PUBLISH", "REJECT"),
 ])
 def test_decision_needing_a_missing_content_effect_changes_nothing(w, target_type, trigger, decision):
@@ -328,7 +328,7 @@ def test_t125_refusal_rolls_back_the_case(w, t125):
     """T125 가 거절(관리자가 그 조직 멤버 → 403)하면 검수 건도 IN_REVIEW 그대로, 이력·감사 추가 없음."""
     service, public, pending, org_id = t125
     posting, case = pending()
-    service.accounts.repo.members[(org_id, w.a)] = Member(org_id, w.a, "admin", NOW)
+    service.orgs.repo.members[(org_id, w.a)] = Member(org_id, w.a, "member", NOW)
     w.assign(case)
     before = (w.store.cases[case.case_id], len(w.store.events), len(w.store.audit))
     r = w.decide(case)
@@ -382,5 +382,28 @@ def test_submit_returns_the_existing_open_case(w):
         w.submit("user_profile")
 
 
-def test_real_dependency_has_no_company_posting_transition_without_t125_sql():
-    assert get_company_posting_transitions(db=None) is None
+def test_real_dependency_uses_the_t125_sql_decide_without_committing():
+    """실제 의존성 = T125 CompanyPostingService.decide + T125 SQL 저장소, 트랜잭션 경계만 검수 서비스가 가진다."""
+    from app.repositories.moderation import SqlCompanyPostingTransitions, _CallerTransactionPostingRepository
+
+    class Session:
+        commits = rollbacks = 0
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+    session = Session()
+    transitions = get_company_posting_transitions(db=session)
+    assert isinstance(transitions, SqlCompanyPostingTransitions)
+    assert transitions._service.decide.__func__ is cp.CompanyPostingService.decide
+    repo = transitions._service.repo
+    assert isinstance(repo, _CallerTransactionPostingRepository)
+    with repo.transaction():
+        with repo.transaction():
+            pass
+    with pytest.raises(RuntimeError), repo.transaction():
+        raise RuntimeError("boom")
+    assert (session.commits, session.rollbacks) == (0, 0)          # 커밋·롤백은 검수 서비스(_run)만

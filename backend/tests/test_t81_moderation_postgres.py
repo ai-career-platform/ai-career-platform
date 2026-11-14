@@ -3,25 +3,22 @@
 
 합성 사용자(security_pg)·합성 조직·합성 공고만 쓴다. 공유 Staging DB 는 쓰지 않는다.
 
-company_posting 결정은 T125 SQL 전이가 필요하다. 이 브랜치에는 T125 SQL 저장소가 아직 없으므로, 0009 표에 대해
-T125 계약(승인 = organization_job_postings published + job_postings 공개 행, company_direct 출처 없으면 503)을 그대로 따르는
-**시험용 대역(StandInTransitions)** 을 같은 요청 세션으로 주입해 '검수 건 + 공개 행이 한 커밋'임을 검증한다.
-T125 SQL 저장소가 생기면 같은 시험을 실제 전이로 다시 돌린다(대역 제거).
+company_posting 결정은 **실제 T125 전이**(CompanyPostingService.decide + T125 SQL 저장소, 기업 공고 관리자 결정과 같은
+함수)를 검수 요청과 같은 세션에서 부른다. '검수 건 승인 + organization_job_postings published + job_postings 공개 행'이
+한 커밋이고, 게시가 실패하면(company_direct 출처 없음 → 503) 어느 쪽도 바뀌지 않음을 검증한다.
+`data_sources('company_direct')` 행은 운영 seed 가 아니라 이 시험의 fixture 데이터다(T125 약관 승인 전).
 """
 import os
 import threading
-from datetime import UTC, datetime, timedelta
-from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-from fastapi import Depends
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
-from app.db import get_db, sqlalchemy_url
-from app.repositories.moderation import SqlModerationRepository
+from app.db import sqlalchemy_url
+from app.repositories.moderation import SqlCompanyPostingTransitions, SqlModerationRepository
 from app.routers.admin_moderation import get_company_posting_transitions
 from app.services import moderation as mod
 from app.services.job_postings import ListCursor, derive_cursor_key
@@ -30,63 +27,17 @@ from tests.security.security_pg import ADMIN, USER_A, USER_B, disposable_pg, req
 
 pytestmark = requires_pg
 API = "/api/v1/admin/moderation-cases"
+# organizations: T125 승인이 조직 행을 FOR NO KEY UPDATE 로 잠그므로 UPDATE 권한 필요(0008 이 career_app 에 부여)
 WRITE = ("moderation_cases", "moderation_case_events", "audit_events", "organization_job_postings",
-         "organization_job_posting_events", "organization_public_companies", "job_postings", "companies")
+         "organization_job_posting_events", "organization_public_companies", "job_postings", "companies",
+         "organizations")
 SOURCE = ("INSERT INTO career.data_sources (code, name, license_ref) "
           "VALUES ('company_direct', '기업 직접 등록', 't125-terms-test-1')")
 SECRET_NOTE = "내부메모-T81-PG-노출금지"
 
 
-class StandInTransitions:
-    """T125 SQL 전이 대역 — 호출자 세션 안에서만 실행, 커밋하지 않음."""
-
-    def __init__(self, db: Session):
-        self.db = db
-
-    def lock_posting(self, posting_id):
-        return self.db.execute(text("SELECT version FROM career.organization_job_postings WHERE posting_id = :id "
-                                    "FOR UPDATE"), {"id": posting_id}).scalar()
-
-    def decide(self, user_id, roles, posting_id, decision, reason_code, note, version):
-        db = self.db
-        p = db.execute(text("SELECT * FROM career.organization_job_postings WHERE posting_id = :id"),
-                       {"id": posting_id}).first()
-        if p.status != "pending_review" or p.version != version:
-            raise AppError(ErrorCode.CONFLICT, log_detail="stand-in: not pending or version")
-        if decision == "reject":
-            db.execute(text("UPDATE career.organization_job_postings SET status = 'rejected', reason_code = :r, "
-                            "reason_note = :n, version = version + 1, updated_at = now() WHERE posting_id = :id"),
-                       {"r": reason_code, "n": note, "id": posting_id})
-            action = "posting.reject"
-        else:
-            source = db.execute(text("SELECT source_id FROM career.data_sources WHERE code = 'company_direct'")).scalar()
-            if source is None:
-                raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="stand-in: company_direct source missing")
-            company = db.execute(text("SELECT company_id FROM career.organization_public_companies "
-                                      "WHERE organization_id = :o"), {"o": p.organization_id}).scalar()
-            if company is None:
-                company = db.execute(text(
-                    "INSERT INTO career.companies (name, source_id) SELECT name, :s FROM career.organizations "
-                    "WHERE organization_id = :o RETURNING company_id"), {"s": source, "o": p.organization_id}).scalar()
-                db.execute(text("INSERT INTO career.organization_public_companies (organization_id, company_id) "
-                                "VALUES (:o, :c)"), {"o": p.organization_id, "c": company})
-            public = db.execute(text(
-                "INSERT INTO career.job_postings (company_id, source_id, title, description, employment_type, "
-                "location_text, status, published_at, expires_at) VALUES (:c, :s, :t, :d, :e, :l, 'published', now(), "
-                ":x) RETURNING job_posting_id"),
-                {"c": company, "s": source, "t": p.title, "d": p.description, "e": p.employment_type,
-                 "l": p.location_text, "x": p.expires_at}).scalar()
-            db.execute(text("UPDATE career.organization_job_postings SET status = 'published', public_posting_id = :j, "
-                            "published_at = now(), version = version + 1, updated_at = now() WHERE posting_id = :id"),
-                       {"j": public, "id": posting_id})
-            action = "posting.publish"
-        db.execute(text("INSERT INTO career.organization_job_posting_events (posting_id, organization_id, action_code, "
-                        "actor_user_id, detail) VALUES (:p, :o, :a, :u, :d)"),
-                   {"p": posting_id, "o": p.organization_id, "a": action, "u": user_id, "d": reason_code or ""})
-
-
-def stand_in(db: Annotated[Session, Depends(get_db)]):
-    return StandInTransitions(db)
+def no_transition():
+    return None
 
 
 @pytest.fixture
@@ -143,9 +94,6 @@ def decide(pg, case_id, decision="APPROVE", who=ADMIN, **extra):
     return pg.client.post(f"{API}/{case_id}/decision", json={"version": version, "decision": decision, **extra},
                           headers=pg.h[who])
 
-
-def use_stand_in(pg):
-    pg.client.app.dependency_overrides[get_company_posting_transitions] = stand_in
 
 
 def snapshot(pg, case_id, posting=None):
@@ -221,7 +169,6 @@ def test_assign_guards_and_double_assign(pg):
 # ---------------------------------------------------------------- 승인 = 게시 (한 커밋)
 def test_approve_publishes_company_posting_in_the_same_commit(pg):
     pg.db.execute(SOURCE)
-    use_stand_in(pg)
     posting, case = seed_posting(pg)
     assert assign(pg, case.case_id).status_code == 200
     r = decide(pg, case.case_id)
@@ -241,7 +188,6 @@ def test_approve_publishes_company_posting_in_the_same_commit(pg):
 
 def test_publish_failure_leaves_case_and_posting_unchanged(pg):
     """company_direct 출처가 없으면 T125 게시가 503 → 검수 건도 IN_REVIEW, 이력·공개 행·회사 행 모두 그대로."""
-    use_stand_in(pg)
     posting, case = seed_posting(pg)
     assign(pg, case.case_id)
     before = snapshot(pg, case.case_id, posting)
@@ -253,7 +199,6 @@ def test_publish_failure_leaves_case_and_posting_unchanged(pg):
 
 
 def test_reject_with_reason_sets_t125_rejected_and_note_stays_internal(pg):
-    use_stand_in(pg)
     posting, case = seed_posting(pg)
     assign(pg, case.case_id)
     assert decide(pg, case.case_id, "REJECT", reason_code="HARMFUL").status_code == 422      # T125 대응 코드 없음
@@ -265,7 +210,8 @@ def test_reject_with_reason_sets_t125_rejected_and_note_stays_internal(pg):
     assert pg.scalar("SELECT count(*) FROM career.moderation_case_events WHERE reason_code = %s", SECRET_NOTE) == 0
 
 
-def test_without_t125_sql_transition_company_posting_decision_is_refused(pg):
+def test_without_a_company_posting_transition_the_decision_is_refused(pg):
+    pg.client.app.dependency_overrides[get_company_posting_transitions] = no_transition
     posting, case = seed_posting(pg)
     assign(pg, case.case_id)
     before = snapshot(pg, case.case_id, posting)
@@ -301,7 +247,7 @@ def test_concurrent_double_approve_publishes_once(pg):
     posting, case = seed_posting(pg)
     assign(pg, case.case_id)
     version = pg.scalar("SELECT version FROM career.moderation_cases WHERE case_id = %s", case.case_id)
-    assert _race(pg, case.case_id, version, StandInTransitions) == sorted(["ok", "APPROVAL_CLOSED"])
+    assert _race(pg, case.case_id, version, SqlCompanyPostingTransitions) == sorted(["ok", "APPROVAL_CLOSED"])
     assert pg.scalar("SELECT count(*) FROM career.job_postings WHERE title = '합성 백엔드 개발자'") == 1
     assert pg.scalar("SELECT count(*) FROM career.moderation_case_events WHERE case_id = %s AND event = 'APPROVE'",
                      case.case_id) == 1

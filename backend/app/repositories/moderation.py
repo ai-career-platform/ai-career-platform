@@ -1,12 +1,15 @@
 """T81 운영 콘텐츠 검수 DB 접근. 표: database/migrations/0010_moderation_cases.sql.
 
 - 쓰기 메서드는 커밋하지 않는다. 서비스(ModerationService)가 전이 하나를 한 트랜잭션으로 묶어 commit/rollback 한다.
+- SqlCompanyPostingTransitions: company_posting 건의 승인·반려가 부르는 T125 SQL 전이(같은 세션, 커밋은 검수 서비스).
 - 검수 건 잠금은 `SELECT … FOR UPDATE`(lock_case). 저장은 `WHERE version = :expected` 로 한 번 더 막는다.
 - 값은 바인딩 변수로만 전달한다. 대상별 FK 칸 이름은 서비스의 고정 사전(TARGET_COLUMNS)에서만 고른다.
 - 이 모듈은 로그를 쓰지 않는다(메모·신고자·콘텐츠 원문이 로그에 남지 않음).
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from uuid import UUID
 
@@ -15,6 +18,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
+from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
+from app.services.company_postings import CompanyPostingService
 from app.services.moderation import AUDIT_ACTION, AUDIT_RESOURCE, TARGET_COLUMNS, CaseEvent, ModerationCase, QueueFilter
 
 _COLUMNS = ("c.case_id, c.target_type, c.target_id, c.review_trigger, c.status, c.priority, c.content_owner_id, "
@@ -142,3 +147,36 @@ class SqlModerationRepository:
 
     def rollback(self) -> None:
         self.db.rollback()
+
+
+class _CallerTransactionPostingRepository(SqlPostingRepository):
+    """T125 SQL 공고 저장소 그대로(같은 SQL), 단 트랜잭션 경계만 호출자(검수 서비스)에게 둔다.
+
+    `transaction()` 은 커밋·롤백하지 않는다 — 검수 건 갱신·이력·감사와 같은 커밋에 들어가고, 실패하면 검수 서비스가
+    전체를 롤백한다. 유일 조건 경합(23505)은 T125 와 같이 409 CONFLICT 로 바꾼다.
+    """
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        try:
+            yield
+        except IntegrityError as exc:
+            if getattr(exc.orig, "sqlstate", None) == "23505":
+                raise AppError(ErrorCode.CONFLICT, log_detail="unique constraint (concurrent change)") from None
+            raise
+
+
+class SqlCompanyPostingTransitions:
+    """company_posting 검수 결정 = T125 `CompanyPostingService.decide`(`/admin/company-postings/{id}/decision` 과 같은
+    함수, 같은 SQL 저장소·공개 행 싱크·조직 조회)를 검수 요청과 **같은 세션·같은 트랜잭션**에서 실행한다."""
+
+    def __init__(self, session: Session) -> None:
+        self._repo = _CallerTransactionPostingRepository(session)
+        self._service = CompanyPostingService(SqlOrgDirectory(session), self._repo, SqlPublicPostings(session))
+
+    def lock_posting(self, posting_id: UUID) -> int | None:
+        posting = self._repo.get(posting_id, lock=True)
+        return posting.version if posting else None
+
+    def decide(self, user_id, roles, posting_id, decision, reason_code, note, version):
+        return self._service.decide(user_id, roles, posting_id, decision, reason_code, note, version)

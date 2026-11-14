@@ -137,8 +137,8 @@ class OpenApiProposalTest(unittest.TestCase):
         self.assertEqual(summary - ts_fields("ModerationCaseSummary"), {"overdue", "created_at"})
         self.assertEqual(ts_fields("ModerationCaseSummary") - summary, set())
         self.assertEqual((ts_fields("ModerationCaseDetail") | ts_fields("ModerationCaseSummary")) - detail, set())
-        self.assertEqual(event - ts_fields("ModerationCaseEvent"), {"actor_user_id"})
-        self.assertEqual(ts_fields("ModerationCaseEvent") - event, {"actor_id"})
+        # T81 구현 후 T82 가 §6 조치(actor_id → actor_user_id)를 반영했다 → 이력 항목 차이 없음
+        self.assertEqual(event ^ ts_fields("ModerationCaseEvent"), set())
         self.assertIn("`actor_id` | **`actor_user_id`**", READINESS)
 
     def test_t82_adapter_paths_match_the_proposal(self):

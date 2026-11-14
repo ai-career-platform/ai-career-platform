@@ -160,7 +160,8 @@ class TargetEffect(Protocol):
 
 
 class CompanyPostingTransitions(Protocol):
-    """T125 기업 공고 SQL 서비스가 제공해야 하는 전이(같은 DB 세션, 커밋하지 않음).
+    """T125 기업 공고 전이(같은 DB 세션, 커밋하지 않음). 실제 구현: app/repositories/moderation.py
+    SqlCompanyPostingTransitions(T125 SQL 저장소 + CompanyPostingService.decide).
 
     `decide` 는 `/admin/company-postings/{id}/decision` 이 쓰는 것과 **같은 함수**여야 한다
     (CompanyPostingService.decide 와 같은 인자: decision 'approve'|'reject', T125 사유 코드, 메모, 공고 version).

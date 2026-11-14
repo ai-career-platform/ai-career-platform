@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import importlib
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
@@ -23,7 +22,7 @@ from app.core.auth_config import AuthSettings
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import CurrentUserDep, get_auth_settings, require_roles
-from app.repositories.moderation import SqlModerationRepository
+from app.repositories.moderation import SqlCompanyPostingTransitions, SqlModerationRepository
 from app.services import moderation as svc
 from app.services.job_postings import ListCursor, derive_cursor_key
 
@@ -35,7 +34,6 @@ TargetType = Literal["job_posting", "company", "shared_document", "document_anal
 Status = Literal["PENDING", "IN_REVIEW", "APPROVED", "REJECTED", "APPEALED", "CLOSED"]
 ReasonCode = Literal["RIGHTS_UNCLEAR", "INACCURATE", "PERSONAL_DATA", "HARMFUL", "DISCRIMINATORY", "DUPLICATE",
                      "EXPIRED", "MALWARE", "OTHER"]
-T125_SQL_MODULE = "app.repositories.company_postings"   # T125 SQL 저장소가 생기면 moderation_transitions(db) 제공
 
 
 class VersionBody(BaseModel):
@@ -96,17 +94,9 @@ class CasePageOut(BaseModel):
 
 
 def get_company_posting_transitions(db: Annotated[Session, Depends(get_db)]) -> svc.CompanyPostingTransitions | None:
-    """T125 기업 공고 SQL 전이(같은 세션). T125 SQL 저장소가 이 브랜치에 없으면 None → company_posting 결정은 503.
-
-    T125 가 `app.repositories.company_postings.moderation_transitions(session)` 을 제공하면 자동으로 연결된다.
-    그 객체의 decide 는 `/admin/company-postings/{id}/decision` 과 같은 전이여야 하고 커밋하지 않아야 한다.
-    """
-    try:
-        module = importlib.import_module(T125_SQL_MODULE)
-    except ModuleNotFoundError:
-        return None
-    factory = getattr(module, "moderation_transitions", None)
-    return factory(db) if factory else None
+    """T125 기업 공고 SQL 전이(`CompanyPostingService.decide`, 같은 세션·같은 트랜잭션). None 이면 company_posting
+    결정은 503(아무것도 바뀌지 않음) — 시험에서 전이를 끊거나 바꿀 때 이 의존성을 덮어쓴다."""
+    return SqlCompanyPostingTransitions(db)
 
 
 def get_moderation_service(
