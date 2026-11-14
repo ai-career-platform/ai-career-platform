@@ -66,7 +66,7 @@ const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminA
 ] : []);
 
 /**
- * UI-N04 알림함·UI-005 알림 수신 설정(T97)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
+ * UI-N04 알림함·UI-005 알림 수신 설정(T97): VITE_NOTIFICATIONS_UI 플래그(기본 꺼짐)가 켜졌을 때만 경로·메뉴가 생기고,
  * 로그인 사용자만 들어갑니다. 알림·설정은 로그인 사용자 ID 별로 분리됩니다(NotificationServiceProvider).
  */
 const notificationRoutes = (features: Features): RouteObject[] => (features.notificationsUi ? [
@@ -92,7 +92,7 @@ const companyRoutes = (features: Features): RouteObject[] => (features.companyCo
   ] },
 ] : []);
 
-/** T130 공개 포트폴리오: Mock만, 공유 링크 공개 경로는 임시 토큰을 사용 */
+/** T130 공개 포트폴리오(기본 꺼짐): 설정은 로그인 필요, 공유 링크 공개 경로(/p/:token)는 로그인 없이 열림 */
 const portfolioRoutes = (features: Features): RouteObject[] => (features.publicPortfolioUi ? [
   { element: <PortfolioServiceProvider />, children: [
     { path: 'p/:token', element: <PublicPortfolioViewPage /> },
@@ -102,7 +102,7 @@ const portfolioRoutes = (features: Features): RouteObject[] => (features.publicP
   ] },
 ] : []);
 
-/** T143 내 데이터 내려받기: Mock 전용, 로그인 사용자만 */
+/** T143 내 데이터 내려받기: VITE_PERSONAL_DATA_UI 플래그(기본 꺼짐), 로그인 사용자만·본인 요청만 */
 const personalDataRoutes = (features: Features): RouteObject[] => (features.personalDataUi ? [
   { element: <RequireAuth />, children: [
     { element: <PersonalDataServiceProvider />, children: [
@@ -111,7 +111,7 @@ const personalDataRoutes = (features: Features): RouteObject[] => (features.pers
   ] },
 ] : []);
 
-/** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
+/** T103 개인 지원 현황 보드: VITE_APPLICATIONS_UI 플래그(기본 꺼짐), 본인 기록만 */
 const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
   { element: <RequireAuth />, children: [
     { element: <ApplicationServiceProvider />, children: [

@@ -1,6 +1,6 @@
 /**
- * 개인 지원 현황 (T103). 계약: docs/applications/T101_APPLICATION_TRACKING_CONTRACT.md — **PROPOSED, docs/api/openapi.yaml 에 없음**.
- * 서버(T102)는 `JOB_APPLICATIONS_API=true` 일 때만 경로가 생깁니다(기본 꺼짐). 그래서 화면도 Mock 전용 플래그 뒤에 둡니다.
+ * 개인 지원 현황 (T103). 계약: docs/applications/T101_APPLICATION_TRACKING_CONTRACT.md (표: migration 0004).
+ * 서버(T102)는 `JOB_APPLICATIONS_API=true` 일 때만 경로가 생기고, 화면은 `VITE_APPLICATIONS_UI=true` 일 때만 열립니다(둘 다 기본 꺼짐).
  * 상태는 **사용자가 직접 기록한 것**이며 채용사 공식 결과가 아닙니다.
  */
 import type { HttpClient } from './http';
@@ -43,19 +43,24 @@ export type JobApplication = {
 export type JobApplicationPage = { items: JobApplication[]; next_cursor: string | null };
 export type JobApplicationUpdate = { version: number; stage?: Stage; applied_on?: string | null;
   next_step_on?: string | null; memo?: string | null };
+/** 공개 공고에서 새 기록 만들기. 제목·회사명은 서버가 공고에서 스냅샷으로 저장합니다(같은 공고 중복은 409). */
+export type JobApplicationCreate = { job_posting_id: string; stage?: Stage; applied_on?: string | null;
+  next_step_on?: string | null; memo?: string | null };
 
 export interface JobApplicationService {
   list(signal?: AbortSignal): Promise<JobApplicationPage>;
+  create(body: JobApplicationCreate): Promise<JobApplication>;
   update(id: string, body: JobApplicationUpdate): Promise<JobApplication>;
   remove(id: string): Promise<void>;
 }
 
 export const APPLICATIONS_PATH = '/v1/me/job-applications';
 
-/** 실제 API 어댑터(준비만, 연결하지 않음). 한 번에 최대 100건(서버 상한). */
+/** 실제 API 어댑터(T102). 한 번에 최대 100건(서버 상한). */
 export function createHttpJobApplicationService(http: HttpClient): JobApplicationService {
   return {
     list: (signal) => http.request<JobApplicationPage>(APPLICATIONS_PATH, { query: { limit: 100 }, signal }),
+    create: (body) => http.request<JobApplication>(APPLICATIONS_PATH, { method: 'POST', body }),
     update: (id, body) => http.request<JobApplication>(`${APPLICATIONS_PATH}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
     remove: (id) => http.request<void>(`${APPLICATIONS_PATH}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   };

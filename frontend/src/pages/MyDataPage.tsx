@@ -1,8 +1,8 @@
 /**
- * 내 데이터 내려받기·요청 이력 (T143). 정책 T141(PROPOSED), 서버 T142(플래그 뒤, 저장소 없음).
+ * 내 데이터 내려받기·요청 이력 (T143). 정책 T141(PROPOSED), 서버 T142(플래그 뒤, migration 0006).
  * 흐름: 내보내기 요청 → (10분 안 비밀번호 재확인) → 처리 대기 → 완료 → 내려받기(1회, 24시간 안) → 만료.
  * - 재인증이 없거나 만료되어 서버가 403을 주면 비밀번호 확인 창을 열고, 확인 뒤 하던 동작을 이어서 합니다.
- * - 목록은 저장 응답으로 바로 고칩니다(다시 불러오면 화면이 잠깐 사라져 포커스를 잃기 때문). 지금은 Mock Adapter 만 연결됩니다.
+ * - 목록은 저장 응답으로 바로 고칩니다(다시 불러오면 화면이 잠깐 사라져 포커스를 잃기 때문). Mock 모드면 Mock Adapter, 아니면 실제 API.
  */
 import { useId, useState } from 'react';
 import { ApiError } from '../api/errors';
@@ -12,6 +12,7 @@ import {
 } from '../api/personalData';
 import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
+import { env } from '../config/env';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatePanel } from '../components/StatePanel';
@@ -133,7 +134,7 @@ export function MyDataPage() {
       <div className="mydata-notice" role="note">
         <p>이 서비스에 저장된 내 정보를 파일(JSON)로 내려받을 수 있습니다. 요청과 내려받기 전에는 <strong>비밀번호를 다시 확인</strong>합니다({REAUTH_MINUTES}분 동안 유효).</p>
         <p>준비된 파일은 <strong>{DOWNLOAD_TTL_HOURS}시간 안에 한 번만</strong> 내려받을 수 있고, 그 뒤 서버에서 지웁니다.</p>
-        <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>
+        {env.mockEnabled && <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>}
       </div>
       <div className="mydata-columns">
         <div>

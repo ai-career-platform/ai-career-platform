@@ -15,7 +15,13 @@ ENV VITE_API_BASE_URL=/api \
     VITE_API_MOCK=false \
     VITE_BEHAVIOR_TRACKING=false \
     VITE_CRAWLER_ADMIN_UI=false \
-    VITE_SKILL_AUTOCOMPLETE=false
+    VITE_SKILL_AUTOCOMPLETE=false \
+    VITE_APPLICATIONS_UI=false \
+    VITE_ADMIN_AUDIT_UI=false \
+    VITE_JOB_SEARCH_ADVANCED_UI=false \
+    VITE_NOTIFICATIONS_UI=false \
+    VITE_PERSONAL_DATA_UI=false \
+    VITE_PUBLIC_PORTFOLIO_UI=false
 RUN rm -f .env .env.local .env.production .env.production.local
 # Fail closed: the publish gate only checks ci.yml, so lint and unit tests run here before the build.
 # Staging serves the app under /career/ on a shared origin (Redmine owns /). Only the build sees the

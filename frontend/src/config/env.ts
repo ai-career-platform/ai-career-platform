@@ -18,14 +18,17 @@ export const env = {
    */
   adminAuditUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
   /**
-   * T97 알림함·수신 설정 화면. 알림함 API 계약·서버(T96 발송 모듈은 API 없음) 전이라 **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 로그인 사용자만 들어갑니다.
+   * T97 알림함·수신 설정 화면. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T97)를 씁니다. 로그인 사용자만 들어갑니다.
+   * 실제 API 로 켜려면 서버 NOTIFICATIONS_API=true 와 migration 0005 적용이 먼저 필요합니다(운영은 별도 승인).
    */
-  notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
+  notificationsUi: import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
   /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
   jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
-  /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
-  applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
+  /**
+   * T103 지원 현황 보드·공고 상세의 "지원 기록에 추가". 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T102)를 씁니다.
+   * 실제 API 로 켜려면 서버 JOB_APPLICATIONS_API=true 와 migration 0004 적용이 먼저 필요합니다(운영은 별도 승인).
+   */
+  applicationsUi: import.meta.env.VITE_APPLICATIONS_UI === 'true',
   /**
    * T156 크롤러 관리자 콘솔. 기본 비활성, 서버 T155 쓰기 플래그 별도 적용.
    * 실제 API 또는 Mock에서 관리자가 켤 수 있으나 활성화는 별도 승인 사항입니다.
@@ -44,8 +47,14 @@ export const env = {
    * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.
    */
   skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
-  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
-  publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
-  /** T143 내 데이터 내려받기: Mock 전용, 기본 비활성(T141 정책·T142 저장소 미승인) */
-  personalDataUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
+  /**
+   * T130 공개 포트폴리오(설정 /me/public-profile, 공개 보기 /p/:token). 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T129).
+   * 실제 API 로 켜려면 서버 PUBLIC_PORTFOLIO_API=true, migration 0007, 'public_profile' 약관 행이 먼저 필요합니다(운영은 별도 승인).
+   */
+  publicPortfolioUi: import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /**
+   * T143 내 데이터 내려받기. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T142)를 씁니다.
+   * 실제 API 로 켜려면 서버 PERSONAL_DATA_REQUESTS_API=true 와 migration 0006 적용이 먼저 필요합니다(운영은 별도 승인).
+   */
+  personalDataUi: import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
 } as const;
