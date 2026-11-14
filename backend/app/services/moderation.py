@@ -43,6 +43,7 @@ REASON_CODES = ("RIGHTS_UNCLEAR", "INACCURATE", "PERSONAL_DATA", "HARMFUL", "DIS
 NOTE_MAX = 500
 DUE_AFTER = {1: timedelta(hours=24), 2: timedelta(hours=48), 3: timedelta(hours=72)}   # PM 결정 §9-7 달력 시간
 AUDIT_ACTION, AUDIT_RESOURCE = "admin.content.review", "moderation_case"
+AUDIT_SUBMIT = "content.review.request"        # T01 게시 전 접수(계약 §6)
 # 승인 전 효과가 '공개'인 유형(계약 §1). 이 유형의 게시 전 승인은 효과 구현 없이는 할 수 없다.
 PUBLISH_ON_APPROVE = frozenset({"job_posting", "company", "shared_document", "company_posting"})
 # 원문 대신 보여 줄 유형 이름(공용 자료 파일 이름·AI 결과는 개인정보가 있을 수 있어 요약에 쓰지 않는다)
@@ -141,7 +142,8 @@ class ModerationRepository(Protocol):
     def save_case(self, case: ModerationCase, expected_version: int, now: datetime) -> bool: ...
     def add_event(self, case_id: UUID, event: str, from_status: str | None, to_status: str,
                   actor: UUID | None, reason_code: str | None, now: datetime) -> None: ...
-    def audit(self, actor: UUID, case_id: UUID, request_id: str | None, now: datetime) -> None: ...
+    def audit(self, actor: UUID, case_id: UUID, request_id: str | None, now: datetime,
+              action: str = AUDIT_ACTION) -> None: ...
     def insert_case(self, case: ModerationCase) -> UUID | None: ...
     def find_open(self, target_type: str, target_id: UUID, trigger: str) -> ModerationCase | None: ...
     def commit(self) -> None: ...
@@ -412,6 +414,8 @@ class ModerationService:
                     raise AppError(ErrorCode.CONFLICT, log_detail="open case vanished during submit")
                 return existing
             self.repo.add_event(created, "SUBMIT", None, "PENDING", submitted_by, None, now)
+            if submitted_by is not None:
+                self.repo.audit(submitted_by, created, None, now, AUDIT_SUBMIT)
             return self.repo.get_case(created)
         if not commit:
             return run()
@@ -481,9 +485,9 @@ class MemoryModerationRepository:
         self.store.events.append(CaseEvent(uuid.uuid4(), case_id, event, from_status, to_status, actor, reason_code,
                                            now))
 
-    def audit(self, actor, case_id, request_id, now):
+    def audit(self, actor, case_id, request_id, now, action=AUDIT_ACTION):
         self._begin()
-        self.store.audit.append({"actor_user_id": actor, "action_code": AUDIT_ACTION, "resource_type": AUDIT_RESOURCE,
+        self.store.audit.append({"actor_user_id": actor, "action_code": action, "resource_type": AUDIT_RESOURCE,
                                  "resource_id": case_id, "request_id": request_id, "occurred_at": now})
 
     def insert_case(self, case):

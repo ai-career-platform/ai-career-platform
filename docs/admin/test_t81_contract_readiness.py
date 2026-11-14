@@ -114,7 +114,9 @@ class OpenApiProposalTest(unittest.TestCase):
         reasons = set(re.findall(r"^\| `([A-Z_]+)` \|", POLICY.split("### 5.1", 1)[1].split("### 5.2", 1)[0], re.M))
         self.assertEqual(set(self.schemas["ModerationReasonCode"]["enum"]), reasons)
         targets = set(re.findall(r"^\| `([a-z_]+)` \|", CONTRACT.split("## 1. 검수 대상 유형", 1)[1].split("## 2.", 1)[0], re.M))
-        self.assertEqual(set(self.schemas["ModerationTargetType"]["enum"]), targets - {"target_type"})
+        # company_posting 은 §2.2 스케치 뒤 0010 에서 PM 승인(DECISION_2)으로 추가됐다(§1 표 아래 '구현 반영' 주석)
+        self.assertIn("``company_posting`` 유형이 추가됐다".replace("``", "`"), CONTRACT)
+        self.assertEqual(set(self.schemas["ModerationTargetType"]["enum"]), (targets - {"target_type"}) | {"company_posting"})
         self.assertIn("review_trigger IN ('PRE_PUBLISH', 'REPORT', 'EXPIRY', 'SOURCE_CHANGE')", CONTRACT)
         self.assertEqual(self.schemas["ModerationTrigger"]["enum"], ["PRE_PUBLISH", "REPORT", "EXPIRY", "SOURCE_CHANGE"])
 
@@ -156,9 +158,14 @@ class RepositoryFactsTest(unittest.TestCase):
         cited |= {"INVALID_CURSOR", "CONFLICT", "APPROVAL_CLOSED", "VALIDATION_FAILED", "FORBIDDEN"}
         self.assertLessEqual(cited, existing)
 
-    def test_permission_is_still_only_proposed_and_the_guard_exists(self):
+    def test_permission_is_seeded_for_admin_only_and_the_guard_exists(self):
+        # PM 승인(DECISION_3): admin.content.review 는 기존 admin 역할에만, 로컬·일회용 Seed 로만
         seed = (ROOT / "database/seeds/0001_initial_seed.sql").read_text(encoding="utf-8")
-        self.assertNotIn("admin.content.review", seed)
+        self.assertIn("('admin.content.review',", seed)
+        self.assertIn("WHERE r.code = 'admin' AND p.code IN ('admin.models.read', 'admin.audit.read', "
+                      "'admin.content.review')", seed)
+        router = (ROOT / "backend/app/routers/admin_moderation.py").read_text(encoding="utf-8")
+        self.assertIn('require_permissions("admin.content.review")', router)
         auth = (ROOT / "backend/app/dependencies/auth.py").read_text(encoding="utf-8")
         self.assertIn("def require_permissions(", auth)
 

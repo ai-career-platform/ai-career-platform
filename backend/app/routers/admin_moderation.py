@@ -6,7 +6,7 @@
   POST   '/{case_id}/assignment'         담당 시작(본인) T02·T09
   POST   '/{case_id}/assignment/release' 담당 해제 T04·T05
   POST   '/{case_id}/decision'           승인·반려 T06·T07
-`admin` 역할 필수(권한 코드 admin.content.review 는 Seed 승인 전 — PM 결정 §9-12). 저장소는 PostgreSQL(migration 0010).
+`admin` 역할 + 권한 `admin.content.review`(PM 승인, admin 역할에만 Seed) 필수. 저장소는 PostgreSQL(migration 0010).
 """
 from __future__ import annotations
 
@@ -21,12 +21,13 @@ from sqlalchemy.orm import Session
 from app.core.auth_config import AuthSettings
 from app.core.exception_handlers import error_responses
 from app.db import get_db
-from app.dependencies.auth import CurrentUserDep, get_auth_settings, require_roles
+from app.dependencies.auth import CurrentUserDep, get_auth_settings, require_permissions, require_roles
 from app.repositories.moderation import SqlCompanyPostingTransitions, SqlModerationRepository
 from app.services import moderation as svc
 from app.services.job_postings import ListCursor, derive_cursor_key
 
-router = APIRouter(prefix="/admin/moderation-cases", tags=["admin"], dependencies=[Depends(require_roles("admin"))],
+router = APIRouter(prefix="/admin/moderation-cases", tags=["admin"],
+                   dependencies=[Depends(require_roles("admin")), Depends(require_permissions("admin.content.review"))],
                    responses=error_responses(401, 403, 503))
 
 TargetType = Literal["job_posting", "company", "shared_document", "document_analysis", "retrieval_run", "agent_run",

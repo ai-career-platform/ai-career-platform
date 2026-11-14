@@ -149,7 +149,7 @@ def test_full_flow_against_postgres(pg_client, engine):
     }
     grant_role(engine, user_id, "admin")
     assert pg_client.get(f"{API_V1_PREFIX}/me/permissions", headers=bearer(token)).json()["permissions"] == [
-        "admin.audit.read", "admin.models.read",
+        "admin.audit.read", "admin.content.review", "admin.models.read",
     ]
 
     # 로그인(비교용 이메일) → 세션 2개, refresh 회전, 다른 기기 로그아웃

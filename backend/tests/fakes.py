@@ -23,7 +23,7 @@ DEFAULT_POLICIES = [
 ]
 ROLE_PERMISSIONS = {
     "job_seeker": set(),
-    "admin": {"admin.audit.read", "admin.models.read"},
+    "admin": {"admin.audit.read", "admin.content.review", "admin.models.read"},
 }
 
 
