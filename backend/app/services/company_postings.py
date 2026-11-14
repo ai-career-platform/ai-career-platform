@@ -22,7 +22,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from app.core.errors import AppError, ErrorCode
-from app.services.company_accounts import CompanyAccountService, MemoryCompanyRepository
+from app.services.company_accounts import CompanyAccountService, CompanyRepository
 from app.services.company_policy import Outcome, org_decision
 
 TRANSITIONS: dict[tuple[str, str], str] = {          # (from, to) → action  (T125 JSON 과 같아야 함)
@@ -175,12 +175,12 @@ class MemoryPostingRepository:
 
 @dataclass
 class MemoryOrgDirectory:
-    """T123 메모리 저장소(MemoryCompanyRepository)를 그대로 읽는다(멤버 변경이 즉시 반영)."""
+    """T123 기업 저장소(CompanyRepository)를 그대로 읽는다(멤버 변경이 즉시 반영). 단위 시험용."""
 
-    repo: MemoryCompanyRepository
+    repo: CompanyRepository
 
     def organization(self, organization_id: uuid.UUID, *, lock: bool = False) -> OrgInfo | None:
-        org = self.repo.organizations.get(organization_id)
+        org = self.repo.get_organization(organization_id)
         return OrgInfo(org.organization_id, org.name, org.status) if org else None
 
     def role_of(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> str | None:

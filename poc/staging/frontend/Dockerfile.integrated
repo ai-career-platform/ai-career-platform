@@ -22,6 +22,7 @@ ENV VITE_API_BASE_URL=/api \
     VITE_NOTIFICATIONS_UI=false \
     VITE_PERSONAL_DATA_UI=false \
     VITE_PUBLIC_PORTFOLIO_UI=false \
+    VITE_COMPANY_CONSOLE_UI=false \
     VITE_COMPANY_POSTINGS_UI=false
 RUN rm -f .env .env.local .env.production .env.production.local
 # Fail closed: the publish gate only checks ci.yml, so lint and unit tests run here before the build.

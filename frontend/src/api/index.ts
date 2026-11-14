@@ -1,6 +1,7 @@
 import { authApi } from './auth';
 import { behaviorEventsApi } from './behaviorEvents';
 import { catalogApi } from './catalog';
+import { createHttpCompanyAccountService } from './companyAccounts';
 import { createHttpCompanyPostingService } from './companyPostings';
 import { createHttpCrawlerAdminService } from './crawlerAdminHttp';
 import { documentsApi } from './documents';
@@ -29,6 +30,8 @@ export function createApi(http: HttpClient) {
     personalData: createHttpPersonalDataService(http),
     // T130 공개 포트폴리오(T129 API, migration 0007). 화면은 VITE_PUBLIC_PORTFOLIO_UI 플래그가 켜졌을 때만 씁니다.
     publicPortfolio: createHttpPortfolioService(http),
+    // T124 기업 콘솔(T123 API, migration 0008). 화면은 VITE_COMPANY_CONSOLE_UI 플래그가 켜졌을 때만 씁니다.
+    companyAccounts: createHttpCompanyAccountService(http),
     // T127 기업 공고 관리(T126 API, migration 0009). 화면은 VITE_COMPANY_POSTINGS_UI(+기업 콘솔 플래그)일 때만 씁니다.
     companyPostings: createHttpCompanyPostingService(http),
   };
