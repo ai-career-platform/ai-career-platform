@@ -47,8 +47,11 @@ export const env = {
    * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.
    */
   skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
-  /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
-  publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
+  /**
+   * T130 공개 포트폴리오(설정 /me/public-profile, 공개 보기 /p/:token). 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T129).
+   * 실제 API 로 켜려면 서버 PUBLIC_PORTFOLIO_API=true, migration 0007, 'public_profile' 약관 행이 먼저 필요합니다(운영은 별도 승인).
+   */
+  publicPortfolioUi: import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
   /**
    * T143 내 데이터 내려받기. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T142)를 씁니다.
    * 실제 API 로 켜려면 서버 PERSONAL_DATA_REQUESTS_API=true 와 migration 0006 적용이 먼저 필요합니다(운영은 별도 승인).

@@ -92,7 +92,7 @@ const companyRoutes = (features: Features): RouteObject[] => (features.companyCo
   ] },
 ] : []);
 
-/** T130 공개 포트폴리오: Mock만, 공유 링크 공개 경로는 임시 토큰을 사용 */
+/** T130 공개 포트폴리오(기본 꺼짐): 설정은 로그인 필요, 공유 링크 공개 경로(/p/:token)는 로그인 없이 열림 */
 const portfolioRoutes = (features: Features): RouteObject[] => (features.publicPortfolioUi ? [
   { element: <PortfolioServiceProvider />, children: [
     { path: 'p/:token', element: <PublicPortfolioViewPage /> },
