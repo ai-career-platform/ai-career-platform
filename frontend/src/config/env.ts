@@ -13,10 +13,10 @@ export const env = {
    */
   adminModerationUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_MODERATION_UI === 'true',
   /**
-   * T85 운영 감사·AI 사용량 화면. T60(사용량 기록)·T84 정책(D1~D5) 전이라 **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 admin 역할만 들어갑니다.
+   * T85 운영 감사·AI 사용량 화면. 기본 꺼짐 — VITE_ADMIN_AUDIT_UI='true'일 때만 메뉴·경로가 생깁니다.
+   * Mock 모드면 가상 데이터, 아니면 T84 실제 API(서버가 admin 역할·권한을 다시 검사)를 씁니다. 켜져도 admin 역할만 들어갑니다.
    */
-  adminAuditUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
+  adminAuditUi: import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
   /**
    * T97 알림함·수신 설정 화면. 알림함 API 계약·서버(T96 발송 모듈은 API 없음) 전이라 **Mock 모드에서만** 켤 수 있습니다.
    * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 로그인 사용자만 들어갑니다.

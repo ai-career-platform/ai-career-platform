@@ -46,11 +46,21 @@ describe('admin audit routes', () => {
     expect(paths).not.toContain('admin/ai-usage');
   });
 
-  it('the feature flag requires mock mode (operating builds never enable it)', () => {
+  it('the feature flag is opt-in only (VITE_ADMIN_AUDIT_UI) and never on by default config', () => {
     const env = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
-    expect(env).toContain("adminAuditUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_AUDIT_UI === 'true'");
+    expect(env).toContain("adminAuditUi: import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',");
+    // 기본 설정 파일은 이 화면을 켜지 않습니다.
+    for (const file of ['.env.example', '.env.mock']) {
+      expect(readFileSync(resolve(cwd(), file), 'utf8')).not.toMatch(/^VITE_ADMIN_AUDIT_UI=true/m);
+    }
+  });
+
+  it('the provider picks the mock adapter only in mock mode and otherwise the session API (no other HTTP path)', () => {
     const provider = readFileSync(resolve(cwd(), 'src/admin/AdminAuditServiceProvider.tsx'), 'utf8');
-    expect(provider).not.toMatch(/import .*adminAuditHttp/);
+    expect(provider).toContain('env.mockEnabled ? createMockAdminAuditService');
+    expect(provider).toContain('service ?? mock ?? api.adminAudit');
+    // 토큰·401 처리를 우회하는 별도 HttpClient 를 만들지 않습니다.
+    expect(provider).not.toMatch(/createHttpClient|publicHttp|fetch\(/);
   });
 
   it.each(['/admin/audit-events', '/admin/ai-usage'])('2. flag on: anonymous %s goes to login', async (path) => {

@@ -53,7 +53,7 @@ import { MyDataPage } from './pages/MyDataPage';
 export type Features = { adminModerationUi: boolean; adminAuditUi?: boolean; notificationsUi?: boolean; jobSearchAdvancedUi?: boolean; applicationsUi?: boolean; companyConsoleUi?: boolean; companyPostingsUi?: boolean; publicPortfolioUi?: boolean; personalDataUi?: boolean };
 
 /**
- * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(Mock 모드 전용, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
+ * UI-028 운영 감사·AI 사용량(T85)도 같은 방식: 기능 플래그(VITE_ADMIN_AUDIT_UI, 기본 꺼짐, env.ts)가 켜졌을 때만 경로·메뉴가 생기고,
  * 켜져 있어도 admin 역할만 들어갑니다. 권한(admin.audit.read) 회수는 서버 403 으로 화면에 표시합니다.
  */
 const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminAuditUi ? [

@@ -1,3 +1,4 @@
+import { createHttpAdminAuditService } from './adminAuditHttp';
 import { authApi } from './auth';
 import { behaviorEventsApi } from './behaviorEvents';
 import { catalogApi } from './catalog';
@@ -16,6 +17,8 @@ export function createApi(http: HttpClient) {
     recommendations: recommendationsApi(http), system: systemApi(http),
     // T156 크롤러 관리자(T155 API). 화면은 VITE_CRAWLER_ADMIN_UI 플래그가 켜졌을 때만 씁니다.
     crawlerAdmin: createHttpCrawlerAdminService(http),
+    // T85 운영 감사·AI 사용량(T84 API). 화면은 VITE_ADMIN_AUDIT_UI 플래그가 켜졌을 때만 씁니다.
+    adminAudit: createHttpAdminAuditService(http),
   };
 }
 

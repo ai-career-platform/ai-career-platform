@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { useCrawlerNavigationEnabled } from '../admin/crawlerNavigation';
 import { useAuth } from '../auth/useAuth';
+import { env } from '../config/env';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import './AppLayout.css';
@@ -21,6 +22,8 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
   // 관리자 메뉴: 기능 플래그(Mock 전용)가 켜져 있고 admin 역할일 때만. 경로 자체도 RequireAuth 로 막습니다.
   const showModeration = adminModerationUi && isAdmin;
   const showAudit = adminAuditUi && isAdmin;
+  // T85 는 실제 API 로도 동작합니다. Mock 모드일 때만 "(Mock)" 을 붙입니다.
+  const auditSuffix = env.mockEnabled ? ' (Mock)' : '';
   const showCrawler = useCrawlerNavigationEnabled() && isAdmin;
   // T97 알림함: 기능 플래그(Mock 전용)가 켜져 있고 로그인했을 때만
   const showNotifications = notificationsUi && state.status === 'authenticated';
@@ -71,8 +74,8 @@ export function AppLayout({ adminModerationUi = false, adminAuditUi = false, not
               {showPortfolio && <NavLink to="/me/public-profile">공개 포트폴리오 (Mock)</NavLink>}
               {showPersonalData && <NavLink to="/me/data">내 데이터 내려받기 (Mock)</NavLink>}
               {showModeration && <NavLink to="/admin/moderation">콘텐츠 검수 (Mock)</NavLink>}
-              {showAudit && <NavLink to="/admin/audit-events">운영 감사 (Mock)</NavLink>}
-              {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용 (Mock)</NavLink>}
+              {showAudit && <NavLink to="/admin/audit-events">운영 감사{auditSuffix}</NavLink>}
+              {showAudit && <NavLink to="/admin/ai-usage">AI 사용량·비용{auditSuffix}</NavLink>}
               {showCrawler && <NavLink to="/admin/crawler">크롤러 관리</NavLink>}
             </nav>
           </aside>

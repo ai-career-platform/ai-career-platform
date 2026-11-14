@@ -21,7 +21,7 @@ const columns: TableColumn<AuditEvent>[] = [
   { key: 'request', header: '요청 ID', render: (e) => <span className="audit-mono">{e.request_id ?? '—'}</span> },
 ];
 
-/** UI-028 운영 감사 — 감사 기록 검색 (T85, Mock 전용). GET /api/v1/admin/audit-events 확정 계약 기준. */
+/** UI-028 운영 감사 — 감사 기록 검색 (T85, Mock 또는 실제 API). GET /api/v1/admin/audit-events 확정 계약 기준. */
 export function AuditEventsPage({ now = () => new Date() }: { now?: () => Date }) {
   const service = useAdminAuditService();
   const [initial] = useState(() => {
@@ -68,7 +68,9 @@ export function AuditEventsPage({ now = () => new Date() }: { now?: () => Date }
     <section className="audit-page" aria-labelledby="audit-title">
       <h1 id="audit-title">운영 감사 기록</h1>
       <div className="audit-notice" role="note">
-        <p>가상 데이터(Mock) 화면입니다. 실제 감사 기록이 아니며, 서버 연결은 별도 승인 후입니다.</p>
+        {service.source === 'api'
+          ? <p>서버의 실제 감사 기록입니다(읽기 전용). 관리자 권한(감사 기록 조회)이 있어야 볼 수 있습니다.</p>
+          : <p>가상 데이터(Mock) 화면입니다. 실제 감사 기록이 아닙니다.</p>}
         <p>페이지를 넘기는 동안 새로 기록되거나 늦게 저장된 기록은 빠지거나 나타날 수 있습니다(조회 시점 고정 아님). 최신 결과는 "새로 조회"로 다시 받으세요.</p>
         <p>사용자 ID로 찾기는 제공하지 않습니다. 조회 조건이 서버 접근 로그에 남을 수 있는 문제가 해결되지 않았기 때문입니다. 작업자 ID는 줄여서 표시합니다.</p>
       </div>

@@ -308,3 +308,20 @@ describe('AI usage', () => {
     expect(screen.queryByText('2026-11-01 (KST)')).not.toBeInTheDocument();
   });
 });
+
+describe('real API source (service.source === "api")', () => {
+  const real: AdminAuditService = {
+    source: 'api',
+    listEvents: () => Promise.resolve({ items: [], next_cursor: null }),
+    getUsage: () => Promise.resolve({ costStatus: 'unverified', source: 'api', buckets: [] }),
+  };
+
+  it.each(['/admin/audit-events', '/admin/ai-usage'] as const)('%s does not claim to be mock data', async (path) => {
+    setup(path, real);
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent('읽기 전용');
+    expect(screen.getByRole('note')).not.toHaveTextContent('가상 데이터(Mock)');
+    await waitFor(() => expect(screen.queryByRole('table')).not.toBeInTheDocument());
+    expect(screen.queryByText('표시 중: 가상 데이터(Mock)')).not.toBeInTheDocument();
+  });
+});
