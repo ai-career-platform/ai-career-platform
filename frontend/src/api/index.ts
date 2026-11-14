@@ -5,6 +5,7 @@ import { createHttpCrawlerAdminService } from './crawlerAdminHttp';
 import { documentsApi } from './documents';
 import { systemApi } from './health';
 import type { HttpClient } from './http';
+import { createHttpJobApplicationService } from './jobApplications';
 import { marketTrendsApi } from './marketTrends';
 import { meApi } from './me';
 import { recommendationsApi } from './recommendations';
@@ -16,6 +17,8 @@ export function createApi(http: HttpClient) {
     recommendations: recommendationsApi(http), system: systemApi(http),
     // T156 크롤러 관리자(T155 API). 화면은 VITE_CRAWLER_ADMIN_UI 플래그가 켜졌을 때만 씁니다.
     crawlerAdmin: createHttpCrawlerAdminService(http),
+    // T103 개인 지원 기록(T102 API). 화면은 VITE_APPLICATIONS_UI 플래그가 켜졌을 때만 씁니다.
+    jobApplications: createHttpJobApplicationService(http),
   };
 }
 

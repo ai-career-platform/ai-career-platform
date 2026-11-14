@@ -111,7 +111,7 @@ const personalDataRoutes = (features: Features): RouteObject[] => (features.pers
   ] },
 ] : []);
 
-/** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
+/** T103 개인 지원 현황 보드: VITE_APPLICATIONS_UI 플래그(기본 꺼짐), 본인 기록만 */
 const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
   { element: <RequireAuth />, children: [
     { element: <ApplicationServiceProvider />, children: [

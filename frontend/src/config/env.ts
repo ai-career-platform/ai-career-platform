@@ -24,8 +24,11 @@ export const env = {
   notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
   /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
   jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
-  /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
-  applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
+  /**
+   * T103 지원 현황 보드·공고 상세의 "지원 기록에 추가". 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T102)를 씁니다.
+   * 실제 API 로 켜려면 서버 JOB_APPLICATIONS_API=true 와 migration 0004 적용이 먼저 필요합니다(운영은 별도 승인).
+   */
+  applicationsUi: import.meta.env.VITE_APPLICATIONS_UI === 'true',
   /**
    * T156 크롤러 관리자 콘솔. 기본 비활성, 서버 T155 쓰기 플래그 별도 적용.
    * 실제 API 또는 Mock에서 관리자가 켤 수 있으나 활성화는 별도 승인 사항입니다.
