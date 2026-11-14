@@ -61,8 +61,8 @@ describe('feature flag and access', () => {
     expect(JSON.stringify(routes, (k, v) => (k === 'element' ? undefined : v))).not.toContain("company");
     const envText = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
     expect(envText).toContain("companyConsoleUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',");
-    // T127 공고 콘솔은 아직 Mock 전용(T125 저장소 없음)
-    expect(envText).toContain("companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'");
+    // T127 공고 콘솔은 기업 콘솔 플래그 + 자체 플래그(실제 API 는 migration 0009, CompanyPostings.test.tsx 에서 확인)
+    expect(envText).toContain("companyPostingsUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true' && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true'");
     const provider = readFileSync(resolve(cwd(), 'src/company/CompanyServiceProvider.tsx'), 'utf8');
     expect(provider).toContain('env.mockEnabled ? createMockCompanyBackend');
     expect(provider).toContain('api.companyAccounts');

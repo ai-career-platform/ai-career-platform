@@ -1,7 +1,7 @@
-"""T126 기업 공고 작성·검수 요청 API — `COMPANY_POSTINGS_API=true` 일 때만 등록(기본 꺼짐, T125 미승인).
+"""T126/T127 기업 공고 작성·검수 요청 API — `COMPANY_POSTINGS_API=true` 일 때만 등록(기본 꺼짐).
 
-공개 공고 목록(T18·T99 `/job-postings`)은 바꾸지 않는다. 운영 승인 전 공고는 공개 경로에 나오지 않는다.
-저장소가 없어서(migration 승인 전) 기본 의존성은 503.
+공개 공고 목록(T18·T99 `/job-postings`)은 바꾸지 않는다. 운영 승인 전 공고는 공개 경로에 나오지 않는다
+(공개 행은 승인 트랜잭션에서만 생김, migration 0009). 저장소는 PostgreSQL. DB 가 없으면 503.
 """
 from datetime import datetime
 from typing import Annotated, Literal
@@ -9,10 +9,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session
 
-from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
+from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
+from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
 from app.services import company_postings as svc
 
 router = APIRouter(tags=["company-postings"], responses=error_responses(401, 503))
@@ -74,8 +76,9 @@ class Posting(BaseModel):
     updated_at: datetime | None
 
 
-def get_posting_service() -> svc.CompanyPostingService:
-    raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="posting storage not provisioned (T125 migration HOLD)")
+def get_posting_service(db: Annotated[Session, Depends(get_db)]) -> svc.CompanyPostingService:
+    # 세 저장소가 요청 Session 하나를 함께 쓴다 → 상태·이벤트·공개 행 변경이 한 트랜잭션(원자적)
+    return svc.CompanyPostingService(SqlOrgDirectory(db), SqlPostingRepository(db), SqlPublicPostings(db))
 
 
 Service = Annotated[svc.CompanyPostingService, Depends(get_posting_service)]
