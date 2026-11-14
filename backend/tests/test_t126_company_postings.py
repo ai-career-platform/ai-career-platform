@@ -22,6 +22,7 @@ from app.services.company_accounts import CompanyAccountService, Member, MemoryC
 from app.services.mail import MemoryMailSender
 from tests.conftest import CONSENTS, PASSWORD, TEST_SECRET, bearer
 from tests.fakes import MemoryAuthRepository, override_auth_repository
+from tests.t125_decide import call_decide, user_of
 
 ROOT = Path(__file__).resolve().parents[2]
 API = API_V1_PREFIX
@@ -122,9 +123,9 @@ class World:
                            json={"version": posting["version"], **extra}, headers=who or self.member)
 
     def decide(self, posting, decision="approve", who=None, **extra):
-        return self.c.post(f"{API}/admin/company-postings/{posting['posting_id']}/decision",
-                           json={"decision": decision, "version": posting["version"], **extra},
-                           headers=who or self.admin)
+        # T81: 직접 결정 경로는 409 — T125 전이를 서비스로 직접 부른다(검수 결정이 같은 트랜잭션에서 부르는 함수)
+        uid = user_of(who or self.admin)
+        return call_decide(self.postings, uid, self.auth.role_codes(uid), posting, decision, **extra)
 
     def published(self):
         p = self.draft()
@@ -187,6 +188,19 @@ def test_withdraw_review_back_to_draft(w):
 
 
 # ------------------------------------------------------------------ 무단 게시·검수 우회 차단
+def test_direct_admin_decision_route_is_disabled_and_publishes_nothing(w):
+    """T81 PM 결정: 승인·반려는 /admin/moderation-cases/{id}/decision 으로만. 옛 경로는 관리자 409, 그 밖 403, 변화 없음."""
+    p = w.act(w.draft(), "submit").json()
+    for decision, extra in (("approve", {}), ("reject", {"reason_code": "duplicate_posting"})):
+        r = w.c.post(f"{API}/admin/company-postings/{p['posting_id']}/decision",
+                     json={"decision": decision, "version": p["version"], **extra}, headers=w.admin)
+        assert (r.status_code, r.json()["code"]) == (409, "CONFLICT")
+    assert w.c.post(f"{API}/admin/company-postings/{p['posting_id']}/decision",
+                    json={"decision": "approve", "version": p["version"]}, headers=w.member).status_code == 403
+    assert w.public.published() == []
+    assert w.c.get(f"{w.base()}/{p['posting_id']}", headers=w.member).json()["status"] == "pending_review"
+
+
 def test_company_roles_have_no_publish_path(w):
     p = w.act(w.draft(), "submit").json()
     for who in (w.owner, w.member):

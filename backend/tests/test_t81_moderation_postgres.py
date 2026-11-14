@@ -10,7 +10,8 @@ company_posting 결정은 **실제 T125 전이**(CompanyPostingService.decide + 
 """
 import os
 import threading
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine
@@ -18,9 +19,13 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
 from app.db import sqlalchemy_url
-from app.repositories.moderation import SqlCompanyPostingTransitions, SqlModerationRepository
+from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
+from app.repositories.moderation import (
+    SqlCompanyPostingTransitions, SqlModerationRepository, company_posting_submit_hook,
+)
 from app.routers.admin_moderation import get_company_posting_transitions
 from app.services import moderation as mod
+from app.services.company_postings import CompanyPostingService
 from app.services.job_postings import ListCursor, derive_cursor_key
 from tests.conftest import TEST_SECRET
 from tests.security.security_pg import ADMIN, USER_A, USER_B, disposable_pg, requires_pg
@@ -31,8 +36,9 @@ API = "/api/v1/admin/moderation-cases"
 WRITE = ("moderation_cases", "moderation_case_events", "audit_events", "organization_job_postings",
          "organization_job_posting_events", "organization_public_companies", "job_postings", "companies",
          "organizations")
+# 시험 fixture 전용(운영 seed 아님): company_direct 의 license_ref 는 실제 약관 버전 승인 전이라 BLOCKED — 가짜 값.
 SOURCE = ("INSERT INTO career.data_sources (code, name, license_ref) "
-          "VALUES ('company_direct', '기업 직접 등록', 't125-terms-test-1')")
+          "VALUES ('company_direct', '기업 직접 등록(시험)', 'TEST-FIXTURE-NOT-A-TERMS-VERSION')")
 SECRET_NOTE = "내부메모-T81-PG-노출금지"
 
 
@@ -43,6 +49,7 @@ def no_transition():
 @pytest.fixture
 def pg(monkeypatch):
     monkeypatch.setenv("ADMIN_MODERATION_API", "true")
+    monkeypatch.setenv("COMPANY_POSTINGS_API", "true")
     gen = disposable_pg(monkeypatch, write_tables=WRITE, migrations=("0001", "0008", "0009", "0010"))
     env = next(gen)
     env.db.execute("INSERT INTO career.user_roles (user_id, role_id) SELECT %s, role_id FROM career.roles "
@@ -275,3 +282,136 @@ def test_deleting_the_target_closes_open_cases_and_keeps_decided_ones(pg):
     assert detail["target_id"] == str(jp_open) and detail["target_summary"] is None
     assert detail["events"][-1] == {**detail["events"][-1], "event": "CLOSE", "actor_user_id": None,
                                     "reason_code": "TARGET_DELETED", "to_status": "CLOSED"}
+
+
+# ---------------------------------------------------------------- PM DECISION_1: 기업 검수 요청 = 검수 건 생성(한 트랜잭션)
+def api_org(pg, owner=USER_A):
+    org = pg.scalar("INSERT INTO career.organizations (name, status, verified_at) VALUES ('합성 기업 T81 API', 'active', "
+                    "now()) RETURNING organization_id")
+    pg.db.execute("INSERT INTO career.organization_members (organization_id, user_id, role) VALUES (%s, %s, 'owner')",
+                  (org, owner))
+    return org
+
+
+def api_draft(pg, org, owner=USER_A, title="합성 API 공고 T81"):
+    body = {"title": title, "description": "합성 설명", "employment_type": "full_time", "location_text": "서울",
+            "expires_at": (datetime.now(UTC) + timedelta(days=30)).isoformat()}
+    r = pg.client.post(f"/api/v1/organizations/{org}/postings", json=body, headers=pg.h[owner])
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def api_submit(pg, org, posting, owner=USER_A, version=None):
+    return pg.client.post(f"/api/v1/organizations/{org}/postings/{posting['posting_id']}/submit",
+                          json={"version": version or posting["version"]}, headers=pg.h[owner])
+
+
+def cases_for(pg, posting_id):
+    return pg.db.execute("SELECT case_id, status, submitted_by, review_trigger FROM career.moderation_cases "
+                         "WHERE target_type = 'company_posting' AND target_id = %s", (posting_id,)).fetchall()
+
+
+def posting_events(pg, posting_id):
+    return [r[0] for r in pg.db.execute("SELECT action_code FROM career.organization_job_posting_events "
+                                        "WHERE posting_id = %s ORDER BY occurred_at", (posting_id,)).fetchall()]
+
+
+def test_company_submit_creates_exactly_one_case_in_the_same_transaction(pg):
+    org = api_org(pg)
+    draft = api_draft(pg, org)
+    r = api_submit(pg, org, draft)
+    assert r.status_code == 200 and r.json()["status"] == "pending_review", r.text
+    rows = cases_for(pg, draft["posting_id"])
+    assert [(row[1], row[2], row[3]) for row in rows] == [("PENDING", USER_A, "PRE_PUBLISH")]
+    case_id = rows[0][0]
+    assert pg.scalar("SELECT count(*) FROM career.moderation_case_events WHERE case_id = %s AND event = 'SUBMIT'",
+                     case_id) == 1
+    assert pg.scalar("SELECT count(*) FROM career.audit_events WHERE action_code = 'content.review.request' "
+                     "AND resource_id = %s AND actor_user_id = %s", case_id, USER_A) == 1
+    assert posting_events(pg, draft["posting_id"])[-1] == "posting.submit_review"
+    # 철회 → 다시 요청: 열린 건을 다시 쓴다(두 번째 건 없음)
+    back = pg.client.post(f"/api/v1/organizations/{org}/postings/{draft['posting_id']}/withdraw",
+                          json={"version": r.json()["version"]}, headers=pg.h[USER_A]).json()
+    assert api_submit(pg, org, back).status_code == 200
+    assert [row[0] for row in cases_for(pg, draft["posting_id"])] == [case_id]
+    queue = pg.client.get(API, params={"target_type": "company_posting"}, headers=pg.h[ADMIN]).json()["items"]
+    assert [i["case_id"] for i in queue] == [str(case_id)] and queue[0]["target_summary"] == "합성 API 공고 T81"
+
+
+def test_company_submit_failure_creates_no_case_and_leaves_the_posting(pg):
+    org = api_org(pg)
+    draft = api_draft(pg, org)
+    stale = api_submit(pg, org, draft, version=draft["version"] + 5)
+    assert (stale.status_code, stale.json()["code"]) == (409, "CONFLICT")
+    assert cases_for(pg, draft["posting_id"]) == []
+    # 검수 건을 만들 수 없으면(권한 회수로 INSERT 실패) 검수 요청 전체가 롤백된다
+    pg.db.execute(f'REVOKE INSERT ON career.moderation_cases FROM "{pg.role}"')
+    failed = api_submit(pg, org, draft)
+    assert failed.status_code >= 500
+    assert cases_for(pg, draft["posting_id"]) == []
+    assert pg.scalar("SELECT status FROM career.organization_job_postings WHERE posting_id = %s",
+                     draft["posting_id"]) == "draft"
+    assert "posting.submit_review" not in posting_events(pg, draft["posting_id"])
+
+
+def test_concurrent_company_submits_leave_one_open_case(pg):
+    org = api_org(pg)
+    draft = api_draft(pg, org)
+    barrier, results = threading.Barrier(3), []
+
+    def worker():
+        with Session(pg.engine) as session:
+            service = CompanyPostingService(SqlOrgDirectory(session), SqlPostingRepository(session),
+                                            SqlPublicPostings(session), on_submit=company_posting_submit_hook(session))
+            barrier.wait()
+            try:
+                service.submit(USER_A, UUID(str(org)), UUID(draft["posting_id"]), draft["version"])
+                results.append("ok")
+            except AppError as exc:
+                results.append(str(exc.code))
+
+    engine_threads = [threading.Thread(target=worker) for _ in range(3)]
+    for t in engine_threads:
+        t.start()
+    for t in engine_threads:
+        t.join()
+    assert sorted(results) == ["CONFLICT", "CONFLICT", "ok"], results
+    assert len(cases_for(pg, draft["posting_id"])) == 1
+
+
+def test_submitted_posting_is_published_only_through_its_case(pg):
+    """승인 = 검수 건 결정 하나: 직접 결정 경로는 409·변화 없음, 검수 승인은 공개 행까지 한 커밋. 수집 공고는 그대로."""
+    pg.db.execute(SOURCE)
+    pg.db.execute("INSERT INTO career.data_sources (code, name, license_ref) VALUES ('jobkorea_live', '수집(시험)', "
+                  "'TEST-FIXTURE')")
+    jobkorea = pg.scalar(
+        "INSERT INTO career.job_postings (company_id, source_id, title, status) SELECT c.company_id, s.source_id, "
+        "'합성 수집 초안', 'draft' FROM career.companies c, career.data_sources s WHERE s.code = 'jobkorea_live' "
+        "ORDER BY c.company_id LIMIT 1 RETURNING job_posting_id")
+    org = api_org(pg)
+    submitted = api_submit(pg, org, api_draft(pg, org)).json()
+    direct = pg.client.post(f"/api/v1/admin/company-postings/{submitted['posting_id']}/decision",
+                            json={"decision": "approve", "version": submitted["version"]}, headers=pg.h[ADMIN])
+    assert (direct.status_code, direct.json()["code"]) == (409, "CONFLICT")
+    assert pg.client.post(f"/api/v1/admin/company-postings/{submitted['posting_id']}/decision",
+                          json={"decision": "approve", "version": submitted["version"]},
+                          headers=pg.h[USER_A]).status_code == 403
+    assert pg.scalar("SELECT status FROM career.organization_job_postings WHERE posting_id = %s",
+                     submitted["posting_id"]) == "pending_review"
+    (case_id, *_), = cases_for(pg, submitted["posting_id"])
+    assert assign(pg, case_id).status_code == 200
+    approved = decide(pg, case_id)
+    assert approved.status_code == 200 and approved.json()["status"] == "APPROVED", approved.text
+    assert pg.db.execute("SELECT o.status, j.status FROM career.organization_job_postings o JOIN career.job_postings j "
+                         "ON j.job_posting_id = o.public_posting_id WHERE o.posting_id = %s",
+                         (submitted["posting_id"],)).fetchone() == ("published", "published")
+    assert pg.scalar("SELECT status FROM career.job_postings WHERE job_posting_id = %s", jobkorea) == "draft"
+
+
+def test_admin_without_the_review_permission_is_rejected(pg):
+    case = submit(pg, "job_posting", seed_job_posting(pg), "REPORT")
+    assert pg.client.get(API, headers=pg.h[USER_A]).status_code == 403                    # 일반 사용자
+    pg.db.execute("DELETE FROM career.role_permissions WHERE permission_id = "
+                  "(SELECT permission_id FROM career.permissions WHERE code = 'admin.content.review')")
+    assert pg.client.get(API, headers=pg.h[ADMIN]).status_code == 403                     # admin 역할만으로는 부족
+    assert assign(pg, case.case_id).status_code == 403
