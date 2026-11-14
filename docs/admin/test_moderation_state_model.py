@@ -332,9 +332,11 @@ class PolicyAndContractConsistencyTest(unittest.TestCase):
         self.assertNotIn("admin.content.review", seed, "permission must stay a proposal until a migration adds it")
         self.assertIn("권한 코드 `admin.content.review`를 admin 역할에 부여", POLICY)
 
-    def test_no_moderation_table_or_route_exists_yet(self):
+    def test_moderation_table_only_in_0010_and_not_yet_in_the_confirmed_openapi(self):
+        # T81: 표는 0010 migration 하나에서만 만든다(API 는 ADMIN_MODERATION_API 기본 꺼짐). OpenAPI 병합은 T06 별도.
         migration = (ROOT / "database/migrations").glob("*.sql")
-        self.assertFalse(any("moderation_cases" in p.read_text(encoding="utf-8") for p in migration))
+        self.assertEqual([p.name for p in migration if "CREATE TABLE career.moderation_cases"
+                          in p.read_text(encoding="utf-8")], ["0010_moderation_cases.sql"])
         openapi = (ROOT / "docs/api/openapi.yaml").read_text(encoding="utf-8")
         self.assertNotIn("moderation-cases", openapi)
         self.assertNotIn("/admin/reviews", openapi)

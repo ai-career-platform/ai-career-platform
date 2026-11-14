@@ -14,6 +14,7 @@ from app.core.observability import AccessLogMiddleware, RequestMetrics, install_
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
+from app.routers import admin_moderation
 from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, notifications, personal_data_requests, public_portfolio, system
 from app.services.behavior_events import BehaviorEventSettings
 from app.routers import skill_suggest
@@ -83,6 +84,8 @@ def create_app() -> FastAPI:
         app.include_router(public_portfolio.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.personal_data_requests_api:  # T142: 기본 비활성
         app.include_router(personal_data_requests.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.admin_moderation_api:  # T81: 기본 비활성 (migration 0010 필요)
+        app.include_router(admin_moderation.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if app.state.google_settings.login_enabled:  # #328: 기본 비활성 (꺼져 있으면 Google 경로 404)
         app.include_router(google_auth.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     return app

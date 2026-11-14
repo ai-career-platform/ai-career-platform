@@ -162,12 +162,16 @@ class RepositoryFactsTest(unittest.TestCase):
         auth = (ROOT / "backend/app/dependencies/auth.py").read_text(encoding="utf-8")
         self.assertIn("def require_permissions(", auth)
 
-    def test_no_moderation_code_or_migration_exists_yet(self):
-        for path in (ROOT / "backend/app").rglob("*.py"):
-            self.assertNotIn("moderation", path.read_text(encoding="utf-8").lower(), path)
-        for path in (ROOT / "database/migrations").glob("*.sql"):
-            self.assertNotIn("moderation_cases", path.read_text(encoding="utf-8"), path)
+    def test_moderation_implementation_is_one_migration_behind_a_default_off_flag(self):
+        # T81 구현(0010 + ADMIN_MODERATION_API, 기본 꺼짐). 계약 DDL 스케치 외 대상은 company_posting(0009) 하나만 추가.
+        found = [p.name for p in (ROOT / "database/migrations").glob("*.sql")
+                 if "CREATE TABLE career.moderation_cases" in p.read_text(encoding="utf-8")]
+        self.assertEqual(found, ["0010_moderation_cases.sql"])
         self.assertFalse((ROOT / "database/migrations/0004_moderation_cases.sql").exists())
+        config = (ROOT / "backend/app/core/config.py").read_text(encoding="utf-8")
+        self.assertIn('admin_moderation_api=os.environ.get("ADMIN_MODERATION_API", "false")', config)
+        main = (ROOT / "backend/app/main.py").read_text(encoding="utf-8")
+        self.assertIn("if settings.admin_moderation_api:", main)
 
     def test_f027_is_still_excluded_in_the_source_of_truth(self):
         trace = (ROOT / "docs/requirements/traceability/TRACEABILITY.md").read_text(encoding="utf-8")
