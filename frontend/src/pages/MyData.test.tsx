@@ -1,6 +1,6 @@
 /**
  * T143 내 데이터 내려받기·요청 이력 — 실제 라우터(buildRoutes) + Mock HTTP 로그인 + 반출 Mock Adapter.
- * 실제 API(T142)는 기능 플래그 뒤·저장소 없음이라 연결하지 않았습니다(Mock PASS 이며 실제 API PASS 아님).
+ * 실제 API(T142) 경로는 PersonalDataServiceProvider.test.tsx·personalData.http.test.ts 에서 확인합니다.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -70,12 +70,15 @@ describe('feature flag and access', () => {
     expect(screen.queryByRole('link', { name: '내 데이터 내려받기 (Mock)' })).not.toBeInTheDocument();
   });
 
-  it('default routes keep it off, the flag needs mock mode, and no HTTP adapter is wired', async () => {
+  it('default routes keep it off; the flag alone opens it and the provider uses the mock only in mock mode', async () => {
     const { routes } = await import('../routes');
     expect(JSON.stringify(routes, (k, v) => (k === 'element' ? undefined : v))).not.toContain('me/data');
     expect(readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8'))
-      .toContain("personalDataUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PERSONAL_DATA_UI === 'true'");
-    expect(readFileSync(resolve(cwd(), 'src/personal/PersonalDataServiceProvider.tsx'), 'utf8')).not.toMatch(/^import .*(createHttp|useApi)|fetch\(/m);
+      .toContain("personalDataUi: import.meta.env.VITE_PERSONAL_DATA_UI === 'true'");
+    const provider = readFileSync(resolve(cwd(), 'src/personal/PersonalDataServiceProvider.tsx'), 'utf8');
+    expect(provider).toContain('!env.mockEnabled ? null');
+    expect(provider).toContain('api.personalData');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it('needs login and shows a menu entry when on', async () => {

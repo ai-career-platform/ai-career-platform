@@ -187,6 +187,16 @@ class SqlAuthRepository:
         ).one_or_none()
         return LocalIdentity(*row) if row else None
 
+    def find_local_identity_by_user(self, user_id: uuid.UUID) -> LocalIdentity | None:
+        """T142 재인증: 로그인한 사용자 ID 로 local identity 를 찾는다(이메일 원문을 다시 받지 않음)."""
+        row = self._db.execute(
+            select(AuthIdentity.user_id, AuthIdentity.password_hash, User.status)
+            .join(User, User.user_id == AuthIdentity.user_id)
+            .where(AuthIdentity.provider == "local", AuthIdentity.user_id == user_id)
+            .order_by(AuthIdentity.created_at).limit(1)
+        ).first()
+        return LocalIdentity(*row) if row else None
+
     def update_password_hash(self, user_id: uuid.UUID, password_hash: str, now: datetime) -> None:
         self._db.execute(
             update(AuthIdentity)

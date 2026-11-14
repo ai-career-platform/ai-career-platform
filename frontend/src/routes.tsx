@@ -102,7 +102,7 @@ const portfolioRoutes = (features: Features): RouteObject[] => (features.publicP
   ] },
 ] : []);
 
-/** T143 내 데이터 내려받기: Mock 전용, 로그인 사용자만 */
+/** T143 내 데이터 내려받기: VITE_PERSONAL_DATA_UI 플래그(기본 꺼짐), 로그인 사용자만·본인 요청만 */
 const personalDataRoutes = (features: Features): RouteObject[] => (features.personalDataUi ? [
   { element: <RequireAuth />, children: [
     { element: <PersonalDataServiceProvider />, children: [

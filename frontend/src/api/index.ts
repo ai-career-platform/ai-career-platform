@@ -9,6 +9,7 @@ import { createHttpJobApplicationService } from './jobApplications';
 import { marketTrendsApi } from './marketTrends';
 import { meApi } from './me';
 import { createHttpNotificationService } from './notifications';
+import { createHttpPersonalDataService } from './personalData';
 import { recommendationsApi } from './recommendations';
 
 /** 도메인별 엔드포인트 묶음. 같은 HttpClient(토큰·mock 설정)를 공유합니다. */
@@ -22,6 +23,8 @@ export function createApi(http: HttpClient) {
     jobApplications: createHttpJobApplicationService(http),
     // T97 알림함·수신 설정(T97 API). 화면은 VITE_NOTIFICATIONS_UI 플래그가 켜졌을 때만 씁니다.
     notifications: createHttpNotificationService(http),
+    // T143 내 데이터 내려받기(T142 API). 화면은 VITE_PERSONAL_DATA_UI 플래그가 켜졌을 때만 씁니다.
+    personalData: createHttpPersonalDataService(http),
   };
 }
 
