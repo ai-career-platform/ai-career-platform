@@ -1,24 +1,32 @@
-"""T123 기업 등록·초대·소속 API — `COMPANY_ACCOUNTS_API=true` 일 때만 create_app 이 등록(기본 꺼짐, T121·T122 미승인).
+"""T123 기업 등록·초대·소속 API — `COMPANY_ACCOUNTS_API=true` 일 때만 create_app 이 등록(기본 꺼짐, T121 정책 PROPOSED).
 
-저장소는 아직 없다(정식 migration 승인 전). 그래서 기본 의존성 `get_company_service` 는 503 을 돌려주고,
-시험만 메모리 저장소로 바꿔 끼운다. 권한: 소속이 아니면 404, 같은 조직에서 역할이 부족하면 403(T121).
+저장소는 PostgreSQL(migration 0008). DB 가 없으면 503. 초대 메일은 계정 복구와 같은 `get_mail_sender` 를 쓰므로
+메일 공급자가 연결되기 전에는 초대 생성·재전송이 503 이다(다른 기능은 동작).
+권한: 소속이 아니면 404, 같은 조직에서 역할이 부족하면 403(T121).
 """
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response
+from sqlalchemy.orm import Session
 
-from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
+from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
+from app.repositories.company_accounts import SqlCompanyRepository, SqlUserDirectory
+from app.routers.account_recovery import get_mail_sender
 from app.schemas import company_accounts as dto
 from app.services import company_accounts as svc
+from app.services.mail import MailSender
 
 router = APIRouter(tags=["company"], responses=error_responses(401, 503))
+DEFAULT_INVITE_LINK_BASE = "/company-invitations/accept"   # Frontend 화면(T124). 절대 URL 은 공급자 연결 시 설정
 
 
-def get_company_service() -> svc.CompanyAccountService:
-    raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="company storage not provisioned (T122 migration HOLD)")
+def get_company_service(db: Annotated[Session, Depends(get_db)],
+                        mail: Annotated[MailSender, Depends(get_mail_sender)]) -> svc.CompanyAccountService:
+    return svc.CompanyAccountService(SqlCompanyRepository(db), SqlUserDirectory(db), mail,
+                                     invite_link_base=DEFAULT_INVITE_LINK_BASE)
 
 
 Service = Annotated[svc.CompanyAccountService, Depends(get_company_service)]

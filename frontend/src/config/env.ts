@@ -36,13 +36,16 @@ export const env = {
    */
   crawlerAdminUi: import.meta.env.VITE_CRAWLER_ADMIN_UI === 'true',
   /**
-   * T124 기업 콘솔(조직·멤버·초대). T121·T122 미승인, T123 서버는 플래그 뒤·저장소 없음 → **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐.
+   * T124 기업 콘솔(조직·멤버·초대, /company·/company-invitations/accept). 기본 꺼짐. Mock 모드면 Mock Adapter,
+   * 아니면 실제 API(T123). 실제 API 로 켜려면 서버 COMPANY_ACCOUNTS_API=true 와 migration 0008 이 먼저 필요합니다
+   * (운영은 별도 승인. 메일 공급자 연결 전에는 초대 생성·재전송이 503).
    */
-  companyConsoleUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
-  /** T127 기업 공고 관리 콘솔. 기업 콘솔 플래그와 함께 켜야 하며 Mock 모드 전용(T125·T126 미승인). */
-  companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'
-    && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
+  companyConsoleUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',
+  /**
+   * T127 기업 공고 관리 콘솔. 기본 꺼짐. 경로는 기업 콘솔(companyConsoleUi) 안에만 생기므로 그 플래그도 켜져야 합니다.
+   * Mock 모드면 Mock Adapter, 아니면 실제 API(T126, 서버 COMPANY_POSTINGS_API=true·migration 0009 필요, 운영은 별도 승인).
+   */
+  companyPostingsUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true' && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true',
   /**
    * T140 기술 자동완성(동의어·표준 코드). T139 서버 API 도 기본 꺼짐(SKILL_AUTOCOMPLETE_API)이라 둘 다 켜야 합니다.
    * Mock 모드에서는 가상 동의어로 동작합니다. 꺼져 있으면 기존 T17 이름 검색을 그대로 씁니다.

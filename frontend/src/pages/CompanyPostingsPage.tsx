@@ -17,6 +17,7 @@ import { usePostingService } from '../company/postingContext';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatePanel } from '../components/StatePanel';
+import { env } from '../config/env';
 import './CompanyConsolePage.css';
 
 function trouble(error: unknown, action: string): string {
@@ -26,6 +27,7 @@ function trouble(error: unknown, action: string): string {
     if (error.status === 404) return '공고를 찾을 수 없거나 접근 권한이 없습니다.';
     if (error.status === 409) return '다른 사람이 먼저 바꿨거나 지금 상태에서는 할 수 없습니다. 최신 내용을 불러왔습니다.';
     if (error.status === 422) return '필수 항목(제목·설명·고용형태·근무지·마감일)을 채우고, 지원 링크는 https 주소로 입력해 주세요.';
+    if (error.status === 503) return '공고 관리 기능을 지금 쓸 수 없습니다. 잠시 후 다시 시도해 주세요.';
   }
   return `${action}하지 못했습니다.`;
 }
@@ -123,7 +125,7 @@ export function CompanyPostingsPage() {
   return (
     <section className="company-page" aria-labelledby="postings-title">
       <h1 id="postings-title">공고 관리{org ? ` — ${org.organization.name}` : ''}</h1>
-      <p className="company-notice" role="note">기업은 <strong>검수 요청까지만</strong> 할 수 있습니다. 운영자가 검수해 승인해야 공개 공고 목록에 나옵니다. 가상 데이터(Mock)입니다.</p>
+      <p className="company-notice" role="note">기업은 <strong>검수 요청까지만</strong> 할 수 있습니다. 운영자가 검수해 승인해야 공개 공고 목록에 나옵니다.{env.mockEnabled ? ' 가상 데이터(Mock)입니다.' : ''}</p>
       <Link to={`/company?org=${orgId}`}>← 기업 콘솔</Link>
       {message && <p className={message.kind === 'error' ? 'company-error' : 'company-ok'} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</p>}
       {(list.status === 'loading' || list.status === 'idle') && <StatePanel variant="loading" title="공고를 불러오는 중입니다" />}

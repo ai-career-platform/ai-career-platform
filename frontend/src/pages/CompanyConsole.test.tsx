@@ -1,6 +1,7 @@
 /**
  * T124 기업 콘솔 — 실제 라우터(buildRoutes) + Mock HTTP 로그인 + 기업 Mock Adapter(T123 규칙 흉내).
- * 실제 API(T123)는 기능 플래그 뒤·저장소 없음이라 연결하지 않았습니다(Mock PASS 이며 실제 API PASS 아님).
+ * 여기서는 Mock 모드 화면 흐름만 봅니다(Mock PASS 이며 실제 API PASS 아님). 실제 API 경로는
+ * company/CompanyServiceProvider.test.tsx·api/companyAccounts.test.ts, 서버는 test_t123_company_accounts_postgres.py.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -55,12 +56,17 @@ describe('feature flag and access', () => {
     expect(screen.queryByRole('link', { name: '기업 콘솔 (Mock)' })).not.toBeInTheDocument();
   });
 
-  it('default routes keep it off, the flag needs mock mode, and no HTTP adapter is wired', async () => {
+  it('default routes keep it off; the flag alone opens it and the provider uses the mock only in mock mode', async () => {
     const { routes } = await import('../routes');
     expect(JSON.stringify(routes, (k, v) => (k === 'element' ? undefined : v))).not.toContain("company");
-    expect(readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8'))
-      .toContain("companyConsoleUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'");
-    expect(readFileSync(resolve(cwd(), 'src/company/CompanyServiceProvider.tsx'), 'utf8')).not.toMatch(/^import .*(createHttp|useApi)|fetch\(/m);
+    const envText = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
+    expect(envText).toContain("companyConsoleUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true',");
+    // T127 공고 콘솔은 기업 콘솔 플래그 + 자체 플래그(실제 API 는 migration 0009, CompanyPostings.test.tsx 에서 확인)
+    expect(envText).toContain("companyPostingsUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true' && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true'");
+    const provider = readFileSync(resolve(cwd(), 'src/company/CompanyServiceProvider.tsx'), 'utf8');
+    expect(provider).toContain('env.mockEnabled ? createMockCompanyBackend');
+    expect(provider).toContain('api.companyAccounts');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it('anonymous users go to login; signed-in users see the menu', async () => {
