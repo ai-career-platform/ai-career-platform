@@ -43,7 +43,9 @@ class FakeRepo:
         ]
         self.bookmarks: set[tuple[uuid.UUID, uuid.UUID]] = set()
 
-    def list_companies(self, q, after, limit):
+    def list_companies(self, q, after, limit, now):
+        assert now == NOW  # 서비스가 같은 시계로 기업 공개 범위(#342)를 정한다
+
         rows = [c for c in self.companies if not q or q.lower() in c.name.lower()]
         rows.sort(key=lambda c: (c.name.lower(), c.company_id))
         if after is not None:

@@ -159,7 +159,7 @@ def test_filters_q_role_company(client, fx):
 
 def test_company_list_search_and_detail(client, fx):
     names = [c["name"] for c in _all_pages(client, "companies", {"limit": 6})]
-    assert len(names) == len(set(names)) >= 21
+    assert len(names) == len(set(names)) and f"T18IT 테스트기업 {RUN}" in names
     r = client.get(f"{API}/companies", params={"q": f"t18it 테스트기업 {RUN}"}).json()
     assert r == {"items": [{"company_id": str(fx["company"]), "name": f"T18IT 테스트기업 {RUN}"}],
                  "next_cursor": None}
@@ -247,6 +247,75 @@ def test_company_cursor_survives_rename_of_anchor(client, engine, fx):
     finally:
         with engine.begin() as db:
             db.execute(text("UPDATE career.companies SET name = :n WHERE company_id = :c"), {"n": old, "c": anchor})
+
+
+# ------------------------------------------------------------------ #342 기업 공개 범위 = 공고 공개 규칙
+@pytest.fixture(scope="module")
+def hidden(engine, fx):
+    """공개(게시 중) 공고가 없는 기업 4곳: draft만 / 마감 지남만 / closed만 / 게시 예정만. 끝나면 지운다."""
+    cases = {
+        "draft_only": ("draft", "NULL", "NULL"),
+        "expired_only": ("published", "now() - interval '40 days'", "now() - interval '1 day'"),
+        "closed_only": ("closed", "now() - interval '30 days'", "now() + interval '5 days'"),
+        "scheduled_only": ("published", "now() + interval '5 days'", "NULL"),
+    }
+    ids = {k: (uuid.uuid4(), uuid.uuid4()) for k in cases}
+    with engine.begin() as db:
+        for key, (status, pub, exp) in cases.items():
+            company_id, posting_id = ids[key]
+            db.execute(text("""
+                INSERT INTO career.companies (company_id, name, source_id)
+                SELECT :id, :name, source_id FROM career.data_sources WHERE code = 'synthetic_seed'"""),
+                {"id": company_id, "name": f"T342IT {key} {RUN}"})
+            db.execute(text(f"""
+                INSERT INTO career.job_postings (job_posting_id, company_id, job_role_id, source_id, title,
+                       employment_type, location_text, status, published_at, expires_at)
+                SELECT :id, :c, :r, source_id, :t, 'full_time', '서울', :s, {pub}, {exp}
+                FROM career.data_sources WHERE code = 'synthetic_seed'"""),
+                {"id": posting_id, "c": company_id, "r": fx["role"], "t": f"T342IT {key} {RUN}", "s": status})
+    yield ids
+    with engine.begin() as db:
+        for company_id, _ in ids.values():
+            db.execute(text("DELETE FROM career.job_postings WHERE company_id = :c"), {"c": company_id})
+            db.execute(text("DELETE FROM career.companies WHERE company_id = :c"), {"c": company_id})
+
+
+def test_company_list_equals_companies_of_default_posting_list(client, engine, hidden):
+    """기업 목록 = 기본 공고 목록(게시 중)에 나오는 기업. 페이지를 넘겨도 중복·누락 없음."""
+    with engine.connect() as db:
+        expected = {str(c) for c in db.execute(text("""SELECT DISTINCT company_id FROM career.job_postings
+            WHERE status = 'published' AND (expires_at IS NULL OR expires_at > now())""")).scalars()}
+    listed = [c["company_id"] for c in _all_pages(client, "companies", {"limit": 4})]
+    assert len(listed) == len(set(listed)) and set(listed) == expected
+    via_postings = {i["company"]["company_id"] for i in _all_pages(client, "job-postings", {"limit": 50})}
+    assert set(listed) == via_postings
+
+
+def test_company_without_public_posting_is_hidden_from_list_and_search(client, hidden):
+    listed = {c["company_id"] for c in _all_pages(client, "companies", {"limit": 100})}
+    for key in ("draft_only", "expired_only", "closed_only"):
+        assert str(hidden[key][0]) not in listed
+        assert client.get(f"{API}/companies", params={"q": f"T342IT {key} {RUN}"}).json() == {
+            "items": [], "next_cursor": None}
+
+
+def test_scheduled_only_company_follows_posting_list_rule(client, hidden):
+    """게시 예정(published_at 미래) 공고의 공개 여부는 기존 공고 규칙을 따른다. 기업도 같은 결과여야 한다."""
+    company_id, posting_id = (str(x) for x in hidden["scheduled_only"])
+    in_postings = posting_id in {i["job_posting_id"] for i in _all_pages(client, "job-postings", {"limit": 100})}
+    in_companies = company_id in {c["company_id"] for c in _all_pages(client, "companies", {"limit": 100})}
+    assert in_companies == in_postings
+
+
+def test_company_detail_404_only_when_no_posting_is_reachable(client, hidden):
+    r = client.get(f"{API}/companies/{hidden['draft_only'][0]}")
+    assert r.status_code == 404 and r.json()["code"] == "NOT_FOUND"
+    assert client.get(f"{API}/job-postings/{hidden['draft_only'][1]}").status_code == 404
+    # 마감 공고는 공고 상세(VISIBLE_STATUSES)로 공개되므로 그 기업 정보도 열린다. 진행 중 공고 수는 0
+    for key in ("expired_only", "closed_only"):
+        assert client.get(f"{API}/job-postings/{hidden[key][1]}").json()["status"] == "closed"
+        detail = client.get(f"{API}/companies/{hidden[key][0]}")
+        assert detail.status_code == 200 and detail.json()["open_posting_count"] == 0
 
 
 def test_default_list_can_use_status_published_index(engine):
