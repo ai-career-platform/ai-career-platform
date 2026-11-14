@@ -49,6 +49,9 @@ export const env = {
   skillAutocomplete: import.meta.env.VITE_SKILL_AUTOCOMPLETE === 'true',
   /** T130 공개 포트폴리오 UI: Mock 전용, 기본 비활성 */
   publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',
-  /** T143 내 데이터 내려받기: Mock 전용, 기본 비활성(T141 정책·T142 저장소 미승인) */
-  personalDataUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
+  /**
+   * T143 내 데이터 내려받기. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T142)를 씁니다.
+   * 실제 API 로 켜려면 서버 PERSONAL_DATA_REQUESTS_API=true 와 migration 0006 적용이 먼저 필요합니다(운영은 별도 승인).
+   */
+  personalDataUi: import.meta.env.VITE_PERSONAL_DATA_UI === 'true',
 } as const;
