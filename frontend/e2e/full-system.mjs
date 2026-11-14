@@ -198,8 +198,10 @@ const posting = STATE.browser_posting;
     await status(page, /단계를 ‘지원 완료’/);
     await page.reload();
     await page.getByRole('heading', { name: /지원 완료 1건/ }).waitFor();
+    // FSE-004 회귀: 실제 API 모드에서 'Mock' 안내가 보이면 안 된다
     const mockNote = await page.getByText('가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.').count();
-    return { stage: 'applied', persisted: true, misleading_mock_note_visible: mockNote > 0 };
+    if (mockNote > 0) throw new Error('real-API board shows the "가상 데이터(Mock)" notice (FSE-004)');
+    return { stage: 'applied', persisted: true, mock_notice_hidden: true };
   });
   await step('NOTIFICATION', 'A-inbox', 'own stage change → inbox empty (no self notification)', async () => {
     await page.goto(`${BASE}/me/notifications`);

@@ -17,6 +17,7 @@ import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatePanel } from '../components/StatePanel';
+import { env } from '../config/env';
 import './ApplicationsBoardPage.css';
 
 const dateText = (value: string | null) => (value ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' })
@@ -125,7 +126,8 @@ export function ApplicationsBoardPage() {
       <h1 id="apps-title">지원 현황</h1>
       <div className="apps-notice" role="note">
         <p><strong>내가 기록한 상태입니다.</strong> 기업의 공식 결과가 아니며, 채용사·채용 사이트의 실제 지원 현황과 자동으로 연결되지 않습니다.</p>
-        <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>
+        {/* FSE-004: 실제 API 모드에서 'Mock' 안내가 보이지 않게(다른 화면과 같은 규칙) */}
+        {env.mockEnabled && <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>}
       </div>
       {message && (
         <p className={message.kind === 'error' ? 'apps-error' : 'apps-ok'} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</p>
