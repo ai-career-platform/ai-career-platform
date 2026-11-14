@@ -1,6 +1,6 @@
 /**
  * T127 기업 공고 관리 콘솔 — 실제 라우터 + Mock HTTP 로그인 + 기업·공고 Mock Adapter(T124·T126 규칙 흉내).
- * 실제 API(T126)는 기능 플래그 뒤·저장소 없음이라 연결하지 않았습니다(Mock PASS 이며 실제 API PASS 아님).
+ * Mock 모드 시험입니다. 실제 API 연결(Mock 모드 아님)은 company/PostingServiceProvider.test.tsx 에서 확인합니다.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -65,11 +65,13 @@ describe('feature flag and access', () => {
     expect(await screen.findByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
   });
 
-  it('the flag needs mock mode and the company console flag; no HTTP adapter is wired', () => {
+  it('the flag needs the company console flag and its own flag; the mock adapter is used only in mock mode', () => {
     const envText = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
-    expect(envText).toContain("companyPostingsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true'");
-    expect(envText).toContain("import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true'");
-    expect(readFileSync(resolve(cwd(), 'src/company/PostingServiceProvider.tsx'), 'utf8')).not.toMatch(/^import .*(createHttp|useApi)|fetch\(/m);
+    expect(envText).toContain("companyPostingsUi: import.meta.env.VITE_COMPANY_CONSOLE_UI === 'true' && import.meta.env.VITE_COMPANY_POSTINGS_UI === 'true'");
+    const provider = readFileSync(resolve(cwd(), 'src/company/PostingServiceProvider.tsx'), 'utf8');
+    expect(provider).toMatch(/env\.mockEnabled\s*\?\s*createMockPostingBackend/);
+    expect(provider).toContain('api.companyPostings');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it('no organization chosen and another company are handled', async () => {
