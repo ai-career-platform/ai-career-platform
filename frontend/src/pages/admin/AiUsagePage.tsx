@@ -14,7 +14,7 @@ const DAY = 86_400_000;
 export const COST_WARNING = '추정 비용은 검증되지 않았으며 실제 청구액과 다를 수 있습니다.';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** UI-028 AI 사용량·추정 비용 (T85, Mock 전용). GET /api/v1/admin/ai-usage 확정 계약 기준. */
+/** UI-028 AI 사용량·추정 비용 (T85, Mock 또는 실제 API). GET /api/v1/admin/ai-usage 확정 계약 기준. */
 export function AiUsagePage({ now = () => new Date() }: { now?: () => Date }) {
   const service = useAdminAuditService();
   const [initial] = useState(() => ({ from: kstDate(new Date(now().getTime() - 6 * DAY)), to: kstDate(now()) }));
@@ -57,7 +57,9 @@ export function AiUsagePage({ now = () => new Date() }: { now?: () => Date }) {
     <section className="audit-page" aria-labelledby="usage-title">
       <h1 id="usage-title">AI 사용량·추정 비용</h1>
       <div className="audit-notice" role="note">
-        <p>가상 데이터(Mock) 화면입니다. 표의 숫자는 합성 값이며 실제 사용량이나 비용이 발생했다는 뜻이 아닙니다.</p>
+        {service.source === 'api'
+          ? <p>서버에 기록된 AI 사용량 합계입니다(읽기 전용). 비용은 저장된 추정값의 합입니다.</p>
+          : <p>가상 데이터(Mock) 화면입니다. 표의 숫자는 합성 값이며 실제 사용량이나 비용이 발생했다는 뜻이 아닙니다.</p>}
         <p>날짜는 한국 시간(KST) 기준이며 시작일·종료일을 모두 포함합니다. 최대 조회 기간은 아직 정해지지 않았습니다.</p>
       </div>
       <p className="audit-cost-warning" role="alert">{COST_WARNING}

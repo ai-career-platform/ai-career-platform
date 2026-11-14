@@ -1,3 +1,4 @@
+import { createHttpAdminAuditService } from './adminAuditHttp';
 import { authApi } from './auth';
 import { behaviorEventsApi } from './behaviorEvents';
 import { catalogApi } from './catalog';
@@ -22,6 +23,8 @@ export function createApi(http: HttpClient) {
     jobApplications: createHttpJobApplicationService(http),
     // T97 알림함·수신 설정(T97 API). 화면은 VITE_NOTIFICATIONS_UI 플래그가 켜졌을 때만 씁니다.
     notifications: createHttpNotificationService(http),
+    // T85 운영 감사·AI 사용량(T84 API). 화면은 VITE_ADMIN_AUDIT_UI 플래그가 켜졌을 때만 씁니다.
+    adminAudit: createHttpAdminAuditService(http),
   };
 }
 

@@ -2,6 +2,10 @@
 
 > 판정: **FRONTEND_MOCK=PASS / REAL_API_INTEGRATION=HOLD** — 두 관리자 화면을 Mock Adapter로 구현하고 검증했습니다. 실제 API 연결은 하지 않았습니다.
 > 확인일 2026-11-10 · 기준 main `4b39f55` (T84 #185·#186 병합 후) · 브랜치 `task/t85-admin-audit-usage-dashboard`
+>
+> **변경 (2026-11-14, `feat/t85-admin-audit-real-api`)**: PM 결정으로 실제 API 연결. 노출 조건은 `VITE_ADMIN_AUDIT_UI=true` 하나(기본 꺼짐, Mock 요구 없음).
+> Provider 는 Mock 모드면 Mock Adapter, 아니면 `useApi().adminAudit`(로그인 세션 HttpClient → `createHttpAdminAuditService`)를 씁니다.
+> 실제 API 일 때 메뉴에 "(Mock)"이 붙지 않고, 화면 안내는 "읽기 전용 실제 데이터"로 바뀝니다. 아래 본문 중 "Mock 전용" 서술은 이 변경 전 기준입니다.
 
 ## 1. 구현 화면
 
