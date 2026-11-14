@@ -61,14 +61,16 @@ describe('feature flag and access', () => {
     expect(screen.queryByRole('link', { name: '알림함 (Mock)' })).not.toBeInTheDocument();
   });
 
-  it('the default routes keep the feature off and the flag needs mock mode', async () => {
+  it('default routes keep it off; the flag alone opens it and the provider uses the mock only in mock mode', async () => {
     const { routes } = await import('../routes');
     const paths = JSON.stringify(routes, (key, value) => (key === 'element' ? undefined : value));
     expect(paths).not.toContain('me/notifications');
     const env = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
-    expect(env).toContain("notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true'");
+    expect(env).toContain("notificationsUi: import.meta.env.VITE_NOTIFICATIONS_UI === 'true'");
     const provider = readFileSync(resolve(cwd(), 'src/notifications/NotificationServiceProvider.tsx'), 'utf8');
-    expect(provider).not.toMatch(/fetch\(|HttpClient|useApi/);
+    expect(provider).toContain('env.mockEnabled ? createMockNotificationBackend');
+    expect(provider).toContain('api.notifications');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it.each(['/me/notifications', '/me/notification-settings'])('anonymous %s goes to login', async (path) => {

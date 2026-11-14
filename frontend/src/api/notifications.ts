@@ -2,10 +2,11 @@
  * 알림함·수신 설정 화면의 데이터 계약 (T97).
  *
  * - 수신 설정 DTO: T95 제안 OpenAPI(docs/notifications/t95_openapi_proposal.yaml) 그대로 — **PROPOSED, docs/api/openapi.yaml 에 없음**.
- * - 알림함 DTO: 계약 문서가 없어 이 화면이 필요로 하는 최소 형태를 **제안**합니다(docs/testing/T97_NOTIFICATION_UI_VALIDATION.md §3).
- * - 서버(T96 발송 모듈 PR)는 알림함·수신 설정 API 를 제공하지 않습니다 → 지금은 Mock Adapter 만 연결합니다.
+ * - 알림함 DTO: docs/testing/T97_NOTIFICATION_UI_VALIDATION.md §3 (표: migration 0005).
+ * - 서버(T97)는 `NOTIFICATIONS_API=true` 일 때만 경로가 생기고, 화면은 `VITE_NOTIFICATIONS_UI=true` 일 때만 열립니다(둘 다 기본 꺼짐).
  */
 import { ApiError } from './errors';
+import type { HttpClient } from './http';
 
 export const NOTIFICATION_TYPES = [
   'security.password_reset', 'security.password_changed', 'security.new_login', 'account.email_verification',
@@ -46,6 +47,17 @@ export interface NotificationService {
 
 export const INBOX_PATH = '/v1/me/notifications';
 export const PREFERENCES_PATH = '/v1/me/notification-preferences';
+
+/** 실제 API 어댑터(T97). 본인 알림·설정만 서버가 돌려줍니다(남의 알림 ID 는 404). */
+export function createHttpNotificationService(http: HttpClient): NotificationService {
+  return {
+    listInbox: (signal) => http.request<InboxPage>(INBOX_PATH, { signal }),
+    markRead: (id) => http.request<InboxItem>(`${INBOX_PATH}/${encodeURIComponent(id)}/read`, { method: 'POST' }),
+    markAllRead: () => http.request<{ updated: number }>(`${INBOX_PATH}/read-all`, { method: 'POST' }),
+    getPreferences: (signal) => http.request<NotificationPreferences>(PREFERENCES_PATH, { signal }),
+    updatePreferences: (body) => http.request<NotificationPreferences>(PREFERENCES_PATH, { method: 'PUT', body }),
+  };
+}
 
 export const TYPE_LABELS: Record<NotificationType, { label: string; group: string; description: string }> = {
   'security.password_reset': { label: '비밀번호 재설정', group: '계정 보안', description: '재설정 링크 안내' },

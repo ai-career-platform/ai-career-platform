@@ -45,7 +45,7 @@ from tests.security.security_pg import ADMIN, USER_A, USER_B, disposable_pg, req
 
 API = API_V1_PREFIX
 NOW = datetime(2026, 11, 11, 3, 0, tzinfo=UTC)
-FLAGS = ("COMPANY_ACCOUNTS_API", "COMPANY_POSTINGS_API", "PUBLIC_PORTFOLIO_API", "JOB_APPLICATIONS_API")
+FLAGS = ("COMPANY_ACCOUNTS_API", "COMPANY_POSTINGS_API", "PUBLIC_PORTFOLIO_API", "JOB_APPLICATIONS_API", "NOTIFICATIONS_API")
 # 로그인 없이 허용된 경로(검토된 목록). 새 공개 경로가 생기면 이 시험이 실패해 검토를 강제한다.
 PUBLIC_ROUTES = {
     "GET /health", "GET /health/db", "GET /version", "GET /api/v1/consent-policies",
@@ -436,7 +436,7 @@ def test_10_default_flags_off_expose_no_company_or_portfolio_routes(monkeypatch)
     get_settings.cache_clear()
     paths = create_app().openapi()["paths"]
     assert not [p for p in paths if re.search(r"organization|company-postings|public-profile|public/portfolios|"
-                                              r"job-applications", p)]
+                                              r"job-applications|notification", p)]
     get_settings.cache_clear()
 
 

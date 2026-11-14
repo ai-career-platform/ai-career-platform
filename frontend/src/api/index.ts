@@ -8,6 +8,7 @@ import type { HttpClient } from './http';
 import { createHttpJobApplicationService } from './jobApplications';
 import { marketTrendsApi } from './marketTrends';
 import { meApi } from './me';
+import { createHttpNotificationService } from './notifications';
 import { createHttpPersonalDataService } from './personalData';
 import { recommendationsApi } from './recommendations';
 
@@ -20,6 +21,8 @@ export function createApi(http: HttpClient) {
     crawlerAdmin: createHttpCrawlerAdminService(http),
     // T103 개인 지원 기록(T102 API). 화면은 VITE_APPLICATIONS_UI 플래그가 켜졌을 때만 씁니다.
     jobApplications: createHttpJobApplicationService(http),
+    // T97 알림함·수신 설정(T97 API). 화면은 VITE_NOTIFICATIONS_UI 플래그가 켜졌을 때만 씁니다.
+    notifications: createHttpNotificationService(http),
     // T143 내 데이터 내려받기(T142 API). 화면은 VITE_PERSONAL_DATA_UI 플래그가 켜졌을 때만 씁니다.
     personalData: createHttpPersonalDataService(http),
   };
