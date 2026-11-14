@@ -13,19 +13,26 @@ export const env = {
    */
   adminModerationUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_MODERATION_UI === 'true',
   /**
-   * T85 운영 감사·AI 사용량 화면. T60(사용량 기록)·T84 정책(D1~D5) 전이라 **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 admin 역할만 들어갑니다.
+   * T85 운영 감사·AI 사용량 화면. 기본 꺼짐 — VITE_ADMIN_AUDIT_UI='true'일 때만 메뉴·경로가 생깁니다.
+   * Mock 모드면 가상 데이터, 아니면 T84 실제 API(서버가 admin 역할·권한을 다시 검사)를 씁니다. 켜져도 admin 역할만 들어갑니다.
    */
-  adminAuditUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
+  adminAuditUi: import.meta.env.VITE_ADMIN_AUDIT_UI === 'true',
   /**
-   * T97 알림함·수신 설정 화면. 알림함 API 계약·서버(T96 발송 모듈은 API 없음) 전이라 **Mock 모드에서만** 켤 수 있습니다.
-   * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 로그인 사용자만 들어갑니다.
+   * T97 알림함·수신 설정 화면. 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T97)를 씁니다. 로그인 사용자만 들어갑니다.
+   * 실제 API 로 켜려면 서버 NOTIFICATIONS_API=true 와 migration 0005 적용이 먼저 필요합니다(운영은 별도 승인).
    */
-  notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
-  /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
-  jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
-  /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
-  applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
+  notificationsUi: import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
+  /**
+   * T100 고급 채용 검색 UI. 기본 꺼짐. 켜면 Mock 모드에서는 Mock 검색, 그 외에는 실제 API(`GET /v1/job-postings`)를 씁니다.
+   * 실제 API 로 쓰려면 서버 플래그 `JOB_SEARCH_ADVANCED=true` 도 함께 켜야 합니다(꺼져 있으면 서버가 T18 목록으로 응답해
+   * 고용형태·지역·게시일 조건은 무시되고, 화면은 기존 목록·오류·빈 상태 그대로 동작합니다).
+   */
+  jobSearchAdvancedUi: import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
+  /**
+   * T103 지원 현황 보드·공고 상세의 "지원 기록에 추가". 기본 꺼짐. Mock 모드면 Mock Adapter, 아니면 실제 API(T102)를 씁니다.
+   * 실제 API 로 켜려면 서버 JOB_APPLICATIONS_API=true 와 migration 0004 적용이 먼저 필요합니다(운영은 별도 승인).
+   */
+  applicationsUi: import.meta.env.VITE_APPLICATIONS_UI === 'true',
   /**
    * T156 크롤러 관리자 콘솔. 기본 비활성, 서버 T155 쓰기 플래그 별도 적용.
    * 실제 API 또는 Mock에서 관리자가 켤 수 있으나 활성화는 별도 승인 사항입니다.

@@ -46,7 +46,18 @@
 
 ## 4. 한계 / HOLD
 
-1. 실제 API 연결: T98 승인 → T99 플래그 활성화 → `createHttpJobSearchService` 선택(화면 한 곳). 지금은 연결하지 않음
+1. 실제 API 연결: **연결됨(아래 §5)**. 운영·Staging 활성화는 여전히 T98 승인 → 서버 `JOB_SEARCH_ADVANCED=true` + `VITE_JOB_SEARCH_ADVANCED_UI=true` 순서(둘 다 기본 꺼짐)
 2. 기업·직무는 화면에서 1개씩만 고릅니다(계약은 최대 10개). 공유 URL에 여러 개가 있으면 API에는 모두 보내지만 선택 상자는 첫 값만 보입니다.
 3. Mock 모드 개발 서버에는 기업·직무 목록 Mock이 없어 그 영역은 기존과 같이 오류를 표시합니다(T24 기존 동작).
 4. 지역은 근무지 표기 기준 추정(화면에 안내). 기술·경력·연봉 필터는 데이터가 없어 제공하지 않음(T98 §2)
+
+## 5. 실제 API 연결 (2026-11-14, PM 결정)
+
+| 항목 | 내용 |
+|---|---|
+| 플래그 | `env.jobSearchAdvancedUi = VITE_JOB_SEARCH_ADVANCED_UI === 'true'` (Mock 조건 제거, **기본 꺼짐**). 서버 `JOB_SEARCH_ADVANCED`도 켜야 고급 조건이 적용됨 |
+| 데이터 | Mock 모드(`VITE_API_MOCK=true`)면 Mock Adapter, 아니면 `createApi(http).jobSearch`(= `createHttpJobSearchService`, 앱의 같은 HttpClient·로그인 토큰) |
+| 계약 대조 | 쿼리 이름(`q`, `company_id`·`job_role_id`·`employment_type`·`region` 키 반복, `posted_within`, `include_closed`, `sort`, `limit`, `cursor`), 값(정렬 `-published_at`/`expires_at`, 고용형태 4종, 지역 17개, 기간 4종), 응답(`JobPostingPage` = `items` + `next_cursor`)이 `backend/app/routers/job_postings.py`·`schemas/job_postings.py` 와 일치. 불일치 없음 |
+| 서버 플래그 꺼짐 | T18 목록이 응답(고급 조건은 무시, 다중 company_id·job_role_id 는 하나만 적용). 화면은 그대로 표시, 오류는 기존 오류·빈 상태 |
+| 공개 범위 | 게시 중·만료 전 공고만(초안 제외)은 서버가 정함. 프런트는 바꾸지 않음 |
+| 시험 | 실제 HttpClient 경로 3건(쿼리·정렬, 커서 페이지 이동·조건 변경 시 1페이지, 서버 플래그 꺼짐·422 오류 복구), 플래그 가드 시험을 새 규칙으로 갱신 |

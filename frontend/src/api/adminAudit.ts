@@ -47,6 +47,8 @@ export type AiUsageResult = {
 };
 
 export interface AdminAuditService {
+  /** 'api' 면 실제 서버 데이터. 없거나 'mock' 이면 화면이 "가상 데이터(Mock)" 안내를 보여 줍니다. */
+  readonly source?: 'mock' | 'api';
   listEvents(query: AuditQuery, signal?: AbortSignal): Promise<AuditEventPage>;
   getUsage(query: UsageQuery, signal?: AbortSignal): Promise<AiUsageResult>;
 }
