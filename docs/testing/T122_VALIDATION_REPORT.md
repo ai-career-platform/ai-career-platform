@@ -3,6 +3,7 @@
 > 2026-11-11 · 담당 문길래 · 실행 SORNET(Claude Code)
 > **DELIVERY_STATUS=PARTIAL / INTEGRATION_STATUS=HOLD**: 제안 DDL·DTO이며 정식 migration은 없습니다. 공유 DB에는 적용하지 않았습니다.
 > **스택**: main `ab56765` → T121 #210 → 이 PR
+> **후속(2026-11-14)**: 제안 DDL은 `database/migrations/0008_organizations.sql` 로 승격되었습니다(열·키 이름 그대로). 아래 경로는 당시 기준입니다.
 
 ## 1. 목적
 기업 조직·멤버 초대·승인·탈퇴 데이터 계약을 만듭니다. 소속 관계, 초대 TTL, 다중 소속, 삭제·감사 정책을 다룹니다.

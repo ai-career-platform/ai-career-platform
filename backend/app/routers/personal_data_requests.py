@@ -4,7 +4,8 @@
   재인증이 없거나 만료면 403 FORBIDDEN + `X-Reauth-Required: true`.
 - 다운로드 토큰은 URL 경로·쿼리에 넣지 않는다(접근 로그 노출 방지). POST 본문으로 받는다.
 - 응답은 모두 `Cache-Control: no-store`. 묶음은 64 KiB 단위로 흘려보낸다.
-- 저장소가 없어서(migration 승인 전) 기본 의존성은 503.
+- 저장소: migration 0006(PostgreSQL). DB 가 설정되지 않으면 503. 처리 worker 는 `python -m app.personal_data_worker`
+  (수동 1회 실행, 스케줄 없음).
 """
 from typing import Annotated
 from uuid import UUID
@@ -12,11 +13,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.core.rate_limit import AttemptLimiter
+from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
+from app.repositories.personal_data_requests import (
+    SqlDeletionSource, SqlPasswordVerifier, SqlPersonalDataSource, SqlRequestRepository,
+)
 from app.services import personal_data_requests as svc
 
 router = APIRouter(prefix="/me/data-requests", tags=["me"], responses=error_responses(401, 503))
@@ -35,9 +41,15 @@ class DownloadInput(BaseModel):
     token: str = Field(min_length=32, max_length=100)
 
 
-def get_data_request_service() -> svc.PersonalDataRequestService:
-    raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE,
-                   log_detail="data request storage not provisioned (T141/T142 migration HOLD)")
+def build_sql_service(db: Session, **options) -> svc.PersonalDataRequestService:
+    """운영 배선: migration 0006 표 + T15 비밀번호 확인 + T31 탈퇴 조회 + 본인 데이터 원본(SQL)."""
+    return svc.PersonalDataRequestService(SqlRequestRepository(db), SqlPersonalDataSource(db),
+                                          SqlPasswordVerifier(db), SqlDeletionSource(db), **options)
+
+
+def get_data_request_service(db: Annotated[Session, Depends(get_db)]) -> svc.PersonalDataRequestService:
+    # DB 가 없으면 get_db 가 503 DEPENDENCY_UNAVAILABLE.
+    return build_sql_service(db)
 
 
 def get_reauth_limiter(request: Request) -> AttemptLimiter:

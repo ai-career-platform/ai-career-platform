@@ -1,6 +1,6 @@
 /**
- * 기업 공고 관리 (T127 화면). 계약: docs/enterprise/t125_posting_state_machine.json — **PROPOSED, openapi.yaml 에 없음**.
- * 서버(T126)는 `COMPANY_POSTINGS_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소가 없어 켜도 503 입니다.
+ * 기업 공고 관리 (T127 화면). 계약: docs/enterprise/t125_posting_state_machine.json — openapi.yaml 에는 아직 없음.
+ * 서버(T126)는 `COMPANY_POSTINGS_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소는 PostgreSQL(migration 0009).
  * 기업은 게시할 수 없습니다 — 검수 요청까지만. 게시·반려·내림은 운영 관리자(T125 P-INV-1·2).
  */
 import type { HttpClient } from './http';
@@ -41,7 +41,7 @@ export interface CompanyPostingService {
 
 const base = (orgId: string) => `/v1/organizations/${encodeURIComponent(orgId)}/postings`;
 
-/** 실제 API 어댑터(준비만, 연결하지 않음 — T125 승인·migration 전). */
+/** 실제 API 어댑터. Mock 모드가 아니면 PostingServiceProvider 가 api.companyPostings 로 씁니다. */
 export function createHttpCompanyPostingService(http: HttpClient): CompanyPostingService {
   const act = (orgId: string, id: string, action: string, version: number) =>
     http.request<Posting>(`${base(orgId)}/${encodeURIComponent(id)}/${action}`, { method: 'POST', body: { version } });

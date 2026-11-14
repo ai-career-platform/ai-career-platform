@@ -2,7 +2,7 @@
  * T82 검수 Mock Adapter — 네트워크 없이 메모리에서만 동작합니다. 실제 DB·API와 연결하지 않습니다.
  * 데이터는 모두 합성 값입니다(@example.invalid, 가상 제목). Mock 성공은 실제 서비스 PASS가 아닙니다.
  *
- * 서버(T81 예정)가 할 판단을 흉내 냅니다: 401·403·404·409(APPROVAL_CLOSED/CONFLICT)·422, version 낙관적 잠금,
+ * 서버(T81 backend/app/services/moderation.py)가 할 판단을 흉내 냅니다(담당 해제 T04·T05 포함): 401·403·404·409(APPROVAL_CLOSED/CONFLICT)·422, version 낙관적 잠금,
  * 자기 콘텐츠 검수 금지, 담당자만 결정, 재검토에서 최초 결정자 차단 (T80 상태 모델 T02·T06·T07·T09).
  */
 import { ApiError } from '../api/errors';
@@ -24,7 +24,7 @@ const at = (iso: string) => new Date(iso).toISOString();
 
 function seedEvent(caseId: string, n: number, event: ModerationCaseEvent['event'], from: ModerationStatus | null,
   to: ModerationStatus, actor: string | null, when: string, reason: string | null = null): ModerationCaseEvent {
-  return { event_id: `${caseId}-e${n}`, event, from_status: from, to_status: to, actor_id: actor, reason_code: reason,
+  return { event_id: `${caseId}-e${n}`, event, from_status: from, to_status: to, actor_user_id: actor, reason_code: reason,
     occurred_at: at(when) };
 }
 
@@ -137,14 +137,15 @@ export function createMockModerationService(options: MockModerationOptions): Moc
     return found;
   }
 
-  function transition(c: ModerationCaseDetail, version: number, kind: 'assign' | 'decide', viewer: string) {
+  function transition(c: ModerationCaseDetail, version: number, kind: 'assign' | 'decide' | 'release', viewer: string) {
     if (c.status === 'APPROVED' || c.status === 'REJECTED' || c.status === 'CLOSED') {
       throw new ApiError(409, c.case_id, undefined, 'APPROVAL_CLOSED');
     }
     if (version !== c.version) throw new ApiError(409, c.case_id, undefined, 'CONFLICT');
     const allowed = availableActions(c, viewer)[kind];
     if (!allowed.allowed) {
-      const conflict = (kind === 'decide' && c.status !== 'IN_REVIEW') || (kind === 'assign' && c.status === 'IN_REVIEW');
+      const conflict = ((kind === 'decide' || kind === 'release') && c.status !== 'IN_REVIEW')
+        || (kind === 'assign' && c.status === 'IN_REVIEW');
       throw new ApiError(conflict ? 409 : 403, c.case_id, undefined, conflict ? 'CONFLICT' : 'FORBIDDEN');
     }
   }
@@ -152,7 +153,7 @@ export function createMockModerationService(options: MockModerationOptions): Moc
   function record(c: ModerationCaseDetail, event: ModerationCaseEvent['event'], to: ModerationStatus, actor: string,
     reason: string | null = null) {
     sequence += 1;
-    c.events.push({ event_id: `${c.case_id}-m${sequence}`, event, from_status: c.status, to_status: to, actor_id: actor,
+    c.events.push({ event_id: `${c.case_id}-m${sequence}`, event, from_status: c.status, to_status: to, actor_user_id: actor,
       reason_code: reason, occurred_at: now().toISOString() });
     c.status = to;
     c.version += 1;
@@ -188,6 +189,17 @@ export function createMockModerationService(options: MockModerationOptions): Moc
         transition(c, version, 'assign', viewer);
         c.assignee_id = viewer;
         record(c, 'ASSIGN', 'IN_REVIEW', viewer);
+        return c;
+      });
+    },
+    release(caseId, { version }) {
+      return respond('release', caseId, () => {
+        const viewer = viewerAdmin();
+        const c = load(caseId);
+        transition(c, version, 'release', viewer);
+        c.assignee_id = null;
+        if (c.appeal_count === 1) record(c, 'RELEASE_APPEAL', 'APPEALED', viewer);
+        else record(c, 'RELEASE', 'PENDING', viewer);
         return c;
       });
     },

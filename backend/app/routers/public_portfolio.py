@@ -1,8 +1,8 @@
-"""T129 공개 포트폴리오 API — `PUBLIC_PORTFOLIO_API=true` 일 때만 등록(기본 꺼짐, T128 미승인).
+"""T129 공개 포트폴리오 API — `PUBLIC_PORTFOLIO_API=true` 일 때만 등록(기본 꺼짐).
 
 소유자 설정(`/me/public-profile/...`)은 로그인 필수. 공개 조회(`/public/portfolios/{token}`)는 비로그인 가능하며
 항상 `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`.
-저장소가 없어서(migration 승인 전) 기본 의존성은 503. 공개 조회는 IP 당 요청 한도(토큰 대입 방지).
+저장소는 PostgreSQL(migration 0007). DB 가 없으면 503. 공개 조회는 IP 당 요청 한도(토큰 대입 방지).
 """
 import json
 from datetime import timedelta
@@ -11,11 +11,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.core.rate_limit import AttemptLimiter
+from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
+from app.repositories.public_portfolio import SqlPortfolioRepository, SqlProfileSource
 from app.services import public_portfolio as svc
 
 router = APIRouter(tags=["public-portfolio"], responses=error_responses(503))
@@ -48,8 +51,9 @@ class LinkCreate(BaseModel):
     ttl_days: int = Field(default=30, ge=1, le=90)
 
 
-def get_portfolio_service() -> svc.PublicPortfolioService:
-    raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="portfolio storage not provisioned (T128 migration HOLD)")
+def get_portfolio_service(db: Annotated[Session, Depends(get_db)]) -> svc.PublicPortfolioService:
+    # 약관 버전은 consent_policies 의 현재 시행 'public_profile' 행(없으면 공개 확정이 503, 아무것도 공개되지 않음)
+    return svc.PublicPortfolioService(SqlPortfolioRepository(db), SqlProfileSource(db), policy_version=None)
 
 
 def get_view_limiter(request: Request) -> AttemptLimiter:

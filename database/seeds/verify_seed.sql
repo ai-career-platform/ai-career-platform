@@ -5,10 +5,10 @@ WITH checks AS (
     -- expected row counts (seed rows only, identified by deterministic keys / naming)
     SELECT 'count data_sources synthetic_seed = 1' AS check_name,
            (SELECT count(*) FROM career.data_sources WHERE code = 'synthetic_seed') = 1 AS ok
-    UNION ALL SELECT 'count roles = 2, permissions = 2, admin has both',
+    UNION ALL SELECT 'count roles = 2, permissions = 3, admin has all three',
            (SELECT count(*) FROM career.roles WHERE code IN ('job_seeker','admin')) = 2
-       AND (SELECT count(*) FROM career.permissions WHERE code IN ('admin.models.read','admin.audit.read')) = 2
-       AND (SELECT count(*) FROM career.role_permissions rp JOIN career.roles r USING (role_id) WHERE r.code = 'admin') = 2
+       AND (SELECT count(*) FROM career.permissions WHERE code IN ('admin.models.read','admin.audit.read','admin.content.review')) = 3
+       AND (SELECT count(*) FROM career.role_permissions rp JOIN career.roles r USING (role_id) WHERE r.code = 'admin') = 3
     UNION ALL SELECT 'user_roles: 20 job_seeker + 1 admin (seed-user-18)',
            (SELECT count(*) FILTER (WHERE r.code = 'job_seeker') = 20
                AND count(*) FILTER (WHERE r.code = 'admin') = 1
