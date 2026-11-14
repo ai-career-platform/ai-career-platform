@@ -52,10 +52,11 @@ def test_image_keeps_status_page_and_disables_mock_and_unapproved_flags():
     # Every VITE_* flag read by the app is either pinned off here or only effective with VITE_API_MOCK=true.
     env_ts = (ROOT / 'frontend' / 'src' / 'config' / 'env.ts').read_text(encoding='utf-8')
     # Flags that work without mock mode (`key: import.meta.env.VITE_X === 'true',`). Only approved ones may exist,
-    # and each must be pinned off in the image. #346/#347/#348 moved three UIs from mock-only to real API (default off).
+    # and each must be pinned off in the image. #346/#347/#348 moved three UIs from mock-only to real API (default off),
+    # T97 (notifications inbox) did the same for VITE_NOTIFICATIONS_UI.
     standalone = set(re.findall(r"^\s*\w+: import\.meta\.env\.(VITE_\w+) === 'true',", env_ts, re.M)) - {'VITE_API_MOCK'}
     allowed = {'VITE_CRAWLER_ADMIN_UI', 'VITE_SKILL_AUTOCOMPLETE', 'VITE_BEHAVIOR_TRACKING',
-               'VITE_APPLICATIONS_UI', 'VITE_ADMIN_AUDIT_UI', 'VITE_JOB_SEARCH_ADVANCED_UI'}
+               'VITE_APPLICATIONS_UI', 'VITE_ADMIN_AUDIT_UI', 'VITE_JOB_SEARCH_ADVANCED_UI', 'VITE_NOTIFICATIONS_UI'}
     assert {'VITE_CRAWLER_ADMIN_UI', 'VITE_SKILL_AUTOCOMPLETE', 'VITE_BEHAVIOR_TRACKING'} <= standalone <= allowed, standalone
     for flag in allowed:
         assert f'{flag}=false' in DOCKERFILE, flag
