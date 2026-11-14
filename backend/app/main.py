@@ -14,7 +14,7 @@ from app.core.observability import AccessLogMiddleware, RequestMetrics, install_
 from app.core.rate_limit import AttemptLimiter
 from app.core.request_id import RequestIdMiddleware
 from app.db import create_db_engine, create_session_factory
-from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, personal_data_requests, public_portfolio, system
+from app.routers import api_v1, company_accounts, company_postings, job_applications, job_postings, notifications, personal_data_requests, public_portfolio, system
 from app.services.behavior_events import BehaviorEventSettings
 from app.routers import skill_suggest
 from app.routers import google_auth
@@ -69,6 +69,8 @@ def create_app() -> FastAPI:
     app.include_router(list_router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.job_applications_api:  # T102: 미승인·기본 비활성
         app.include_router(job_applications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
+    if settings.notifications_api:  # T97: 미승인·기본 비활성 (migration 0005 필요)
+        app.include_router(notifications.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.crawler_admin_write_api:  # T155: 기본 비활성
         app.include_router(crawler_admin_write.router, prefix=API_V1_PREFIX, responses=api_v1.API_V1_RESPONSES)
     if settings.company_accounts_api:  # T123: 기본 비활성
