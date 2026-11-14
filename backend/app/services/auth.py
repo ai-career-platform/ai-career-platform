@@ -3,6 +3,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import get_args
 
 from app.core.auth_config import AuthSettings
 from app.core.errors import AppError, ErrorCode
@@ -18,7 +19,9 @@ from app.core.security import (
     verify_password,
 )
 from app.repositories.auth import AuthRepository, EmailTaken, IdentityTaken, NewUser, SessionRecord, UserRecord
-from app.schemas.auth import ConsentInput, ConsentPolicy, LoginRequest, SignupRequest
+from app.schemas.auth import ConsentInput, ConsentPolicy, LoginRequest, PolicyCode, SignupRequest
+
+SIGNUP_POLICY_CODES = frozenset(get_args(PolicyCode))
 
 DEFAULT_ROLE = "job_seeker"
 USER_AGENT_MAX = 300
@@ -80,12 +83,14 @@ class AuthService:
 
     # ---------------------------------------------------------------- policies
     def consent_policies(self) -> list[ConsentPolicy]:
+        # 가입·계정 약관(PolicyCode)만 내보낸다. 기능별 약관(예: T128 'public_profile')은 그 기능 API 가 다루며,
+        # 같은 표에 행이 있어도 이 공개 목록(회원가입 화면)이 500 이 되면 안 된다(Full-system E2E FSE-001).
         return [
             ConsentPolicy(
                 policy_code=p.policy_code, version=p.version, is_required=p.is_required,
                 content_url=p.content_url, effective_at=p.effective_at,
             )
-            for p in self.repo.current_policies(_now())
+            for p in self.repo.current_policies(_now()) if p.policy_code in SIGNUP_POLICY_CODES
         ]
 
     def _validate_consents(self, consents: list[ConsentInput], now: datetime) -> list[tuple[str, str, bool]]:
