@@ -1,5 +1,8 @@
-"""T126/T127 기업 공고·운영 검수 — 일회용 PostgreSQL 18 + migration 0008·0009 + 최소 권한 앱 역할 + 실제 FastAPI
+"""T126/T127 기업 공고·운영 검수 — 일회용 PostgreSQL 18 + migration 0008·0009·0010 + 최소 권한 앱 역할 + 실제 FastAPI
 (COMPANY_POSTINGS_API=true).
+
+T81 PM 결정: 검수 요청(submit)은 같은 트랜잭션에서 검수 건을 만들고(0010), 기업 공고 직접 결정 경로는 409 다.
+이 파일의 decide() 는 T125 전이(CompanyPostingService.decide, 검수 결정이 같은 트랜잭션에서 부르는 함수)를 직접 부른다.
 
 핵심: 초안·검수 중·반려 공고는 공개 공고 API(`GET /job-postings`)·기업 페이지(`/companies`)에 절대 나오지 않고,
 운영 승인 뒤에만 나온다. 승인(공개 행 생성)·마감·내림·만료는 상태 변경·감사 이벤트와 한 트랜잭션.
@@ -21,16 +24,17 @@ from app.db import sqlalchemy_url
 from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
 from app.services.company_postings import CompanyPostingService
 from tests.security.security_pg import ADMIN, ROOT, USER_A, USER_B, disposable_pg, requires_pg
+from tests.t125_decide import call_decide
 
 pytestmark = requires_pg
 MIGRATIONS = ROOT / "database/migrations"
 DDL = tuple((MIGRATIONS / name).read_text(encoding="utf-8")
-            for name in ("0008_organizations.sql", "0009_company_postings.sql"))
+            for name in ("0008_organizations.sql", "0009_company_postings.sql", "0010_moderation_cases.sql"))
 SOURCE = ("INSERT INTO career.data_sources (code, name, license_ref) "
           "VALUES ('company_direct', '기업 직접 등록(시험)', 't126-test-terms')")
 # organizations: 승인 때 조직 행 잠금(FOR NO KEY UPDATE)에 UPDATE 권한 필요(0008 이 career_app 에 부여). 행은 바꾸지 않음.
 WRITE = ("organization_job_postings", "organization_job_posting_events", "organization_public_companies",
-         "companies", "job_postings", "organizations")
+         "companies", "job_postings", "organizations", "moderation_cases", "moderation_case_events", "audit_events")
 API = "/api/v1"
 ORG_A, ORG_B = UUID("00000000-0000-4000-8000-0000000012a1"), UUID("00000000-0000-4000-8000-0000000012b1")
 ORG_A_NAME = "합성 직접등록 기업 T126"
@@ -71,8 +75,16 @@ def act(pg, posting, action, who=USER_A):
 
 
 def decide(pg, posting, decision="approve", who=ADMIN, **extra):
-    return pg.client.post(f"{API}/admin/company-postings/{posting['posting_id']}/decision",
-                          json={"decision": decision, "version": posting["version"], **extra}, headers=pg.h[who])
+    roles = {r[0] for r in pg.db.execute("SELECT ro.code FROM career.user_roles ur JOIN career.roles ro USING (role_id) "
+                                         "WHERE ur.user_id = %s", (who,)).fetchall()}
+    engine = create_engine(sqlalchemy_url(os.environ["DATABASE_URL"]), pool_size=1, max_overflow=0)
+    try:
+        with Session(engine) as session:
+            service = CompanyPostingService(SqlOrgDirectory(session), SqlPostingRepository(session),
+                                            SqlPublicPostings(session))
+            return call_decide(service, who, roles, posting, decision, **extra)
+    finally:
+        engine.dispose()
 
 
 def public_titles(pg, q, include_closed=False):

@@ -141,7 +141,9 @@ components:
   schemas:
     ModerationTargetType:
       type: string
-      enum: [job_posting, company, shared_document, document_analysis, retrieval_run, agent_run, match_evaluation, recommendation_run]
+      description: company_posting 은 T125 기업 직접 등록 공고(0009, PM 승인 DECISION_2)
+      enum: [job_posting, company, shared_document, document_analysis, retrieval_run, agent_run, match_evaluation, recommendation_run,
+             company_posting]
     ModerationStatus:
       type: string
       description: T80 상태 모델. CLOSED 는 PROPOSED 신규 상태

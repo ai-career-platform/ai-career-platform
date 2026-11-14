@@ -78,6 +78,8 @@ class Settings:
     public_portfolio_api: bool = False
     # T142: 내 데이터 반출 요청 API — T141 정책 승인 전 기본 비활성
     personal_data_requests_api: bool = False
+    # T81: 운영 콘텐츠 검수 API (migration 0010) — T80 정책 승인 전 기본 비활성
+    admin_moderation_api: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -94,6 +96,7 @@ class Settings:
             skill_autocomplete_api=os.environ.get("SKILL_AUTOCOMPLETE_API", "false").lower() == "true",
             public_portfolio_api=os.environ.get("PUBLIC_PORTFOLIO_API", "false").lower() == "true",
             personal_data_requests_api=os.environ.get("PERSONAL_DATA_REQUESTS_API", "false").lower() == "true",
+            admin_moderation_api=os.environ.get("ADMIN_MODERATION_API", "false").lower() == "true",
         )
 
 

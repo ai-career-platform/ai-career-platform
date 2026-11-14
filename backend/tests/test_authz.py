@@ -91,7 +91,7 @@ def test_my_permissions(client, seeker, admin):
     assert seeker_body == {"roles": ["job_seeker"], "permissions": []}
     admin_body = client.get(f"{ME}/permissions", headers=bearer(admin[0])).json()
     assert admin_body["roles"] == ["admin", "job_seeker"]
-    assert admin_body["permissions"] == ["admin.audit.read", "admin.models.read"]
+    assert admin_body["permissions"] == ["admin.audit.read", "admin.content.review", "admin.models.read"]
 
 
 # ---------------------------------------------------------------- 403 role / permission

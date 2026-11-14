@@ -42,6 +42,7 @@ from app.services.company_accounts import CompanyAccountService, MemoryCompanyRe
 from app.services.mail import MemoryMailSender
 from tests.conftest import CONSENTS, PASSWORD, TEST_SECRET, bearer
 from tests.fakes import MemoryAuthRepository, override_auth_repository
+from tests.t125_decide import call_decide
 from tests.security.security_pg import ADMIN, USER_A, USER_B, disposable_pg, requires_pg
 
 API = API_V1_PREFIX
@@ -127,6 +128,7 @@ def world(monkeypatch):
     with TestClient(app, base_url="https://testserver", headers={"X-CSRF-TOKEN": "1"},
                     raise_server_exceptions=False) as client:
         w = World(app, client, auth, mail, clock, company_repo, posting_repo, profiles, portfolio_repo)
+        w.postings = postings
         w.setup()
         yield w
     get_settings.cache_clear()
@@ -410,8 +412,10 @@ def test_9_audit_trail_records_actor_and_action_without_emails(world):
     p = world.posting()
     p = world.c.post(f"{API}/organizations/{world.org_a}/postings/{p['posting_id']}/submit",
                      json={"version": p["version"]}, headers=world.member["h"]).json()
+    # T81: 직접 결정 경로는 409(결정은 검수 건으로만) — T125 전이를 서비스로 직접 부른다
     assert world.c.post(f"{API}/admin/company-postings/{p['posting_id']}/decision",
-                        json={"decision": "approve", "version": p["version"]}, headers=world.ops["h"]).status_code == 200
+                        json={"decision": "approve", "version": p["version"]}, headers=world.ops["h"]).status_code == 409
+    assert call_decide(world.postings, world.ops["id"], {"admin"}, p).status_code == 200
     org_actions = [(a["action_code"], a["actor_user_id"]) for a in world.company_repo.audit]
     assert ("org.verify.approve", world.ops["id"]) in org_actions
     assert ("org.invite.accept", world.member["id"]) in org_actions

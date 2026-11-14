@@ -201,9 +201,12 @@ def _filled(value) -> bool:
 
 class CompanyPostingService:
     def __init__(self, orgs: OrgDirectory | CompanyAccountService, repo: PostingRepository, public: PublicPostingSink,
-                 clock: Callable[[], datetime] = lambda: datetime.now(UTC)):
+                 clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+                 on_submit: Callable[[CompanyPosting, uuid.UUID], None] | None = None):
+        """on_submit: 검수 요청(submit) 트랜잭션 안에서 부르는 훅(T81 DECISION_1 — 검수 건 생성). 커밋하지 않아야 하고,
+        예외를 던지면 공고 상태·이벤트도 함께 롤백된다. None 이면 기존 T125 동작 그대로(검수 모듈 없이도 동작)."""
         self.orgs: OrgDirectory = MemoryOrgDirectory(orgs.repo) if isinstance(orgs, CompanyAccountService) else orgs
-        self.repo, self.public, self.clock = repo, public, clock
+        self.repo, self.public, self.clock, self.on_submit = repo, public, clock, on_submit
 
     # ------------------------------------------------------------ 공통
     def _org_scope(self, action: str, organization_id: uuid.UUID, user_id: uuid.UUID) -> OrgInfo | None:
@@ -320,6 +323,8 @@ class CompanyPostingService:
                 raise AppError(ErrorCode.VALIDATION_FAILED, log_detail=f"missing {missing}")
             moved = self._move(posting, "pending_review", version)
             self._record("posting.submit_review", user_id, moved)
+            if self.on_submit is not None:       # 같은 트랜잭션: 실패하면 상태·이벤트·검수 건 모두 롤백
+                self.on_submit(moved, user_id)
         return moved
 
     def withdraw(self, user_id: uuid.UUID, organization_id: uuid.UUID, posting_id: uuid.UUID, version: int):

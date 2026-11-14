@@ -10,6 +10,7 @@ import type { HttpClient } from './http';
 import { createHttpJobApplicationService } from './jobApplications';
 import { marketTrendsApi } from './marketTrends';
 import { meApi } from './me';
+import { createHttpModerationService } from './moderationHttp';
 import { createHttpNotificationService } from './notifications';
 import { createHttpPersonalDataService } from './personalData';
 import { createHttpPortfolioService } from './publicPortfolio';
@@ -30,6 +31,8 @@ export function createApi(http: HttpClient) {
     personalData: createHttpPersonalDataService(http),
     // T130 공개 포트폴리오(T129 API, migration 0007). 화면은 VITE_PUBLIC_PORTFOLIO_UI 플래그가 켜졌을 때만 씁니다.
     publicPortfolio: createHttpPortfolioService(http),
+    // T82 운영 콘텐츠 검수(T81 API, migration 0010). 화면은 VITE_ADMIN_MODERATION_UI 플래그가 켜졌을 때만 씁니다.
+    moderation: createHttpModerationService(http),
     // T124 기업 콘솔(T123 API, migration 0008). 화면은 VITE_COMPANY_CONSOLE_UI 플래그가 켜졌을 때만 씁니다.
     companyAccounts: createHttpCompanyAccountService(http),
     // T127 기업 공고 관리(T126 API, migration 0009). 화면은 VITE_COMPANY_POSTINGS_UI(+기업 콘솔 플래그)일 때만 씁니다.

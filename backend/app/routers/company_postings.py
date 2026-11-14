@@ -2,6 +2,9 @@
 
 공개 공고 목록(T18·T99 `/job-postings`)은 바꾸지 않는다. 운영 승인 전 공고는 공개 경로에 나오지 않는다
 (공개 행은 승인 트랜잭션에서만 생김, migration 0009). 저장소는 PostgreSQL. DB 가 없으면 503.
+
+T81 (PM 결정): 검수 요청(submit)은 같은 트랜잭션에서 company_posting 검수 건을 만든다(migration 0010).
+승인·반려는 `/admin/moderation-cases/{case_id}/decision` 하나로만 한다 — 아래 직접 결정 경로는 효과 없이 409.
 """
 from datetime import datetime
 from typing import Annotated, Literal
@@ -11,10 +14,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError, ErrorCode
 from app.core.exception_handlers import error_responses
 from app.db import get_db
 from app.dependencies.auth import CurrentUserDep
 from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
+from app.repositories.moderation import company_posting_submit_hook
 from app.services import company_postings as svc
 
 router = APIRouter(tags=["company-postings"], responses=error_responses(401, 503))
@@ -78,7 +83,9 @@ class Posting(BaseModel):
 
 def get_posting_service(db: Annotated[Session, Depends(get_db)]) -> svc.CompanyPostingService:
     # 세 저장소가 요청 Session 하나를 함께 쓴다 → 상태·이벤트·공개 행 변경이 한 트랜잭션(원자적)
-    return svc.CompanyPostingService(SqlOrgDirectory(db), SqlPostingRepository(db), SqlPublicPostings(db))
+    # 검수 요청은 같은 Session 에서 검수 건도 만든다(T81 DECISION_1)
+    return svc.CompanyPostingService(SqlOrgDirectory(db), SqlPostingRepository(db), SqlPublicPostings(db),
+                                     on_submit=company_posting_submit_hook(db))
 
 
 Service = Annotated[svc.CompanyPostingService, Depends(get_posting_service)]
@@ -152,10 +159,17 @@ def review_queue(user: CurrentUserDep, service: Service) -> list[Posting]:
 
 
 @router.post("/admin/company-postings/{posting_id}/decision", response_model=Posting,
-             operation_id="decideCompanyPosting", responses=error_responses(403, 404, 409, 422))
-def decide(posting_id: UUID, body: Decision, user: CurrentUserDep, service: Service) -> Posting:
-    return _out(service.decide(user.user_id, user.roles, posting_id, body.decision, body.reason_code, body.note,
-                               body.version))
+             operation_id="decideCompanyPosting", responses=error_responses(403, 409, 422), deprecated=True)
+def decide(posting_id: UUID, body: Decision, user: CurrentUserDep) -> Posting:
+    """폐기(T81 PM 결정): 승인·반려는 검수 건 결정(`POST /admin/moderation-cases/{case_id}/decision`)으로만 한다.
+
+    호환을 위해 경로는 남기되 아무것도 바꾸지 않는다: 관리자가 아니면 403(기존 순서), 관리자면 409 CONFLICT.
+    T125 전이(CompanyPostingService.decide)는 검수 결정이 같은 트랜잭션에서 부른다.
+    """
+    if "admin" not in user.roles:
+        raise AppError(ErrorCode.FORBIDDEN, log_detail="admin only")
+    raise AppError(ErrorCode.CONFLICT,
+                   log_detail="company posting decisions go through POST /admin/moderation-cases/{case_id}/decision")
 
 
 @router.post("/admin/company-postings/{posting_id}/takedown", response_model=Posting,

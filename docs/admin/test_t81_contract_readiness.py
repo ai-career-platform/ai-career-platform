@@ -114,7 +114,9 @@ class OpenApiProposalTest(unittest.TestCase):
         reasons = set(re.findall(r"^\| `([A-Z_]+)` \|", POLICY.split("### 5.1", 1)[1].split("### 5.2", 1)[0], re.M))
         self.assertEqual(set(self.schemas["ModerationReasonCode"]["enum"]), reasons)
         targets = set(re.findall(r"^\| `([a-z_]+)` \|", CONTRACT.split("## 1. 검수 대상 유형", 1)[1].split("## 2.", 1)[0], re.M))
-        self.assertEqual(set(self.schemas["ModerationTargetType"]["enum"]), targets - {"target_type"})
+        # company_posting 은 §2.2 스케치 뒤 0010 에서 PM 승인(DECISION_2)으로 추가됐다(§1 표 아래 '구현 반영' 주석)
+        self.assertIn("``company_posting`` 유형이 추가됐다".replace("``", "`"), CONTRACT)
+        self.assertEqual(set(self.schemas["ModerationTargetType"]["enum"]), (targets - {"target_type"}) | {"company_posting"})
         self.assertIn("review_trigger IN ('PRE_PUBLISH', 'REPORT', 'EXPIRY', 'SOURCE_CHANGE')", CONTRACT)
         self.assertEqual(self.schemas["ModerationTrigger"]["enum"], ["PRE_PUBLISH", "REPORT", "EXPIRY", "SOURCE_CHANGE"])
 
@@ -137,8 +139,8 @@ class OpenApiProposalTest(unittest.TestCase):
         self.assertEqual(summary - ts_fields("ModerationCaseSummary"), {"overdue", "created_at"})
         self.assertEqual(ts_fields("ModerationCaseSummary") - summary, set())
         self.assertEqual((ts_fields("ModerationCaseDetail") | ts_fields("ModerationCaseSummary")) - detail, set())
-        self.assertEqual(event - ts_fields("ModerationCaseEvent"), {"actor_user_id"})
-        self.assertEqual(ts_fields("ModerationCaseEvent") - event, {"actor_id"})
+        # T81 구현 후 T82 가 §6 조치(actor_id → actor_user_id)를 반영했다 → 이력 항목 차이 없음
+        self.assertEqual(event ^ ts_fields("ModerationCaseEvent"), set())
         self.assertIn("`actor_id` | **`actor_user_id`**", READINESS)
 
     def test_t82_adapter_paths_match_the_proposal(self):
@@ -156,18 +158,27 @@ class RepositoryFactsTest(unittest.TestCase):
         cited |= {"INVALID_CURSOR", "CONFLICT", "APPROVAL_CLOSED", "VALIDATION_FAILED", "FORBIDDEN"}
         self.assertLessEqual(cited, existing)
 
-    def test_permission_is_still_only_proposed_and_the_guard_exists(self):
+    def test_permission_is_seeded_for_admin_only_and_the_guard_exists(self):
+        # PM 승인(DECISION_3): admin.content.review 는 기존 admin 역할에만, 로컬·일회용 Seed 로만
         seed = (ROOT / "database/seeds/0001_initial_seed.sql").read_text(encoding="utf-8")
-        self.assertNotIn("admin.content.review", seed)
+        self.assertIn("('admin.content.review',", seed)
+        self.assertIn("WHERE r.code = 'admin' AND p.code IN ('admin.models.read', 'admin.audit.read', "
+                      "'admin.content.review')", seed)
+        router = (ROOT / "backend/app/routers/admin_moderation.py").read_text(encoding="utf-8")
+        self.assertIn('require_permissions("admin.content.review")', router)
         auth = (ROOT / "backend/app/dependencies/auth.py").read_text(encoding="utf-8")
         self.assertIn("def require_permissions(", auth)
 
-    def test_no_moderation_code_or_migration_exists_yet(self):
-        for path in (ROOT / "backend/app").rglob("*.py"):
-            self.assertNotIn("moderation", path.read_text(encoding="utf-8").lower(), path)
-        for path in (ROOT / "database/migrations").glob("*.sql"):
-            self.assertNotIn("moderation_cases", path.read_text(encoding="utf-8"), path)
+    def test_moderation_implementation_is_one_migration_behind_a_default_off_flag(self):
+        # T81 구현(0010 + ADMIN_MODERATION_API, 기본 꺼짐). 계약 DDL 스케치 외 대상은 company_posting(0009) 하나만 추가.
+        found = [p.name for p in (ROOT / "database/migrations").glob("*.sql")
+                 if "CREATE TABLE career.moderation_cases" in p.read_text(encoding="utf-8")]
+        self.assertEqual(found, ["0010_moderation_cases.sql"])
         self.assertFalse((ROOT / "database/migrations/0004_moderation_cases.sql").exists())
+        config = (ROOT / "backend/app/core/config.py").read_text(encoding="utf-8")
+        self.assertIn('admin_moderation_api=os.environ.get("ADMIN_MODERATION_API", "false")', config)
+        main = (ROOT / "backend/app/main.py").read_text(encoding="utf-8")
+        self.assertIn("if settings.admin_moderation_api:", main)
 
     def test_f027_is_still_excluded_in_the_source_of_truth(self):
         trace = (ROOT / "docs/requirements/traceability/TRACEABILITY.md").read_text(encoding="utf-8")

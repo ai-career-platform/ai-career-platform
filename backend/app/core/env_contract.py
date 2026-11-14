@@ -145,6 +145,7 @@ CONTRACT: tuple[EnvVar, ...] = (
     EnvVar("SKILL_AUTOCOMPLETE_API", (), "false", False, "PM(승인)", "T139 기술 자동완성 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PUBLIC_PORTFOLIO_API", (), "false", False, "PM(승인)", "T129 공개 프로필 API. 승인 전 꺼짐", check=_flag),
     EnvVar("PERSONAL_DATA_REQUESTS_API", (), "false", False, "PM(승인)", "T142 내 데이터 반출 요청 API. 승인 전 꺼짐", check=_flag),
+    EnvVar("ADMIN_MODERATION_API", (), "false", False, "PM(승인)", "T81 운영 콘텐츠 검수 API. 승인 전 꺼짐", check=_flag),
     # #328 Google 로그인·게이트 (기본 꺼짐). 켜면 아래 GOOGLE_* 가 모두 필요하고, 하나라도 틀리면 기동 거부.
     EnvVar("PUBLIC_PATH_PREFIX", (), "", False, "DevOps",
            "외부 공개 경로 접두사(Staging /career). refresh·Google 쿠키 Path 계산용. 비우면 기존 Path",
