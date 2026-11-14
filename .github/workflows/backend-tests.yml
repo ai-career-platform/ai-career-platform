@@ -3,7 +3,7 @@ name: Backend tests
 on:
   pull_request:
     branches: [main]
-    paths: ['backend/**', 'docs/api/openapi.yaml', 'docs/api/check_compat.py', 'docs/api/compat_exceptions.yaml', 'docs/api/error_codes.snapshot.json', '.github/workflows/backend-tests.yml']
+    paths: ['backend/**', 'database/migrations/**', 'docs/api/openapi.yaml', 'docs/api/check_compat.py', 'docs/api/compat_exceptions.yaml', 'docs/api/error_codes.snapshot.json', '.github/workflows/backend-tests.yml']
   push:
     branches: [main]
     paths: ['backend/**', 'docs/api/openapi.yaml', 'docs/api/check_compat.py', 'docs/api/compat_exceptions.yaml', 'docs/api/error_codes.snapshot.json', '.github/workflows/backend-tests.yml']
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:18.1
+        image: postgres:18.3  # GCP Cloud SQL minor version (#344)
         env:
           POSTGRES_USER: t16_test_admin
           POSTGRES_PASSWORD: synthetic-ci-only

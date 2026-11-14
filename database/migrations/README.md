@@ -96,9 +96,25 @@ MIGRATION_TEST_ADMIN_PSQL="psql -h localhost -U postgres" \
   python3 -B -m unittest database/tests/test_migration_runner.py -v    # + 일회용 DB 통합 테스트
 ```
 
-통합 테스트는 테스트마다 새 데이터베이스를 만들고 지웁니다. **일회용 PostgreSQL에만** 사용하세요. CI는 `.github/workflows/db-migration-runner-test.yml`에서 `postgres:18.1` 서비스 컨테이너로 실행합니다.
+통합 테스트는 테스트마다 새 데이터베이스를 만들고 지웁니다. **일회용 PostgreSQL에만** 사용하세요. CI는 `.github/workflows/db-migration-runner-test.yml`에서 `postgres:18.3` 서비스 컨테이너(GCP Cloud SQL과 같은 마이너 버전)로 실행합니다.
 
 검증 항목: 신규 설치(DRAFT 10개 테이블 재현·소유자·권한), 재실행 no-op, 실패 시 롤백·중단, 체크섬 DRIFT 차단, 순서 위반 거부, `--to`/`--dry-run`, 트랜잭션 내 중복 적용 차단, Staging 안전장치, 이력 테이블 앱 변경 차단.
+
+### GCP 적용 리허설 (#344)
+
+`database/tests/test_t344_gcp_pg18_rehearsal.py`는 GCP Cloud SQL `ai_career_poc`의 현재 상태를 재현하고, 계획된 적용 절차를 같은 순서로 실행합니다.
+
+- 재현하는 상태
+  - 소유자 `ai_career_poc` NOLOGIN
+  - 0001은 실행기 밖에서 생성됨
+  - 이력 테이블 없음
+  - 실행자는 슈퍼유저가 아닌 구성원
+- 검증 순서
+  1. [`GCP_01_migration_history_bootstrap.sql`](../security/GCP_01_migration_history_bootstrap.sql)로 0001 baseline 등록
+  2. `migrate.py --role ai_career_poc --target staging`로 0002·0003 적용
+  3. 실행기만으로 만든 0001~0003 기준 DB와 스키마 서명 비교
+
+데이터는 합성 seed만 쓰고, 클라우드에는 접속하지 않습니다. bootstrap SQL은 **제안안이며 운영에 적용하지 않았습니다**. 운영 적용에는 별도 PM 승인이 필요합니다.
 
 ## 7. SQLAlchemy·Pydantic과의 역할 분리
 
