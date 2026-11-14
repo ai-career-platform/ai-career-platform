@@ -24,11 +24,18 @@
 .t24-grid{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,.94fr);align-items:start;gap:20px}
 .t24-panel{min-width:0;padding:24px;border:1px solid var(--color-border);border-radius:18px;background:#fff}
 .t24-posting-list{display:grid;gap:12px;margin:0;padding:0;list-style:none}
-.t24-posting{display:flex;flex-direction:column;align-items:stretch;gap:9px;width:100%;min-height:128px;padding:18px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;color:var(--color-text);text-align:left;cursor:pointer;font:inherit}
+.t24-posting{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:9px;width:100%;min-height:128px;padding:18px;border:1px solid #e2e7f0;border-radius:14px;background:#fff;color:var(--color-text);text-align:left;cursor:pointer;font:inherit}
+.t24-posting-action{padding:0;border:0;background:none;color:inherit;font:inherit;text-align:inherit;cursor:inherit}
+.t24-posting-action::after{content:"";position:absolute;inset:0;border-radius:inherit}
+/* Without :has() the shared .t24-page button :focus-visible outline stays on the title button. */
+@supports selector(:has(*)){
+  .t24-posting:has(.t24-posting-action:focus-visible){outline:3px solid var(--color-primary);outline-offset:3px}
+  .t24-posting .t24-posting-action:focus-visible{outline:none}
+}
 .t24-posting:hover{border-color:#9db0ed;box-shadow:0 6px 20px rgb(27 49 102 / 7%)}
-.t24-posting[aria-pressed=true]{border-color:#3454d1;background:#f6f8ff;box-shadow:inset 3px 0 #3454d1}
+.t24-posting:has(.t24-posting-action[aria-pressed=true]){border-color:#3454d1;background:#f6f8ff;box-shadow:inset 3px 0 #3454d1}
 .t24-posting-top{display:flex;justify-content:space-between;align-items:center}
-.t24-posting-arrow{color:#8797b5}.t24-posting>strong{font-size:17px;letter-spacing:-.03em}
+.t24-posting-arrow{color:#8797b5}.t24-posting-action>strong{font-size:17px;letter-spacing:-.03em}
 .t24-posting-company,.t24-posting-meta{color:#536079;font-size:12px;line-height:1.5}
 .t24-status{display:inline-flex;width:fit-content;padding:5px 9px;border-radius:999px;background:#e7f6ef;color:#087654;font-size:11px;font-weight:700}
 .t24-status-closed{background:#f0f1f4;color:#69748a}

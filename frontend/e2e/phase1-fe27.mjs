@@ -157,7 +157,7 @@ try {
     const start = log.api.length; const title = await open(page, '/job-postings');
     for (const p of postings.slice(0, 5)) await page.getByText(p.title, { exact: false }).first().waitFor({ timeout: 10000 });
     expectApi(log, start, /^GET \/api\/v1\/job-postings 200/);
-    await page.getByRole('button', { name: `${postings[0].title} 상세 보기` }).click();
+    await page.getByRole('button', { name: `${postings[0].title} ${postings[0].company.name}` }).first().click();
     await page.getByRole('heading', { name: postings[0].title }).first().waitFor({ timeout: 10000 });
     expectApi(log, start, /^GET \/api\/v1\/job-postings\/[0-9a-f-]+ 200/);
     return { h1: title, firstTitles: postings.slice(0, 5).map((p) => p.title) };
@@ -274,7 +274,7 @@ try {
       });
       await check('T40', 'W', 'bookmark a posting from its detail; /me/bookmarks lists it', ap, alog, async () => {
         const start = alog.api.length; const target = postings[0];
-        await open(ap, '/job-postings'); await ap.getByRole('button', { name: `${target.title} 상세 보기` }).click();
+        await open(ap, '/job-postings'); await ap.getByRole('button', { name: `${target.title} ${target.company.name}` }).first().click();
         await ap.getByRole('heading', { name: target.title }).first().waitFor();
         await ap.getByRole('button', { name: '관심 공고 저장' }).click();
         await ap.getByRole('button', { name: '관심 공고 해제', pressed: true }).waitFor();
