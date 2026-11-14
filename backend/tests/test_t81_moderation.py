@@ -407,3 +407,22 @@ def test_real_dependency_uses_the_t125_sql_decide_without_committing():
     with pytest.raises(RuntimeError), repo.transaction():
         raise RuntimeError("boom")
     assert (session.commits, session.rollbacks) == (0, 0)          # 커밋·롤백은 검수 서비스(_run)만
+
+
+def test_company_posting_submit_is_wired_to_create_a_case_in_the_same_transaction(monkeypatch):
+    """PM DECISION_1: 실제 기업 공고 서비스 의존성은 submit 훅을 갖고, 훅은 commit=False 로 PRE_PUBLISH 건을 만든다."""
+    from app.repositories import moderation as repo_mod
+    from app.routers.company_postings import get_posting_service
+
+    calls = []
+    monkeypatch.setattr(mod.ModerationService, "submit", lambda self, *a, **kw: calls.append((a, kw)))
+    service = get_posting_service(db=object())
+    assert service.on_submit is not None
+    posting = cp.CompanyPosting(uuid.uuid4(), uuid.uuid4(), "pending_review", "t", created_by=uuid.uuid4())
+    submitter = uuid.uuid4()
+    service.on_submit(posting, submitter)
+    assert calls == [(("company_posting", posting.posting_id, "PRE_PUBLISH"),
+                      {"content_owner_id": posting.created_by, "submitted_by": submitter, "commit": False})]
+    assert repo_mod.company_posting_submit_hook is not None
+    # T125 단독(훅 없음)은 기존 동작 그대로
+    assert cp.CompanyPostingService(None, cp.MemoryPostingRepository(), cp.MemoryPublicPostings()).on_submit is None

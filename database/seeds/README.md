@@ -28,8 +28,8 @@
 | `user_skills` | 60 | 사용자 g → 직무 `(g-1)%30` 상위 3개 기술, 숙련도 = 요구 수준 − 1 (Skill Gap 1) |
 | `user_job_bookmarks` | 32 | active 사용자 g 가 공고 g, g+20 중 published 만 북마크 |
 | `roles` | 2 | `job_seeker`, `admin` (요구사항 개요 §5) |
-| `permissions` | 2 | `admin.models.read`, `admin.audit.read` (데이터 사전 A06 예시) |
-| `role_permissions` | 2 | admin → 위 2개 |
+| `permissions` | 3 | `admin.models.read`, `admin.audit.read` (데이터 사전 A06 예시), `admin.content.review` (T81 검수, PM 승인 — 로컬·일회용 DB Seed 전용) |
+| `role_permissions` | 3 | admin → 위 3개 |
 | `user_roles` | 21 | 모든 Seed 사용자 `job_seeker`, `seed-user-18` 은 `admin` 도 |
 
 건수는 [`docs/DATABASE.md`](../../docs/DATABASE.md)의 "Seed 예시 규모"를 따랐습니다.

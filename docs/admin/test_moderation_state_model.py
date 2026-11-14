@@ -329,7 +329,8 @@ class PolicyAndContractConsistencyTest(unittest.TestCase):
     def test_cited_role_exists_and_review_permission_is_only_proposed(self):
         seed = (ROOT / "database/seeds/0001_initial_seed.sql").read_text(encoding="utf-8")
         self.assertIn("('admin', '운영 관리자')", seed)
-        self.assertNotIn("admin.content.review", seed, "permission must stay a proposal until a migration adds it")
+        # PM 승인(DECISION_3): 로컬·일회용 Seed 에서 admin 역할에만 부여(운영 Seed 아님)
+        self.assertIn("('admin.content.review',", seed)
         self.assertIn("권한 코드 `admin.content.review`를 admin 역할에 부여", POLICY)
 
     def test_moderation_table_only_in_0010_and_not_yet_in_the_confirmed_openapi(self):

@@ -20,7 +20,10 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError, ErrorCode
 from app.repositories.company_postings import SqlOrgDirectory, SqlPostingRepository, SqlPublicPostings
 from app.services.company_postings import CompanyPostingService
-from app.services.moderation import AUDIT_ACTION, AUDIT_RESOURCE, TARGET_COLUMNS, CaseEvent, ModerationCase, QueueFilter
+from app.services.company_postings import CompanyPosting
+from app.services.moderation import (
+    AUDIT_ACTION, AUDIT_RESOURCE, TARGET_COLUMNS, CaseEvent, ModerationCase, ModerationService, QueueFilter,
+)
 
 _COLUMNS = ("c.case_id, c.target_type, c.target_id, c.review_trigger, c.status, c.priority, c.content_owner_id, "
             "c.submitted_by, c.assignee_id, c.first_decider_id, c.decided_by, c.decided_at, c.reason_code, "
@@ -117,11 +120,12 @@ class SqlModerationRepository:
             {"case_id": case_id, "from_status": from_status, "to_status": to_status, "event": event, "actor": actor,
              "reason": reason_code, "now": now})
 
-    def audit(self, actor: UUID, case_id: UUID, request_id: str | None, now: datetime) -> None:
+    def audit(self, actor: UUID, case_id: UUID, request_id: str | None, now: datetime,
+              action: str = AUDIT_ACTION) -> None:
         self.db.execute(text(
             "INSERT INTO career.audit_events (actor_user_id, action_code, resource_type, resource_id, request_id, "
             "occurred_at) VALUES (:actor, :action, :resource, :id, :request_id, :now)"),
-            {"actor": actor, "action": AUDIT_ACTION, "resource": AUDIT_RESOURCE, "id": case_id,
+            {"actor": actor, "action": action, "resource": AUDIT_RESOURCE, "id": case_id,
              "request_id": request_id, "now": now})
 
     def insert_case(self, case: ModerationCase) -> UUID | None:
@@ -180,3 +184,18 @@ class SqlCompanyPostingTransitions:
 
     def decide(self, user_id, roles, posting_id, decision, reason_code, note, version):
         return self._service.decide(user_id, roles, posting_id, decision, reason_code, note, version)
+
+
+def company_posting_submit_hook(session: Session):
+    """T125 검수 요청(submit) 훅 — 같은 세션·같은 트랜잭션에서 company_posting 검수 건을 만든다(PM DECISION_1).
+
+    commit=False: T125 저장소의 transaction() 이 커밋·롤백한다. 같은 (공고, PRE_PUBLISH) 의 열린 건이 있으면(검수 요청을
+    철회했다가 다시 요청 등) 새로 만들지 않고 기존 건을 쓴다(부분 UNIQUE + ON CONFLICT DO NOTHING).
+    """
+    service = ModerationService(SqlModerationRepository(session), cursor=None)
+
+    def on_submit(posting: CompanyPosting, user_id: UUID) -> None:
+        service.submit("company_posting", posting.posting_id, "PRE_PUBLISH", content_owner_id=posting.created_by,
+                       submitted_by=user_id, commit=False)
+
+    return on_submit

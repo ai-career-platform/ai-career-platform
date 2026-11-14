@@ -321,14 +321,15 @@ WHERE career.roles.name IS DISTINCT FROM EXCLUDED.name;
 
 INSERT INTO career.permissions (permission_id, code, description, created_at)
 SELECT md5('seed:permission:' || v.code)::uuid, v.code, v.description, timestamptz '2026-11-06 00:00:00+00'
-FROM (VALUES ('admin.models.read', '모델 버전·평가 조회'), ('admin.audit.read', '감사 기록 조회')) AS v(code, description)
+FROM (VALUES ('admin.models.read', '모델 버전·평가 조회'), ('admin.audit.read', '감사 기록 조회'),
+             ('admin.content.review', '운영 콘텐츠 검수(T81, PM 승인)')) AS v(code, description)
 ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description
 WHERE career.permissions.description IS DISTINCT FROM EXCLUDED.description;
 
 INSERT INTO career.role_permissions (role_id, permission_id, created_at)
 SELECT r.role_id, p.permission_id, timestamptz '2026-11-06 00:00:00+00'
 FROM career.roles r CROSS JOIN career.permissions p
-WHERE r.code = 'admin' AND p.code IN ('admin.models.read', 'admin.audit.read')
+WHERE r.code = 'admin' AND p.code IN ('admin.models.read', 'admin.audit.read', 'admin.content.review')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- every seed user is a job_seeker (default role, granted_by NULL); seed-user-18 is also admin
