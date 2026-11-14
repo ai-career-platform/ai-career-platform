@@ -6,8 +6,7 @@ import logging
 from dataclasses import replace
 from uuid import uuid4
 
-import pytest
-
+from app.repositories.notifications import SqlNotificationOutbox
 from app.schemas.job_applications import JobApplicationCreate, JobApplicationUpdate
 from app.services.job_applications import JobApplicationService
 from app.services.job_postings import ListCursor
@@ -27,7 +26,7 @@ from app.services.notifications import (
     dedupe_key,
 )
 from tests.test_t102_job_applications import NOW, POSTING, MemoryRepo
-from tests.test_t96_notifications import APPROVED, DAY, EMAIL, NIGHT, U, VARS, Clock
+from tests.test_t96_notifications import APPROVED, DAY, EMAIL, NIGHT, ROOT, U, VARS, Clock
 
 IN_APP_SPECS = {**SPECS, "service.maintenance": replace(SPECS["service.maintenance"], channel="in_app"),
                 "service.policy_change": replace(SPECS["service.policy_change"], channel="in_app")}
@@ -176,34 +175,27 @@ def test_event_notifier_swallows_template_and_unexpected_errors(caplog):
     assert EMAIL not in caplog.text and str(U) not in caplog.text
 
 
-class Recorder:
-    def __init__(self):
-        self.calls = []
+def test_self_initiated_stage_change_never_notifies(monkeypatch):
+    """PM 결정 2026-11-14: 본인이 바꾼 지원 단계는 알림을 만들지 않음 — dispatcher·outbox·notifier 를 전혀 부르지 않음."""
+    calls = []
 
-    def notify(self, user_id, type_, subject_ref):
-        self.calls.append((user_id, type_, subject_ref))
-        return "disabled"
+    def trap(name):
+        return lambda *a, **k: calls.append(name)
 
-
-@pytest.fixture
-def apps():
-    rec = Recorder()
-    return JobApplicationService(MemoryRepo(), ListCursor(b"k" * 32), clock=lambda: NOW, events=rec), rec
-
-
-def test_job_application_stage_change_emits_event_without_content(apps):
-    svc, rec = apps
+    monkeypatch.setattr(NotificationDispatcher, "enqueue", trap("dispatcher"))
+    monkeypatch.setattr(EventNotifier, "notify", trap("notifier"))
+    monkeypatch.setattr(MemoryOutbox, "enqueue", trap("memory_outbox"))
+    monkeypatch.setattr(SqlNotificationOutbox, "enqueue", trap("sql_outbox"))
+    svc = JobApplicationService(MemoryRepo(), ListCursor(b"k" * 32), clock=lambda: NOW)
     a = svc.create(U, JobApplicationCreate(job_posting_id=POSTING, memo="비공개 메모"))
-    assert rec.calls == []                                              # 생성은 단계 변경 아님
-    memo = svc.update(U, a.application_id, JobApplicationUpdate(version=a.version, memo="수정"))
-    assert rec.calls == []                                              # 메모만 바뀜
-    moved = svc.update(U, a.application_id, JobApplicationUpdate(version=memo.version, stage="applied"))
-    assert rec.calls == [(U, "application.stage_changed", f"{a.application_id}:{moved.version}")]
-    assert "메모" not in str(rec.calls) and "applied" not in str(rec.calls)
+    for stage in ("applied", "interviewing", "offered", "withdrawn"):
+        a = svc.update(U, a.application_id, JobApplicationUpdate(version=a.version, stage=stage))
+    assert a.stage == "withdrawn" and calls == []
 
 
-def test_job_application_update_works_with_the_default_blocked_notifier():
-    svc = JobApplicationService(MemoryRepo(), ListCursor(b"k" * 32), clock=lambda: NOW,
-                                events=EventNotifier(lambda: pytest.fail("must not build a dispatcher")))
-    a = svc.create(U, JobApplicationCreate(job_posting_id=POSTING))
-    assert svc.update(U, a.application_id, JobApplicationUpdate(version=a.version, stage="applied")).stage == "applied"
+def test_job_application_code_has_no_notification_wiring():
+    for path in ("app/services/job_applications.py", "app/routers/job_applications.py"):
+        source = (ROOT / "backend" / path).read_text(encoding="utf-8")
+        imports = [line for line in source.splitlines() if line.startswith(("import ", "from "))]
+        assert not [line for line in imports if "notification" in line], path
+        assert "NotificationDispatcher" not in source and "EventNotifier" not in source, path

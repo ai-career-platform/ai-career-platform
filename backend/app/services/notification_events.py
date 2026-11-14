@@ -9,7 +9,9 @@
 - `variables` 에는 개인정보·비밀을 넣지 않습니다(현재 모든 이벤트는 빈 변수).
 
 현재 상태 (2026-11):
-- `application.stage_changed` (T102 지원 단계 변경): T95 매트릭스에 유형·템플릿 없음 → **BLOCKED (유형·템플릿 승인 대기)**.
+- `application.stage_changed`: 본인이 바꾼 단계(T102 `JobApplicationService.update`)는 **알림을 만들지 않음**
+  (PM 결정 2026-11-14, 화면의 성공 표시만 — 그 경로에 호출 없음). 관리자·기업 담당자가 바꾸는 경로는 현재 코드가 없고,
+  생기더라도 정책 승인 전까지 꺼짐(`approved=False`). T95 매트릭스에도 유형·템플릿 없음.
 - 후속 hook — 검수(moderation) 결과 알림: 검수 결과 API 가 생기면 `EVENT_TYPES` 에 항목을 추가하고
   (T95 매트릭스·템플릿 승인 후) 해당 서비스에서 `EventNotifier.notify(...)` 를 호출합니다. 지금은 코드 없음.
 """
@@ -36,8 +38,9 @@ class EventType:
 
 
 EVENT_TYPES: dict[str, EventType] = {e.type: e for e in (
-    EventType("application.stage_changed", "T102 job_applications.update", False,
-              "BLOCKED: T95_PREFERENCE_MATRIX.md 에 in_app 유형·템플릿·선택/필수 구분이 정의되지 않음"),
+    EventType("application.stage_changed", "staff-initiated stage change (code path does not exist yet)", False,
+              "self-initiated never notifies per PM decision 2026-11-14 (UI success feedback only); "
+              "staff-initiated BLOCKED pending policy approval; no T95 in_app type/template"),
     # 후속: EventType("moderation.result", "<검수 결과 API>", False, "...")  — API 미구현, hook 자리만
 )}
 

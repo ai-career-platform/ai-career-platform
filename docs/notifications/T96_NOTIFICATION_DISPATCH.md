@@ -99,7 +99,8 @@ CI(`backend-tests.yml`)는 PostgreSQL 18.1 서비스에서 두 파일을 모두 
 
 | 이벤트 | 발생 위치 | 상태 |
 |---|---|---|
-| `application.stage_changed` (지원 단계 변경) | T102 `JobApplicationService.update` | **BLOCKED** — T95 매트릭스에 in_app 유형·템플릿·필수/선택 구분 없음 (PM·법무 승인 필요) |
+| `application.stage_changed` 본인 변경 | T102 `JobApplicationService.update` | **알림 없음** — PM 결정 2026-11-14 (화면의 성공 표시만, 호출 코드 없음) |
+| `application.stage_changed` 관리자·기업 담당자 변경 | (코드 경로 없음) | **BLOCKED** — 정책 승인 전 꺼짐, T95 매트릭스에 in_app 유형·템플릿 없음 |
 | 검수(moderation) 결과 | (API 미구현) | 후속 hook 자리만 — `EVENT_TYPES` 주석 |
 
 시험: `tests/test_t96_channel_and_events.py`(메모리), `tests/test_t96_channel_and_events_postgres.py`(일회용 PostgreSQL 18).
