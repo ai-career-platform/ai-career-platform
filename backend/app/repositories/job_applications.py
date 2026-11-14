@@ -1,4 +1,4 @@
-"""T102 개인 지원 기록 DB 접근. 표: database/proposed/T101_job_applications.sql (제안, 정식 migration 아님).
+"""T102 개인 지원 기록 DB 접근. 표: database/migrations/0004_job_applications.sql (T101).
 
 모든 쿼리는 user_id 로 범위를 묶습니다(본인 기록만). 값은 바인딩 변수로만 전달합니다.
 각 쓰기 메서드는 스스로 커밋합니다.

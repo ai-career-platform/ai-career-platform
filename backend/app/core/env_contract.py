@@ -137,6 +137,8 @@ CONTRACT: tuple[EnvVar, ...] = (
     EnvVar("JOB_SEARCH_ADVANCED", (), "false", False, "PM(승인)", "T99 고급 검색. 승인 전 꺼짐", check=_flag),
     EnvVar("JOB_APPLICATIONS_API", (), "false", False, "PM(승인)", "T102 지원 기록 API. 승인 전 꺼짐",
            check=_flag),
+    EnvVar("NOTIFICATIONS_API", (), "false", False, "PM(승인)", "T97 알림함·수신 설정 API. 승인 전 꺼짐",
+           check=_flag),
     EnvVar("CRAWLER_ADMIN_WRITE_API", (), "false", False, "PM(승인)", "T155 크롤러 관리자 쓰기·명령 API. 승인 전 꺼짐", check=_flag),
     EnvVar("COMPANY_ACCOUNTS_API", (), "false", False, "PM(승인)", "T123 기업 계정 API. 승인 전 꺼짐", check=_flag),
     EnvVar("COMPANY_POSTINGS_API", (), "false", False, "PM(승인)", "T126 기업 공고 API. 승인 전 꺼짐", check=_flag),

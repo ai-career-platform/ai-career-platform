@@ -66,7 +66,7 @@ const adminAuditRoutes = (features: Features): RouteObject[] => (features.adminA
 ] : []);
 
 /**
- * UI-N04 알림함·UI-005 알림 수신 설정(T97)도 같은 방식: 기능 플래그(Mock 모드 전용)가 켜졌을 때만 경로·메뉴가 생기고,
+ * UI-N04 알림함·UI-005 알림 수신 설정(T97): VITE_NOTIFICATIONS_UI 플래그(기본 꺼짐)가 켜졌을 때만 경로·메뉴가 생기고,
  * 로그인 사용자만 들어갑니다. 알림·설정은 로그인 사용자 ID 별로 분리됩니다(NotificationServiceProvider).
  */
 const notificationRoutes = (features: Features): RouteObject[] => (features.notificationsUi ? [
@@ -111,7 +111,7 @@ const personalDataRoutes = (features: Features): RouteObject[] => (features.pers
   ] },
 ] : []);
 
-/** T103 개인 지원 현황 보드: Mock 전용, 사용자별 격리 */
+/** T103 개인 지원 현황 보드: VITE_APPLICATIONS_UI 플래그(기본 꺼짐), 본인 기록만 */
 const applicationRoutes = (features: Features): RouteObject[] => (features.applicationsUi ? [
   { element: <RequireAuth />, children: [
     { element: <ApplicationServiceProvider />, children: [
