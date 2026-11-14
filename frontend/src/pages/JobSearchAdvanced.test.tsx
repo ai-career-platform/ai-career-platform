@@ -1,6 +1,7 @@
 /**
  * T100 채용공고 고급 검색 — URL 상태, Mock Adapter(T98 수용 사례와 대조), 화면(필터·URL·결과 일치, 뒤로가기, 0건, 키보드).
- * 데이터는 Mock 입니다(실제 API PASS 아님). 실제 서버(T99)는 같은 T98 JSON 으로 별도 검증됩니다.
+ * 화면 시험 대부분은 Mock Adapter 를 주입합니다. Mock 모드가 아닐 때 실제 HttpClient 로 보내는 요청(쿼리·정렬·커서)도 따로 확인합니다.
+ * 실제 서버(T99)는 같은 T98 JSON 으로 별도 검증됩니다.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -9,6 +10,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildQuery } from '../api/http';
+import { env } from '../config/env';
 import type { AdvancedJobQuery } from '../api/jobSearch';
 import { createMockJobSearchService, REGION_ALIASES, type MockPosting } from '../mocks/jobSearch';
 import { WithApi } from '../test/WithApi';
@@ -222,10 +224,86 @@ describe('advanced search screen (mock flag)', () => {
   });
 });
 
+// ---------------------------------------------------------------- 실제 API 경로(Mock 모드 아님)
+describe('advanced search screen (real API, not mock mode)', () => {
+  const posting = (n: number) => ({
+    job_posting_id: uid(`p${n}`), title: `공고 ${n}`, status: 'published', company: { company_id: uid('c1'), name: '회사' },
+    job_role: null, employment_type: 'full_time', location_text: '서울 강남구', published_at: T98.now, expires_at: null,
+  });
+  const listCalls = () => get.mock.calls.map(([p]) => p).filter((p) => p.startsWith('/v1/job-postings?'));
+  function serveList(impl: (path: string) => unknown) {
+    get.mockImplementation(async (path: string) => {
+      if (path.startsWith('/v1/companies?') || path.startsWith('/v1/job-roles?')) return { items: [], next_cursor: null };
+      if (path.startsWith('/v1/job-postings?')) return impl(path);
+      throw new Error(`unexpected ${path}`);
+    });
+  }
+  function openReal(url: string) {
+    const router = createMemoryRouter([{ path: '/job-postings', element: <><JobPostingsPage advanced /><Where /></> }],
+      { initialEntries: [url] });
+    render(<WithApi request={(path) => get(path)}><RouterProvider router={router} /></WithApi>);
+    return router;
+  }
+
+  it('uses the HttpClient (not the mock adapter) and sends filters and sort as T99 query params', async () => {
+    expect(env.mockEnabled).toBe(false);
+    serveList(() => ({ items: [posting(1)], next_cursor: null }));
+    openReal(`/job-postings?q=%EB%B0%B1%EC%97%94%EB%93%9C&company_id=${uid('c2')}&company_id=${uid('c1')}`
+      + '&employment_type=intern&employment_type=full_time&region=jeju&region=seoul&posted_within=7d&include_closed=true&sort=expires_at');
+    await waitFor(() => expect(results()).toEqual(['공고 1']));
+    expect(listCalls()).toEqual([
+      `/v1/job-postings?q=%EB%B0%B1%EC%97%94%EB%93%9C&company_id=${uid('c1')}&company_id=${uid('c2')}`
+      + '&employment_type=full_time&employment_type=intern&region=seoul&region=jeju&posted_within=7d'
+      + '&include_closed=true&sort=expires_at&limit=20',
+    ]);
+    expect(screen.getByText('시범')).toBeInTheDocument();                      // Mock 배지 없음
+    fireEvent.click(screen.getByRole('checkbox', { name: '계약직' }));
+    await waitFor(() => expect(listCalls().at(-1)).toContain('employment_type=full_time&employment_type=contract&employment_type=intern'));
+  });
+
+  it('pages with next_cursor, goes back, and restarts at page 1 when a filter changes', async () => {
+    serveList((path) => (path.includes('cursor=')
+      ? { items: [posting(2)], next_cursor: null }
+      : { items: [posting(1)], next_cursor: 'opaque/c+2=' }));
+    openReal('/job-postings?region=busan');
+    await waitFor(() => expect(results()).toEqual(['공고 1']));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(results()).toEqual(['공고 2']));
+    expect(listCalls().at(-1)).toBe('/v1/job-postings?region=busan&include_closed=false&sort=-published_at&limit=20&cursor=opaque%2Fc%2B2%3D');
+    expect(screen.getByText('2 페이지')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '이전' }));
+    await waitFor(() => expect(results()).toEqual(['공고 1']));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(results()).toEqual(['공고 2']));
+    fireEvent.change(screen.getByLabelText('게시일'), { target: { value: '1d' } });
+    await waitFor(() => expect(listCalls().at(-1)).toBe('/v1/job-postings?region=busan&posted_within=1d&include_closed=false&sort=-published_at&limit=20'));
+    expect(screen.getByText('1 페이지')).toBeInTheDocument();
+  });
+
+  it('server flag off: an unfiltered T18 response still renders; a 422/other error shows the retryable error state', async () => {
+    let fail = true;
+    serveList(() => {
+      if (fail) { fail = false; throw Object.assign(new Error('VALIDATION_FAILED'), { status: 422 }); }
+      return { items: [posting(3)], next_cursor: null };                     // T18 은 고급 조건을 무시하고 응답
+    });
+    openReal('/job-postings?employment_type=intern');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('채용공고를 불러오지 못했습니다');
+    fireEvent.click(within(alert).getByRole('button', { name: '다시 시도' }));
+    await waitFor(() => expect(results()).toEqual(['공고 3']));
+    serveList(() => ({ items: [], next_cursor: null }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '정규직' }));
+    expect(await screen.findByText('조건에 맞는 공고가 없습니다')).toBeInTheDocument();
+  });
+});
+
 describe('flag off', () => {
   it('the default route renders the T24 screen without advanced filters', async () => {
-    const env = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
-    expect(env).toContain("jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true'");
+    const envText = readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8');
+    // PM 결정: 고급 검색 UI 는 Mock 전용이 아니라 실제 API 도 씀. 플래그 하나로만 켜지고 기본은 꺼짐.
+    expect(envText).toContain("jobSearchAdvancedUi: import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',");
+    expect(envText).not.toMatch(/jobSearchAdvancedUi:[^\n]*VITE_API_MOCK/);
+    expect(env.jobSearchAdvancedUi).toBe(false);
     get.mockImplementation(async (path: string) => (path.startsWith('/v1/job-postings')
       ? { items: [], next_cursor: null } : { items: [], next_cursor: null }));
     const router = createMemoryRouter([{ path: '/job-postings', element: <JobPostingsPage /> }], { initialEntries: ['/job-postings'] });

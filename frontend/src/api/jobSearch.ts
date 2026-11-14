@@ -1,6 +1,9 @@
 /**
  * 채용공고 고급 검색 (T100). 계약: docs/search/T98_ADVANCED_SEARCH_CONTRACT.md — **PROPOSED, docs/api/openapi.yaml 에 없음**.
- * 서버(T99)는 `JOB_SEARCH_ADVANCED=true` 일 때만 이 매개변수를 받습니다(기본 꺼짐). 그래서 화면도 Mock 전용 플래그 뒤에 둡니다.
+ * 서버(T99)는 `JOB_SEARCH_ADVANCED=true` 일 때만 이 매개변수를 받습니다(기본 꺼짐). 화면은 `VITE_JOB_SEARCH_ADVANCED_UI`(기본 꺼짐)
+ * 뒤에 있으며, Mock 모드가 아니면 아래 HTTP 어댑터로 실제 API 를 부릅니다. 서버 플래그가 꺼져 있으면 T18 목록이 응답하므로
+ * 고급 조건(employment_type·region·posted_within, company_id·job_role_id 다중 값)은 무시될 뿐 화면은 깨지지 않습니다.
+ * 공개 범위(게시 중·만료 전 공고만, 초안 제외)는 서버가 정합니다.
  */
 import type { HttpClient } from './http';
 import type { JobPostingPage } from './catalog';
@@ -46,7 +49,7 @@ export interface JobSearchService {
   list(query: AdvancedJobQuery, signal?: AbortSignal): Promise<JobPostingPage>;
 }
 
-/** 실제 API 어댑터(준비만, 연결하지 않음): 같은 경로에 배열은 키를 반복해 보냄(`region=a&region=b`). */
+/** 실제 API 어댑터(createApi 의 `jobSearch`): 같은 경로에 배열은 키를 반복해 보냄(`region=a&region=b`). */
 export function createHttpJobSearchService(http: HttpClient): JobSearchService {
   return {
     list: (query, signal) => http.request<JobPostingPage>('/v1/job-postings', { query: { ...query }, signal }),

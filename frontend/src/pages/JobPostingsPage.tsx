@@ -13,6 +13,7 @@ import {
   EMPLOYMENT_TYPES, MAX_VALUES, POSTED_WITHIN, POSTED_WITHIN_LABELS, REGIONS,
   type EmploymentType, type JobSearchService, type PostedWithin, type RegionCode,
 } from '../api/jobSearch';
+import { env } from '../config/env';
 import { createMockJobSearchService } from '../mocks/jobSearch';
 import { EMPTY_STATE, hasAnyFilter, normalizeSearch, parseSearch, serializeSearch, toApiQuery, type SearchState } from './jobSearchUrl';
 import './JobPostingsPage.css';
@@ -30,9 +31,10 @@ const STATUS_OPTIONS = [
 /**
  * 이 화면이 쓰는 공고 조회는 T18 정식 API(`/v1/job-postings`, `/v1/companies`)입니다. 별도 수집 API 데이터는 섞지 않습니다.
  *
- * `advanced`(T100): T98 고급 검색 계약(PROPOSED)으로 고용형태·지역·게시 기간을 더합니다. 기능 플래그(Mock 전용)일 때만 켜지고,
- * 데이터는 Mock Adapter 입니다(서버 T99 는 기능 플래그 뒤, 기본 꺼짐). URL 쿼리 = API 쿼리 이름이며, 조건을 바꿀 때마다
- * 기록이 쌓여 브라우저 뒤로가기로 이전 조건으로 돌아갑니다. 꺼져 있으면 기존 T24 동작 그대로입니다.
+ * `advanced`(T100): T98 고급 검색 계약(PROPOSED)으로 고용형태·지역·게시 기간을 더합니다. 기능 플래그
+ * (`VITE_JOB_SEARCH_ADVANCED_UI`, 기본 꺼짐)일 때만 켜집니다. 데이터는 Mock 모드면 Mock Adapter, 아니면 실제 API
+ * (`api.jobSearch`, 서버 T99 `JOB_SEARCH_ADVANCED` 도 켜야 고급 조건이 적용됨)입니다. URL 쿼리 = API 쿼리 이름이며,
+ * 조건을 바꿀 때마다 기록이 쌓여 브라우저 뒤로가기로 이전 조건으로 돌아갑니다. 꺼져 있으면 기존 T24 동작 그대로입니다.
  */
 export function JobPostingsPage({ advanced = false, searchService }: { advanced?: boolean; searchService?: JobSearchService } = {}) {
   const api = useApi();
@@ -43,8 +45,10 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
   const roleId = adv ? (adv.job_role_id[0] ?? '') : uuidOrEmpty(params.get('role'));
   const includeClosed = adv ? adv.include_closed : params.get('closed') === '1';
   const sort: Sort = adv ? adv.sort : params.get('order') === 'expires' ? 'expires_at' : '-published_at';
-  const [fallbackSearch] = useState(() => (advanced && !searchService ? createMockJobSearchService({ latencyMs: 150 }) : null));
-  const search = searchService ?? fallbackSearch;
+  // 검색 서비스: 주입값(테스트) → Mock 모드면 Mock Adapter → 아니면 실제 API(로그인 토큰을 쓰는 같은 HttpClient)
+  const [mockSearch] = useState(() => (advanced && !searchService && env.mockEnabled
+    ? createMockJobSearchService({ latencyMs: 150 }) : null));
+  const search: JobSearchService = searchService ?? mockSearch ?? api.jobSearch;
 
   // 커서 목록은 검색 조건별로 따로 둡니다. 조건이 바뀌면 첫 페이지부터 다시 시작합니다.
   const filterKey = adv ? serializeSearch(adv).toString() : [query, companyId, roleId, includeClosed, sort].join('|');
@@ -56,7 +60,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
   const [selected, setSelected] = useState<string | null>(null);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
 
-  const list = useQuery(['job-postings', advanced, filterKey, cursor], (signal) => (adv && search
+  const list = useQuery(['job-postings', advanced, filterKey, cursor], (signal) => (adv
     ? search.list(toApiQuery(adv, PAGE_SIZE, cursor ?? null), signal)
     : api.jobPostings.list(
       { limit: PAGE_SIZE, sort, include_closed: includeClosed, q: query, company_id: companyId, job_role_id: roleId, cursor },
@@ -210,7 +214,7 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
         </div>
         {adv && (
           <fieldset className="t100-advanced">
-            <legend>상세 조건 <span className="t100-badge">시범 · Mock</span></legend>
+            <legend>상세 조건 <span className="t100-badge">{env.mockEnabled ? '시범 · Mock' : '시범'}</span></legend>
             <div className="t100-group" role="group" aria-labelledby="t100-employment">
               <span id="t100-employment" className="t100-group-title">고용 형태</span>
               {EMPLOYMENT_TYPES.map((type: EmploymentType) => (

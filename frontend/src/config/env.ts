@@ -22,8 +22,12 @@ export const env = {
    * 두 값이 모두 'true'여야 메뉴·경로가 생깁니다. 운영·일반 빌드에서는 항상 꺼짐. 켜져도 로그인 사용자만 들어갑니다.
    */
   notificationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_NOTIFICATIONS_UI === 'true',
-  /** T100 고급 채용 검색 UI: Mock일 때만 활성화. */
-  jobSearchAdvancedUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
+  /**
+   * T100 고급 채용 검색 UI. 기본 꺼짐. 켜면 Mock 모드에서는 Mock 검색, 그 외에는 실제 API(`GET /v1/job-postings`)를 씁니다.
+   * 실제 API 로 쓰려면 서버 플래그 `JOB_SEARCH_ADVANCED=true` 도 함께 켜야 합니다(꺼져 있으면 서버가 T18 목록으로 응답해
+   * 고용형태·지역·게시일 조건은 무시되고, 화면은 기존 목록·오류·빈 상태 그대로 동작합니다).
+   */
+  jobSearchAdvancedUi: import.meta.env.VITE_JOB_SEARCH_ADVANCED_UI === 'true',
   /** T103 지원 현황 Mock UI, 운영 기본 비활성 */
   applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true',
   /**
