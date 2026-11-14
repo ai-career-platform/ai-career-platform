@@ -4,7 +4,7 @@
 - 공개하려면 선택 → 미리보기 → 동의(confirm) 순서. 선택을 바꾸면 동의가 풀린다(PP-INV-7) → 링크는 404.
 - 링크 토큰: 32바이트(256비트) 임의값, 저장은 SHA-256 해시만. 원문은 만들 때 한 번만 돌려준다.
 - 만료·회수·동의 철회·없는 토큰은 같은 404(PP-INV-5). 공개 화면은 현재 데이터를 그린다(삭제 즉시 반영).
-- 저장소는 메모리 구현만(T128 선택·링크 표 migration 승인 전). 라우터 기본 의존성은 503.
+- 저장소: PortfolioRepository. 실제는 SQL(migration 0007, app/repositories/public_portfolio.py), 단위 시험은 메모리.
 """
 
 from __future__ import annotations
@@ -92,12 +92,46 @@ class ShareLink:
     views: int = 0
 
 
+class PortfolioRepository(Protocol):
+    """선택·동의·링크 저장소. 각 쓰기 메서드는 한 번에(원자적으로) 끝난다. 모든 소유자 메서드는 user_id 로 범위를 묶는다.
+
+    구현: MemoryPortfolioRepository(단위 시험), app.repositories.public_portfolio.SqlPortfolioRepository(migration 0007).
+    """
+
+    def get_selection(self, user_id: uuid.UUID) -> Selection: ...
+
+    def save_selection(self, user_id: uuid.UUID, fields: frozenset[str], experience_ids: frozenset[uuid.UUID],
+                       project_ids: frozenset[uuid.UUID], alias: str | None, expected_version: int,
+                       now: datetime) -> Selection | str:
+        """버전이 맞으면 새 선택(version+1, 동의 해제)을 저장. 실패: 'conflict' | 'not_owned'."""
+
+    def confirm(self, user_id: uuid.UUID, version: int, policy_version: str | None,
+                now: datetime) -> Selection | str:
+        """미리보기 확인(동의) 기록. 실패: 'conflict' | 'empty' | 'no_policy'."""
+
+    def withdraw(self, user_id: uuid.UUID, policy_version: str | None, now: datetime) -> None:
+        """동의 철회: 선택 초기화(version+1) + 모든 링크 회수 + 철회 기록."""
+
+    def list_links(self, user_id: uuid.UUID) -> list[ShareLink]: ...
+
+    def add_link(self, user_id: uuid.UUID, token_hash: str, now: datetime, expires_at: datetime,
+                 max_active: int) -> ShareLink | str:
+        """동의된 선택 아래에서만, 활성 링크 수 검사와 함께 추가. 실패: 'not_consented' | 'limit'."""
+
+    def revoke_link(self, user_id: uuid.UUID, link_id: uuid.UUID, now: datetime) -> bool:
+        """본인 링크면 회수(이미 회수됐으면 그대로) 후 True, 없거나 남의 링크면 False."""
+
+    def open_link(self, token_hash: str, now: datetime) -> tuple[ShareLink, Selection] | None:
+        """유효·미회수·미만료 링크 + 동의된 선택이면 열람 수를 늘리고 돌려준다. 그 밖은 None."""
+
+
 @dataclass
 class MemoryPortfolioRepository:
     selections: dict[uuid.UUID, Selection] = field(default_factory=dict)
     links: dict[uuid.UUID, ShareLink] = field(default_factory=dict)
     consents: list[dict] = field(default_factory=list)       # user_consents 와 같은 모양(granted 이력)
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    default_policy_version: str = "proposal-1"
 
     def delete_user(self, user_id: uuid.UUID) -> None:
         """계정 삭제(CASCADE) 흉내 — 선택·링크 삭제."""
@@ -105,6 +139,80 @@ class MemoryPortfolioRepository:
             self.selections.pop(user_id, None)
             for link_id in [k for k, v in self.links.items() if v.user_id == user_id]:
                 del self.links[link_id]
+
+    def get_selection(self, user_id: uuid.UUID) -> Selection:
+        return self.selections.get(user_id, Selection())
+
+    def save_selection(self, user_id, fields, experience_ids, project_ids, alias, expected_version, now):
+        with self.lock:
+            current = self.get_selection(user_id)
+            if current.version != expected_version:
+                return "conflict"
+            updated = Selection(fields, experience_ids, project_ids, version=current.version + 1,
+                                confirmed_version=None, alias=alias)
+            self.selections[user_id] = updated      # 선택이 바뀌면 동의가 풀림 → 기존 링크 404
+            return updated
+
+    def confirm(self, user_id, version, policy_version, now):
+        with self.lock:
+            current = self.get_selection(user_id)
+            if current.version != version:
+                return "conflict"
+            if not current.fields:
+                return "empty"
+            confirmed = replace(current, confirmed_version=current.version)
+            self.selections[user_id] = confirmed
+            self.consents.append({"user_id": user_id, "policy_code": CONSENT_CODE,
+                                  "policy_version": policy_version or self.default_policy_version, "granted": True,
+                                  "selection_version": current.version, "recorded_at": now})
+            return confirmed
+
+    def withdraw(self, user_id, policy_version, now):
+        with self.lock:
+            current = self.get_selection(user_id)
+            self.selections[user_id] = Selection(version=current.version + 1)
+            for link in list(self.links.values()):
+                if link.user_id == user_id and link.revoked_at is None:
+                    self.links[link.link_id] = replace(link, revoked_at=now)
+            self.consents.append({"user_id": user_id, "policy_code": CONSENT_CODE,
+                                  "policy_version": policy_version or self.default_policy_version, "granted": False,
+                                  "selection_version": current.version, "recorded_at": now})
+
+    def list_links(self, user_id):
+        return sorted((l for l in self.links.values() if l.user_id == user_id), key=lambda l: l.created_at,
+                      reverse=True)
+
+    def add_link(self, user_id, token_hash, now, expires_at, max_active):
+        with self.lock:
+            if not self.get_selection(user_id).consented:
+                return "not_consented"
+            active = [l for l in self.list_links(user_id) if l.revoked_at is None and l.expires_at > now]
+            if len(active) >= max_active:
+                return "limit"
+            link = ShareLink(uuid.uuid4(), user_id, token_hash, now, expires_at)
+            self.links[link.link_id] = link
+            return link
+
+    def revoke_link(self, user_id, link_id, now):
+        with self.lock:
+            link = self.links.get(link_id)
+            if link is None or link.user_id != user_id:
+                return False
+            if link.revoked_at is None:
+                self.links[link_id] = replace(link, revoked_at=now)
+            return True
+
+    def open_link(self, token_hash, now):
+        with self.lock:
+            link = next((l for l in self.links.values() if secrets.compare_digest(l.token_hash, token_hash)), None)
+            if link is None or link.revoked_at is not None or link.expires_at <= now:
+                return None
+            selection = self.get_selection(link.user_id)
+            if not selection.consented:
+                return None
+            link = replace(link, views=link.views + 1)
+            self.links[link.link_id] = link
+            return link, selection
 
 
 def _hash(token: str) -> str:
@@ -116,16 +224,17 @@ def _month(value: date | None) -> str | None:
 
 
 class PublicPortfolioService:
-    def __init__(self, repo: MemoryPortfolioRepository, profiles: ProfileSource,
+    def __init__(self, repo: PortfolioRepository, profiles: ProfileSource,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC),
                  token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(32),
-                 policy_version: str = "proposal-1"):
+                 policy_version: str | None = "proposal-1"):
+        """policy_version=None 이면 저장소가 현재 시행 중인 `public_profile` 약관 버전을 찾는다(SQL: consent_policies)."""
         self.repo, self.profiles, self.clock, self.token_factory = repo, profiles, clock, token_factory
         self.policy_version = policy_version
 
     # ------------------------------------------------------------ 소유자 설정
     def selection(self, user_id: uuid.UUID) -> Selection:
-        return self.repo.selections.get(user_id, Selection())
+        return self.repo.get_selection(user_id)
 
     def update_selection(self, user_id: uuid.UUID, fields: set[str], experience_ids: set[uuid.UUID],
                          project_ids: set[uuid.UUID], alias: str | None, version: int) -> Selection:
@@ -141,15 +250,13 @@ class PublicPortfolioService:
         if not experience_ids <= own_exp or not project_ids <= own_proj:
             # 남의 경력·프로젝트 ID 는 존재를 숨긴다
             raise AppError(ErrorCode.NOT_FOUND, log_detail="selected item not owned")
-        with self.repo.lock:
-            current = self.selection(user_id)
-            if current.version != version:
-                raise AppError(ErrorCode.CONFLICT, log_detail="selection version mismatch")
-            updated = Selection(frozenset(fields), frozenset(experience_ids), frozenset(project_ids),
-                                version=current.version + 1, confirmed_version=None,
-                                alias=(alias or "").strip() or None)
-            self.repo.selections[user_id] = updated     # 선택이 바뀌면 동의가 풀림 → 기존 링크 404
-        return updated
+        result = self.repo.save_selection(user_id, frozenset(fields), frozenset(experience_ids),
+                                          frozenset(project_ids), (alias or "").strip() or None, version, self.clock())
+        if result == "conflict":
+            raise AppError(ErrorCode.CONFLICT, log_detail="selection version mismatch")
+        if result == "not_owned":        # 동시에 지워진 항목 등 — 존재를 숨긴다
+            raise AppError(ErrorCode.NOT_FOUND, log_detail="selected item not owned")
+        return result
 
     def preview(self, user_id: uuid.UUID) -> dict:
         profile = self.profiles.load(user_id)
@@ -158,71 +265,44 @@ class PublicPortfolioService:
         return self._render(profile, self.selection(user_id))
 
     def confirm(self, user_id: uuid.UUID, version: int) -> Selection:
-        with self.repo.lock:
-            current = self.selection(user_id)
-            if current.version != version:
-                raise AppError(ErrorCode.CONFLICT, log_detail="preview is stale")
-            if not current.fields:
-                raise AppError(ErrorCode.VALIDATION_FAILED, log_detail="nothing selected")
-            confirmed = replace(current, confirmed_version=current.version)
-            self.repo.selections[user_id] = confirmed
-            self.repo.consents.append({"user_id": user_id, "policy_code": CONSENT_CODE,
-                                       "policy_version": self.policy_version, "granted": True,
-                                       "selection_version": current.version, "recorded_at": self.clock()})
-        return confirmed
+        result = self.repo.confirm(user_id, version, self.policy_version, self.clock())
+        if result == "conflict":
+            raise AppError(ErrorCode.CONFLICT, log_detail="preview is stale")
+        if result == "empty":
+            raise AppError(ErrorCode.VALIDATION_FAILED, log_detail="nothing selected")
+        if result == "no_policy":        # 약관(consent_policies 'public_profile') 미등록 — 공개하지 않음
+            raise AppError(ErrorCode.DEPENDENCY_UNAVAILABLE, log_detail="public_profile consent policy not provisioned")
+        return result
 
     def withdraw(self, user_id: uuid.UUID) -> None:
         """동의 철회: 모든 링크 즉시 무효 + 선택 초기화(비공개)."""
-        now = self.clock()
-        with self.repo.lock:
-            current = self.selection(user_id)
-            self.repo.selections[user_id] = Selection(version=current.version + 1)
-            for link in list(self.repo.links.values()):
-                if link.user_id == user_id and link.revoked_at is None:
-                    self.repo.links[link.link_id] = replace(link, revoked_at=now)
-            self.repo.consents.append({"user_id": user_id, "policy_code": CONSENT_CODE,
-                                       "policy_version": self.policy_version, "granted": False,
-                                       "selection_version": current.version, "recorded_at": now})
+        self.repo.withdraw(user_id, self.policy_version, self.clock())
 
     def links(self, user_id: uuid.UUID) -> list[ShareLink]:
-        return sorted((l for l in self.repo.links.values() if l.user_id == user_id), key=lambda l: l.created_at,
-                      reverse=True)
+        return self.repo.list_links(user_id)
 
     def create_link(self, user_id: uuid.UUID, ttl: timedelta = DEFAULT_TTL) -> tuple[ShareLink, str]:
         if not timedelta(0) < ttl <= MAX_TTL:
             raise AppError(ErrorCode.VALIDATION_FAILED, log_detail="ttl out of range")
         now, token = self.clock(), self.token_factory()
-        with self.repo.lock:
-            if not self.selection(user_id).consented:
-                raise AppError(ErrorCode.CONFLICT, log_detail="confirm the preview before sharing")
-            active = [l for l in self.links(user_id) if l.revoked_at is None and l.expires_at > now]
-            if len(active) >= MAX_ACTIVE_LINKS:
-                raise AppError(ErrorCode.CONFLICT, log_detail="active link limit")
-            link = ShareLink(uuid.uuid4(), user_id, _hash(token), now, now + ttl)
-            self.repo.links[link.link_id] = link
-        return link, token
+        result = self.repo.add_link(user_id, _hash(token), now, now + ttl, MAX_ACTIVE_LINKS)
+        if result == "not_consented":
+            raise AppError(ErrorCode.CONFLICT, log_detail="confirm the preview before sharing")
+        if result == "limit":
+            raise AppError(ErrorCode.CONFLICT, log_detail="active link limit")
+        return result, token
 
     def revoke_link(self, user_id: uuid.UUID, link_id: uuid.UUID) -> None:
-        with self.repo.lock:
-            link = self.repo.links.get(link_id)
-            if link is None or link.user_id != user_id:
-                raise AppError(ErrorCode.NOT_FOUND, log_detail="link missing or not owned")
-            if link.revoked_at is None:
-                self.repo.links[link_id] = replace(link, revoked_at=self.clock())
+        if not self.repo.revoke_link(user_id, link_id, self.clock()):
+            raise AppError(ErrorCode.NOT_FOUND, log_detail="link missing or not owned")
 
     # ------------------------------------------------------------ 공개 조회(비로그인 가능)
     def view(self, token: str) -> dict:
         hidden = AppError(ErrorCode.NOT_FOUND, log_detail="public link rejected")
-        now = self.clock()
-        digest = _hash(token)
-        with self.repo.lock:
-            link = next((l for l in self.repo.links.values() if secrets.compare_digest(l.token_hash, digest)), None)
-            if link is None or link.revoked_at is not None or link.expires_at <= now:
-                raise hidden
-            selection = self.selection(link.user_id)
-            if not selection.consented:
-                raise hidden
-            self.repo.links[link.link_id] = replace(link, views=link.views + 1)
+        opened = self.repo.open_link(_hash(token), self.clock())
+        if opened is None:
+            raise hidden
+        link, selection = opened
         profile = self.profiles.load(link.user_id)
         if profile is None:
             raise hidden
