@@ -97,7 +97,7 @@ class JobPostingService:
                 raise AppError(ErrorCode.INVALID_CURSOR, log_detail="company cursor without sort key")
             after = (last_key, last_id)
         # limit+1개를 읽어 다음 페이지가 있는지 판단한다.
-        rows = self._repo.list_companies(q, after, limit + 1)
+        rows = self._repo.list_companies(q, after, limit + 1, self._clock())
         page, more = rows[:limit], len(rows) > limit
         return CompanyPage(
             items=[CompanyRef(company_id=r.company_id, name=r.name) for r in page],

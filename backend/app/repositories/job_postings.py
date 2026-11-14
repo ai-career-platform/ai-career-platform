@@ -6,6 +6,9 @@
 - "게시 중" = status='published' 이고 (expires_at 없음 또는 now 이후).
   status='published'라도 마감일이 지나면 응답 status는 'closed'로 보인다.
 - draft 공고는 어떤 경로로도 나가지 않는다.
+- 기업도 공고 공개 규칙을 그대로 따른다 (#342). 공개 공고가 없는 기업(draft만 있는 수집 기업 등)은 내보내지 않는다.
+  - 목록: 기본 공고 목록과 같은 "게시 중"(`_is_open`) 공고가 1건 이상인 기업만. 카드를 눌러 0건이 되지 않게 한다.
+  - 상세: 공고 상세와 같은 `VISIBLE_STATUSES` 공고가 1건 이상인 기업만. 마감 공고 상세 화면의 기업 정보는 유지된다.
 """
 
 from dataclasses import dataclass
@@ -92,7 +95,9 @@ PostingPosition = tuple[datetime | None, UUID]
 
 
 class JobPostingRepository(Protocol):
-    def list_companies(self, q: str | None, after: CompanyPosition | None, limit: int) -> list[CompanyRow]: ...
+    def list_companies(
+        self, q: str | None, after: CompanyPosition | None, limit: int, now: datetime
+    ) -> list[CompanyRow]: ...
 
     def get_company(self, company_id: UUID, now: datetime) -> CompanyDetailRow | None: ...
 
@@ -155,6 +160,12 @@ def _is_open(now: datetime):
     return and_(p.status == "published", or_(p.expires_at.is_(None), p.expires_at > now))
 
 
+def _company_has_posting(*conds):
+    """기업에 조건을 만족하는 공고가 1건 이상 있는지 (#342). 공고 공개 조건은 호출부가 기존 규칙을 넘긴다."""
+    p = job_postings.c
+    return exists().where(p.company_id == companies.c.company_id, *conds)
+
+
 def _display_status(now: datetime):
     p = job_postings.c
     return case(
@@ -168,10 +179,16 @@ class SqlJobPostingRepository:
         self._db = session
 
     # ---------------------------------------------------------------- companies
-    def list_companies(self, q: str | None, after: CompanyPosition | None, limit: int) -> list[CompanyRow]:
+    def list_companies(
+        self, q: str | None, after: CompanyPosition | None, limit: int, now: datetime
+    ) -> list[CompanyRow]:
         c = companies.c
         key = func.lower(c.name)  # ix_companies_1 (lower(name))
-        stmt = select(c.company_id, c.name, key.label("sort_key")).order_by(key, c.company_id).limit(limit)
+        stmt = (
+            select(c.company_id, c.name, key.label("sort_key"))
+            .where(_company_has_posting(_is_open(now)))
+            .order_by(key, c.company_id).limit(limit)
+        )
         if q:
             stmt = stmt.where(_contains(c.name, q))
         if after is not None:
@@ -188,7 +205,7 @@ class SqlJobPostingRepository:
         row = self._db.execute(
             select(c.company_id, c.name, c.website_url, c.description, data_sources.c.code, open_count.label("n"))
             .join(data_sources, data_sources.c.source_id == c.source_id)
-            .where(c.company_id == company_id)
+            .where(c.company_id == company_id, _company_has_posting(job_postings.c.status.in_(VISIBLE_STATUSES)))
         ).one_or_none()
         if row is None:
             return None
