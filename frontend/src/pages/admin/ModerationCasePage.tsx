@@ -18,7 +18,7 @@ import './Moderation.css';
 type Dialog = null | 'approve' | 'reject';
 type Failure = { message: string; reload: boolean };
 
-/** UI-027 검수 상세·조치 (T82, Mock 전용). 버튼 활성화는 UX이며 권한 판단은 서버(T81)·Mock Adapter가 합니다. */
+/** UI-027 검수 상세·조치 (T82). 버튼 활성화는 UX이며 권한 판단은 서버(T81)·Mock Adapter가 합니다. */
 export function ModerationCasePage() {
   const { caseId = '' } = useParams();
   const service = useModerationService();
@@ -103,7 +103,7 @@ export function ModerationCasePage() {
       <ModerationNotice />
 
       <dl className="moderation-facts">
-        <dt>검수 대상</dt><dd>{TARGET_TYPE_LABELS[item.target_type]} · {item.target_summary}</dd>
+        <dt>검수 대상</dt><dd>{TARGET_TYPE_LABELS[item.target_type]} · {item.target_summary ?? '(대상이 삭제됨)'}</dd>
         <dt>대상 ID</dt><dd><code>{item.target_id}</code></dd>
         <dt>검수 요청 사유</dt><dd>{TRIGGER_LABELS[item.trigger]}{item.report_count ? ` (신고 ${item.report_count}건)` : ''}</dd>
         <dt>상태</dt><dd><StatusBadge status={item.status} />{item.appeal_count === 1 ? ' · 이의제기 재검토 단계' : ''}</dd>
@@ -135,6 +135,8 @@ export function ModerationCasePage() {
         <div className="moderation-buttons">
           <ActionButton label="담당 시작" allowed={actions.assign} pending={pending}
             onClick={() => void run('담당을 시작했습니다.', () => service.assign(item.case_id, { version: item.version }))} />
+          <ActionButton label="담당 해제" allowed={actions.release} pending={pending} variant="outline"
+            onClick={() => void run('담당을 해제했습니다.', () => service.release(item.case_id, { version: item.version }))} />
           <ActionButton label="승인" allowed={actions.decide} pending={pending} onClick={() => setDialog('approve')} />
           <ActionButton label="반려" allowed={actions.decide} pending={pending} variant="outline" onClick={openReject} />
         </div>
@@ -151,7 +153,7 @@ export function ModerationCasePage() {
               <time dateTime={e.occurred_at}>{formatDateTime(e.occurred_at)}</time>{' '}
               <strong>{EVENT_LABELS[e.event]}</strong>{' '}
               {e.from_status ? `${e.from_status} → ` : ''}{e.to_status}
-              {' · '}{e.actor_id ?? '시스템'}
+              {' · '}{e.actor_user_id ?? '시스템'}
               {e.reason_code ? ` · 사유 ${e.reason_code}` : ''}
             </li>
           ))}
@@ -162,7 +164,7 @@ export function ModerationCasePage() {
         <ConfirmDialog title="이 검수 건을 승인할까요?" confirmLabel="승인" pending={pending}
           onClose={() => setDialog(null)}
           onConfirm={() => void run('승인했습니다.', () => service.decide(item.case_id, { version: item.version, decision: 'APPROVE' }))}>
-          <p>{item.target_summary}</p>
+          <p>{item.target_summary ?? TARGET_TYPE_LABELS[item.target_type]}</p>
         </ConfirmDialog>
       )}
       {dialog === 'reject' && (

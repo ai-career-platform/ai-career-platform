@@ -2,11 +2,13 @@
  * 공개 포트폴리오 편집·미리보기 (T130, UI 제안 UI-N07). 정책 T128(PROPOSED), 서버 T129(플래그 뒤).
  * 흐름: 항목 선택 → 저장 → **미리보기 확인** → 확인 대화상자(위험 안내 동의) → 공유 링크 만들기 → 회수·전체 철회.
  * - 모든 항목은 비공개가 기본입니다. 선택을 바꾸면 이전 확인이 풀리고 기존 링크는 다시 확인할 때까지 열리지 않습니다.
- * - 링크 주소는 만들 때 한 번만 보여 줍니다. 지금은 Mock Adapter 만 연결됩니다.
+ * - 링크 주소는 만들 때 한 번만 보여 줍니다. Mock 모드면 Mock Adapter, 아니면 실제 API(T129, migration 0007).
  */
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '../api/errors';
+import { routerBasename } from '../config/basePath';
+import { env } from '../config/env';
 import {
   FIELD_LABELS, MAX_ACTIVE_LINKS, NEVER_LABELS, TTL_CHOICES, type CreatedLink, type PublishableField,
   type Selection, type ShareLink,
@@ -34,6 +36,7 @@ function problem(error: unknown): string {
     if (error.status === 409) return '다른 곳에서 먼저 바뀌었거나, 공개 확인 전이거나, 링크가 이미 3개입니다. 최신 상태를 다시 불러왔습니다.';
     if (error.status === 404) return '대상을 찾을 수 없습니다.';
     if (error.status === 422) return '입력값을 확인해 주세요.';
+    if (error.status === 503) return '지금은 공개 기능을 쓸 수 없습니다. 잠시 후 다시 시도해 주세요.';
   }
   return '처리하지 못했습니다.';
 }
@@ -103,7 +106,7 @@ export function PublicProfileSettingsPage() {
       <h1 id={`${id}-title`}>공개 포트폴리오</h1>
       <div className="portfolio-notice" role="note">
         <p><strong>모든 항목은 비공개가 기본입니다.</strong> 고른 항목만, 내가 만든 링크를 받은 사람에게만 보입니다. 검색엔진·기업 검색에는 나오지 않습니다.</p>
-        <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>
+        {env.mockEnabled && <p>가상 데이터(Mock)입니다. 서버 연동은 아직 없습니다.</p>}
       </div>
       {message && <p className={message.kind === 'error' ? 'portfolio-error' : 'portfolio-ok'} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</p>}
       {(settings.status === 'loading' || settings.status === 'idle') && <StatePanel variant="loading" title="공개 설정을 불러오는 중입니다" />}
@@ -182,7 +185,7 @@ export function PublicProfileSettingsPage() {
               <div className="portfolio-created" role="note">
                 <p><strong>{created.notice}</strong> 필요하면 지금 복사해 두세요.</p>
                 <label htmlFor={`${id}-url`}>공유 주소</label>
-                <input id={`${id}-url`} readOnly value={`${window.location.origin}${created.url}`} onFocus={(e) => e.currentTarget.select()} />
+                <input id={`${id}-url`} readOnly value={`${window.location.origin}${routerBasename(import.meta.env.BASE_URL) ?? ''}${created.url}`} onFocus={(e) => e.currentTarget.select()} />
                 <Link to={created.url}>공개 화면 보기(받는 사람에게 보이는 모습)</Link>
               </div>
             )}

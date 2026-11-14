@@ -1,6 +1,7 @@
 /**
  * T130 공개 포트폴리오 편집·미리보기·공유 — 실제 라우터(buildRoutes) + Mock HTTP 로그인 + 포트폴리오 Mock Adapter.
- * 실제 API(T129)는 기능 플래그 뒤·저장소 없음이라 연결하지 않았습니다(Mock PASS 이며 실제 API PASS 아님).
+ * 여기서는 Mock 모드 화면 흐름만 봅니다(Mock PASS 이며 실제 API PASS 아님). 실제 API 경로는
+ * portfolio/PortfolioServiceProvider.test.tsx·api/publicPortfolio.test.ts, 서버는 test_t129_public_portfolio_postgres.py.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -67,14 +68,17 @@ describe('feature flag and access', () => {
     expect(screen.queryByRole('link', { name: '공개 포트폴리오 (Mock)' })).not.toBeInTheDocument();
   });
 
-  it('default routes keep it off, the flag needs mock mode, and no HTTP adapter is wired', async () => {
+  it('default routes keep it off; the flag alone opens it and the provider uses the mock only in mock mode', async () => {
     const { routes } = await import('../routes');
     const json = JSON.stringify(routes, (k, v) => (k === 'element' ? undefined : v));
     expect(json).not.toContain('public-profile');
     expect(json).not.toContain('p/:token');
     expect(readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8'))
-      .toContain("publicPortfolioUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true'");
-    expect(readFileSync(resolve(cwd(), 'src/portfolio/PortfolioServiceProvider.tsx'), 'utf8')).not.toMatch(/^import .*(createHttp|useApi)|fetch\(/m);
+      .toContain("publicPortfolioUi: import.meta.env.VITE_PUBLIC_PORTFOLIO_UI === 'true',");
+    const provider = readFileSync(resolve(cwd(), 'src/portfolio/PortfolioServiceProvider.tsx'), 'utf8');
+    expect(provider).toContain('env.mockEnabled ? createMockPortfolioBackend');
+    expect(provider).toContain('api.publicPortfolio');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it('settings need login, the public page does not (and an unknown link is a generic error)', async () => {

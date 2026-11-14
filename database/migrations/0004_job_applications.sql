@@ -1,9 +1,9 @@
--- PROPOSED (T101) — NOT a migration. database/migrate.py does not read this folder.
--- Purpose: 사용자가 직접 기록하는 지원 준비·지원 상태(docs/applications/T101_APPLICATION_TRACKING_CONTRACT.md).
---          채용사 공식 상태가 아님. 다른 사용자·관리자·AI·분석에 쓰지 않음.
--- Recovery: 신규 표 1개. 승인 전 적용하지 않음. 적용 후 문제 시 후속 migration 으로 제거(Destructive-Approval 필요).
--- 개인정보: user_id ON DELETE CASCADE (T87 분류 DELETE — 탈퇴 purge 시 함께 삭제). memo 는 사용자가 쓴 자유 문장.
--- 검증: docs/applications/test_t101_application_contract.py (일회용 PG), T102 backend/tests (일회용 PG).
+-- Purpose: T101 개인 지원 기록 표(사용자가 직접 기록하는 지원 준비·지원 상태). 채용사 공식 상태가 아님.
+--          계약: docs/applications/T101_APPLICATION_TRACKING_CONTRACT.md. API(T102)는 JOB_APPLICATIONS_API=true 일 때만 열림.
+-- Recovery: 신규 표 1개·인덱스 2개만 추가(기존 표·데이터 변경 없음). 실패 시 러너가 롤백.
+--           적용 후 제거는 후속 migration(Destructive-Approval 필요)으로만 한다.
+-- 개인정보: user_id ON DELETE CASCADE(T87 분류 DELETE — 탈퇴 purge 시 함께 삭제). memo 는 사용자가 쓴 자유 문장, 로그 금지.
+-- 운영(GCP) 적용은 #344 절차와 별도 PM 승인 후에만 한다.
 
 CREATE TABLE career.job_applications (
     application_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -36,3 +36,17 @@ CREATE INDEX ix_job_applications_user_updated
     ON career.job_applications (user_id, updated_at DESC, application_id DESC);
 -- 공고 삭제 시 SET NULL 처리용
 CREATE INDEX ix_job_applications_posting ON career.job_applications (job_posting_id);
+
+COMMENT ON TABLE career.job_applications IS 'T101 사용자가 직접 기록한 지원 준비·지원 상태(채용사 공식 결과 아님)';
+
+-- 앱 역할 권한(역할이 있는 환경에서만). 기본 권한(DRAFT_00)이 없는 환경(GCP 등)도 같은 결과가 되도록 명시한다.
+DO $grants$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'career_app') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON career.job_applications TO career_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'career_reader') THEN
+        GRANT SELECT ON career.job_applications TO career_reader;
+    END IF;
+END
+$grants$;

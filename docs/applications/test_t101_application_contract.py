@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HERE = ROOT / "docs/applications"
 CONTRACT = (HERE / "T101_APPLICATION_TRACKING_CONTRACT.md").read_text(encoding="utf-8")
-DDL = (ROOT / "database/proposed/T101_job_applications.sql").read_text(encoding="utf-8")
+DDL = (ROOT / "database/migrations/0004_job_applications.sql").read_text(encoding="utf-8")
 
 STAGES = ("interested", "preparing", "applied", "interviewing", "offered", "rejected", "withdrawn")
 # T102 가 구현할 규칙(문서 표와 같아야 함)

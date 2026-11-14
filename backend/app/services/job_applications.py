@@ -198,6 +198,7 @@ class JobApplicationService:
             if self.repo.get(user_id, application_id) is None:
                 raise AppError(ErrorCode.NOT_FOUND, log_detail="job application deleted concurrently")
             raise _conflict("VERSION_CONFLICT")
+        # 본인이 바꾼 단계는 알림을 만들지 않음(PM 결정 2026-11-14) — 화면의 성공 표시만. notification_events 참고
         return self._view(row)
 
     def delete(self, user_id: UUID, application_id: UUID) -> None:

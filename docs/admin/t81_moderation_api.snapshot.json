@@ -1,0 +1,453 @@
+{
+  "_note": "generated from backend/app/routers/admin_moderation.py (T81). Do not edit by hand.",
+  "paths": {
+    "GET /v1/admin/moderation-cases": {
+      "operation_id": "listModerationCases",
+      "query": {
+        "status": {
+          "enum": [
+            "PENDING",
+            "IN_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "APPEALED",
+            "CLOSED"
+          ]
+        },
+        "target_type": {
+          "enum": [
+            "job_posting",
+            "company",
+            "shared_document",
+            "document_analysis",
+            "retrieval_run",
+            "agent_run",
+            "match_evaluation",
+            "recommendation_run",
+            "company_posting"
+          ]
+        },
+        "priority": {},
+        "overdue": {},
+        "limit": {},
+        "cursor": {}
+      },
+      "response": {
+        "items": {
+          "required": true
+        },
+        "next_cursor": {
+          "required": true
+        }
+      }
+    },
+    "GET /v1/admin/moderation-cases/{case_id}": {
+      "operation_id": "getModerationCase",
+      "query": {},
+      "response": {
+        "case_id": {
+          "required": true
+        },
+        "target_type": {
+          "required": true
+        },
+        "target_id": {
+          "required": true
+        },
+        "target_summary": {
+          "required": true
+        },
+        "trigger": {
+          "required": true
+        },
+        "status": {
+          "required": true
+        },
+        "priority": {
+          "required": true
+        },
+        "assignee_id": {
+          "required": true
+        },
+        "due_at": {
+          "required": true
+        },
+        "overdue": {
+          "required": true
+        },
+        "flags": {
+          "required": true
+        },
+        "report_count": {
+          "required": true
+        },
+        "version": {
+          "required": true
+        },
+        "created_at": {
+          "required": true
+        },
+        "content_owner_id": {
+          "required": true
+        },
+        "submitted_by": {
+          "required": true
+        },
+        "first_decider_id": {
+          "required": true
+        },
+        "decided_by": {
+          "required": true
+        },
+        "decided_at": {
+          "required": true
+        },
+        "reason_code": {
+          "required": true
+        },
+        "appeal_count": {
+          "required": true
+        },
+        "close_reason": {
+          "required": true
+        },
+        "events": {
+          "required": true
+        }
+      }
+    },
+    "POST /v1/admin/moderation-cases/{case_id}/assignment": {
+      "operation_id": "assignModerationCase",
+      "query": {},
+      "body": {
+        "version": {
+          "required": true
+        }
+      },
+      "response": {
+        "case_id": {
+          "required": true
+        },
+        "target_type": {
+          "required": true
+        },
+        "target_id": {
+          "required": true
+        },
+        "target_summary": {
+          "required": true
+        },
+        "trigger": {
+          "required": true
+        },
+        "status": {
+          "required": true
+        },
+        "priority": {
+          "required": true
+        },
+        "assignee_id": {
+          "required": true
+        },
+        "due_at": {
+          "required": true
+        },
+        "overdue": {
+          "required": true
+        },
+        "flags": {
+          "required": true
+        },
+        "report_count": {
+          "required": true
+        },
+        "version": {
+          "required": true
+        },
+        "created_at": {
+          "required": true
+        },
+        "content_owner_id": {
+          "required": true
+        },
+        "submitted_by": {
+          "required": true
+        },
+        "first_decider_id": {
+          "required": true
+        },
+        "decided_by": {
+          "required": true
+        },
+        "decided_at": {
+          "required": true
+        },
+        "reason_code": {
+          "required": true
+        },
+        "appeal_count": {
+          "required": true
+        },
+        "close_reason": {
+          "required": true
+        },
+        "events": {
+          "required": true
+        }
+      }
+    },
+    "POST /v1/admin/moderation-cases/{case_id}/assignment/release": {
+      "operation_id": "releaseModerationCase",
+      "query": {},
+      "body": {
+        "version": {
+          "required": true
+        }
+      },
+      "response": {
+        "case_id": {
+          "required": true
+        },
+        "target_type": {
+          "required": true
+        },
+        "target_id": {
+          "required": true
+        },
+        "target_summary": {
+          "required": true
+        },
+        "trigger": {
+          "required": true
+        },
+        "status": {
+          "required": true
+        },
+        "priority": {
+          "required": true
+        },
+        "assignee_id": {
+          "required": true
+        },
+        "due_at": {
+          "required": true
+        },
+        "overdue": {
+          "required": true
+        },
+        "flags": {
+          "required": true
+        },
+        "report_count": {
+          "required": true
+        },
+        "version": {
+          "required": true
+        },
+        "created_at": {
+          "required": true
+        },
+        "content_owner_id": {
+          "required": true
+        },
+        "submitted_by": {
+          "required": true
+        },
+        "first_decider_id": {
+          "required": true
+        },
+        "decided_by": {
+          "required": true
+        },
+        "decided_at": {
+          "required": true
+        },
+        "reason_code": {
+          "required": true
+        },
+        "appeal_count": {
+          "required": true
+        },
+        "close_reason": {
+          "required": true
+        },
+        "events": {
+          "required": true
+        }
+      }
+    },
+    "POST /v1/admin/moderation-cases/{case_id}/decision": {
+      "operation_id": "decideModerationCase",
+      "query": {},
+      "body": {
+        "version": {
+          "required": true
+        },
+        "decision": {
+          "required": true,
+          "enum": [
+            "APPROVE",
+            "REJECT"
+          ]
+        },
+        "reason_code": {
+          "required": false,
+          "enum": [
+            "RIGHTS_UNCLEAR",
+            "INACCURATE",
+            "PERSONAL_DATA",
+            "HARMFUL",
+            "DISCRIMINATORY",
+            "DUPLICATE",
+            "EXPIRED",
+            "MALWARE",
+            "OTHER"
+          ]
+        },
+        "note": {
+          "required": false
+        }
+      },
+      "response": {
+        "case_id": {
+          "required": true
+        },
+        "target_type": {
+          "required": true
+        },
+        "target_id": {
+          "required": true
+        },
+        "target_summary": {
+          "required": true
+        },
+        "trigger": {
+          "required": true
+        },
+        "status": {
+          "required": true
+        },
+        "priority": {
+          "required": true
+        },
+        "assignee_id": {
+          "required": true
+        },
+        "due_at": {
+          "required": true
+        },
+        "overdue": {
+          "required": true
+        },
+        "flags": {
+          "required": true
+        },
+        "report_count": {
+          "required": true
+        },
+        "version": {
+          "required": true
+        },
+        "created_at": {
+          "required": true
+        },
+        "content_owner_id": {
+          "required": true
+        },
+        "submitted_by": {
+          "required": true
+        },
+        "first_decider_id": {
+          "required": true
+        },
+        "decided_by": {
+          "required": true
+        },
+        "decided_at": {
+          "required": true
+        },
+        "reason_code": {
+          "required": true
+        },
+        "appeal_count": {
+          "required": true
+        },
+        "close_reason": {
+          "required": true
+        },
+        "events": {
+          "required": true
+        }
+      }
+    }
+  },
+  "schemas": {
+    "CaseSummaryOut": {
+      "case_id": {
+        "required": true
+      },
+      "target_type": {
+        "required": true
+      },
+      "target_id": {
+        "required": true
+      },
+      "target_summary": {
+        "required": true
+      },
+      "trigger": {
+        "required": true
+      },
+      "status": {
+        "required": true
+      },
+      "priority": {
+        "required": true
+      },
+      "assignee_id": {
+        "required": true
+      },
+      "due_at": {
+        "required": true
+      },
+      "overdue": {
+        "required": true
+      },
+      "flags": {
+        "required": true
+      },
+      "report_count": {
+        "required": true
+      },
+      "version": {
+        "required": true
+      },
+      "created_at": {
+        "required": true
+      }
+    },
+    "CaseEventOut": {
+      "event_id": {
+        "required": true
+      },
+      "event": {
+        "required": true
+      },
+      "from_status": {
+        "required": true
+      },
+      "to_status": {
+        "required": true
+      },
+      "actor_user_id": {
+        "required": true
+      },
+      "reason_code": {
+        "required": true
+      },
+      "occurred_at": {
+        "required": true
+      }
+    }
+  }
+}

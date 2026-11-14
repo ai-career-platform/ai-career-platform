@@ -28,12 +28,14 @@
 | `BEHAVIOR_EVENTS_RATE_LIMIT` | 선택 | 선택 | 선택 | — | 아니오 | Backend | 기동 거부 | <count>/<seconds> |
 | `JOB_SEARCH_ADVANCED` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐(계약 검사가 오타 보고) | T99 고급 검색. 승인 전 꺼짐 |
 | `JOB_APPLICATIONS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐(계약 검사가 오타 보고) | T102 지원 기록 API. 승인 전 꺼짐 |
+| `NOTIFICATIONS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐(계약 검사가 오타 보고) | T97 알림함·수신 설정 API. 승인 전 꺼짐 |
 | `CRAWLER_ADMIN_WRITE_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T155 크롤러 관리자 쓰기·명령 API. 승인 전 꺼짐 |
 | `COMPANY_ACCOUNTS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T123 기업 계정 API. 승인 전 꺼짐 |
 | `COMPANY_POSTINGS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T126 기업 공고 API. 승인 전 꺼짐 |
 | `SKILL_AUTOCOMPLETE_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T139 기술 자동완성 API. 승인 전 꺼짐 |
 | `PUBLIC_PORTFOLIO_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T129 공개 프로필 API. 승인 전 꺼짐 |
 | `PERSONAL_DATA_REQUESTS_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T142 내 데이터 반출 요청 API. 승인 전 꺼짐 |
+| `ADMIN_MODERATION_API` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 'true' 외 값은 꺼짐 | T81 운영 콘텐츠 검수 API(migration 0010). 승인 전 꺼짐 |
 | `PUBLIC_PATH_PREFIX` | 선택 | 선택 | 선택 | `''` | 아니오 | DevOps | 기동 거부 | 외부 공개 경로 접두사(Staging `/career`). refresh·Google 쿠키 Path 계산용. 비우면 기존 Path |
 | `GOOGLE_LOGIN_ENABLED` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 기동 거부 | #328 Google 로그인. 승인 전 꺼짐. 켜면 아래 GOOGLE_* 5개 필수 |
 | `GOOGLE_GATE_ENFORCED` | 선택 | 선택 | 선택 | `false` | 아니오 | PM(승인) | 기동 거부(로그인 꺼짐 상태에서 켜도 거부) | #328 `/api/v1` Google 게이트. 승인 전 꺼짐 |

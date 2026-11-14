@@ -1,13 +1,17 @@
--- PROPOSED (T122) — NOT a migration. database/migrate.py does not read this folder.
--- Purpose: 기업 조직·소속·초대 데이터 계약(docs/enterprise/T122_COMPANY_MEMBERSHIP_CONTRACT.md).
+-- Purpose: T122 기업 조직·소속·초대 — organizations, organization_members, organization_invitations.
+--          데이터 계약: docs/enterprise/T122_COMPANY_MEMBERSHIP_CONTRACT.md (database/proposed/T122_organizations.sql 승격).
+--          열·키 이름은 제안 그대로 — T125 기업 공고 migration(0009)이 이 표들을 FK 로 참조한다(PR #349 설계).
 --          역할·권한 판단 규칙은 T121(docs/enterprise/t121_role_matrix.json). 전역 역할(career.user_roles)은 바꾸지 않음.
--- Recovery: 신규 표 3개. 승인 전 적용하지 않음. 적용 후 문제 시 후속 migration 으로 제거(Destructive-Approval 필요).
+--          API(T123)는 COMPANY_ACCOUNTS_API=true 일 때만 열림(기본 꺼짐).
+-- Recovery: 신규 표 3개 + 인덱스만 추가(기존 표·행·열 변경 없음). 실패 시 러너가 롤백.
+--           적용 후 제거는 후속 migration(Destructive-Approval 필요)으로만 한다.
 -- 개인정보:
 --   - organization_members.user_id ON DELETE CASCADE (탈퇴 시 소속 삭제).
 --   - organization_invitations.email_canonical 은 초대받은 사람의 이메일 — 종료(수락·취소·만료) 30일 뒤 행 삭제(제안 purge, T122 §6).
---   - 초대 토큰은 원문을 저장하지 않고 SHA-256 해시만(token_hash). 토큰 원문은 메일로 1회만 전달.
--- 감사: 새 표를 만들지 않고 career.audit_events 에 action_code 'org.*' 로 남김(T122 §5).
--- 검증: backend/tests/test_t122_company_membership_contract.py (일회용 PG), T123 backend/tests.
+--   - 초대 토큰은 원문을 저장하지 않고 SHA-256 해시만(token_hash, 64자리 소문자 hex CHECK). 토큰 원문은 메일로 1회만 전달.
+-- 감사: 새 표를 만들지 않고 career.audit_events 에 action_code 'org.*' 로 남김(T122 §5, 이메일·토큰 없음).
+-- 운영(GCP) 적용은 #344 절차와 별도 PM 승인 후에만 한다.
+-- 검증: backend/tests/test_t122_company_membership_contract.py, backend/tests/test_t123_company_accounts_postgres.py (일회용 PG 18).
 
 CREATE TABLE career.organizations (
     organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -78,3 +82,22 @@ CREATE UNIQUE INDEX ux_organization_invitations_pending ON career.organization_i
     WHERE status = 'pending';
 CREATE INDEX ix_organization_invitations_email ON career.organization_invitations (email_canonical) WHERE status = 'pending';
 CREATE INDEX ix_organization_invitations_purge ON career.organization_invitations (closed_at) WHERE status <> 'pending';
+-- 조직별 초대 목록(created_at DESC)
+CREATE INDEX ix_organization_invitations_org ON career.organization_invitations (organization_id, created_at DESC);
+
+COMMENT ON TABLE career.organizations IS 'T122 기업 조직(운영 검증 전 pending). 전역 역할과 별개';
+COMMENT ON TABLE career.organization_invitations IS 'T122 조직 초대. 토큰 원문 저장 없음(SHA-256 token_hash 만), TTL 7일 이하';
+
+-- 앱 역할 권한(역할이 있는 환경에서만). 기본 권한(DRAFT_00)이 없는 환경(GCP 등)도 같은 결과가 되도록 명시한다.
+DO $grants$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'career_app') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON career.organizations, career.organization_members,
+            career.organization_invitations TO career_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'career_reader') THEN
+        GRANT SELECT ON career.organizations, career.organization_members, career.organization_invitations
+            TO career_reader;
+    END IF;
+END
+$grants$;

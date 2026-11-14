@@ -1,8 +1,17 @@
 import { STATUS_LABELS, type ModerationStatus } from '../../api/moderation';
+import { env } from '../../config/env';
 import { formatDateTime, isOverdue } from './moderationFormat';
 
 /** 모든 검수 화면 상단 안내. 실제 서비스 연동·정책 확정이 아님을 항상 보여 줍니다. */
 export function ModerationNotice() {
+  if (!env.mockEnabled) {
+    return (
+      <p className="moderation-notice" role="note">
+        검수 정책(T80)은 PM 승인 전 제안입니다. 승인하면 그 결과가 같은 처리 안에서 대상 콘텐츠에 반영되며,
+        반영할 수 없는 유형은 서버가 처리하지 않고 알려 줍니다.
+      </p>
+    );
+  }
   return (
     <p className="moderation-notice" role="note">
       가상 데이터(Mock) 화면입니다. 검수 API(T81)가 아직 없고, 검수 정책(T80)은 PM 승인 전 제안입니다.

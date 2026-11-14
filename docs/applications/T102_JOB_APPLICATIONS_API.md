@@ -15,7 +15,7 @@
 | `backend/app/main.py`, `app/core/config.py` | `JOB_APPLICATIONS_API=true`일 때만 등록. **기본 꺼짐 = 경로 없음(404)** |
 | 시험 | `tests/test_t102_job_applications.py`(단위 61), `tests/test_t102_job_applications_postgres.py`(PG 8) |
 
-표는 `database/proposed/T101_job_applications.sql`(제안)을 그대로 씁니다. 정식 migration을 만들거나 적용하지 않았습니다.
+표는 migration [`0004_job_applications.sql`](../../database/migrations/0004_job_applications.sql)(T101 제안 DDL을 그대로 정식화)입니다. 운영(GCP) 적용은 별도 PM 승인 대상입니다.
 
 ## 2. 계약과 다른 점 (의도)
 

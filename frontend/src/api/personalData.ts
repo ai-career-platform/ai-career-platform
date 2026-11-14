@@ -1,8 +1,10 @@
 /**
  * 내 데이터 반출 요청 (T143 화면). 정책: docs/privacy/T141_DATA_SUBJECT_REQUEST_POLICY.md — **PROPOSED, openapi.yaml 에 없음**.
- * 서버(T142)는 `PERSONAL_DATA_REQUESTS_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소가 없어 켜도 503 입니다.
+ * 서버(T142)는 `PERSONAL_DATA_REQUESTS_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소는 migration 0006(PostgreSQL)입니다.
  * 반출 요청·다운로드는 10분 안 비밀번호 재확인이 필요하고, 다운로드 링크는 1회·10분, 묶음은 완료 후 24시간만 보관됩니다.
  */
+import type { HttpClient } from './http';
+
 export type RequestType = 'export' | 'erasure' | 'access' | 'rectification';
 export type RequestStatus = 'pending_verification' | 'received' | 'in_progress' | 'completed' | 'failed'
   | 'rejected' | 'cancelled' | 'expired' | 'closed';
@@ -45,8 +47,29 @@ export interface PersonalDataService {
   download(token: string): Promise<Blob>;
 }
 
-/**
- * 실제 API 어댑터는 아직 만들지 않았습니다. T142 는 재인증 토큰을 `X-Reauth-Token` 헤더로 받는데, 공용 HttpClient(api/http.ts)는
- * 사용자 지정 헤더를 지원하지 않습니다. T141 승인·migration 뒤 HttpClient 확장과 함께 연결합니다(T143 보고서 §10).
- */
 export const T142_BASE_PATH = '/v1/me/data-requests';
+/** 재인증 토큰 헤더(T142). 토큰은 메모리(화면 상태)에만 두고 URL·저장소에 남기지 않습니다. */
+export const REAUTH_HEADER = 'X-Reauth-Token';
+
+/**
+ * 실제 API 어댑터(T142). 로그인 토큰이 붙은 HttpClient 를 씁니다.
+ * - 재인증 토큰은 `X-Reauth-Token` 헤더로만 보냅니다.
+ * - 다운로드 토큰은 URL 에 넣지 않고 POST 본문으로 보냅니다(접근 로그·Referer 노출 방지). 응답은 Blob.
+ */
+export function createHttpPersonalDataService(http: HttpClient): PersonalDataService {
+  const exportPath = (id: string) => `${T142_BASE_PATH}/exports/${encodeURIComponent(id)}`;
+  return {
+    async list(signal) {
+      const page = await http.request<{ items: DataRequest[] }>(T142_BASE_PATH, { signal });
+      return page.items;
+    },
+    reauth: (password) => http.request<Reauth>(`${T142_BASE_PATH}/reauth`, { method: 'POST', body: { password } }),
+    createExport: (reauthToken) => http.request<DataRequest>(`${T142_BASE_PATH}/exports`, {
+      method: 'POST', headers: { [REAUTH_HEADER]: reauthToken } }),
+    cancelExport: (requestId) => http.request<DataRequest>(`${exportPath(requestId)}/cancel`, { method: 'POST' }),
+    downloadLink: (requestId, reauthToken) => http.request<DownloadLink>(`${exportPath(requestId)}/download-link`, {
+      method: 'POST', headers: { [REAUTH_HEADER]: reauthToken } }),
+    download: (token) => http.request<Blob>(`${T142_BASE_PATH}/download`, {
+      method: 'POST', body: { token }, responseType: 'blob' }),
+  };
+}

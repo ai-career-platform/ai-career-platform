@@ -19,6 +19,14 @@
 | `match_evaluation` | 4 | `match_evaluations.match_id` | `match_id` | (없음) | 결과 숨김 표시 |
 | `recommendation_run` | 4 | `recommendation_runs.recommendation_run_id` | `recommendation_run_id` | (없음) | 결과 숨김 표시 |
 
+
+> **구현 반영 (T81, migration 0010, PM 승인):** `company_posting` 유형이 추가됐다. 기업이 검수 요청(T125 submit)하면 같은
+> 트랜잭션에서 이 유형의 PRE_PUBLISH 건이 생기고(DECISION_1), 승인·반려는 `POST /api/v1/admin/moderation-cases/{case_id}/decision`
+> 하나로만 한다(기업 공고 직접 결정 경로 `/admin/company-postings/{id}/decision` 은 효과 없이 409). 반려 사유 → T125 사유:
+> `PERSONAL_DATA→personal_contact_info`, `DISCRIMINATORY→discriminatory_requirement`, `DUPLICATE→duplicate_posting`,
+> `INACCURATE→misleading_terms`, `OTHER→other`. `RIGHTS_UNCLEAR`·`HARMFUL`·`EXPIRED`·`MALWARE` 는 기업 공고에 422.
+> 권한 `admin.content.review` 는 기존 `admin` 역할에만 부여(로컬·일회용 Seed). 다른 유형의 정책은 바꾸지 않았다.
+
 PR #181 첫 커밋의 `content_type` + `ai_result_kind` + `ai_result_id`(다형 ID, FK 불가)는 **폐기**한다. 다형 ID는 DB가 참조 무결성을 보장할 수 없으므로, 유형마다 실제 FK 칸을 둔다.
 
 ## 2. 검수 건 데이터 구조 (PROPOSED)

@@ -2,7 +2,8 @@
 
 정상: 등록 → 운영 승인 → 초대 → 수락 → 역할 변경 → 제외(권한 즉시 회수).
 거부: 만료·취소·재전송 전 토큰·다른 이메일·중복·권한 상승·다른 기업 접근·마지막 owner·검증 전 초대.
-DB 저장소는 없다(정식 migration 승인 전) — 플래그를 켜도 기본 의존성은 503.
+DB 저장소(SqlCompanyRepository, migration 0008)는 test_t123_company_accounts_postgres.py 가 검증한다.
+플래그를 켜도 DB 가 없으면 503.
 """
 
 import json
@@ -131,7 +132,7 @@ def test_policy_copy_matches_the_t121_matrix():
             assert allowed == set(rules.get(status, [])) & set(company_policy.DECISIONS), status
 
 
-def test_routes_are_off_by_default_and_503_without_storage(monkeypatch):
+def test_routes_are_off_by_default_and_503_without_database(monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("JWT_SECRET", TEST_SECRET)
     monkeypatch.delenv("COMPANY_ACCOUNTS_API", raising=False)
