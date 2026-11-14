@@ -86,6 +86,25 @@ CI(`backend-tests.yml`)는 PostgreSQL 18.1 서비스에서 두 파일을 모두 
 | 보안 알림 실패 운영 경보 | 로그(error)만 | T85 관리자 화면 연계는 별도 |
 | 알림함(in_app) 읽음 상태 | 미구현 | 알림함 API 계약 필요 (T97은 Mock) |
 
+## 5-1. 채널 구분·업무 이벤트 연결 (T96 후속)
+
+- **채널 구분(버그 수정)**: worker 는 `channel='email'` 행만 꺼냅니다(`claim_due` 의 SQL·메모리 구현 모두). 혹시 다른
+  채널 행이 넘어와도 `channel_not_email` 로 취소하고 메일 공급자는 호출하지 않습니다.
+- **in_app 유형**: `NotificationDispatcher.enqueue` 가 대기열을 거치지 않고 바로 `status='sent'`·`sent_at` 행으로 기록 →
+  T97 알림함(`channel='in_app' AND status='sent'`)에 즉시 보임. 결과값 `delivered`. 조용한 시간은 적용하지 않습니다(화면 표시만).
+- **수신 설정**: dispatcher 에 `preferences`(T97 `notification_preferences`)를 주면 선택 유형의 (유형, 채널)이 꺼져 있을 때
+  `blocked_preference`. 필수 유형은 무시. 켜 둔 설정이 동의 부재를 덮지 않습니다.
+- **업무 이벤트**: `backend/app/services/notification_events.py` — 코드 스위치 `EVENT_NOTIFICATIONS_ENABLED=False`,
+  등록표 `EVENT_TYPES`. T95 매트릭스에 정의되고 승인된 in_app 유형만 기록합니다.
+
+| 이벤트 | 발생 위치 | 상태 |
+|---|---|---|
+| `application.stage_changed` 본인 변경 | T102 `JobApplicationService.update` | **알림 없음** — PM 결정 2026-11-14 (화면의 성공 표시만, 호출 코드 없음) |
+| `application.stage_changed` 관리자·기업 담당자 변경 | (코드 경로 없음) | **BLOCKED** — 정책 승인 전 꺼짐, T95 매트릭스에 in_app 유형·템플릿 없음 |
+| 검수(moderation) 결과 | (API 미구현) | 후속 hook 자리만 — `EVENT_TYPES` 주석 |
+
+시험: `tests/test_t96_channel_and_events.py`(메모리), `tests/test_t96_channel_and_events_postgres.py`(일회용 PostgreSQL 18).
+
 ## 6. 위험
 
 - 공급자가 멱등 키를 지원하지 않으면 worker 중단 시 중복 발송 가능(D5).
