@@ -1,4 +1,4 @@
-"""T96 알림 outbox — 일회용 PostgreSQL 18 + 제안 DDL(database/proposed, 정식 migration 아님) + 최소 권한 앱 역할.
+"""T96 알림 outbox — 일회용 PostgreSQL 18 + migration 0005(T96·T97) + 최소 권한 앱 역할.
 
 실제 메일 공급자·외부 호출 없음(Mock 공급자). 공유 Staging DB 에는 적용하지 않습니다.
 """
@@ -29,7 +29,7 @@ from tests.security.security_pg import ROOT, USER_A, USER_B, disposable_pg, requ
 from tests.test_t96_notifications import APPROVED, DAY, KST, VARS, Clock
 
 pytestmark = requires_pg
-DDL = (ROOT / "database/proposed/T96_notification_deliveries.sql").read_text(encoding="utf-8")
+DDL = (ROOT / "database/migrations/0005_notifications.sql").read_text(encoding="utf-8")
 # 제안 동의 코드는 이 일회용 DB 에만 넣음(Seed 미변경)
 POLICIES = ("INSERT INTO career.consent_policies(policy_code, version, is_required, content_url, effective_at) "
             "SELECT c, 'proposal-1', false, 'https://example.invalid/policy', now() "

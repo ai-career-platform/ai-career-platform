@@ -1,4 +1,4 @@
-"""T96 알림 outbox·수신자 조회 (PostgreSQL). 표는 database/proposed/T96_notification_deliveries.sql (제안, 미적용).
+"""T96 알림 outbox·수신자 조회 (PostgreSQL). 표는 database/migrations/0005_notifications.sql (T96·T97).
 
 - 중복 방지: 같은 dedupe_key 를 트랜잭션 advisory lock 으로 직렬화한 뒤 창(window) 안 기존 행을 확인하고,
   부분 unique index(queued/sending)가 최종 방어선입니다.
