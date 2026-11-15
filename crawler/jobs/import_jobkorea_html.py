@@ -108,11 +108,14 @@ def _permit(approval, purpose, url, calls, now, discovered_from=None):
         raise FetchBlocked('UNAPPROVED_SOURCE')
 
 
-def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None, before_request=None):
+def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None, before_request=None,
+                skip=None):
     """One optional public search page, then at most ten explicit detail URLs.
 
     T61 gate: ``approval`` (SourceApproval) and ``purpose`` must admit every URL before it is
     requested; robots.txt is the one compliance request counted in the budget, not a target.
+    ``skip(url) -> bool`` (#368) drops a detail URL *before* its request (for example a posting
+    another keyword already fetched in the same night). It never adds URLs or requests.
     """
     if type(limit) is not int or not 1 <= limit <= 10:
         raise ValueError('limit must be between 1 and 10')
@@ -149,6 +152,8 @@ def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=No
             # approve its links wholesale (exact listing, or the approval's bounded discovery scope).
             _permit(approval, purpose, url, calls, now, discovered_from=list_url)
     for url in dict.fromkeys(urls):
+        if skip is not None and skip(url):
+            continue
         try:
             yield url, _fetch_allowed(url, robots, before_request)
         except FetchBlocked:

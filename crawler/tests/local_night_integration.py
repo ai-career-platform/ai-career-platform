@@ -226,6 +226,30 @@ class NightIntegrationTests(unittest.TestCase):
             WHERE keyword_id=%s""", (row['keyword_id'],)).fetchone()[0]
         self.assertEqual(checkpoint, 1)
 
+    def test_posting_fetched_by_an_earlier_keyword_tonight_is_not_requested_again(self):
+        """#368: cross-keyword early dedupe before the detail request; the new posting is still fetched."""
+        notify = lambda *a, **k: 200
+        listing = ''.join(f'<a href="{page(i)[0]}">p</a>' for i in self.ids[:2])
+        gate, get_patch, sleep_patch = self.mocked_http(
+            [ROBOTS, listing, page(self.ids[0])[1], page(self.ids[1])[1]], discover=nc.DETAIL_LIMIT)
+        with get_patch, sleep_patch:
+            first = nc.run_night_step(self.connection, now=self.at(5), notify=notify, **gate)
+        self.assertEqual(self.result(first['job_id'])['inserted'], 2)
+        # Next keyword: ids[0] (already fetched tonight by AX) and ids[2] (new).
+        listing = ''.join(f'<a href="{page(i)[0]}">p</a>' for i in (self.ids[0], self.ids[2]))
+        gate, get_patch, sleep_patch = self.mocked_http([ROBOTS, listing, page(self.ids[2])[1]], discover=nc.DETAIL_LIMIT)
+        with get_patch as get, sleep_patch:
+            second = nc.run_night_step(self.connection, now=self.at(65), notify=notify, **gate)
+        self.assertEqual([c.args[0] for c in get.call_args_list],
+                         ['https://www.jobkorea.co.kr/robots.txt', nc.search_url(nc.NIGHT_KEYWORDS[1]), page(self.ids[2])[0]])
+        row = self.result(second['job_id'])
+        self.assertEqual((second['night'], row['http_requests'], row['fetched'], row['inserted'], row['unchanged'],
+                          row['duplicates']), ('SUCCEEDED', 3, 1, 1, 0, 1))
+        # The skipped posting is still linked to the second keyword (coverage stays complete).
+        linked = self.connection.execute("""SELECT count(DISTINCT keyword_id) FROM crawler_training.keyword_posting_discoveries
+            WHERE source_code='jobkorea_live' AND external_posting_id=%s""", (str(self.ids[0]),)).fetchone()[0]
+        self.assertEqual(linked, 2)
+
     def test_mocked_429_on_detail_and_unapproved_detail_stop_without_further_requests(self):
         from crawler.jobs.import_jobkorea_html import FetchBlocked
         urls = [page(i)[0] for i in self.ids[:2]]

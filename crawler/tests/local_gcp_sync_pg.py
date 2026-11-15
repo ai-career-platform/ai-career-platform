@@ -137,12 +137,19 @@ class GcpSyncPostgresTest(unittest.TestCase):
                                     ' WHERE c.source_id <> p.source_id')[0][0], 0)
         run = self.owner("SELECT status, fetched_count, error_summary::jsonb->>'inserted' FROM career.ingestion_runs")
         self.assertEqual(run, [('succeeded', 9, '6')])
+        # #369: the run row keeps per-source skip reasons and per-record skips; #366: change count.
+        evidence = self.owner("SELECT error_summary::jsonb->'skipped_by_source', error_summary::jsonb->'skipped_items',"
+                              " error_summary::jsonb->'source_changed_since_last_sync' FROM career.ingestion_runs")[0]
+        self.assertEqual(set(evidence[0]), {'SOURCE_NOT_SELECTED', 'INVALID: Missing or invalid field: title'})
+        self.assertEqual(len(evidence[1]), 1)
+        self.assertEqual(evidence[2], 7)  # 7 selected rows, no previous successful sync
         self.assertEqual(self.source_fingerprint(), source_before)
 
     def test_03_rerun_is_idempotent(self):
         before = self.fingerprint()
         result = self.sync()
         self.assertEqual((result['inserted'], result['updated'], result['duplicate']), (0, 0, 6))
+        self.assertEqual(result['source_changed_since_last_sync'], 0)  # nothing new since run 02
         self.assertEqual(self.fingerprint(), before)
 
     def test_04_changed_source_updates_only_that_field(self):

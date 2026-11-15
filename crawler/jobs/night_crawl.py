@@ -225,6 +225,16 @@ class NightStore:
                 WHERE night_date=%s ORDER BY started_at""", (night_date,))
             return c.fetchall()
 
+    def fetched_tonight(self, night_date):
+        """External IDs a keyword job of this night already fetched (#368 early dedupe)."""
+        # A discovery seen at or after a finished job of this night started was written by that job.
+        rows = self.connection.execute("""SELECT DISTINCT d.external_posting_id
+            FROM crawler_training.keyword_posting_discoveries d
+            JOIN crawler_training.night_job_results r
+              ON r.keyword_id = d.keyword_id AND r.night_date = %s AND r.outcome <> 'RUNNING'
+            WHERE d.source_code = 'jobkorea_live' AND d.last_seen_at >= r.started_at""", (night_date,)).fetchall()
+        return {r[0] for r in rows}
+
     def recover_stale(self, now):
         """A RUNNING row older than the job deadline means the process died (deploy/kill)."""
         rows = self.connection.execute("""SELECT job_id FROM crawler_training.night_job_results
@@ -296,12 +306,25 @@ def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, no
             if counter[0] >= REQUESTS_PER_JOB:
                 raise FetchBlocked('REQUEST_BUDGET')
             counter[0] += 1
+        seen_tonight = store.fetched_tonight(night_date)
+        skipped = []
+        def skip(url):
+            # #368: a posting another keyword already fetched tonight is not requested again; the
+            # next night refreshes it, so change/close detection keeps its nightly granularity.
+            external_id = url.rstrip('/').rsplit('/', 1)[-1]
+            if external_id in seen_tonight:
+                skipped.append(('jobkorea_live', external_id))
+                return True
+            return False
         pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval,
-                        purpose=PURPOSE, before_request=before_request)
+                        purpose=PURPOSE, before_request=before_request, skip=skip)
         report = import_pages(_bounded(pages, deadline, counter, count_requests=False), recorder, live=True)
+        # fetched = detail pages actually processed; duplicates = same-page repeats + postings
+        # skipped before their detail request because they were already fetched tonight.
         report['fetched'] = report['inserted'] + report['updated'] + report['unchanged'] + report['duplicates'] + report['invalid']
+        report['duplicates'] += len(skipped)
         outcome, error = _outcome(report)
-        for source_code, external_id in dict.fromkeys(recorder.keys):
+        for source_code, external_id in dict.fromkeys(recorder.keys + skipped):
             keywords.record_discovery(choice.keyword_id, source_code, external_id)
         if outcome == 'FAILED':
             keywords.transition(job_id, 'RUNNING', 'FAILED')
