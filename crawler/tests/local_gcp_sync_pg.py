@@ -216,10 +216,11 @@ class GcpSyncPostgresTest(unittest.TestCase):
     def test_08_scheduled_guards(self):
         night = self.sync(mode='scheduled', now=datetime(2026, 11, 15, 2, 0, tzinfo=g.KST))
         self.assertEqual(night['reason'], 'NIGHT_WINDOW_OPEN')
-        # Pin the latest succeeded run to 2026-11-14 08:06 KST to test the once-a-day guard.
+        # Pin every succeeded run to 2026-11-14 08:06 KST to test the once-a-day guard. Earlier tests stamp
+        # started_at with the DB clock while this test injects `now`; pinning only the latest run made the
+        # test fail once the real clock passed 2026-11-16 08:00 KST (the injected "next day").
         self.owner("UPDATE career.ingestion_runs SET started_at = '2026-11-14 08:06+09', ended_at = '2026-11-14 08:07+09'"
-                   " WHERE ingestion_run_id = (SELECT ingestion_run_id FROM career.ingestion_runs"
-                   " WHERE status = 'succeeded' ORDER BY started_at DESC LIMIT 1)")
+                   " WHERE status = 'succeeded'")
         same_day = self.sync(mode='scheduled', now=datetime(2026, 11, 14, 20, 0, tzinfo=g.KST))
         self.assertEqual(same_day['reason'], 'ALREADY_SYNCED_TODAY')
         next_day = self.sync(mode='scheduled', publish=True, now=datetime(2026, 11, 16, 8, 5, tzinfo=g.KST))
@@ -274,6 +275,37 @@ class GcpSyncPostgresTest(unittest.TestCase):
         got = self.owner("SELECT p.expires_at, p.status FROM career.job_postings p JOIN career.job_posting_external_refs r"
                          " USING (job_posting_id) WHERE r.external_id = '4'")[0]
         self.assertEqual((got[0].astimezone(g.KST).isoformat(), got[1]), ('2026-12-02T00:00:00+09:00', 'draft'))
+
+    def test_12_deadline_passed_is_closed_for_the_service_without_rewriting_status(self):
+        """T63 lifecycle contract: a passed validThrough is EXPIRED (derived), not a source 'closed' status.
+
+        The sync keeps the source status and moves expires_at; the backend then hides the posting from
+        open lists and still returns it with include_closed. Nothing is deleted.
+        """
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+        from app.repositories.job_postings import PostingFilter, SqlJobPostingRepository
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{expires_on}', '\"2026-11-13\"'),"
+                   " updated_at = updated_at + interval '4 day' WHERE external_posting_id = '5'")
+        result = self.sync(publish=True)
+        self.assertEqual((result['status'], result['failed']), ('SUCCEEDED', 0))
+        stored = self.owner("SELECT p.status, p.expires_at FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                            " USING (job_posting_id) WHERE r.external_id = '5'")[0]
+        self.assertEqual((stored[0], stored[1].astimezone(g.KST).isoformat()), ('published', '2026-11-14T00:00:00+09:00'))
+        engine = create_engine('postgresql+psycopg://', creator=lambda: self.psycopg.connect(self.owner_dsn))
+        now = datetime(2026, 11, 16, 9, 0, tzinfo=g.KST)
+
+        def titles(include_closed):
+            query = PostingFilter(q=None, company_id=None, job_role_id=None, include_closed=include_closed,
+                                  sort='-published_at')
+            with Session(engine) as session:
+                return {r.title for r in SqlJobPostingRepository(session).list_postings(query, None, 100, now)}
+        try:
+            self.assertNotIn('데이터 엔지니어 5', titles(False))
+            self.assertIn('데이터 엔지니어 5', titles(True))
+            self.assertIn('데이터 엔지니어 4', titles(False))  # expires 2026-12-01: still open
+        finally:
+            engine.dispose()
 
 
 if __name__ == '__main__':

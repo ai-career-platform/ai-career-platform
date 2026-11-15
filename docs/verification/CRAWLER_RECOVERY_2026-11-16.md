@@ -19,9 +19,10 @@ and crawler database. *Cloud SQL* means the GCP service database (read-only quer
    - A new finite T61 approval for that night.
    - The `.env` flags set for that night only.
 3. **What is verified end to end, and what is left?**
-   - Live collection into Staging: verified for 1 keyword (job `16a8fc29`).
-   - Staging → Cloud SQL for posting 50350626: see §11–13 (filled in from the 08:05 run).
-   - Not verified: a full 6-keyword night through the systemd timer (BLOCKED by the kill switch).
+   - **Live → Staging:** verified for 1 keyword (job `16a8fc29`, 1 new posting).
+   - **Staging → Cloud SQL:** verified (08:05 run `045e68d4`, inserted 1, posting 50350626 draft, 29/29 fields match).
+   - **08:01 revert:** verified (no-op, self-removed).
+   - **Not verified:** a full 6-keyword night through the systemd timer (BLOCKED by the kill switch); #371 behaviour in production (not deployed).
 
 ## 1. Baseline (checked 2026-11-15 22:16 KST)
 
@@ -58,8 +59,10 @@ and crawler database. *Cloud SQL* means the GCP service database (read-only quer
 | 4 | 17% of detail requests on 11-12 repeated a posting another keyword had already fetched that night | Code | Fixed in #371 (§4, §7) |
 | 5 | No per-record skip evidence; the Slack text mixed the crawl and sync stages | Code | Fixed in #371 (§8) |
 | 6 | Skip predicate parsed the ID by string splitting | Code (found in this review) | Fixed in #371 `6c45cbf` |
-| 7 | Explicit closed or removed postings are not detected; only a changed `validThrough` is | Code (limitation) | P1, open (§15) |
-| 8 | A Staging DB credential was exposed in local session logs | Security/operations | Rotation procedure ready; BLOCKED on approval (§14) |
+| 7 | Explicit closed or removed postings are not detected; only a changed `validThrough` is | Code (limitation) | Deadline path verified end to end (§6.1); explicit close BLOCKED on a real sample (§6.1) |
+| 8 | A Staging DB credential was exposed in local session logs, and the DB is reachable from the LAN | Security/operations | Rotation procedure ready; BLOCKED on approval (§14) |
+| 9 | `local_gcp_sync_pg.test_08` time bomb (from #338, on main): fails from 2026-11-16 08:00 KST because the injected "next day" clock was overtaken by real DB timestamps | Test defect | Fixed in #371 (§5); main's PG integration job fails until then |
+| 10 | Staging disk at 100% (923 MB free): Auto-CD never prunes images; 36.8 GB build cache; journald uncapped beyond its default | Operations | Analysed (§18); nothing deleted |
 
 ## 4. PR #371 changes
 
@@ -112,10 +115,15 @@ Environment:
 | Suite | Command (env opt-ins omitted) | Tests | Result |
 |---|---|---|---|
 | Crawler unit (CI shape) | `python -m unittest discover -s crawler/tests` | 523 (5 skipped by design) | 522 PASS, 1 error = BASELINE_FAILURE (`test_t155_read_models`, Windows cp949 decode; also fails on main) |
-| Night integration (real PG) | `crawler.tests.local_night_integration` | 13 | PASS |
+| Night integration (real PG) | `crawler.tests.local_night_integration` | 13 | PASS (0 skipped) |
 | Night E2E (real PG, full night simulation) | `crawler.tests.staging_night_e2e` | 7 | PASS |
-| GCP sync (real career schema and grants) | `crawler.tests.local_gcp_sync_pg` | 11 | PASS |
+| GCP sync (real career schema and grants) | `crawler.tests.local_gcp_sync_pg` | 12 | PASS |
 | HTML → PG → API | `crawler.tests.local_html_pg_integration` | 2 | PASS |
+| Focused: approval gate, scheduler lock, dedupe, lifecycle, GCP | `test_source_approval_gate test_scheduler_policy test_night_crawl test_lifecycle test_gcp_sync` | 106 | PASS |
+
+Re-run on 2026-11-16 08:40 KST, on the final test changes of this PR (no production code changed since `6c45cbf`).
+
+**Time-bomb fix.** `local_gcp_sync_pg.test_08_scheduled_guards` (from #338) injects `now = 2026-11-16 08:05 KST`, while earlier tests stamp `ingestion_runs.started_at` with the DB clock. It pinned only the latest run, so from 2026-11-16 08:00 KST the real-clock rows counted as "today" and the guard returned `ALREADY_SYNCED_TODAY`. This fails on main as well. The test now pins every succeeded run. The production guard is correct: there the injected and DB clocks are the same.
 
 CI on GitHub for the PR head: see §15.
 
@@ -133,7 +141,7 @@ CI on GitHub for the PR head: see §15.
 | 8 | New posting → INSERT | `test_keyword_jobs_insert_update_duplicate_discovery_checkpoint_and_slack` | PASS |
 | 9 | Changed posting → UPDATE | same test; E2E `test_2` | PASS |
 | 10 | Unchanged → unchanged/DUPLICATE | same tests; GCP `test_03` | PASS |
-| 11 | Closing → update | `test_changed_expiry_on_a_known_posting_is_an_update` (new), GCP `test_11` (new) | PARTIAL: a changed expiry date is handled; an explicit closed or removed posting is not detected (P1) |
+| 11 | Closing → update | `test_changed_expiry_on_a_known_posting_is_an_update`, GCP `test_11`, GCP `test_12_deadline_passed_is_closed_for_the_service_without_rewriting_status` (new) | PARTIAL: deadline passing is handled end to end; an explicit early close is BLOCKED on a real sample (§6.1) |
 | 12 | Normalization failure reason | `test_partial_when_one_detail_is_unparseable`; E2E `test_5` | PASS |
 | 13 | Per-record skip evidence | GCP `test_02`; unit `EvidenceTest` | PASS |
 | 14 | COUNT_MISMATCH → safe failure | GCP `test_10_count_mismatch_aborts_before_any_write` (new) | PASS |
@@ -144,6 +152,26 @@ CI on GitHub for the PR head: see §15.
 | 19 | Slack result counts | E2E `test_7`; unit Slack text tests (no real send) | PASS |
 | 20 | GCP mapping | GCP `test_02`, `test_07` (draft by default, publish visibility) | PASS |
 | — | Browser (Playwright) | No UI change in this work | NOT_RUN (not applicable) |
+
+### 6.1 Closed postings: contract and what was fixed
+
+- **Existing contract (T63 `crawler/quality/lifecycle.py`, its tests, and the backend):**
+  - source `status='closed'` means the *source* explicitly closed the posting (`Lifecycle.CLOSED`, priority over dates);
+  - a passed `expires_on` is the *derived* `Lifecycle.EXPIRED`;
+  - the backend shows `published` + `expires_at ≤ now` as closed and leaves it out of open lists (`_is_open`, `_display_status`).
+- **Deadline passed (`validThrough`): PASS.** Verified on real PostgreSQL 18 through the real GCP sync and the real backend repository (new GCP `test_12`):
+  - the source status stays `published` and `expires_at` moves;
+  - the posting is excluded from the open list and still returned with `include_closed=true`;
+  - nothing is deleted.
+  - Writing `closed` on deadline would merge EXPIRED into CLOSED and break that contract, so the parser was deliberately not changed to do it.
+- **Expiry that precedes first-seen:** the sync skips it as `INVALID: Expiry precedes publish time` (existing guard, seen while writing the test).
+- **Explicit early close (JobKorea marks a posting closed before its deadline, or removes it): BLOCKED.**
+  - The repository has a single real JobKorea fixture, and it is an open posting. The parser documentation (`T62_STEP07_HTML_PARSER.md`) already states that `status='published'` is not a verified open/closed value.
+  - Without a real closed-page sample, any marker (text such as "마감", HTTP 404/410, or a JSON-LD change) would be a guess, so none was added.
+  - Unblocking needs one of these:
+    - (a) the PM provides saved HTML of a JobKorea posting that is closed early, as an offline fixture;
+    - (b) a PM-approved T61 fetch of one known-closed detail URL.
+  - Then: parse the confirmed marker, map it to `status='closed'`, and add tests (crawler UPDATE, GCP status propagation with `publish=true`, backend `CLOSED`).
 
 ## 7. Measured effect of the dedupe
 
@@ -188,6 +216,18 @@ Script: `poc/staging/automation/t61-override/isolated_systemd_test.sh`. Run 2026
 | G2 | daemon-reload with `95` present | exactly one ExecStart | `ALLOWED` | PASS |
 | G3 | Manual rollback (remove `95`) | `-e …=0` | `DISABLED` | PASS |
 
+Second run, 2026-11-16 08:32–08:35 KST: all of A–G again PASS, plus the failure and timing cases below.
+
+| Case | Setup | Result | Status |
+|---|---|---|---|
+| H1 | Host time zone; calendar specs | `Etc/UTC`; `2026-11-16 23:01:00 UTC` and `2026-11-17 08:01:00 Asia/Seoul` both elapse at `Mon 2026-11-16 23:01:00 UTC` | PASS |
+| H2 | Real `--on-calendar` removal with `--timer-property=AccuracySec=1s` | spec `23:34:40 UTC`, removal seen at `23:34:40`; kill switch back, `DISABLED` | PASS |
+| — | Same without `AccuracySec` (first attempt, 08:31 KST) | fired 30–60 s late (systemd default `AccuracySec=1min`); one probe started on the old config and returned ALLOWED | FINDING → the procedure pins `AccuracySec=1s`; the approval expiry (08:00) still blocks such a run |
+| I | Removal command fails (`/bin/false`) | `95` still present; with the approval expired → `BLOCKED EXPIRED`; with the flags off → `DISABLED` | PASS (safe) |
+| J | `.env` flags set to 1, backend recreate fails (missing image, `--pull never`) | `recreate_rc=1`; the old container keeps running with flags 0 → `DISABLED` | PASS (safe) |
+| — | Duplicate dispatcher | `flock --nonblock` refusal (G1) + systemd oneshot | PASS |
+| — | Request ceiling after the override | unchanged code limits (scenario 4); the override only restores the env path | PASS (PG test) |
+
 Production state: `SYSTEMD_PRODUCTION_RECOVERY=NOT_RUN` (needs PM approval, §10).
 
 ## 10. Approvals needed before LIVE through the normal scheduler
@@ -197,14 +237,45 @@ Production state: `SYSTEMD_PRODUCTION_RECOVERY=NOT_RUN` (needs PM approval, §10
 3. **`.env` flags 1 for that night**, with the existing idempotent revert.
 4. **Separately:** independent review of #371 before merge and deploy (optional for the LIVE night; without it the night runs `1797f4c` behaviour).
 5. **Separately:** rotation of the `crawler_staging` password (§14).
+6. **Before any LIVE night:** free disk space (at least the journald cap and the old ai-career images, §18). With less than 1 GB free, a night of writes and logs is at risk.
 
 ## 11. 08:01 KST revert cron
 
-PENDING: filled in from the read-only check after 08:12 KST.
+The background check scheduled for 08:12 KST stopped with the previous session, so the same read-only check ran at 08:25 KST.
 
-## 12. 08:05 KST GCP sync
+| Check | Observed | Status |
+|---|---|---|
+| Ran | `revert start 2026-11-15T23:01:01Z` → `revert done 2026-11-15T23:01:01Z` (08:01:01 KST) | PASS |
+| Action | `flags already 0 in .env and container; no recreate` (backend `StartedAt` unchanged since 13:03:07Z) | PASS |
+| Self-removal | `cron line removed`; crontab now holds only the 08:05 sync line (`revert_line_present=0`) | PASS |
+| Flags after | `.env` 0/0; running backend 0/0; `APP_VERSION=1797f4c…` | PASS |
+| Timer | drop-in `90-live-auto-off.conf` loaded; 123 polls since the stop, all `night: DISABLED`, `external_requests: 0` | PASS |
+| LIVE jobs / extra HTTP | night 2026-11-15: 1 job (AX, before the stop), 0 `RUNNING`, HTTP total 7 = the AX job; 0 after the stop | PASS |
 
-PENDING: filled in from the read-only check after 08:12 KST. Expected (not a result): 1 insert, for 50350626.
+Note: cron records no exit code. The log reaching `revert done` is the only completion evidence.
+
+## 12. 08:05 KST GCP sync (production, deployed `1797f4c` code)
+
+| Field | Value |
+|---|---|
+| Run ID | `045e68d4-e41d-41fa-8846-e720a7a883a7` (scheduled; wrapper start 23:05:01Z; ended 23:05:01.82Z; 1 attempt; Slack SENT 200) |
+| Status | SUCCEEDED (`career.ingestion_runs.status = succeeded`) |
+| Fetched | 59 = `jobkorea_live` 29 + `jobkorea` 2 + `jobkorea_imported` 28 |
+| Inserted | **1** (companies created 1) |
+| Updated | 0 |
+| Duplicate/unchanged | 28 |
+| Skipped | 30, all `SOURCE_NOT_SELECTED` (per-source split appears only after #371 is deployed) |
+| Failed | 0 |
+| Buckets | 1 + 0 + 28 + 30 + 0 = 59 |
+
+Cloud SQL, read-only (`default_transaction_read_only=on`):
+
+- `job_posting_external_refs` for (`jobkorea_live`, `50350626`): exactly 1 row. Its posting `5be9ce82-462b-4921-afd0-ded17c1a4af0` has `status=draft`, `source_url=https://www.jobkorea.co.kr/Recruit/GI_Read/50350626`, and was created at 23:05:01.82Z by this run.
+- `jobkorea_live`: 29 postings, all 29 draft, 29 distinct URLs; 29 refs with 29 distinct external IDs. No duplicate insert.
+- Field-by-field source ↔ target comparison of all 29 `jobkorea_live` rows (company, title, employment type, location, URL, status, `published_at`, `expires_at`, `first_seen_at`): **29 compared, 0 mismatches.**
+- Public API (#342) at 08:28 KST: 76 public postings; **0** of the 29 draft `jobkorea_live` postings are exposed, including 50350626.
+
+**Status: PASS.** The GCP sync success is reported separately from the crawl: the crawl evidence is §13.
 
 ## 13. Evidence of a real new insert
 
@@ -212,15 +283,16 @@ PENDING: filled in from the read-only check after 08:12 KST. Expected (not a res
 |---|---|---|
 | LIVE → Staging | job `16a8fc29-b12c-4ab7-8a9e-ae9029474dd9`: AX, `SUCCEEDED`, 7 HTTP requests, 5 details, inserted 1, unchanged 4, failed 0 (2026-11-15 12:54:34–12:54:49Z). Posting `jobkorea_live/50350626` first seen and written tonight; `jobkorea_live` 28 → 29 | PASS |
 | How it ran | A manual run of the dispatcher's ExecStart from SSH, inside the approved window and limits. A manual exec does not get the drop-in's `-e` flags; the systemd timer path stayed `DISABLED` | Disclosed |
-| Staging → Cloud SQL | §12 | PENDING |
+| Staging → Cloud SQL | run `045e68d4`: inserted 1; ref (`jobkorea_live`, `50350626`) exists once; draft; fields match | PASS |
 
 ## 14. Exposed password
 
 | Item | State |
 |---|---|
-| Account | `crawler_staging`: not a superuser; CONNECT to `postgres`, `ai_career_poc`, `ai_career_crawler_training`; read/write on `crawler_training` tables. The DB port is not published (docker network only) |
-| Dependents | Backend dispatcher (every 5 min) and the 08:05 GCP sync (reads the source through the backend env) |
-| Exposure | Two local Claude Code session transcripts; local output files were redacted. Not in the repo, git history, `outputs/`, issue/PR text, or the Staging journal |
+| Account | `crawler_staging`: not a superuser; SCRAM-SHA-256; CONNECT to `postgres`, `ai_career_poc`, `ai_career_crawler_training`; read/write on `crawler_training` tables |
+| Reachability (corrected 2026-11-16) | Not only the docker network: `ai-career-db-lan-proxy` (socat) publishes `db:5432` on the host's LAN address, port 15432, limited to one /24, and `pg_hba` has `host all all all scram-sha-256`. Anyone on that /24 with the password can log in. This raises the rotation priority |
+| Dependents | Backend dispatcher (every 5 min) and the 08:05 GCP sync (reads the source through the backend env). No other `crawler_staging` sessions in `pg_stat_activity` (2026-11-16 08:36 KST) |
+| Exposure | Two local Claude Code session transcripts (`14337784…jsonl`, `153bee14…jsonl`); local output files were redacted (0 copies in the scratchpad). Not in the repo, git history, `outputs/`, issue/PR text, or the Staging journal. The Staging `.env` and its `.env.bak-*` copies hold it by design (600). The `backups/*` dumps reference the role but carry no password (`pg_dump` does not export passwords) |
 | Rotation | BLOCKED: needs PM approval (backend recreate, about 30 s; crawler and sync dependency) |
 | Procedure (prepared, not run) | (1) Outside the night window and away from 08:05; back up `.env` (600). (2) Holding `.crawler-dispatch.lock`: generate the password on the host into a 600 file (never printed); `ALTER ROLE crawler_staging PASSWORD` reading that file through a psql variable; update `.env` atomically; recreate only the backend with the Auto-CD compose command. (3) Verify a read-only `SELECT 1` via `connect_configured_database`, the next dispatcher poll IDLE, and a GCP sync dry-run. (4) Rollback: `ALTER ROLE` back to the value in the backed-up `.env`, then recreate the backend. (5) The PM decides what happens to the stale `.env.bak-*` copies and the two transcripts; nothing is deleted without that decision |
 
@@ -230,8 +302,10 @@ PENDING: filled in from the read-only check after 08:12 KST. Expected (not a res
 |---|---|---|
 | P0 | LIVE through the normal scheduler | BLOCKED: root kill switch; approval needed (§10) |
 | P0 | Independent review of PR #371 | PENDING: CI green, 0 reviews; not merged or deployed |
-| P1 | Rotate the `crawler_staging` password | BLOCKED on approval |
-| P1 | Explicit closed or removed posting detection (parser always emits `published`; a 404 or "마감" page is not mapped) | Open |
+| P0 | Staging disk at 100% (923 MB free); journald can still grow about 1 GB on its default cap | Analysed; cleanup needs approval (§18) |
+| P1 | Rotate the `crawler_staging` password (reachable from the LAN /24) | BLOCKED on approval |
+| P1 | Explicit early-close detection | BLOCKED on a real closed-page sample (§6.1) |
+| P1 | main's `local_gcp_sync_pg` job fails from 2026-11-16 08:00 KST (time bomb) | Fixed only on the #371 branch |
 | P1 | #370 daily inflow monitoring (zero-inflow day detection) | Design posted; not implemented |
 | P1 | Search-volume measurement for #367 | Needs approval for a bounded probe |
 
@@ -258,7 +332,10 @@ PENDING: filled in from the read-only check after 08:12 KST. Expected (not a res
 4. **Automatic expiry (root, same step):**
 
    ```sh
+   # Host is Etc/UTC: 08:01 KST is 23:01 UTC of the previous day. AccuracySec=1s is required:
+   # the systemd default (1 min) fired the removal up to a minute late in the isolated test.
    systemd-run --unit ai-career-t61-expire --on-calendar='<YYYY-MM-DD> 23:01:00 UTC' \
+     --timer-property=AccuracySec=1s \
      /bin/sh -c 'rm -f /etc/systemd/system/ai-career-crawler-dispatch.service.d/95-t61-night.conf && systemctl daemon-reload'
    systemctl daemon-reload
    systemctl show ai-career-crawler-dispatch.service -p DropInPaths -p ExecStart   # expect 90 + 95, no -e
@@ -299,3 +376,42 @@ PENDING: filled in from the read-only check after 08:12 KST. Expected (not a res
   - The main risks are access blocks and terms compliance, not compute.
   - Disk on the Staging host is at 99% (1.1 GB free), which needs attention before any scale-up.
 - **No widening of collection was done in this work.**
+
+## 18. Staging disk usage (read-only, 2026-11-16 08:35 KST)
+
+**`/` is 98 GB with 92 GB used and 923 MB free (100%).** Inodes are at 27%.
+
+Nothing was deleted or pruned, and no VACUUM was run.
+
+### Top consumers
+
+| Area | Size | Reclaimable (reported) | Notes |
+|---|---|---|---|
+| Docker build cache | 36.8 GB | 33.7–36.4 GB | 317 entries, all last used ≥10 days ago (180 at "2 weeks", 54 at "2 months"); from local builds on this host (other projects too); none active |
+| Docker images | 30.8 GB (374 images) | 16.7 GB | **324 are `ai-career-platform` backend/frontend images (162 pairs, 11-06 → 11-14)**; only the current pair is in use. Auto-CD (`automation/deploy.py`) pulls every release and never removes the old ones |
+| Docker volumes | 1.0 GB (21) | 0.7 GB | 13 anonymous volumes of about 50 MB each with 0 links (look like old PostgreSQL data from removed containers: review before removal); `ai-career-staging-poc_postgres_data` 78 MB (in use) |
+| `/home/kant` | 14 GB | — | `.codex` 4.4 GB (7+ old app-server releases of 0.3 GB each); `.vscode-server` 3.3 GB (several old servers); `kant-moa` 1.5 GB (backups, exports); `webserver` 0.9 GB; `.nvm` 0.75 GB; `.cache` 0.68 GB; `.npm` 0.22 GB; `Downloads` 0.29 GB; a Chrome `.deb` 0.14 GB |
+| `/var/log/journal` | 3.1 GB | — | journald defaults (no `journald.conf.d`); the cap is 10% of the filesystem, at most 4 GB, so it **can still grow about 0.9 GB, enough to fill the disk** |
+| `/var/lib/snapd/snaps` | 3.1 GB | — | 12 snaps with retained revisions |
+| `/usr`, `/opt` | 6.0 GB, 0.8 GB | — | system |
+| AI Career data | crawler DB 9 MB, app DB 10 MB; `ai-career-staging-poc/` 5 MB (backups 1.5 MB) | — | not a contributor |
+
+**Growth.** The main source is the ai-career Auto-CD: each release adds a backend + frontend image (shared base layers, so less than their 310 + 75 MB nominal size), with 2–76 images per day over 11-06 → 11-14. Next come the journald logs (the 5-minute dispatcher and other services) and tool self-updates (`.codex` gains about 0.3 GB per release, 4 releases in the last 7 days).
+
+**Risk.** With less than 1 GB free, PostgreSQL WAL/checkpoints, image pulls in the next Auto-CD deploy, journald and the 08:05 sync log can fail. That puts tonight's operations at risk.
+
+### Cleanup candidates (none executed)
+
+| Class | Candidates | Est. space | Condition |
+|---|---|---|---|
+| A. Keep | all in-use images/containers; named volumes in use (`ai-career-staging-poc_postgres_data`, `dbresting_postgres_data`, `ax2-…_postgres_data`, `cat-game-…`); `ai-career-staging-poc/.env*`, `backups/`, `crawler-policy/`, `gcp-sync/`, `.deploy-state/`; `dbresting-backups`; the current journal | — | — |
+| B. Delete after review | ai-career images except the current and the previous (rollback) digests: ~16 GB; Docker build cache (owners of the other projects' builds should confirm): ~34–36 GB; the 13 anonymous 0-link volumes (~0.7 GB; confirm they are not wanted DB data); old `.codex` releases (~2 GB) and old `.vscode-server` servers (~2 GB); old snap revisions (~1–2 GB); `kant-moa/backups/migration-export-*` (~0.6 GB, the owner decides) | ~55 GB | PM/host owner approval; image prune by digest list, not `-a` |
+| C. Temporary, safe | `~/.cache` (0.68 GB), `~/.npm/_cacache` (0.22 GB), `/tmp` and `/var/tmp` (<0.1 MB), `google-chrome-stable_current_amd64.deb` (0.14 GB) | ~1 GB | regenerable; still deferred to approval in this task |
+
+### Proposed plan (needs approval)
+
+1. **Immediately (root):** cap journald with `SystemMaxUse=1G` in `/etc/systemd/journald.conf.d/size.conf`, then `systemctl restart systemd-journald` and `journalctl --vacuum-size=1G`. Frees about 2 GB and stops the growth.
+2. Remove the unreferenced `ai-career-platform` images except the current and the previous release digests (the list comes from `.deploy-state/success.json` plus the last deploy event). Frees about 16 GB.
+3. With the owners' agreement: `docker builder prune --filter until=168h`. Frees about 34 GB.
+4. **A follow-up code PR:** Auto-CD retention, keeping the last N release digests after a healthy deploy. This prevents the regrowth.
+5. Review the B items in `/home/kant` with the host owner.

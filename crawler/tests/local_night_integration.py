@@ -288,7 +288,9 @@ class NightIntegrationTests(unittest.TestCase):
         self.assertEqual(count(), before)
 
     def test_changed_expiry_on_a_known_posting_is_an_update(self):
-        """Closing on JobKorea surfaces as a changed validThrough; the parser always emits 'published'."""
+        """A changed validThrough is an UPDATE. Per the T63 lifecycle contract the source status stays
+        'published'; a passed deadline is the derived EXPIRED state. An explicit source close is not
+        parsed (no real closed-page sample exists, so no marker is guessed)."""
         first = self.step(5, [page(self.ids[0])])
         self.assertEqual(self.result(first['job_id'])['inserted'], 1)
         url, html = page(self.ids[0])

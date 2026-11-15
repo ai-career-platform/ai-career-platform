@@ -128,6 +128,34 @@ wait
 echo "== G2. daemon-reload / restart while 95 present keeps one ExecStart"
 systemctl --user daemon-reload; systemctl --user show $SVC -p ExecStart --value | grep -c 'argv\[\]'; run G2_AFTER_RELOAD ""
 echo "== G3. rollback: remove 95 manually"; rm -f "$D/95-t61-night.conf"; reload; run G3_ROLLBACK ""
+echo "== H1. host time zone and calendar specs (08:01 KST = 23:01 UTC previous day)"
+echo "timezone=$(timedatectl show -p Timezone --value 2>/dev/null) now_utc=$(date -u +%FT%TZ)"
+systemd-analyze calendar '2026-11-16 23:01:00 UTC' 2>&1 | grep -E 'Normalized|Next elapse|UTC' | head -3
+systemd-analyze calendar '2026-11-17 08:01:00 Asia/Seoul' 2>&1 | grep -E 'Normalized|Next elapse|UTC' | head -3
+echo "== H2. real --on-calendar (UTC spec) removal with AccuracySec=1s fires on time and restores the kill switch"
+# Finding (first run, 2026-11-16 08:31 KST): without AccuracySec the transient timer fired ~30-60 s late
+# (systemd default AccuracySec=1min). The production procedure therefore pins AccuracySec=1s.
+put95 "h2"; reload
+SPEC="$(date -u -d '+30 seconds' '+%Y-%m-%d %H:%M:%S') UTC"
+systemd-run --user --unit t61systest-cal --on-calendar="$SPEC" --timer-property=AccuracySec=1s /bin/sh -c "rm -f '$D/95-t61-night.conf' && systemctl --user daemon-reload" 2>&1 | tail -1
+systemctl --user list-timers --no-pager | grep t61systest-cal | cut -c1-90
+run H2_BEFORE_FIRE ""
+for i in $(seq 1 60); do [ -e "$D/95-t61-night.conf" ] || break; sleep 1; done
+echo "spec='$SPEC' removed_seen_at=$(date -u +%T) 95_present=$([ -e "$D/95-t61-night.conf" ] && echo yes || echo no)"
+sleep 2; run H2_AFTER_FIRE ""
+echo "== I. removal command fails: 95 stays, but approval expiry and flags-off still block"
+put95 "i"; reload
+systemd-run --user --unit t61systest-fail --on-active=2s --timer-property=AccuracySec=1s /bin/false 2>&1 | tail -1; sleep 5
+echo "95_present=$([ -e "$D/95-t61-night.conf" ] && echo yes || echo no) removal_result=$(systemctl --user show t61systest-fail.service -p Result --value)"
+run I_EXPIRED_WITH_STUCK_OVERRIDE "2026-11-16T23:00:01+00:00"
+sed -i 's/=1$/=0/' "$T/.env"; $DC up -d --force-recreate </dev/null >/dev/null 2>&1; ENV_NIGHT=0 ENV_LIVE=0 run I_FLAGS_OFF_WITH_STUCK_OVERRIDE ""
+echo "== J. backend recreate fails after .env flags set to 1: the running container keeps flags 0"
+printf 'services:\n  backend:\n    image: t61systest-missing:none\n' > "$T/broken.yaml"
+sed -i 's/=0$/=1/' "$T/.env"
+docker compose --project-name t61systest --project-directory "$T" --env-file "$T/.env" -f "$T/compose.yaml" -f "$T/broken.yaml" up -d --no-build --pull never backend </dev/null >/dev/null 2>&1; echo "recreate_rc=$?"
+echo "container_state=$(docker inspect -f '{{.State.Status}}' t61systest-backend-1 2>&1 | head -1)"
+ENV_NIGHT=1 ENV_LIVE=1 run J_AFTER_FAILED_RECREATE ""
+rm -f "$D/95-t61-night.conf"; reload
 echo "== cleanup"
 $DC down </dev/null 2>&1 | tail -1
 rm -rf "$U/$SVC" "$D"; systemctl --user daemon-reload; systemctl --user reset-failed 2>/dev/null
