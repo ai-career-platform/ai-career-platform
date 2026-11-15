@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from urllib.parse import quote
 
+from crawler.adapters.jobkorea_html_offline import HtmlPostingError, _source_id
 from crawler.jobs.fixture_night_window import KST, night_slot
 from crawler.jobs.import_jobkorea_html import FetchBlocked, FetchError, fetch_pages, import_pages, load_approval_file
 from crawler.jobs.incremental_checkpoint import KeywordCheckpointStore
@@ -289,6 +290,26 @@ def _outcome(report):
     return ('PARTIAL' if report['invalid'] else 'SUCCEEDED'), None
 
 
+def skip_fetched_tonight(seen_tonight, skipped):
+    """#368: build fetch_pages' ``skip`` predicate for postings another keyword fetched tonight.
+
+    The ID comes from the same canonical ``/Recruit/GI_Read/<digits>`` parser that produces the
+    stored ``external_posting_id``; a URL it cannot parse is never skipped (it is fetched and
+    handled by the normal import path). Postings from earlier nights are not in ``seen_tonight``,
+    so they are still requested and change/close detection keeps its nightly granularity.
+    """
+    def skip(url):
+        try:
+            external_id = _source_id(url)
+        except HtmlPostingError:
+            return False
+        if external_id in seen_tonight:
+            skipped.append(('jobkorea_live', external_id))
+            return True
+        return False
+    return skip
+
+
 def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, now_mono=clock.monotonic, now_utc=None):
     """Execute one keyword job; DB result is written before any notice. Never raises."""
     job_id = store.start(choice, night_date)
@@ -306,16 +327,8 @@ def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, no
             if counter[0] >= REQUESTS_PER_JOB:
                 raise FetchBlocked('REQUEST_BUDGET')
             counter[0] += 1
-        seen_tonight = store.fetched_tonight(night_date)
         skipped = []
-        def skip(url):
-            # #368: a posting another keyword already fetched tonight is not requested again; the
-            # next night refreshes it, so change/close detection keeps its nightly granularity.
-            external_id = url.rstrip('/').rsplit('/', 1)[-1]
-            if external_id in seen_tonight:
-                skipped.append(('jobkorea_live', external_id))
-                return True
-            return False
+        skip = skip_fetched_tonight(store.fetched_tonight(night_date), skipped)
         pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval,
                         purpose=PURPOSE, before_request=before_request, skip=skip)
         report = import_pages(_bounded(pages, deadline, counter, count_requests=False), recorder, live=True)

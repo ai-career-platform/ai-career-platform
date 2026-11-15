@@ -244,6 +244,37 @@ class GcpSyncPostgresTest(unittest.TestCase):
                 with self.subTest(sql=sql), self.assertRaises(self.psycopg.errors.InsufficientPrivilege):
                     sync.execute(sql)
 
+    def test_10_count_mismatch_aborts_before_any_write(self):
+        """#369: a plan that loses a row is refused before the run row or any posting is written."""
+        from unittest.mock import patch
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{title}', '\"mismatch probe\"'),"
+                   " updated_at = updated_at + interval '2 day' WHERE external_posting_id = '3'")
+        real = g.plan
+        def lossy(*args, **kwargs):
+            result = real(*args, **kwargs)
+            result.updates.pop()  # simulate a row that falls into no bucket
+            return result
+        before, runs = self.fingerprint(), self.owner('SELECT count(*) FROM career.ingestion_runs')[0][0]
+        with patch.object(g, 'plan', side_effect=lossy):
+            result = self.sync()
+        self.assertEqual((result['status'], result['error_code']), ('FAILED', 'COUNT_MISMATCH'))
+        self.assertEqual(self.fingerprint(), before)
+        self.assertEqual(self.owner('SELECT count(*) FROM career.ingestion_runs')[0][0], runs)
+        # Without the fault the same pending change is applied normally (nothing was lost). Other rows
+        # may also update here: test_07 published them and this run is draft-only again.
+        self.assertEqual(self.sync()['status'], 'SUCCEEDED')
+        self.assertEqual(self.owner("SELECT title FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                                    " USING (job_posting_id) WHERE r.external_id = '3'"), [('mismatch probe',)])
+
+    def test_11_changed_expiry_propagates_to_expires_at(self):
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{expires_on}', '\"2026-12-01\"'),"
+                   " updated_at = updated_at + interval '3 day' WHERE external_posting_id = '4'")
+        result = self.sync()
+        self.assertEqual((result['inserted'], result['updated'], result['failed']), (0, 1, 0))
+        got = self.owner("SELECT p.expires_at, p.status FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                         " USING (job_posting_id) WHERE r.external_id = '4'")[0]
+        self.assertEqual((got[0].astimezone(g.KST).isoformat(), got[1]), ('2026-12-02T00:00:00+09:00', 'draft'))
+
 
 if __name__ == '__main__':
     unittest.main()

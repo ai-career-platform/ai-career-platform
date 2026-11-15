@@ -268,6 +268,38 @@ class NightIntegrationTests(unittest.TestCase):
             second = nc.run_night_step(self.connection, now=self.at(65), notify=lambda *a, **k: 200, **gate)
         self.assertEqual((second['night'], second['error_code'], get.call_count), ('FAILED', 'UNAPPROVED_SOURCE', 2))
 
+    def test_expired_approval_blocks_before_any_request_and_writes_nothing(self):
+        """Real live_gate with a test-only approval whose review_due is past (the 08:00 expiry)."""
+        from crawler.policy.source_approval_gate import SourceApproval
+        expired = SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
+                                 evidence_ref='test-only', valid_from_utc=self.at(-60).astimezone(timezone.utc),
+                                 review_due_utc=self.at(0).astimezone(timezone.utc), collection_method='WEB',
+                                 allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
+                                 allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
+                                 retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)
+        def count():
+            return self.connection.execute('SELECT (SELECT count(*) FROM crawler_training.keyword_jobs),'
+                                           '(SELECT count(*) FROM crawler_training.night_job_results)').fetchone()
+        before = count()
+        result = nc.run_night_step(self.connection, environ=GATED_ENV, now=self.at(5),
+                                   fetcher=lambda **kw: self.fail('no HTTP after expiry'),
+                                   approval_loader=lambda path: expired)
+        self.assertEqual(result, {'night': 'BLOCKED', 'reason': 'EXPIRED', 'external_requests': 0})
+        self.assertEqual(count(), before)
+
+    def test_changed_expiry_on_a_known_posting_is_an_update(self):
+        """Closing on JobKorea surfaces as a changed validThrough; the parser always emits 'published'."""
+        first = self.step(5, [page(self.ids[0])])
+        self.assertEqual(self.result(first['job_id'])['inserted'], 1)
+        url, html = page(self.ids[0])
+        self.assertIn('"validThrough": "2026-11-15T23:59"', html)
+        second = self.step(65, [(url, html.replace('"validThrough": "2026-11-15T23:59"', '"validThrough": "2026-11-20T23:59"'))])
+        row = self.result(second['job_id'])
+        self.assertEqual((row['inserted'], row['updated'], row['unchanged']), (0, 1, 0))
+        stored = self.connection.execute("""SELECT payload->>'expires_on', payload->>'status' FROM crawler_training.postings
+            WHERE source_code='jobkorea_live' AND external_posting_id=%s""", (str(self.ids[0]),)).fetchone()
+        self.assertEqual(stored, ('2026-11-20', 'published'))
+
 
 if __name__ == '__main__':
     unittest.main()

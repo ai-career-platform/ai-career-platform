@@ -181,6 +181,34 @@ class WiringTests(unittest.TestCase):
                          {'night': 'LOCKED'})
 
 
+class SkipFetchedTonightTests(unittest.TestCase):
+    """#368 early dedupe predicate: canonical IDs only, never over-skips."""
+    BASE = 'https://www.jobkorea.co.kr/Recruit/GI_Read/'
+
+    def test_skips_only_ids_fetched_tonight_and_records_them(self):
+        skipped = []
+        skip = nc.skip_fetched_tonight({'50350626'}, skipped)
+        self.assertTrue(skip(self.BASE + '50350626'))
+        self.assertFalse(skip(self.BASE + '50350627'))  # new posting is still requested
+        self.assertEqual(skipped, [('jobkorea_live', '50350626')])
+
+    def test_uses_the_stored_id_parser_not_string_splitting(self):
+        skipped = []
+        skip = nc.skip_fetched_tonight({'50350626', 'x'}, skipped)
+        # Same posting on the bare host and with a different path case: the canonical parser agrees.
+        self.assertTrue(skip('https://jobkorea.co.kr/Recruit/gi_read/50350626'))
+        # Unparseable / non-canonical URLs are never skipped; the import path rejects them visibly.
+        for url in (self.BASE + '50350626?Oem_Code=C1', self.BASE + '50350626/', 'https://example.com/x',
+                    self.BASE + 'x', None):
+            self.assertFalse(skip(url), url)
+        self.assertEqual(skipped, [('jobkorea_live', '50350626')])
+
+    def test_empty_seen_set_never_skips(self):
+        skipped = []
+        self.assertFalse(nc.skip_fetched_tonight(set(), skipped)(self.BASE + '1'))
+        self.assertEqual(skipped, [])
+
+
 class SlackNightTests(unittest.TestCase):
     job = dict(job_id='j-1', keyword='AX', keyword_id=11, mode='live', attempt=1, outcome='SUCCEEDED',
                started_at=datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc),
