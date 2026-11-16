@@ -12,7 +12,7 @@ from app.routers import (
     auth, bookmarks, career_history, catalog, crawler_admin, job_postings, market_trends, matches, me, my_skills, privacy,
     recommendation_runs, target_roles,
 )
-from app.routers import account_recovery, admin_audit, behavior_events, document_analyses, documents
+from app.routers import account_recovery, admin_audit, behavior_events, document_analyses, documents, knowledge
 
 # 모든 /api/v1 operation의 OpenAPI에 공통 오류(422 검증, 500 내부 오류) ErrorResponse를 표시.
 # 기능 라우터는 api_router.include_router(...)로 붙이면 이 설정을 물려받는다.
@@ -37,3 +37,4 @@ api_router.include_router(behavior_events.router)
 api_router.include_router(documents.router)
 api_router.include_router(document_analyses.router)
 api_router.include_router(admin_audit.router)
+api_router.include_router(knowledge.router)
