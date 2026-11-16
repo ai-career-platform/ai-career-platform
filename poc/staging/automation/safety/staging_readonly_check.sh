@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# READ-ONLY Staging safety check v2 (AI_CAREER_CRAWLER_STAGING_SAFETY_CHECK).
+# READ-ONLY Staging safety check v3 (AI_CAREER_STAGING_DIRECT_SAFETY_AUDIT).
 #
 # Usage on the Staging host, as the deploy user (kant), from any directory:
 #   bash staging_readonly_check.sh > staging-check-$(date +%Y%m%d-%H%M%S).txt 2>&1
@@ -79,7 +79,22 @@ L="$B/gcp-sync/logs/gcp-sync.log"
 if [ -f "$L" ]; then
   echo "log_lines=$(wc -l < "$L")"
   echo "wrapper_starts=$(grep -c wrapper_start "$L")"
-  grep -oE '"(wrapper_start|mode|status|error_code|reason|run_id|fetched|inserted|updated|duplicate|skipped|failed|publish|source_code|attempts|started_at|ended_at)": *("[^"]*"|[0-9a-z]+)' "$L" | tail -n 80
+  # one line per JSON record, whitelisted keys only (no free text, no secrets)
+  python3 - "$L" <<'PY' 2>&1
+import json, sys
+keep = ('wrapper_start', 'mode', 'status', 'error_code', 'reason', 'run_id', 'fetched', 'inserted', 'updated',
+        'duplicate', 'skipped', 'failed', 'publish', 'source_code', 'attempts', 'started_at', 'ended_at',
+        'companies_created', 'skipped_reasons', 'slack', 'http_status')
+for n, line in enumerate(open(sys.argv[1], encoding='utf-8', errors='replace'), 1):
+    line = line.strip()
+    if not line.startswith('{'):
+        continue
+    try:
+        rec = json.loads(line)
+    except ValueError:
+        print(f'{n}: UNPARSEABLE'); continue
+    print(f'{n}: ' + json.dumps({k: rec[k] for k in keep if k in rec}, ensure_ascii=False, default=str))
+PY
 else echo "NO_GCP_SYNC_LOG"; fi
 echo "--- running sync / crawler processes"
 pgrep -af 'gcp_sync|run_gcp_sync|import_jobkorea_html|harvest' 2>/dev/null || echo "none"
@@ -121,6 +136,90 @@ SELECT external_posting_id, pg_xact_commit_timestamp(xmin) FROM crawler_training
  WHERE source_code = 'jobkorea_live' AND current_setting('track_commit_timestamp') = 'on';
 ROLLBACK;
 SQL
+
+sec "8b. per-posting provenance (every jobkorea_live row exactly once)"
+# discovery keyword + first_seen_at -> the night job of that keyword whose run window contains it.
+# evidence: LIVE_JOB_LINKED (job with HTTP > 0) / DISCOVERY_WITHOUT_JOB / NO_DISCOVERY.
+psql_ro ai_career_crawler_training <<'SQL' 2>&1
+BEGIN READ ONLY;
+WITH live AS (
+  SELECT external_posting_id, updated_at, xmin::text AS insert_xid FROM crawler_training.postings
+   WHERE source_code = 'jobkorea_live'),
+first_disc AS (
+  SELECT DISTINCT ON (d.external_posting_id) d.external_posting_id, d.keyword_id, k.keyword, d.first_seen_at, d.last_seen_at
+    FROM crawler_training.keyword_posting_discoveries d JOIN crawler_training.search_keywords k USING (keyword_id)
+   WHERE d.source_code = 'jobkorea_live' ORDER BY d.external_posting_id, d.first_seen_at),
+prov AS (
+  SELECT l.external_posting_id, l.updated_at, l.insert_xid, f.keyword, f.first_seen_at, f.last_seen_at,
+         j.job_id, j.night_date, j.attempt, j.started_at, j.ended_at, j.outcome, j.http_requests, j.inserted,
+         -- a real night job runs inside its own night (21:00 KST night_date .. 08:00 KST next day);
+         -- clock-injected tests write a night_date that does not match their real start time
+         (j.started_at >= (j.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
+          AND j.started_at < (j.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
+    FROM live l
+    LEFT JOIN first_disc f USING (external_posting_id)
+    LEFT JOIN LATERAL (
+      SELECT r.* FROM crawler_training.night_job_results r
+       WHERE r.keyword_id = f.keyword_id
+         AND f.first_seen_at BETWEEN r.started_at - interval '1 minute'
+                                 AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
+       ORDER BY r.started_at LIMIT 1) j ON true),
+classified AS (
+  SELECT prov.*, CASE
+           WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND window_consistent THEN 'LIVE_JOB_LINKED'
+           WHEN job_id IS NOT NULL THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
+           WHEN keyword IS NOT NULL THEN 'DISCOVERY_WITHOUT_JOB'
+           ELSE 'NO_DISCOVERY' END AS evidence
+    FROM prov)
+SELECT * FROM classified ORDER BY updated_at, external_posting_id;
+-- summary: every jobkorea_live row is in exactly one evidence class (the classified CTE has one row per posting)
+WITH live AS (SELECT external_posting_id, updated_at, xmin::text AS insert_xid FROM crawler_training.postings
+               WHERE source_code = 'jobkorea_live'),
+first_disc AS (
+  SELECT DISTINCT ON (d.external_posting_id) d.external_posting_id, d.keyword_id, d.first_seen_at
+    FROM crawler_training.keyword_posting_discoveries d WHERE d.source_code = 'jobkorea_live'
+   ORDER BY d.external_posting_id, d.first_seen_at),
+prov AS (
+  SELECT l.external_posting_id, f.keyword_id, j.job_id, j.http_requests,
+         (j.started_at >= (j.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
+          AND j.started_at < (j.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
+    FROM live l LEFT JOIN first_disc f USING (external_posting_id)
+    LEFT JOIN LATERAL (
+      SELECT r.* FROM crawler_training.night_job_results r
+       WHERE r.keyword_id = f.keyword_id
+         AND f.first_seen_at BETWEEN r.started_at - interval '1 minute'
+                                 AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
+       ORDER BY r.started_at LIMIT 1) j ON true)
+SELECT CASE WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND window_consistent THEN 'LIVE_JOB_LINKED'
+            WHEN job_id IS NOT NULL THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
+            WHEN keyword_id IS NOT NULL THEN 'DISCOVERY_WITHOUT_JOB'
+            ELSE 'NO_DISCOVERY' END AS evidence, count(*)
+  FROM prov GROUP BY 1 ORDER BY 1;
+-- every night job (approval windows are compared with these times in the report)
+SELECT r.night_date, k.keyword, r.attempt, r.job_id, r.started_at, r.ended_at, r.outcome, r.http_requests,
+       r.inserted, r.updated, r.unchanged, r.duplicates, r.failed, r.error_code
+  FROM crawler_training.night_job_results r JOIN crawler_training.search_keywords k USING (keyword_id)
+ ORDER BY r.started_at;
+ROLLBACK;
+SQL
+
+sec "8c. T61 approval files (non-secret fields only)"
+dc exec -T backend sh -c 'f=$(printenv CRAWLER_NIGHT_POLICY_FILE); [ -n "$f" ] || { echo "CRAWLER_NIGHT_POLICY_FILE=UNSET"; exit 0; }; d=$(dirname "$f"); echo "policy_dir=$d"; ls -la "$d" 2>&1; for j in "$d"/*.json; do [ -f "$j" ] || continue; python - "$j" <<'"'"'PY'"'"'
+import json, os, sys
+p = sys.argv[1]
+try:
+    r = json.load(open(p, encoding="utf-8"))
+except Exception as e:
+    print(os.path.basename(p), "UNREADABLE", type(e).__name__); sys.exit(0)
+print(json.dumps({"file": os.path.basename(p), "approval_status": r.get("approval_status"), "enabled": r.get("enabled"),
+                  "valid_from_utc": r.get("valid_from_utc"), "review_due_utc": r.get("review_due_utc"),
+                  "allowed_purposes": r.get("allowed_purposes"), "allowed_urls_count": len(r.get("allowed_urls") or []),
+                  "max_requests": r.get("max_requests"), "max_discovered_details": r.get("max_discovered_details"),
+                  "approved_by_set": bool(r.get("approved_by")), "evidence_ref_set": bool(r.get("evidence_ref"))}))
+PY
+done' 2>&1
+echo "--- approval-like files on the host (names only)"
+find "$B" -maxdepth 4 \( -iname '*t61*.json' -o -iname '*approval*.json' -o -iname '*policy*.json' \) -printf '%TY-%Tm-%Td %TH:%TM %p\n' 2>/dev/null | head -20
 
 sec "9. fixture/test match of the jobkorea_live ids (deployed image files)"
 IDS=$(psql_ro ai_career_crawler_training <<'SQL' 2>/dev/null | grep -E '^[0-9]+$'
