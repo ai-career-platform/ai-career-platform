@@ -209,6 +209,17 @@ class ScheduleTest(unittest.TestCase):
         self.assertEqual((scheduled['attempts'], manual['attempts'], sleeps), (1, 1, []))
         self.assertNotIn('slack', manual)
 
+    def test_cutover_refusal_order(self):
+        now = datetime(2026, 11, 18, 9, 0, tzinfo=timezone.utc)
+        old = {'staging': {'last_run_at': '2026-11-16T23:05:01+00:00', 'running': False}}
+        new = {'staging': {'last_run_at': '2026-11-17T23:05:01+00:00', 'running': False}}
+        run = {'staging': {'last_run_at': '2026-11-16T23:05:01+00:00', 'running': True}}
+        self.assertEqual(g.cutover_refusal(old, now, confirmed=False, evidence='x'), 'OTHER_SYNC_SOURCE_ACTIVE')
+        self.assertEqual(g.cutover_refusal(run, now, confirmed=True, evidence='x'), 'OTHER_SYNC_RUNNING')
+        self.assertEqual(g.cutover_refusal(new, now, confirmed=True, evidence='x'), 'OTHER_SYNC_RECENT')  # 10 h ago
+        self.assertEqual(g.cutover_refusal(old, now, confirmed=True, evidence=None), 'CUTOVER_EVIDENCE_REQUIRED')
+        self.assertIsNone(g.cutover_refusal(old, now, confirmed=True, evidence='CHG-1'))  # 34 h quiet
+
     def test_execute_requires_provenance_for_staging_and_passes_cutover_flag(self):
         seen = {}
 
@@ -221,9 +232,9 @@ class ScheduleTest(unittest.TestCase):
         try:
             g.execute('dry-run', {}, connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
             self.assertEqual((seen['require_provenance'], seen['cutover_confirmed'], seen['live_run_ids']), (True, False, None))
-            g.execute('run', {'GCP_SYNC_CUTOVER_CONFIRMED': '1'}, connect_src=lambda: _Closable(),
-                      connect_tgt=lambda environ: _Closable())
-            self.assertTrue(seen['cutover_confirmed'])
+            g.execute('run', {'GCP_SYNC_CUTOVER_CONFIRMED': '1', 'GCP_SYNC_CUTOVER_EVIDENCE': '  CHG-1  '},
+                      connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
+            self.assertEqual((seen['cutover_confirmed'], seen['cutover_evidence']), (True, 'CHG-1'))
             g.execute('run', {'GCP_SYNC_SOURCE': 'local', 'GCP_SYNC_CUTOVER_CONFIRMED': 'yes'},
                       connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable(),
                       live_run_ids=['9a4f1f0e-6c1e-4d5b-9a55-2f6f0c7c1b11'])

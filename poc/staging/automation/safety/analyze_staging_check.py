@@ -180,12 +180,16 @@ def analyze(text):
             item = {'external_posting_id': pid, 'evidence': ev, 'keyword': get('keyword') or None,
                     'updated_at': get('updated_at'), 'job_id': get('job_id') or None,
                     'job_started_at': get('started_at') or None}
-            if ev == 'JOB_LINKED_SYNTHETIC_CLOCK' or pid in fixture_ids:
-                item['class'] = 'VERIFIED_FIXTURE'
-            elif ev == 'LIVE_JOB_LINKED':
+            # An approved night job outranks an id match in test files: real posting ids (e.g. ones a user
+            # saved as samples) also appear in fixtures, and the sync filter admits them by the job alone.
+            if ev == 'LIVE_JOB_LINKED':
                 file = covering(ts(get('started_at'))) if approvals_readable and get('started_at') else None
                 item['class'] = 'VERIFIED_APPROVED'
                 item['approval_basis'] = f'approval_file:{file}' if file else 'gate_enforced_night_job'
+                if pid in fixture_ids:
+                    item['note'] = 'id_also_in_test_files'
+            elif ev == 'JOB_LINKED_SYNTHETIC_CLOCK' or pid in fixture_ids:
+                item['class'] = 'VERIFIED_FIXTURE'
             elif pid and any(pid in line and ('import_jobkorea_html' in line or 'live_http' in line)
                              for line in evidence10.splitlines()):
                 # the import CLI prints counts only, so an id appears only in a recorded command line

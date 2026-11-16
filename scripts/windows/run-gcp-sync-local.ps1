@@ -13,7 +13,10 @@
     is never read. Allowed keys: GCP_SYNC_TARGET_HOST (certificate name), GCP_SYNC_TARGET_HOSTADDR (IP),
     GCP_SYNC_TARGET_PORT, GCP_SYNC_TARGET_DB, GCP_SYNC_TARGET_USER (career_sync), GCP_SYNC_TARGET_PASSWORD,
     GCP_SYNC_PUBLISH (default 0 = draft), GCP_SYNC_CUTOVER_CONFIRMED (1 only after the PM confirms the
-    Staging sync cron is stopped; otherwise a run refuses with OTHER_SYNC_SOURCE_ACTIVE).
+    Staging sync cron is stopped; otherwise a run refuses with OTHER_SYNC_SOURCE_ACTIVE). Even then the
+    run refuses while the other writer has a sync running or ran within 26 h (OTHER_SYNC_RUNNING /
+    OTHER_SYNC_RECENT), and GCP_SYNC_CUTOVER_EVIDENCE (a short reference to the cron-stop evidence)
+    is required and recorded in ingestion_runs.error_summary.
     Admin users are refused by gcp_sync.py.
   * Secrets are passed by environment to the child only, never on argv or in logs.
   Evidence: <AICP_DATA_ROOT>\logs\gcp-sync\<stamp>-<mode>.json
@@ -40,7 +43,7 @@ $foreign = (Get-Acl $conf).Access | Where-Object {
     $_.AccessControlType -eq 'Allow' -and $sid -notin @($me, 'S-1-5-18', 'S-1-5-32-544') }
 if ($foreign) { Blocked 'GCP_SYNC_ENV_FILE_ACL_TOO_OPEN' }
 $allowed = 'GCP_SYNC_TARGET_HOST','GCP_SYNC_TARGET_HOSTADDR','GCP_SYNC_TARGET_PORT','GCP_SYNC_TARGET_DB',
-           'GCP_SYNC_TARGET_USER','GCP_SYNC_TARGET_PASSWORD','GCP_SYNC_PUBLISH','GCP_SYNC_CUTOVER_CONFIRMED'
+           'GCP_SYNC_TARGET_USER','GCP_SYNC_TARGET_PASSWORD','GCP_SYNC_PUBLISH','GCP_SYNC_CUTOVER_CONFIRMED','GCP_SYNC_CUTOVER_EVIDENCE'
 $set = @()
 try {
     foreach ($line in Get-Content $conf -Encoding utf8) {

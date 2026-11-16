@@ -528,23 +528,44 @@ def other_writers(cursor, source_id, writer, now):
     Every run records its writer in error_summary['source'] ('local' or 'staging'); runs of the
     older deployed code carry no such key and are counted as 'staging'.
     """
-    cursor.execute("SELECT error_summary, max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
-                   " AND status IN ('succeeded', 'running') AND started_at >= %s GROUP BY error_summary",
+    cursor.execute("SELECT error_summary, status, max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
+                   " AND status IN ('succeeded', 'running') AND started_at >= %s GROUP BY error_summary, status",
                    (source_id, now - WRITER_WINDOW))
     seen = {}
-    for summary, last in cursor.fetchall():
+    for summary, status, last in cursor.fetchall():
         try:
             other = (json.loads(summary) or {}).get('source') if summary else None
         except (TypeError, ValueError):
             other = None
         other = other or 'staging'
         if other != writer:
-            seen[other] = max(seen.get(other, last), last)
-    return {k: v.isoformat() for k, v in seen.items()}
+            entry = seen.setdefault(other, {'last_run_at': last, 'running': False})
+            entry['last_run_at'] = max(entry['last_run_at'], last)
+            entry['running'] = entry['running'] or status == 'running'
+    return {k: {'last_run_at': v['last_run_at'].isoformat(), 'running': v['running']} for k, v in seen.items()}
+
+
+# A confirmed cutover is accepted only when the other writer has been quiet for longer than its daily
+# schedule (08:05 KST cron + margin): GCP_SYNC_CUTOVER_CONFIRMED=1 alone does not prove the cron stopped.
+CUTOVER_QUIET = timedelta(hours=26)
+
+
+def cutover_refusal(others, now, *, confirmed, evidence):
+    """None when a second writer may proceed, else the refusal code (checked in this order)."""
+    if not confirmed:
+        return 'OTHER_SYNC_SOURCE_ACTIVE'
+    if any(o['running'] for o in others.values()):
+        return 'OTHER_SYNC_RUNNING'
+    if any(now - datetime.fromisoformat(o['last_run_at']) < CUTOVER_QUIET for o in others.values()):
+        return 'OTHER_SYNC_RECENT'
+    if not evidence:
+        return 'CUTOVER_EVIDENCE_REQUIRED'
+    return None
 
 
 def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_SOURCE_CODE,
-             publish=False, now=None, live_run_ids=None, require_provenance=False, cutover_confirmed=False):
+             publish=False, now=None, live_run_ids=None, require_provenance=False, cutover_confirmed=False,
+             cutover_evidence=None):
     """One sync. Returns a secret-free result dict; raises SyncError on connection-level failures."""
     now = now or datetime.now(timezone.utc)
     base = {'mode': mode, 'source_code': source_code, 'publish': publish,
@@ -578,7 +599,7 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
         return dict(base, status='SKIPPED', reason='SYNC_IN_PROGRESS')
     try:
         return _locked_sync(target, rows, base, now, mode=mode, source_code=source_code, publish=publish,
-                            cutover_confirmed=cutover_confirmed)
+                            cutover_confirmed=cutover_confirmed, cutover_evidence=cutover_evidence)
     finally:
         target.rollback()
         with target.cursor() as cursor:
@@ -586,7 +607,8 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
         target.commit()
 
 
-def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover_confirmed=False):
+def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover_confirmed=False,
+                 cutover_evidence=None):
     urls = {row.payload.get('source_url') for row in rows
             if row.source_code == source_code and isinstance(row.payload, dict) and row.payload.get('source_url')}
     with target.cursor() as cursor:
@@ -594,13 +616,16 @@ def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover
         others = other_writers(cursor, source_id, base['source'], now)
         if others:
             base = dict(base, other_writers=others)
-            # Single writer: a run from a second source refuses until the PM confirms the cutover
-            # (the other writer's schedule is stopped). dry-run and verify only report it.
-            if mode in ('run', 'scheduled') and not cutover_confirmed:
-                target.rollback()
-                return dict(base, status='SKIPPED' if mode == 'scheduled' else 'FAILED',
-                            **({'reason': 'OTHER_SYNC_SOURCE_ACTIVE'} if mode == 'scheduled'
-                               else {'error_code': 'OTHER_SYNC_SOURCE_ACTIVE'}))
+            # Single writer: a run from a second source refuses until the PM confirms the cutover AND the
+            # other writer is provably idle (nothing running, no run for CUTOVER_QUIET) AND an evidence
+            # reference is given. dry-run and verify only report it.
+            if mode in ('run', 'scheduled'):
+                code = cutover_refusal(others, now, confirmed=cutover_confirmed, evidence=cutover_evidence)
+                if code:
+                    target.rollback()
+                    return dict(base, status='SKIPPED' if mode == 'scheduled' else 'FAILED',
+                                **({'reason': code} if mode == 'scheduled' else {'error_code': code}))
+                base = dict(base, cutover={'confirmed': True, 'evidence': cutover_evidence})
         base = dict(base, already_in_target=sum(1 for r in rows if r.source_code == source_code
                                                 and r.external_posting_id in refs))
         if mode == 'scheduled':
@@ -696,7 +721,8 @@ def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, slee
             target = connect_tgt(environ)
             result = run_sync(source, target, mode=mode, source_code=source_code, publish=publish,
                               live_run_ids=run_ids, require_provenance=not local,
-                              cutover_confirmed=environ.get('GCP_SYNC_CUTOVER_CONFIRMED') == '1')
+                              cutover_confirmed=environ.get('GCP_SYNC_CUTOVER_CONFIRMED') == '1',
+                              cutover_evidence=(environ.get('GCP_SYNC_CUTOVER_EVIDENCE') or '').strip()[:200] or None)
         except SyncError as error:
             result = {'mode': mode, 'status': 'FAILED', 'error_code': error.code}
             if error.retryable and attempt < attempts:

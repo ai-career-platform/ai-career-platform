@@ -90,6 +90,18 @@ class AnalyzerTest(unittest.TestCase):
         empty = analyzer.analyze('')
         self.assertEqual((empty['status'], empty['classified_rows'], empty['migratable_ids']), ('INCOMPLETE', 0, []))
 
+    def test_approved_job_outranks_test_file_id_match_and_utc_offsets_compare(self):
+        # 50246410 is a real posting id that also appears in repository tests; server clock in UTC (+00)
+        text = sample(total=7, extra_rows=[row('50246410', 'LIVE_JOB_LINKED', '2026-11-12 13:30:00+00', 'j9')])
+        text = text.replace('id=50000001 fixture_or_test_files_mentioning=0',
+                            'id=50000001 fixture_or_test_files_mentioning=0\nid=50246410 fixture_or_test_files_mentioning=3')
+        r = analyzer.analyze(text)
+        by = {x['external_posting_id']: x for x in r['rows']}
+        self.assertEqual(r['status'], 'OK')
+        self.assertEqual((by['50246410']['class'], by['50246410']['note']), ('VERIFIED_APPROVED', 'id_also_in_test_files'))
+        self.assertEqual(by['50246410']['approval_basis'], 'approval_file:jobkorea-t61-night-20261113.json')  # 13:30Z in window
+        self.assertIn('50246410', r['migratable_ids'])
+
     def test_commented_cron_line_is_registered_but_not_enabled(self):
         text = sample().replace('5 23 * * * /home', '# 5 23 * * * /home')
         g = analyzer.analyze(text)['gcp_sync']

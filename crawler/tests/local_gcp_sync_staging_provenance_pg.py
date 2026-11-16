@@ -109,14 +109,16 @@ class StagingProvenanceTest(unittest.TestCase):
         with cls.psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
             admin.execute(f'DROP DATABASE IF EXISTS {cls.db} WITH (FORCE)')
 
-    def sync(self, mode, *, local=False, cutover=False):
+    def sync(self, mode, *, local=False, cutover=False, evidence=None):
         source = self.psycopg.connect(self.owner_dsn)
         source.read_only = True
         target = self.psycopg.connect(self.sync_dsn)
         try:
             if local:
-                return g.run_sync(source, target, mode=mode, live_run_ids=[LIVE], cutover_confirmed=cutover)
-            return g.run_sync(source, target, mode=mode, require_provenance=True, cutover_confirmed=cutover)
+                return g.run_sync(source, target, mode=mode, live_run_ids=[LIVE], cutover_confirmed=cutover,
+                                  cutover_evidence=evidence)
+            return g.run_sync(source, target, mode=mode, require_provenance=True, cutover_confirmed=cutover,
+                              cutover_evidence=evidence)
         finally:
             source.close()
             target.close()
@@ -151,10 +153,30 @@ class StagingProvenanceTest(unittest.TestCase):
         self.assertEqual((run['status'], run['error_code']), ('FAILED', 'OTHER_SYNC_SOURCE_ACTIVE'))
         self.assertEqual(self.target_ids(), ['101', '102', '106'])
 
-    def test_04_confirmed_cutover_then_the_old_writer_is_refused(self):
-        run = self.sync('run', local=True, cutover=True)
+    def test_04_cutover_needs_confirmation_idle_other_writer_and_evidence(self):
+        # the flag alone is not proof: Staging synced minutes ago (its daily cron may still be active)
+        recent = self.sync('run', local=True, cutover=True, evidence='CHG-1')
+        self.assertEqual(recent['error_code'], 'OTHER_SYNC_RECENT')
+        self.owner("UPDATE career.ingestion_runs SET started_at = started_at - interval '2 days',"
+                   " ended_at = ended_at - interval '2 days'")
+        no_evidence = self.sync('run', local=True, cutover=True)
+        self.assertEqual(no_evidence['error_code'], 'CUTOVER_EVIDENCE_REQUIRED')
+        sid = self.owner("SELECT source_id FROM career.data_sources WHERE code = 'jobkorea_live'")[0][0]
+        self.owner("INSERT INTO career.ingestion_runs (source_id, status, started_at, error_summary)"
+                   " VALUES (%s, 'running', now() - interval '30 hours', '{\"source\": \"staging\"}')", (sid,))
+        running = self.sync('run', local=True, cutover=True, evidence='CHG-1')
+        self.assertEqual(running['error_code'], 'OTHER_SYNC_RUNNING')
+        self.owner("DELETE FROM career.ingestion_runs WHERE status = 'running'")
+        self.assertEqual(self.target_ids(), ['101', '102', '106'])  # every refusal wrote nothing
+        run = self.sync('run', local=True, cutover=True, evidence='CHG-1 staging crontab 0 lines 2026-11-18')
         self.assertEqual((run['status'], run['inserted'], run['duplicate']), ('SUCCEEDED', 1, 1))  # 201 new, 101 no duplicate insert
+        self.assertEqual(run['cutover'], {'confirmed': True, 'evidence': 'CHG-1 staging crontab 0 lines 2026-11-18'})
         self.assertEqual(self.target_ids(), ['101', '102', '106', '201'])
+        recorded = json.loads(self.owner("SELECT error_summary FROM career.ingestion_runs WHERE error_summary::jsonb->>'source'"
+                                         " = 'local' AND status = 'succeeded'")[0][0])
+        self.assertEqual(recorded['cutover']['evidence'], 'CHG-1 staging crontab 0 lines 2026-11-18')
+        again = self.sync('run', local=True, cutover=True, evidence='CHG-1')
+        self.assertEqual((again['status'], again['inserted'], again['updated'], again['duplicate']), ('SUCCEEDED', 0, 0, 2))
         back = self.sync('run')
         self.assertEqual((back['status'], back['error_code']), ('FAILED', 'OTHER_SYNC_SOURCE_ACTIVE'))
         self.assertIn('local', back['other_writers'])
