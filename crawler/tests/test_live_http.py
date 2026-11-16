@@ -72,6 +72,18 @@ class LiveHttpTests(unittest.TestCase):
         self.assertEqual(get.call_count, 3)
         self.assertIsNotNone(store.get('jobkorea_live', '50242499'))
 
+    def test_skip_drops_known_detail_before_its_request(self):
+        """#368: a skipped detail URL is never requested; the remaining one still is."""
+        known = 'https://www.jobkorea.co.kr/Recruit/GI_Read/11111111'
+        listing = f'<a href="{known}">a</a><a href="{URL}">b</a>'
+        with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', listing, HTML]) as get:
+            with patch.object(crawler.time, 'sleep'), patch.object(crawler, '_permit'):
+                report = crawler.import_pages(crawler.fetch_pages(list_url='https://www.jobkorea.co.kr/Search/?stext=ax',
+                                                                  limit=2, skip=lambda u: u == known),
+                                              MemoryPostingStore(), live=True)
+        self.assertEqual([c.args[0] for c in get.call_args_list][2:], [URL])
+        self.assertEqual((report['inserted'], report['duplicates']), (1, 0))
+
     def test_list_block_stops_before_details(self):
         with patch.object(crawler, '_get', side_effect=['User-agent: *\nAllow: /', crawler.FetchBlocked('HTTP_403', http_status=403)]) as get:
             with patch.object(crawler.time, 'sleep'), patch.object(crawler, '_permit'):
