@@ -80,10 +80,12 @@ Only the GCP-sync cron line was disabled, and only after these guards passed:
 - **Cloud SQL now (read-only):** the only writer is Staging. Its newest run is `045e68d4…`, started `2026-11-15T23:05:01.751457Z`. No `local` writer run exists, and no cutover has been recorded.
 - **Earliest point the condition can hold:** `2026-11-17T01:05:01.751Z` (**2026-11-17 10:05:01 KST**), but only if no Staging run starts before then.
 - **Stopping the cron does not satisfy it by itself.** Current status: **NOT_MET (PENDING).**
-- **Verification still needed:**
-  - after 2026-11-17 08:05 KST, the Staging `gcp-sync.log` has no new `wrapper_start`;
-  - Cloud SQL has no `ingestion_runs` row after `045e68d4`;
-  - the time is past 10:05:01 KST.
+- **Skipped 08:05 KST slot — PASS (checked 2026-11-17 08:07:58 KST, read-only):**
+  - the kant crontab still has only the commented line (`#5 23 * * * …run_gcp_sync.sh`);
+  - Staging `gcp-sync.log`: `wrapper_starts_after_stop=0`; the last `wrapper_start` is still `2026-11-15T23:05:01Z`;
+  - `journalctl -u cron` for 23:00–23:10 UTC: 0 `run_gcp_sync` entries;
+  - Cloud SQL `career.ingestion_runs`: `runs_after_045e68d4=0`.
+- **Verification still needed:** the time is past 10:05:01 KST *and* there is still no Staging run in Cloud SQL. Re-check both right before the first Windows run; do not rely on this document alone.
 - **Evidence reference proposed for `GCP_SYNC_CUTOVER_EVIDENCE`:** `UBUNTU-CRON-DISABLED-20261116T135144Z` (this document plus the backup directory above).
 
 ## 6. Windows PC (the new crawler PC)
@@ -132,7 +134,7 @@ Get-ScheduledTask | Where-Object TaskName -match 'crawler|gcp' | Select TaskName
 - **Expected on the real target:** at most 2 inserts, and 3 existing refs that are either unchanged or updated. A `dry-run` on the new PC against the real target, after approval C and network access, is the authoritative figure.
 - **Other conditions:**
   - Fixtures are excluded by the `harvest_items` filter on main, and drafts are kept (`GCP_SYNC_PUBLISH=0`).
-  - Single writer: Staging is now stopped; the 26-hour condition is PENDING (§5).
+  - Single writer: Staging is now stopped; the 08:05 KST slot was skipped; the 26-hour condition is PENDING until 10:05:01 KST (§5).
   - Cutover evidence is proposed in §5.
 
 ## 9. Rollback (prepared, not executed)
@@ -165,7 +167,7 @@ STAGING_GCP_SYNC_BEFORE=ACTIVE (kant crontab, 5 23 * * * UTC = 08:05 KST)
 STAGING_GCP_SYNC_AFTER=DISABLED (line commented; cron RELOAD 13:52:01Z; 0 active lines)
 STAGING_SYNC_PROCESS_RUNNING=NO
 STAGING_LAST_SYNC_TIME=2026-11-15T23:05:01.819938Z ended (started 23:05:01.751457Z), run 045e68d4
-STAGING_SYNC_STOP_EVIDENCE=backups/cutover-windows-20261116T135144Z + crontab diff + cron RELOAD; first skipped slot 2026-11-17 08:05 KST PENDING
+STAGING_SYNC_STOP_EVIDENCE=backups/cutover-windows-20261116T135144Z + crontab diff + cron RELOAD; skipped 2026-11-17 08:05 KST slot verified 08:07:58 KST (0 wrapper starts, 0 cron entries, 0 new ingestion_runs)
 STAGING_POSTGRESQL_PRESERVED=YES (no writes)
 STAGING_OTHER_SERVICES_UNCHANGED=YES
 WINDOWS_LOCAL_DB=NOT_RUN (new PC not reachable from this task)
