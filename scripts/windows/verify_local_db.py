@@ -97,6 +97,43 @@ def snapshot():
     return {'postmaster_started_at': started, 'row_counts': counts, 'postings_md5': digest}
 
 
+def status():
+    """Read-only operational metrics for crawler-status.ps1 (no secrets, no writes)."""
+    q = {}
+    with connect_local_training_db(os.environ['CRAWLER_LOCAL_DATABASE_URL']) as c:
+        c.read_only = True
+        cols = ['run_id', 'mode', 'trigger', 'status', 'started_at', 'ended_at', 'fetched_count', 'inserted_count',
+                'updated_count', 'duplicate_count', 'failed_count', 'error_code']
+        q['recent_runs'] = [dict(zip(cols, r)) for r in c.execute(
+            'SELECT run_id::text, mode, trigger, status, started_at::text, ended_at::text, fetched_count, inserted_count,'
+            ' updated_count, duplicate_count, failed_count, error_code FROM crawler_training.runs ORDER BY started_at DESC LIMIT 5')]
+        row = c.execute("SELECT max(started_at) FILTER (WHERE status='SUCCEEDED')::text, max(started_at) FILTER (WHERE status IN ('FAILED','PARTIAL','CANCELLED'))::text,"
+                        " count(*) FILTER (WHERE status='RUNNING'), count(*) FILTER (WHERE mode='live')"
+                        ' FROM crawler_training.runs').fetchone()
+        q.update(last_success_at=row[0], last_failure_at=row[1], runs_currently_running=row[2], live_runs_total=row[3])
+        row = c.execute("SELECT count(*), coalesce(sum(inserted_count),0), coalesce(sum(updated_count),0), coalesce(sum(duplicate_count),0),"
+                        " coalesce(sum(failed_count),0), count(*) FILTER (WHERE status<>'SUCCEEDED')"
+                        " FROM crawler_training.runs WHERE started_at > now() - interval '24 hours'").fetchone()
+        q['last_24h_runs'] = dict(zip(['runs', 'inserted', 'updated', 'duplicates', 'failed', 'not_succeeded'], row))
+        q['last_24h_warning_error_events'] = {f'{r[0]}:{r[1]}': r[2] for r in c.execute(
+            "SELECT level, event_type, count(*) FROM crawler_training.run_events WHERE level<>'INFO'"
+            " AND occurred_at > now() - interval '24 hours' GROUP BY 1, 2 ORDER BY 3 DESC")}
+        q['last_7d_night_outcomes'] = {f'{r[0]}:{r[1] or "-"}': r[2] for r in c.execute(
+            "SELECT outcome, error_code, count(*) FROM crawler_training.night_job_results"
+            " WHERE started_at > now() - interval '7 days' GROUP BY 1, 2 ORDER BY 3 DESC")}
+        q['postings_by_source'] = {r[0]: r[1] for r in c.execute(
+            'SELECT source_code, count(*) FROM crawler_training.postings GROUP BY 1 ORDER BY 1')}
+        q['schedules'] = [{'id': r[0], 'mode': r[1], 'enabled': r[2]} for r in c.execute(
+            'SELECT schedule_id, mode, enabled FROM crawler_training.schedules ORDER BY 1')]
+        q['database_size_bytes'] = c.execute('SELECT pg_database_size(current_database())').fetchone()[0]
+    return q
+
+
 if __name__ == '__main__':
-    result = snapshot() if '--snapshot' in sys.argv else schema_and_permissions()
+    if '--status' in sys.argv:
+        result = status()
+    elif '--snapshot' in sys.argv:
+        result = snapshot()
+    else:
+        result = schema_and_permissions()
     print(json.dumps(result, ensure_ascii=False, indent=1, default=str))

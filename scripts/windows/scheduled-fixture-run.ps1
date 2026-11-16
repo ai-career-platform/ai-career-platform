@@ -14,7 +14,8 @@
   * Log: <AICP_DATA_ROOT>\logs\scheduler\fixture-YYYYMMDD.jsonl (no secrets).
   Exit codes: 0 ok / skipped-locked, 3 auto-off, 4 refused (LIVE present), 1 failure.
 #>
-[CmdletBinding()] param([string]$TaskName = 'AICP-Crawler-Fixture')
+[CmdletBinding()] param([string]$TaskName = 'AICP-Crawler-Fixture', [int]$PgPortOverride = 0)
+if ($PgPortOverride -gt 0) { $env:AICP_PG_PORT = "$PgPortOverride" }   # failure-test hook (unreachable port)
 $env:AICP_NO_EGRESS = '1'
 . (Join-Path $PSScriptRoot 'crawler-local-env.ps1')
 $ErrorActionPreference = 'Continue'
@@ -22,7 +23,11 @@ Set-Location $RepoRoot
 $logDir = Join-Path $LogRoot 'scheduler'; New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $runDir = Join-Path $logDir ("run-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')); New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 $logFile = Join-Path $logDir ("fixture-" + (Get-Date -Format 'yyyyMMdd') + '.jsonl')
-$entry = [ordered]@{ started_at = (Get-Date).ToString('o'); task = $TaskName; host = $env:COMPUTERNAME; pid = $PID; run_dir = $runDir }
+$me = [Security.Principal.WindowsIdentity]::GetCurrent()
+$entry = [ordered]@{ started_at = (Get-Date).ToString('o'); task = $TaskName; host = $env:COMPUTERNAME; pid = $PID; run_dir = $runDir
+    user = $me.Name; session = (Get-Process -Id $PID).SessionId
+    interactive_logon = [bool]($me.Groups | Where-Object { $_.Value -eq 'S-1-5-4' })   # NT AUTHORITY\INTERACTIVE
+    batch_logon = [bool]($me.Groups | Where-Object { $_.Value -eq 'S-1-5-3' }) }       # NT AUTHORITY\BATCH (S4U/password tasks)
 $env:AICP_EGRESS_LOG = Join-Path $runDir 'egress.jsonl'
 
 function Finish([string]$Status, [int]$Code) {
@@ -32,6 +37,7 @@ function Finish([string]$Status, [int]$Code) {
         $entry.python_processes = @($e).Count; $entry.egress_attempts = ($e | Measure-Object -Property attempts -Sum).Sum
     } else { $entry.python_processes = 0; $entry.egress_attempts = 0 }
     Add-Content -Path $logFile -Value ($entry | ConvertTo-Json -Compress -Depth 6) -Encoding utf8
+    try { & (Join-Path $PSScriptRoot 'crawler-status.ps1') -Quiet } catch {}   # refresh local JSON status report
     exit $Code
 }
 function Py([string]$Name, [string[]]$PyArgs) {
@@ -55,7 +61,8 @@ if ($expired) {
 $entry.approval_expires_at = $policy.expires_at
 
 # 2. Single instance (named mutex is released by Windows even if this process crashes).
-$mutex = New-Object Threading.Mutex($false, 'Local\AICP-Crawler-Fixture')
+# Global\ so an unattended (session 0) run and an interactive run exclude each other too.
+$mutex = New-Object Threading.Mutex($false, 'Global\AICP-Crawler-Fixture')
 $owned = $false
 try { $owned = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owned = $true; $entry.recovered_abandoned_lock = $true }
 if (-not $owned) { $entry.reason = 'ANOTHER_RUN_IN_PROGRESS'; Finish 'SKIPPED_LOCKED' 0 }
