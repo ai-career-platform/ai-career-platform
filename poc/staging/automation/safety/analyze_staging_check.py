@@ -96,7 +96,10 @@ def analyze(text):
     env5 = find(secs, '5.') or []
     ver = find(secs, '2.') or []
     hist = find(secs, '6.') or []
-    cron_lines = [l for l in cron if 'run_gcp_sync.sh' in l and not l.startswith(('user_', 'system_'))]
+    # crontab lines only: section 4 lists the crontab before '--- cron executions' (journal/syslog lines after
+    # it also mention run_gcp_sync and must not count as an enabled cron entry)
+    crontab_part = cron[:next((i for i, l in enumerate(cron) if l.startswith('--- cron executions')), len(cron))]
+    cron_lines = [l for l in crontab_part if 'run_gcp_sync.sh' in l and not l.startswith(('user_', 'system_', '/etc/'))]
     active_lines = [l for l in cron_lines if not l.lstrip().startswith('#')]
     publish = kv(env5, 'GCP_SYNC_PUBLISH_value')
     runs = []
@@ -200,6 +203,8 @@ def analyze(text):
             rows.append(item)
     counts = {c: sum(1 for r in rows if r['class'] == c)
               for c in ('VERIFIED_APPROVED', 'VERIFIED_UNAPPROVED', 'VERIFIED_FIXTURE', 'UNVERIFIED_ORIGIN')}
+    if not tables8b and find(secs, '8b.') is not None and (total_db is None or total_db > 0):
+        problems.append('MISSING_8B_TABLE: the provenance query produced no table (SQL error?)')
     if tables8b and total_db is not None and len(rows) != total_db:
         problems.append(f'INCONSISTENT: 8b rows {len(rows)} != section 8 jobkorea_live {total_db}')
     if sum(counts.values()) != len(rows):
