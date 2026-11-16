@@ -226,6 +226,30 @@ class NightIntegrationTests(unittest.TestCase):
             WHERE keyword_id=%s""", (row['keyword_id'],)).fetchone()[0]
         self.assertEqual(checkpoint, 1)
 
+    def test_posting_fetched_by_an_earlier_keyword_tonight_is_not_requested_again(self):
+        """#368: cross-keyword early dedupe before the detail request; the new posting is still fetched."""
+        notify = lambda *a, **k: 200
+        listing = ''.join(f'<a href="{page(i)[0]}">p</a>' for i in self.ids[:2])
+        gate, get_patch, sleep_patch = self.mocked_http(
+            [ROBOTS, listing, page(self.ids[0])[1], page(self.ids[1])[1]], discover=nc.DETAIL_LIMIT)
+        with get_patch, sleep_patch:
+            first = nc.run_night_step(self.connection, now=self.at(5), notify=notify, **gate)
+        self.assertEqual(self.result(first['job_id'])['inserted'], 2)
+        # Next keyword: ids[0] (already fetched tonight by AX) and ids[2] (new).
+        listing = ''.join(f'<a href="{page(i)[0]}">p</a>' for i in (self.ids[0], self.ids[2]))
+        gate, get_patch, sleep_patch = self.mocked_http([ROBOTS, listing, page(self.ids[2])[1]], discover=nc.DETAIL_LIMIT)
+        with get_patch as get, sleep_patch:
+            second = nc.run_night_step(self.connection, now=self.at(65), notify=notify, **gate)
+        self.assertEqual([c.args[0] for c in get.call_args_list],
+                         ['https://www.jobkorea.co.kr/robots.txt', nc.search_url(nc.NIGHT_KEYWORDS[1]), page(self.ids[2])[0]])
+        row = self.result(second['job_id'])
+        self.assertEqual((second['night'], row['http_requests'], row['fetched'], row['inserted'], row['unchanged'],
+                          row['duplicates']), ('SUCCEEDED', 3, 1, 1, 0, 1))
+        # The skipped posting is still linked to the second keyword (coverage stays complete).
+        linked = self.connection.execute("""SELECT count(DISTINCT keyword_id) FROM crawler_training.keyword_posting_discoveries
+            WHERE source_code='jobkorea_live' AND external_posting_id=%s""", (str(self.ids[0]),)).fetchone()[0]
+        self.assertEqual(linked, 2)
+
     def test_mocked_429_on_detail_and_unapproved_detail_stop_without_further_requests(self):
         from crawler.jobs.import_jobkorea_html import FetchBlocked
         urls = [page(i)[0] for i in self.ids[:2]]
@@ -243,6 +267,40 @@ class NightIntegrationTests(unittest.TestCase):
         with get_patch as get, sleep_patch:
             second = nc.run_night_step(self.connection, now=self.at(65), notify=lambda *a, **k: 200, **gate)
         self.assertEqual((second['night'], second['error_code'], get.call_count), ('FAILED', 'UNAPPROVED_SOURCE', 2))
+
+    def test_expired_approval_blocks_before_any_request_and_writes_nothing(self):
+        """Real live_gate with a test-only approval whose review_due is past (the 08:00 expiry)."""
+        from crawler.policy.source_approval_gate import SourceApproval
+        expired = SourceApproval(source_code='jobkorea', approval_status='APPROVED', enabled=True, approved_by='test',
+                                 evidence_ref='test-only', valid_from_utc=self.at(-60).astimezone(timezone.utc),
+                                 review_due_utc=self.at(0).astimezone(timezone.utc), collection_method='WEB',
+                                 allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
+                                 allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
+                                 retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)
+        def count():
+            return self.connection.execute('SELECT (SELECT count(*) FROM crawler_training.keyword_jobs),'
+                                           '(SELECT count(*) FROM crawler_training.night_job_results)').fetchone()
+        before = count()
+        result = nc.run_night_step(self.connection, environ=GATED_ENV, now=self.at(5),
+                                   fetcher=lambda **kw: self.fail('no HTTP after expiry'),
+                                   approval_loader=lambda path: expired)
+        self.assertEqual(result, {'night': 'BLOCKED', 'reason': 'EXPIRED', 'external_requests': 0})
+        self.assertEqual(count(), before)
+
+    def test_changed_expiry_on_a_known_posting_is_an_update(self):
+        """A changed validThrough is an UPDATE. Per the T63 lifecycle contract the source status stays
+        'published'; a passed deadline is the derived EXPIRED state. An explicit source close is not
+        parsed (no real closed-page sample exists, so no marker is guessed)."""
+        first = self.step(5, [page(self.ids[0])])
+        self.assertEqual(self.result(first['job_id'])['inserted'], 1)
+        url, html = page(self.ids[0])
+        self.assertIn('"validThrough": "2026-11-15T23:59"', html)
+        second = self.step(65, [(url, html.replace('"validThrough": "2026-11-15T23:59"', '"validThrough": "2026-11-20T23:59"'))])
+        row = self.result(second['job_id'])
+        self.assertEqual((row['inserted'], row['updated'], row['unchanged']), (0, 1, 0))
+        stored = self.connection.execute("""SELECT payload->>'expires_on', payload->>'status' FROM crawler_training.postings
+            WHERE source_code='jobkorea_live' AND external_posting_id=%s""", (str(self.ids[0]),)).fetchone()
+        self.assertEqual(stored, ('2026-11-20', 'published'))
 
 
 if __name__ == '__main__':

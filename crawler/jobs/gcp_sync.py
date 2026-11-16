@@ -54,6 +54,7 @@ LIMITS = {'external_posting_id': 240, 'title': 240, 'company_name': 200, 'locati
 COMPARED = ('company_name', 'title', 'employment_type', 'location_text', 'source_url', 'status',
             'published_at', 'expires_at')
 RETRY_DELAYS = (60, 120)  # at most 3 attempts, connection/network errors only
+SKIPPED_ITEMS_LIMIT = 50  # per-record skip evidence kept in ingestion_runs.error_summary
 REFUSED_USERS = {'postgres', 'cloudsqlsuperuser', 'cloudsqladmin'}
 
 
@@ -92,6 +93,13 @@ class Plan:
     duplicate: int = 0
     skipped: list = field(default_factory=list)   # [(external_id, reason)]
     failed: list = field(default_factory=list)    # [(external_id, reason)]
+    skipped_sources: dict = field(default_factory=dict)  # {reason: {source_code: n}} (#369)
+    selected_changed: int = 0  # selected rows whose source updated_at is after the previous sync (#366)
+
+    def skip(self, row, reason):
+        self.skipped.append((row.external_posting_id, reason))
+        by_source = self.skipped_sources.setdefault(reason, {})
+        by_source[row.source_code] = by_source.get(row.source_code, 0) + 1
 
     def counts(self):
         return {'inserted': len(self.inserts), 'updated': len(self.updates), 'duplicate': self.duplicate,
@@ -134,29 +142,32 @@ def _effective_published(values, fallback):
     return values['published_at'] if values['published_at'] is not None else fallback
 
 
-def plan(rows, *, source_code, source_id, refs, url_owners, publish):
+def plan(rows, *, source_code, source_id, refs, url_owners, publish, last_synced_at=None):
     """Decide INSERT / UPDATE / DUPLICATE / SKIP / FAIL per source row. Pure; no I/O.
 
     refs: {external_id: Existing} for this data source.
     url_owners: {source_url: [(job_posting_id, source_id), ...]} for every target posting.
+    last_synced_at: start of the previous successful sync; only used to count source changes.
     """
     result = Plan()
     batch_urls = set()
     for row in rows:
         key = row.external_posting_id
         if row.source_code != source_code:
-            result.skipped.append((key, 'SOURCE_NOT_SELECTED'))
+            result.skip(row, 'SOURCE_NOT_SELECTED')
             continue
         if not row.provenance_ok:
-            result.skipped.append((key, 'PROVENANCE_UNVERIFIED'))
+            result.skip(row, 'PROVENANCE_UNVERIFIED')
             continue
+        if last_synced_at is None or row.updated_at > last_synced_at:
+            result.selected_changed += 1
         try:
             values = map_row(row, publish=publish)
         except InvalidPosting as error:
-            result.skipped.append((key, f'INVALID: {error}'))
+            result.skip(row, f'INVALID: {error}')
             continue
         if values['source_url'] in batch_urls:
-            result.skipped.append((key, 'DUPLICATE_URL_IN_SOURCE'))
+            result.skip(row, 'DUPLICATE_URL_IN_SOURCE')
             continue
         batch_urls.add(values['source_url'])
         existing = refs.get(key)
@@ -164,7 +175,7 @@ def plan(rows, *, source_code, source_id, refs, url_owners, publish):
         if existing is None:
             published = _effective_published(values, row.updated_at)
             if values['expires_at'] is not None and values['expires_at'] < published:
-                result.skipped.append((key, 'INVALID: Expiry precedes publish time'))
+                result.skip(row, 'INVALID: Expiry precedes publish time')
             elif owners:
                 result.failed.append((key, 'URL_CONFLICT'))
             else:
@@ -179,7 +190,7 @@ def plan(rows, *, source_code, source_id, refs, url_owners, publish):
         desired = dict(values, published_at=_effective_published(values, existing.values['published_at']))
         if desired['expires_at'] is not None and desired['published_at'] is not None \
                 and desired['expires_at'] < desired['published_at']:
-            result.skipped.append((key, 'INVALID: Expiry precedes publish time'))
+            result.skip(row, 'INVALID: Expiry precedes publish time')
             continue
         changes = {k: desired[k] for k in COMPARED if desired[k] != existing.values[k]}
         if changes:
@@ -494,7 +505,13 @@ def _summary(result, extra):
         for _, reason in items:
             out[reason] = out.get(reason, 0) + 1
         return out
+    # SOURCE_NOT_SELECTED is fully explained by its source_code tally; every other skip is listed
+    # per record so each one can be traced from the run row (#369).
+    items = [f'{k}:{r}' for k, r in result.skipped if r != 'SOURCE_NOT_SELECTED']
     return dict(extra, **result.counts(), skipped_reasons=tally(result.skipped),
+                skipped_by_source=result.skipped_sources, skipped_items=items[:SKIPPED_ITEMS_LIMIT],
+                skipped_items_truncated=len(items) > SKIPPED_ITEMS_LIMIT,
+                source_changed_since_last_sync=result.selected_changed,
                 failed_items=[f'{k}:{r}' for k, r in result.failed[:20]])
 
 
@@ -576,6 +593,12 @@ def cutover_refusal(others, now, *, confirmed, evidence):
     return None
 
 
+def check_accounting(fetched, result):
+    """fetched = inserted + updated + duplicate + skipped + failed; every row in exactly one bucket."""
+    counts = result.counts()
+    return fetched == sum(counts.values())
+
+
 def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_SOURCE_CODE,
              publish=False, now=None, live_run_ids=None, require_provenance=False, cutover_confirmed=False,
              cutover_evidence=None):
@@ -648,8 +671,15 @@ def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover
             if cursor.fetchone()[0]:
                 target.rollback()
                 return dict(base, status='SKIPPED', reason='ALREADY_SYNCED_TODAY')
+    with target.cursor() as cursor:
+        cursor.execute("SELECT max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
+                       " AND status = 'succeeded'", (source_id,))
+        last_synced_at = cursor.fetchone()[0]
     result = plan(rows, source_code=source_code, source_id=source_id, refs=refs, url_owners=owners,
-                  publish=publish)
+                  publish=publish, last_synced_at=last_synced_at)
+    if not check_accounting(len(rows), result):
+        target.rollback()
+        return dict(base, status='FAILED', error_code='COUNT_MISMATCH', fetched=len(rows), **result.counts())
     if mode == 'dry-run':
         target.rollback()
         return dict(base, status='DRY_RUN', fetched=len(rows), **_summary(result, {}))
@@ -705,9 +735,15 @@ def _notify(result, environ):
     if 'run_id' in result:
         lines.append(f"Run ID: `{result['run_id']}`")
     if 'inserted' in result:
-        lines.append(f"Fetched {result.get('fetched', 0)} · Inserted {result['inserted']} · Updated {result['updated']}"
-                     f" · Duplicate/unchanged {result['duplicate']} · Skipped {result['skipped']}"
+        # Sync-stage counts only: this run copies existing crawler rows, it does not crawl (#366).
+        lines.append(f"Source rows read {result.get('fetched', 0)} (all source codes) · selected `{result['source_code']}`"
+                     f" changed since last sync {result.get('source_changed_since_last_sync', 'n/a')}")
+        lines.append(f"Target: Inserted {result['inserted']} · Updated {result['updated']}"
+                     f" · Unchanged (already synced) {result['duplicate']} · Skipped {result['skipped']}"
                      f" · Failed {result['failed']}")
+        for reason, by_source in sorted((result.get('skipped_by_source') or {}).items()):
+            detail = ', '.join(f'{code} {n}' for code, n in sorted(by_source.items()))
+            lines.append(f"Skipped `{reason}`: {detail}")
     if result.get('error_code'):
         lines.append(f"Error code: `{result['error_code']}`")
     if result.get('reason'):

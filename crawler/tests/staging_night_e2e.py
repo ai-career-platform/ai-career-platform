@@ -189,7 +189,9 @@ class StagingNightE2E(unittest.TestCase):
         self.assertTrue(all(r['outcome'] == 'SUCCEEDED' and r['attempt'] == 1 for r in rows))
         self.assertTrue(all(r['night_date'] == night for r in rows))  # 00:00-02:00 jobs belong to the same night
         self.assertEqual([r['inserted'] for r in rows], [2, 1, 2, 2, 2, 2])
-        self.assertEqual(rows[1]['unchanged'], 1)
+        # #368: the AX posting repeated by 데이터 분석 is skipped before its detail request (robots + search + 1 detail).
+        self.assertEqual((rows[1]['unchanged'], rows[1]['duplicates'], rows[1]['fetched'], rows[1]['http_requests']),
+                         (0, 1, 1, 3))
         before_21 = [s for h, s in trace if h < '21:00' and h >= '12:00']
         self.assertTrue(before_21 and all(s == 'IDLE/OUTSIDE_WINDOW' for s in before_21))
         # All approved keywords are already complete; 07:50 is inside the new window,
@@ -200,7 +202,7 @@ class StagingNightE2E(unittest.TestCase):
         self.assertIn(('08:10', 'IDLE/OUTSIDE_WINDOW'), trace)
         self.assertIn(('03:05', 'IDLE/NOTHING_DUE'), trace)      # all six done before 03:00; no extra work
         self.assertEqual(len([s for _, s in trace if s == 'SUCCEEDED']), 6)
-        self.assertEqual(len(web.calls), 6 * 4)  # robots + list + 2 details per keyword, all mocked
+        self.assertEqual(len(web.calls), 6 * 4 - 1)  # robots + list + 2 details per keyword, minus the #368 skip
         linked = self.connection.execute('''SELECT count(DISTINCT keyword_id) FROM crawler_training.keyword_posting_discoveries
             WHERE source_code='jobkorea_live' AND external_posting_id=%s''', (str(ids_for(0, 0)[0]),)).fetchone()[0]
         self.assertEqual(linked, 2)

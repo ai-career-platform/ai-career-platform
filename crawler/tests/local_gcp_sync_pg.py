@@ -137,12 +137,19 @@ class GcpSyncPostgresTest(unittest.TestCase):
                                     ' WHERE c.source_id <> p.source_id')[0][0], 0)
         run = self.owner("SELECT status, fetched_count, error_summary::jsonb->>'inserted' FROM career.ingestion_runs")
         self.assertEqual(run, [('succeeded', 9, '6')])
+        # #369: the run row keeps per-source skip reasons and per-record skips; #366: change count.
+        evidence = self.owner("SELECT error_summary::jsonb->'skipped_by_source', error_summary::jsonb->'skipped_items',"
+                              " error_summary::jsonb->'source_changed_since_last_sync' FROM career.ingestion_runs")[0]
+        self.assertEqual(set(evidence[0]), {'SOURCE_NOT_SELECTED', 'INVALID: Missing or invalid field: title'})
+        self.assertEqual(len(evidence[1]), 1)
+        self.assertEqual(evidence[2], 7)  # 7 selected rows, no previous successful sync
         self.assertEqual(self.source_fingerprint(), source_before)
 
     def test_03_rerun_is_idempotent(self):
         before = self.fingerprint()
         result = self.sync()
         self.assertEqual((result['inserted'], result['updated'], result['duplicate']), (0, 0, 6))
+        self.assertEqual(result['source_changed_since_last_sync'], 0)  # nothing new since run 02
         self.assertEqual(self.fingerprint(), before)
 
     def test_04_changed_source_updates_only_that_field(self):
@@ -209,10 +216,11 @@ class GcpSyncPostgresTest(unittest.TestCase):
     def test_08_scheduled_guards(self):
         night = self.sync(mode='scheduled', now=datetime(2026, 11, 15, 2, 0, tzinfo=g.KST))
         self.assertEqual(night['reason'], 'NIGHT_WINDOW_OPEN')
-        # Pin the latest succeeded run to 2026-11-14 08:06 KST to test the once-a-day guard.
+        # Pin every succeeded run to 2026-11-14 08:06 KST to test the once-a-day guard. Earlier tests stamp
+        # started_at with the DB clock while this test injects `now`; pinning only the latest run made the
+        # test fail once the real clock passed 2026-11-16 08:00 KST (the injected "next day").
         self.owner("UPDATE career.ingestion_runs SET started_at = '2026-11-14 08:06+09', ended_at = '2026-11-14 08:07+09'"
-                   " WHERE ingestion_run_id = (SELECT ingestion_run_id FROM career.ingestion_runs"
-                   " WHERE status = 'succeeded' ORDER BY started_at DESC LIMIT 1)")
+                   " WHERE status = 'succeeded'")
         same_day = self.sync(mode='scheduled', now=datetime(2026, 11, 14, 20, 0, tzinfo=g.KST))
         self.assertEqual(same_day['reason'], 'ALREADY_SYNCED_TODAY')
         next_day = self.sync(mode='scheduled', publish=True, now=datetime(2026, 11, 16, 8, 5, tzinfo=g.KST))
@@ -236,6 +244,68 @@ class GcpSyncPostgresTest(unittest.TestCase):
                         'DELETE FROM career.ingestion_runs'):
                 with self.subTest(sql=sql), self.assertRaises(self.psycopg.errors.InsufficientPrivilege):
                     sync.execute(sql)
+
+    def test_10_count_mismatch_aborts_before_any_write(self):
+        """#369: a plan that loses a row is refused before the run row or any posting is written."""
+        from unittest.mock import patch
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{title}', '\"mismatch probe\"'),"
+                   " updated_at = updated_at + interval '2 day' WHERE external_posting_id = '3'")
+        real = g.plan
+        def lossy(*args, **kwargs):
+            result = real(*args, **kwargs)
+            result.updates.pop()  # simulate a row that falls into no bucket
+            return result
+        before, runs = self.fingerprint(), self.owner('SELECT count(*) FROM career.ingestion_runs')[0][0]
+        with patch.object(g, 'plan', side_effect=lossy):
+            result = self.sync()
+        self.assertEqual((result['status'], result['error_code']), ('FAILED', 'COUNT_MISMATCH'))
+        self.assertEqual(self.fingerprint(), before)
+        self.assertEqual(self.owner('SELECT count(*) FROM career.ingestion_runs')[0][0], runs)
+        # Without the fault the same pending change is applied normally (nothing was lost). Other rows
+        # may also update here: test_07 published them and this run is draft-only again.
+        self.assertEqual(self.sync()['status'], 'SUCCEEDED')
+        self.assertEqual(self.owner("SELECT title FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                                    " USING (job_posting_id) WHERE r.external_id = '3'"), [('mismatch probe',)])
+
+    def test_11_changed_expiry_propagates_to_expires_at(self):
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{expires_on}', '\"2026-12-01\"'),"
+                   " updated_at = updated_at + interval '3 day' WHERE external_posting_id = '4'")
+        result = self.sync()
+        self.assertEqual((result['inserted'], result['updated'], result['failed']), (0, 1, 0))
+        got = self.owner("SELECT p.expires_at, p.status FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                         " USING (job_posting_id) WHERE r.external_id = '4'")[0]
+        self.assertEqual((got[0].astimezone(g.KST).isoformat(), got[1]), ('2026-12-02T00:00:00+09:00', 'draft'))
+
+    def test_12_deadline_passed_is_closed_for_the_service_without_rewriting_status(self):
+        """T63 lifecycle contract: a passed validThrough is EXPIRED (derived), not a source 'closed' status.
+
+        The sync keeps the source status and moves expires_at; the backend then hides the posting from
+        open lists and still returns it with include_closed. Nothing is deleted.
+        """
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+        from app.repositories.job_postings import PostingFilter, SqlJobPostingRepository
+        self.owner("UPDATE crawler_training.postings SET payload = jsonb_set(payload, '{expires_on}', '\"2026-11-13\"'),"
+                   " updated_at = updated_at + interval '4 day' WHERE external_posting_id = '5'")
+        result = self.sync(publish=True)
+        self.assertEqual((result['status'], result['failed']), ('SUCCEEDED', 0))
+        stored = self.owner("SELECT p.status, p.expires_at FROM career.job_postings p JOIN career.job_posting_external_refs r"
+                            " USING (job_posting_id) WHERE r.external_id = '5'")[0]
+        self.assertEqual((stored[0], stored[1].astimezone(g.KST).isoformat()), ('published', '2026-11-14T00:00:00+09:00'))
+        engine = create_engine('postgresql+psycopg://', creator=lambda: self.psycopg.connect(self.owner_dsn))
+        now = datetime(2026, 11, 16, 9, 0, tzinfo=g.KST)
+
+        def titles(include_closed):
+            query = PostingFilter(q=None, company_id=None, job_role_id=None, include_closed=include_closed,
+                                  sort='-published_at')
+            with Session(engine) as session:
+                return {r.title for r in SqlJobPostingRepository(session).list_postings(query, None, 100, now)}
+        try:
+            self.assertNotIn('데이터 엔지니어 5', titles(False))
+            self.assertIn('데이터 엔지니어 5', titles(True))
+            self.assertIn('데이터 엔지니어 4', titles(False))  # expires 2026-12-01: still open
+        finally:
+            engine.dispose()
 
 
 if __name__ == '__main__':
