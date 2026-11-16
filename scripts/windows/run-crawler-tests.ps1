@@ -55,7 +55,14 @@ if ($Suite -in 'pg','all') {
     $hasDisposableAdmin = (Test-Path $env:PGPASSFILE) -and (Select-String -Path $env:PGPASSFILE -Pattern "^127\.0\.0\.1:${PgPort}:\*:postgres:" -Quiet)
     if ($hasDisposableAdmin) {
         Step 'pg-gcp-sync' @{ CRAWLER_GCP_SYNC_PG_TEST='1'; CRAWLER_GCP_SYNC_ADMIN_DSN="postgresql://postgres@127.0.0.1:$PgPort/postgres" } @('crawler.tests.local_gcp_sync_pg')
-    } else { Add-Result 'pg-gcp-sync' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null }
+        Step 'pg-gcp-sync-local-source' @{ CRAWLER_GCP_SYNC_PG_TEST='1'; CRAWLER_GCP_SYNC_ADMIN_DSN="postgresql://postgres@127.0.0.1:$PgPort/postgres" } @('crawler.tests.local_gcp_sync_local_source_pg')
+        # GOAL_3 harvest writes 1,000+ synthetic rows: disposable clusters only (the test also refuses 5432).
+        Step 'pg-harvest-1000' @{ CRAWLER_HARVEST_PG_TEST='1'; CRAWLER_LOCAL_DATABASE_URL=$staging } @('crawler.tests.local_harvest_pg')
+    } else {
+        Add-Result 'pg-gcp-sync' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null
+        Add-Result 'pg-gcp-sync-local-source' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null
+        Add-Result 'pg-harvest-1000' 'NOT_RUN' $null 0 'disposable cluster only (writes 1,000+ synthetic rows)' $null
+    }
     Step 'pg-html-integration'  @{ CRAWLER_LOCAL_PG_TEST='1' } @('crawler.tests.local_html_pg_integration')
     # These two tests hard-code the container DSN db:5432 (crawler/storage/staging.py), so they only
     # apply to the cluster on port 5432.

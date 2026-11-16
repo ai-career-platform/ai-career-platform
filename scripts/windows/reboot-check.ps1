@@ -17,8 +17,8 @@ $ErrorActionPreference = 'Continue'
 Set-Location $RepoRoot
 $dir = Join-Path $DataRoot 'reboot'; New-Item -ItemType Directory -Path $dir -Force | Out-Null
 function Snapshot { $f = Join-Path $env:TEMP "aicp-snap-$PID.json"
-    & cmd /d /c "`"$VenvPy`" `"$(Join-Path $PSScriptRoot 'verify_local_db.py')`" --snapshot > `"$f`" 2>&1"
-    $ok = $LASTEXITCODE -eq 0; $o = if ($ok) { Get-Content $f -Raw | ConvertFrom-Json }; Remove-Item $f -ErrorAction SilentlyContinue; $o }
+    & cmd /d /c "`"$VenvPy`" `"$(Join-Path $PSScriptRoot 'verify_local_db.py')`" --snapshot > `"$f`" 2> `"$f.err`""
+    $ok = $LASTEXITCODE -eq 0; $o = if ($ok) { Get-Content $f -Raw | ConvertFrom-Json }; Remove-Item $f, "$f.err" -ErrorAction SilentlyContinue; $o }
 & (Join-Path $PSScriptRoot 'crawler-status.ps1') -Quiet
 $status = Get-Content (Join-Path $DataRoot 'status\crawler-status.json') -Raw | ConvertFrom-Json
 $state = [ordered]@{ phase = $Phase; at = (Get-Date).ToString('o'); last_boot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToString('o')

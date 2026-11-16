@@ -17,6 +17,18 @@ Usage (inside the backend container)::
     python -m crawler.jobs.gcp_sync dry-run     # plan only, no writes
     python -m crawler.jobs.gcp_sync run         # manual run (worker guard, no time guard)
     python -m crawler.jobs.gcp_sync scheduled   # daily timer: time/worker/once-a-day guards
+
+Local Windows source (GOAL_2, one-shot only)::
+
+    GCP_SYNC_SOURCE=local python -m crawler.jobs.gcp_sync dry-run --live-run-id <harvest run id>
+    GCP_SYNC_SOURCE=local python -m crawler.jobs.gcp_sync run     --live-run-id <harvest run id>
+    GCP_SYNC_SOURCE=local python -m crawler.jobs.gcp_sync verify  --live-run-id <harvest run id>
+
+The local source is the loopback ``crawler_local`` connection (``CRAWLER_LOCAL_DATABASE_URL``,
+validated by ``validate_local_dsn``), READ ONLY. Only postings written by the named LIVE harvest
+runs are selected (``crawler_training.harvest_items``, run ``mode='live'`` with real HTTP requests),
+so fixture rows and rows written by mocked-HTTP tests can never be copied. ``scheduled`` is refused.
+``verify`` is read-only on both sides and compares every selected source row with the target.
 """
 from __future__ import annotations
 
@@ -254,6 +266,27 @@ def connect_target(environ, *, connect=None):
         raise
 
 
+def source_kind(environ):
+    kind = (environ.get('GCP_SYNC_SOURCE') or 'staging').strip()
+    if kind not in ('staging', 'local'):
+        raise SyncError('SOURCE_KIND_INVALID')
+    return kind
+
+
+def connect_local_source(environ):
+    """Loopback crawler_local connection (validate_local_dsn), READ ONLY."""
+    from crawler.storage.postgres import connect_local_training_db
+    from crawler.storage.staging import using_staging
+    if using_staging():
+        raise SyncError('SOURCE_NOT_LOCAL')
+    try:
+        connection = connect_local_training_db(environ.get('CRAWLER_LOCAL_DATABASE_URL', ''))
+    except Exception as error:
+        raise _classify(error, 'SOURCE') from None
+    connection.read_only = True
+    return connection
+
+
 def connect_source():
     from crawler.storage.staging import connect_configured_database, using_staging
     if not using_staging():
@@ -272,24 +305,73 @@ def in_night_window(now):
     return local >= NIGHT_START or local < NIGHT_END
 
 
-def read_source(connection):
-    """Busy check and posting snapshot in one READ ONLY transaction (no writes to the source)."""
+LIVE_RUN_FINISHED = ('SUCCEEDED', 'PARTIAL', 'STOPPED')
+LIVE_ITEM_OUTCOMES = ['inserted', 'updated', 'unchanged']
+
+
+def _parse_run_ids(values):
+    import uuid
+    ids = []
+    for value in values or ():
+        for part in str(value).split(','):
+            if part.strip():
+                try:
+                    ids.append(str(uuid.UUID(part.strip())))
+                except ValueError:
+                    raise SyncError('LIVE_RUN_ID_INVALID') from None
+    return sorted(set(ids))
+
+
+def read_source(connection, live_run_ids=None, source_code=DEFAULT_SOURCE_CODE):
+    """Busy check and posting snapshot in one READ ONLY transaction (no writes to the source).
+
+    ``live_run_ids`` (local source): only postings written or re-checked by those LIVE harvest
+    runs. Every run must exist, be finished, be ``mode='live'`` for ``source_code`` and have made
+    real HTTP requests; otherwise nothing is selected (``LIVE_RUN_NOT_ELIGIBLE``).
+    """
     with connection.transaction():
         with connection.cursor() as cursor:
             cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
             cursor.execute("SELECT (SELECT count(*) FROM crawler_training.runs WHERE status = 'RUNNING'),"
                            " (SELECT count(*) FROM crawler_training.keyword_jobs WHERE status = 'RUNNING'),"
-                           " to_regclass('crawler_training.night_job_results') IS NOT NULL")
-            runs, jobs, has_night = cursor.fetchone()
-            night = 0
+                           " to_regclass('crawler_training.night_job_results') IS NOT NULL,"
+                           " to_regclass('crawler_training.harvest_runs') IS NOT NULL")
+            runs, jobs, has_night, has_harvest = cursor.fetchone()
+            night = harvest = 0
             if has_night:
                 cursor.execute("SELECT count(*) FROM crawler_training.night_job_results WHERE outcome = 'RUNNING'")
                 night = cursor.fetchone()[0]
+            if has_harvest:
+                cursor.execute("SELECT count(*) FROM crawler_training.harvest_runs WHERE status = 'RUNNING'")
+                harvest = cursor.fetchone()[0]
             busy = {'runs': runs, 'keyword_jobs': jobs, 'night_jobs': night}
+            if has_harvest:
+                busy['harvest_runs'] = harvest
             if any(busy.values()):
                 return busy, []
-            cursor.execute('SELECT source_code, external_posting_id, payload, updated_at'
-                           ' FROM crawler_training.postings ORDER BY source_code, external_posting_id')
+            if live_run_ids is None:
+                cursor.execute('SELECT source_code, external_posting_id, payload, updated_at'
+                               ' FROM crawler_training.postings ORDER BY source_code, external_posting_id')
+                return busy, [SourceRow(*record) for record in cursor.fetchall()]
+            if not live_run_ids:
+                raise SyncError('LIVE_RUN_ID_REQUIRED')
+            if not has_harvest:
+                raise SyncError('LIVE_RUN_NOT_ELIGIBLE')
+            cursor.execute('SELECT count(*) FROM crawler_training.harvest_runs WHERE run_id = ANY(%s::uuid[])'
+                           " AND mode = 'live' AND source_code = %s AND status = ANY(%s) AND http_requests > 0",
+                           (list(live_run_ids), source_code, list(LIVE_RUN_FINISHED)))
+            if cursor.fetchone()[0] != len(live_run_ids):
+                raise SyncError('LIVE_RUN_NOT_ELIGIBLE')
+            cursor.execute('SELECT p.source_code, p.external_posting_id, p.payload, p.updated_at'
+                           ' FROM crawler_training.postings p WHERE p.source_code = %s AND EXISTS ('
+                           ' SELECT 1 FROM crawler_training.harvest_items i'
+                           ' JOIN crawler_training.harvest_runs r ON r.run_id = i.run_id'
+                           ' WHERE i.run_id = ANY(%s::uuid[]) AND i.source_code = p.source_code'
+                           ' AND i.external_posting_id = p.external_posting_id AND i.outcome = ANY(%s)'
+                           # a later write (e.g. a mocked-HTTP test reusing the id) is not this run's data
+                           ' AND p.updated_at <= r.ended_at)'
+                           ' ORDER BY p.external_posting_id',
+                           (source_code, list(live_run_ids), LIVE_ITEM_OUTCOMES))
             rows = [SourceRow(*record) for record in cursor.fetchall()]
     return busy, rows
 
@@ -373,17 +455,55 @@ def _summary(result, extra):
                 failed_items=[f'{k}:{r}' for k, r in result.failed[:20]])
 
 
+def verify_target(cursor, rows, *, source_code, publish):
+    """Read-only comparison of every selected source row with its target posting."""
+    source_id, refs, _, _ = load_target(cursor, source_code, ())
+    matched, missing, mismatched = 0, [], []
+    for row in rows:
+        try:
+            values = map_row(row, publish=publish)
+        except InvalidPosting:
+            continue
+        existing = refs.get(row.external_posting_id)
+        if existing is None:
+            missing.append(row.external_posting_id)
+            continue
+        desired = dict(values, published_at=values['published_at'] or existing.values['published_at'])
+        diff = sorted(k for k in COMPARED if desired[k] != existing.values[k])
+        if diff:
+            mismatched.append(f"{row.external_posting_id}:{'|'.join(diff)}")
+        else:
+            matched += 1
+    return {'source_rows': len(rows), 'target_matched': matched, 'target_missing': len(missing),
+            'target_mismatched': len(mismatched), 'missing_items': missing[:20], 'mismatched_items': mismatched[:20],
+            'source_target_match': bool(rows) and matched == len(rows)}
+
+
 def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_SOURCE_CODE,
-             publish=False, now=None):
+             publish=False, now=None, live_run_ids=None):
     """One sync. Returns a secret-free result dict; raises SyncError on connection-level failures."""
     now = now or datetime.now(timezone.utc)
     base = {'mode': mode, 'source_code': source_code, 'publish': publish}
+    if live_run_ids is not None:
+        base['source'] = 'local'
+        base['live_run_ids'] = list(live_run_ids)
+        if mode == 'scheduled':
+            return dict(base, status='FAILED', error_code='LOCAL_SOURCE_ONE_SHOT_ONLY')
     if mode == 'scheduled' and in_night_window(now):
         return dict(base, status='SKIPPED', reason='NIGHT_WINDOW_OPEN')
-    busy, rows = read_source(source_connection)
+    busy, rows = read_source(source_connection, live_run_ids, source_code) if live_run_ids is not None \
+        else read_source(source_connection)
     if any(busy.values()):
         return dict(base, status='SKIPPED', reason='CRAWLER_BUSY', busy=busy)
     target = target_connection
+    if mode == 'verify':
+        try:
+            with target.cursor() as cursor:
+                cursor.execute('SET TRANSACTION READ ONLY')
+                return dict(base, status='VERIFIED', **verify_target(cursor, rows, source_code=source_code,
+                                                                      publish=publish))
+        finally:
+            target.rollback()
     with target.cursor() as cursor:
         cursor.execute('SELECT pg_try_advisory_lock(%s)', (LOCK_KEY,))
         locked = cursor.fetchone()[0]
@@ -443,8 +563,11 @@ def _locked_sync(target, rows, base, now, *, mode, source_code, publish):
                            ' WHERE ingestion_run_id = %s', (json.dumps(dict(base, error_code=code)), run_id))
         target.commit()
         return dict(base, status='FAILED', error_code=code, run_id=str(run_id), fetched=len(rows))
+    extra = {}
+    if 'live_run_ids' in base:  # local one-shot: evidence for a run-scoped rollback
+        extra['inserted_external_ids'] = [external_id for external_id, _, _ in result.inserts]
     return dict(summary, status=status, run_id=str(run_id), fetched=len(rows),
-                started_at=started_at.isoformat(), ended_at=ended_at.isoformat())
+                started_at=started_at.isoformat(), ended_at=ended_at.isoformat(), **extra)
 
 
 # ---------------------------------------------------------------- CLI
@@ -467,16 +590,30 @@ def _notify(result, environ):
     return {'slack': 'SENT' if accepted else 'FAILED', 'http_status': http_status}
 
 
-def execute(mode, environ, *, connect_src=connect_source, connect_tgt=connect_target, sleep=time.sleep):
+def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, sleep=time.sleep, live_run_ids=None):
     source_code = (environ.get('GCP_SYNC_SOURCE_CODE') or DEFAULT_SOURCE_CODE).strip()
     publish = environ.get('GCP_SYNC_PUBLISH') == '1'
+    try:
+        local = source_kind(environ) == 'local'
+        run_ids = _parse_run_ids(live_run_ids) if local else None
+        if local and not run_ids:
+            raise SyncError('LIVE_RUN_ID_REQUIRED')
+        if local and mode == 'scheduled':
+            raise SyncError('LOCAL_SOURCE_ONE_SHOT_ONLY')
+        if not local and (mode == 'verify' or live_run_ids):
+            raise SyncError('LIVE_RUN_ID_NEEDS_LOCAL_SOURCE')
+    except SyncError as error:
+        return {'mode': mode, 'status': 'FAILED', 'error_code': error.code, 'attempts': 0}
+    if connect_src is None:
+        connect_src = (lambda: connect_local_source(environ)) if local else connect_source
     attempts = len(RETRY_DELAYS) + 1 if mode == 'scheduled' else 1
     for attempt in range(1, attempts + 1):
         source = target = None
         try:
             source = connect_src()
             target = connect_tgt(environ)
-            result = run_sync(source, target, mode=mode, source_code=source_code, publish=publish)
+            result = run_sync(source, target, mode=mode, source_code=source_code, publish=publish,
+                              live_run_ids=run_ids)
         except SyncError as error:
             result = {'mode': mode, 'status': 'FAILED', 'error_code': error.code}
             if error.retryable and attempt < attempts:
@@ -505,10 +642,14 @@ def execute(mode, environ, *, connect_src=connect_source, connect_tgt=connect_ta
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('mode', choices=['dry-run', 'run', 'scheduled'])
+    parser.add_argument('mode', choices=['dry-run', 'run', 'scheduled', 'verify'])
+    parser.add_argument('--live-run-id', action='append',
+                        help='GCP_SYNC_SOURCE=local only: LIVE harvest run whose postings are copied (repeatable)')
     args = parser.parse_args(argv)
-    result = execute(args.mode, os.environ)
+    result = execute(args.mode, os.environ, live_run_ids=args.live_run_id)
     print(json.dumps(result, default=str, ensure_ascii=False))
+    if args.mode == 'verify':
+        return 0 if result.get('source_target_match') else 1
     return 0 if result['status'] in ('SUCCEEDED', 'SKIPPED', 'DRY_RUN') else 1
 
 

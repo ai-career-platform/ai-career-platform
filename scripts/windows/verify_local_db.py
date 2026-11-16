@@ -126,6 +126,13 @@ def status():
         q['schedules'] = [{'id': r[0], 'mode': r[1], 'enabled': r[2]} for r in c.execute(
             'SELECT schedule_id, mode, enabled FROM crawler_training.schedules ORDER BY 1')]
         q['database_size_bytes'] = c.execute('SELECT pg_database_size(current_database())').fetchone()[0]
+        # GOAL_3 daily volume monitor (migration 0013): today's harvest totals by mode vs the 1,000 target.
+        if c.execute("SELECT to_regclass('crawler_training.harvest_runs') IS NOT NULL").fetchone()[0]:
+            from crawler.jobs.harvest import daily_report
+            q['harvest_today'] = [r for r in daily_report(c, days=1)['harvest_by_day']
+                                  if r['day'] == str(c.execute("SELECT (now() AT TIME ZONE 'Asia/Seoul')::date").fetchone()[0])]
+            q['harvest_live_runs_total'] = c.execute(
+                "SELECT count(*) FROM crawler_training.harvest_runs WHERE mode='live'").fetchone()[0]
     return q
 
 

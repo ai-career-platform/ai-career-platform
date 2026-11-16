@@ -19,6 +19,14 @@ SEARCH_PATH = "/Search/"
 SEARCH_TAB = "recruit"
 MAX_SEARCH_TEXT = 100
 MAX_DISCOVERED_DETAILS = 5
+# GOAL_3 harvest scope (opt-in, default off). Code ceilings only: the approval record decides the
+# actual numbers, and only for the dedicated purpose below. Existing approvals are unaffected.
+HARVEST_PURPOSE = "harvest_collection"
+MAX_SEARCH_PAGES = 50
+MAX_HARVEST_DETAILS = 2000
+# Result-page parameter of the JobKorea search page. UNVERIFIED against the live site (no live
+# request has ever been approved); confirm it during the first approved run before using page >= 2.
+SEARCH_PAGE_PARAM = "Page_No"
 # The one spelling the list parser emits; discovered links must match it exactly.
 _STRICT_DETAIL = re.compile(r"https://www\.jobkorea\.co\.kr/Recruit/GI_Read/[0-9]+")
 
@@ -60,6 +68,10 @@ class SourceApproval:
     # 1..5 also admits /Recruit/GI_Read/<id> pages discovered on a search page that is itself
     # listed exactly in allowed_urls, at most this many per search (bounded by requested_calls).
     max_discovered_details: int = 0
+    # GOAL_3 harvest (purpose ``harvest_collection`` only). 1 = first result page only.
+    max_search_pages: int = 1
+    # 0 = harvest disabled. 1..2000 = discovered detail pages allowed per harvest run.
+    max_harvest_details: int = 0
 
 
 @dataclass(frozen=True)
@@ -150,12 +162,57 @@ def _visible_keyword(text: str) -> bool:
     )
 
 
+def paged_search_url(url: str, page: int) -> str:
+    """Page ``page`` (>= 2) of a canonical search URL; page 1 is the URL itself."""
+    if page == 1:
+        return url
+    return f"{url}&{SEARCH_PAGE_PARAM}={page}"
+
+
+def _search_page(url: object) -> tuple[str, int] | None:
+    """(page-1 canonical search URL, page number) for a canonical search URL or its paged form."""
+    if _canonical_jobkorea_search(url):
+        return url, 1
+    if not isinstance(url, str):
+        return None
+    base, sep, number = url.rpartition("&" + SEARCH_PAGE_PARAM + "=")
+    if (not sep or not number.isascii() or not number.isdigit() or number.startswith("0")
+            or len(number) > 3):
+        return None
+    page = int(number)
+    if page < 2 or not base.endswith("&tabType=" + SEARCH_TAB) or not _canonical_jobkorea_search(base):
+        return None
+    return base, page
+
+
+def _in_harvest_scope(approval: SourceApproval, intent: CollectionIntent) -> bool:
+    """Result pages 1..max_search_pages of a listed search URL, and detail pages discovered on them."""
+    if not 1 <= approval.max_harvest_details <= MAX_HARVEST_DETAILS:
+        return False
+    # The whole run must fit the approval: robots + every approved result page + approved details.
+    run_bound = 1 + approval.max_search_pages * len(approval.allowed_urls) + approval.max_harvest_details
+    if type(intent.requested_calls) is not int or intent.requested_calls > run_bound:
+        return False
+
+    def approved_page(url):
+        found = _search_page(url)
+        return (found is not None and found[0] in approval.allowed_urls
+                and found[1] <= approval.max_search_pages)
+
+    if intent.discovered_from is None:
+        return approved_page(intent.url)
+    return (approved_page(intent.discovered_from)
+            and isinstance(intent.url, str) and _STRICT_DETAIL.fullmatch(intent.url) is not None)
+
+
 def _approvable(url: object) -> bool:
     return _canonical_jobkorea(url) or _canonical_jobkorea_search(url)
 
 
 def _in_scope(approval: SourceApproval, intent: CollectionIntent) -> bool:
     """URL-type scope. Exact listing always works; discovery is a narrow, opt-in extension."""
+    if intent.purpose == HARVEST_PURPOSE:
+        return _in_harvest_scope(approval, intent)
     limit = approval.max_discovered_details
     # robots + search page + at most `limit` discovered details
     within_discovery = type(intent.requested_calls) is int and intent.requested_calls <= 2 + limit
@@ -214,6 +271,10 @@ def check_collection_permission(
         return GateDecision(False, GateReason.INVALID_POLICY)
     limit = approval.max_discovered_details
     if type(limit) is not int or not 0 <= limit <= MAX_DISCOVERED_DETAILS:
+        return GateDecision(False, GateReason.INVALID_POLICY)
+    pages, harvest = approval.max_search_pages, approval.max_harvest_details
+    if (type(pages) is not int or not 1 <= pages <= MAX_SEARCH_PAGES
+            or type(harvest) is not int or not 0 <= harvest <= MAX_HARVEST_DETAILS):
         return GateDecision(False, GateReason.INVALID_POLICY)
     if (
         approval.source_code != "jobkorea"

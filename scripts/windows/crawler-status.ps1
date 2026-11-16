@@ -32,10 +32,13 @@ $report.postgres = [ordered]@{ port = $PgPort; running = $pgRunning; accepting_c
     supervisor_last_event = $(if (Test-Path $supLog) { Get-Content $supLog -Tail 1 | ConvertFrom-Json }) }
 
 $dbOut = Join-Path $env:TEMP "aicp-status-$PID.json"
-& cmd /d /c "`"$VenvPy`" `"$(Join-Path $PSScriptRoot 'verify_local_db.py')`" --status > `"$dbOut`" 2>&1"
+# stdout (JSON) and stderr apart: the egress guard (AICP_NO_EGRESS=1, set by scheduled runs) writes
+# EGRESS_ATTEMPTS=<n> to stderr at exit, which must not end up inside the JSON document.
+$dbErr = "$dbOut.err"
+& cmd /d /c "`"$VenvPy`" `"$(Join-Path $PSScriptRoot 'verify_local_db.py')`" --status > `"$dbOut`" 2> `"$dbErr`""
 $report.db_connection = if ($LASTEXITCODE -eq 0) { 'OK' } else { 'FAILED' }
-$report.db = if ($LASTEXITCODE -eq 0) { Get-Content $dbOut -Raw -Encoding utf8 | ConvertFrom-Json } else { [ordered]@{ error = ((Get-Content $dbOut -Tail 1) -replace 'postgresql://\S+', '<dsn>') } }
-Remove-Item $dbOut -ErrorAction SilentlyContinue
+$report.db = if ($LASTEXITCODE -eq 0) { Get-Content $dbOut -Raw -Encoding utf8 | ConvertFrom-Json } else { [ordered]@{ error = ((Get-Content $dbErr -Tail 1) -replace 'postgresql://\S+', '<dsn>') } }
+Remove-Item $dbOut, $dbErr -ErrorAction SilentlyContinue
 
 $schedLogs = Get-ChildItem (Join-Path $LogRoot 'scheduler') -Filter 'fixture-*.jsonl' -ErrorAction SilentlyContinue | Sort-Object Name
 $entries = @($schedLogs | Select-Object -Last 2 | ForEach-Object { Get-Content $_.FullName } | ForEach-Object { $_ | ConvertFrom-Json })
@@ -47,8 +50,8 @@ $report.fixture_scheduler = [ordered]@{ last_started_at = $last.started_at; last
 
 $live = Get-ChildItem env: | Where-Object { $_.Name -match '^(CRAWLER_LIVE_SCHEDULE_APPROVED|CRAWLER_NIGHT_ENABLED|GCP_SYNC_PUBLISH|SLACK_WEBHOOK_URL|SLACK_WEBHOOK_RUL)$' }
 $report.live_flags = [ordered]@{ session_env_live_vars = @($live | ForEach-Object { $_.Name })
-    live_or_enabled_schedules = @($report.db.schedules | Where-Object { $_.mode -ne 'fixture' -or $_.enabled }).Count
-    live_runs_total = $report.db.live_runs_total }
+    live_or_enabled_schedules = @($report.db.schedules | Where-Object { $_ -and ($_.mode -ne 'fixture' -or $_.enabled) }).Count
+    live_runs_total = $report.db.live_runs_total; harvest_live_runs_total = $report.db.harvest_live_runs_total }
 
 $drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$((Split-Path $DataRoot -Qualifier))'"
 function SizeMB($p) { if (Test-Path $p) { [math]::Round(((Get-ChildItem $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum) / 1MB, 1) } }
@@ -59,7 +62,8 @@ $problems = @()
 if (-not $pgReady) { $problems += 'POSTGRES_NOT_ACCEPTING' }
 if ($report.db_connection -ne 'OK') { $problems += 'DB_CONNECTION_FAILED' }
 if ($last.status -in 'FAILED', 'REFUSED') { $problems += "LAST_FIXTURE_$($last.status)" }
-if ($report.live_flags.live_or_enabled_schedules -gt 0 -or $report.live_flags.live_runs_total -gt 0 -or $live) { $problems += 'LIVE_PRESENT' }
+if ($report.live_flags.live_or_enabled_schedules -gt 0 -or $report.live_flags.live_runs_total -gt 0 -or
+    $report.live_flags.harvest_live_runs_total -gt 0 -or $live) { $problems += 'LIVE_PRESENT' }
 if ($report.disk.used_percent -gt 90) { $problems += 'DISK_ABOVE_90_PERCENT' }
 $report.health = if ($problems) { 'ATTENTION' } else { 'OK' }; $report.problems = $problems
 

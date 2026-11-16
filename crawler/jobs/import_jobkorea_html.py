@@ -91,7 +91,10 @@ def _fetch_allowed(url, robots, before_request=None):
 def load_approval_file(path):
     """Private T61 approval JSON -> SourceApproval, or None when absent/invalid. Never raises."""
     try:
-        values = dict(json.loads(Path(path).read_text(encoding='utf-8')))
+        # Keys starting with '_' are annotations (e.g. the request form's _comment); any other unknown key
+        # still makes the record invalid.
+        values = {k: v for k, v in dict(json.loads(Path(path).read_text(encoding='utf-8'))).items()
+                  if not k.startswith('_')}
         for key in ('valid_from_utc', 'review_due_utc'):
             values[key] = datetime.fromisoformat(values[key].replace('Z', '+00:00'))
         for key in ('allowed_urls', 'allowed_purposes'):

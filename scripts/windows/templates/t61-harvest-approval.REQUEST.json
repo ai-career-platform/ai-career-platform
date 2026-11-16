@@ -1,0 +1,21 @@
+{
+  "_comment": "REQUEST FORM, NOT AN APPROVAL. Status HOLD/enabled false: the T61 gate refuses it as-is. The PM fills approved_by/evidence_ref/validity, sets APPROVED+enabled, and stores the copy ONLY at C:\\dev\\crawler-data\\secrets\\ (never in Git). Values below are approval B (one-shot first LIVE run: robots 1 + search page 1 + 5 details = 7 requests). Approval D raises max_search_pages / max_harvest_details / max_requests and adds keyword URLs.",
+  "source_code": "jobkorea",
+  "approval_status": "HOLD",
+  "enabled": false,
+  "approved_by": "",
+  "evidence_ref": "",
+  "valid_from_utc": "2026-11-17T12:00:00Z",
+  "review_due_utc": "2026-11-17T14:00:00Z",
+  "collection_method": "WEB",
+  "allowed_urls": [
+    "https://www.jobkorea.co.kr/Search/?stext=AX&tabType=recruit"
+  ],
+  "allowed_purposes": ["harvest_collection"],
+  "max_requests": 7,
+  "retention_days": 30,
+  "stop_on_block": true,
+  "max_discovered_details": 0,
+  "max_search_pages": 1,
+  "max_harvest_details": 5
+}
