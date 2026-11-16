@@ -57,6 +57,24 @@ def parse_jobkorea_list_html(html: str, *, limit: int = 10) -> list[str]:
     return reader.urls
 
 
+RESULT_PAGE_LINK_LIMIT = 200
+
+
+def parse_jobkorea_result_page(html: str) -> list[str]:
+    """GOAL_3 harvest: every canonical detail link of one search result page (<= 200), in order.
+
+    Same canonicalization as ``parse_jobkorea_list_html``; the posting id is the URL's last
+    path segment, so identity is known before any detail request. No HTTP requests.
+    """
+    if not isinstance(html, str) or len(html) > 2_000_000:
+        raise HtmlPostingError('Invalid offline list HTML input')
+    if not html.strip():
+        return []
+    reader = _PostingLinkCollector(RESULT_PAGE_LINK_LIMIT)
+    reader.feed(html)
+    return reader.urls
+
+
 class _JsonLdCollector(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)

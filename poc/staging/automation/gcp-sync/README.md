@@ -17,6 +17,17 @@ fields only, never DELETE. It starts no crawl and changes no crawler setting.
 | Run history | existing `career.ingestion_runs` (counters JSON in `error_summary`) |
 | Schedule | cron `5 23 * * *` (host UTC) = **08:05 KST** |
 
+## Staging safety gate (2026-11-16)
+
+The Staging source has no provenance ledger: it selects every `jobkorea_live` row by label, and the
+Staging DB holds 5 such rows of UNKNOWN origin (written 2026-11-08 09:50 KST, before the T61 gate
+covered every live path). `gcp_sync.py` therefore refuses the Staging source with
+`SOURCE_PROVENANCE_REQUIRED` before opening any connection, in every mode, unless the environment has
+`GCP_SYNC_ALLOW_UNVERIFIED_STAGING=1` (an explicit PM decision after the read-only check in
+`../safety/staging_readonly_check.sh`). `run_gcp_sync.sh` does not pass that variable, so the cron
+path is closed by the code as soon as this version is deployed. The approved path is the Windows
+local source filtered by a real LIVE harvest run id (`scripts/windows/run-gcp-sync-local.ps1`).
+
 ## Guards (scheduled mode)
 
 1. Skip inside the night window 21:00–08:00 KST (`NIGHT_WINDOW_OPEN`).

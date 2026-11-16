@@ -65,6 +65,13 @@ class MappingTest(unittest.TestCase):
 
 
 class PlanTest(unittest.TestCase):
+    def test_unproven_rows_are_skipped_and_proven_rows_still_sync(self):
+        from dataclasses import replace
+        result = plan([row(1), replace(row(2), provenance_ok=False), row(3, code='jobkorea')])
+        self.assertEqual(result.counts(), {'inserted': 1, 'updated': 0, 'duplicate': 0, 'skipped': 2, 'failed': 0})
+        self.assertIn(('2', 'PROVENANCE_UNVERIFIED'), result.skipped)
+        self.assertEqual([i[0] for i in result.inserts], ['1'])
+
     def test_new_rows_insert_with_first_seen_publish_time(self):
         result = plan([row(1), row(2)])
         self.assertEqual(result.counts(), {'inserted': 2, 'updated': 0, 'duplicate': 0, 'skipped': 0, 'failed': 0})
@@ -248,6 +255,55 @@ class ScheduleTest(unittest.TestCase):
             g.SyncError('SOURCE_CONNECT_FAILED', retryable=True)), sleep=sleeps.append)
         self.assertEqual((scheduled['attempts'], manual['attempts'], sleeps), (1, 1, []))
         self.assertNotIn('slack', manual)
+
+    def test_refused_scheduled_run_is_notified_and_keeps_its_reason(self):
+        original = g.run_sync
+        g.run_sync = lambda *a, **k: {'mode': 'scheduled', 'status': 'SKIPPED', 'reason': 'OTHER_SYNC_SOURCE_ACTIVE'}
+        try:
+            result = g.execute('scheduled', {}, connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
+        finally:
+            g.run_sync = original
+        self.assertEqual((result['reason'], result['slack']), ('OTHER_SYNC_SOURCE_ACTIVE', 'DISABLED'))
+        self.assertIn('slack_reason', result)
+
+    def test_error_summary_parsing_never_raises(self):
+        for text, expected in ((None, {}), ('', {}), ('legacy text', {}), ('"x"', {}), ('[1]', {}),
+                               ('{"source": "local"}', {'source': 'local'})):
+            self.assertEqual(g._summary_obj(text), expected)
+
+    def test_cutover_refusal_order(self):
+        now = datetime(2026, 11, 18, 9, 0, tzinfo=timezone.utc)
+        old = {'staging': {'last_run_at': '2026-11-16T23:05:01+00:00', 'running': False}}
+        new = {'staging': {'last_run_at': '2026-11-17T23:05:01+00:00', 'running': False}}
+        run = {'staging': {'last_run_at': '2026-11-16T23:05:01+00:00', 'running': True}}
+        self.assertEqual(g.cutover_refusal(old, now, confirmed=False, evidence='x'), 'OTHER_SYNC_SOURCE_ACTIVE')
+        self.assertEqual(g.cutover_refusal(run, now, confirmed=True, evidence='x'), 'OTHER_SYNC_RUNNING')
+        self.assertEqual(g.cutover_refusal(new, now, confirmed=True, evidence='x'), 'OTHER_SYNC_RECENT')  # 10 h ago
+        self.assertEqual(g.cutover_refusal(old, now, confirmed=True, evidence=None), 'CUTOVER_EVIDENCE_REQUIRED')
+        self.assertIsNone(g.cutover_refusal(old, now, confirmed=True, evidence='CHG-1'))  # 34 h quiet
+
+    def test_execute_requires_provenance_for_staging_and_passes_cutover_flag(self):
+        seen = {}
+
+        def fake_run_sync(source, target, **kwargs):
+            seen.update(kwargs)
+            return {'status': 'DRY_RUN'}
+
+        original = g.run_sync
+        g.run_sync = fake_run_sync
+        try:
+            g.execute('dry-run', {}, connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
+            self.assertEqual((seen['require_provenance'], seen['cutover_confirmed'], seen['live_run_ids']), (True, False, None))
+            g.execute('run', {'GCP_SYNC_CUTOVER_CONFIRMED': '1', 'GCP_SYNC_CUTOVER_EVIDENCE': '  CHG-1  '},
+                      connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
+            self.assertEqual((seen['cutover_confirmed'], seen['cutover_evidence']), (True, 'CHG-1'))
+            g.execute('run', {'GCP_SYNC_SOURCE': 'local', 'GCP_SYNC_CUTOVER_CONFIRMED': 'yes'},
+                      connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable(),
+                      live_run_ids=['9a4f1f0e-6c1e-4d5b-9a55-2f6f0c7c1b11'])
+            self.assertEqual((seen['require_provenance'], seen['cutover_confirmed']), (False, False))
+        finally:
+            g.run_sync = original
+
 
 
 class _Closable:
