@@ -123,6 +123,53 @@ ENV = {'GCP_SYNC_TARGET_HOST': 'x.asia-northeast3.sql.goog', 'GCP_SYNC_TARGET_HO
        'GCP_SYNC_TARGET_SSLROOTCERT_PEM': '-----BEGIN CERTIFICATE-----\nAA\n-----END CERTIFICATE-----\n'}
 
 
+class EvidenceTest(unittest.TestCase):
+    """#366/#369: every skipped row is traceable, buckets are exclusive, Slack names the stage."""
+
+    def rows(self):
+        return [row(1, code='jobkorea'), row(2, code='jobkorea_imported'), row(3, code='jobkorea_imported'),
+                row(4, title=''), row(5), row(6, seen=SEEN - timedelta(days=2))]
+
+    def test_skip_reasons_by_source_and_per_record_items(self):
+        result = plan(self.rows())
+        summary = g._summary(result, {})
+        self.assertEqual(summary['skipped_by_source'],
+                         {'SOURCE_NOT_SELECTED': {'jobkorea': 1, 'jobkorea_imported': 2},
+                          'INVALID: Missing or invalid field: title': {'jobkorea_live': 1}})
+        # Source-filtered rows are explained by the tally; every other skip is listed per record.
+        self.assertEqual(summary['skipped_items'], ['4:INVALID: Missing or invalid field: title'])
+        self.assertFalse(summary['skipped_items_truncated'])
+
+    def test_source_changes_since_last_sync_explain_zero_inserts(self):
+        last = SEEN - timedelta(days=1)
+        rows = self.rows()
+        result = g.plan(rows, source_code='jobkorea_live', source_id=SOURCE_ID, refs={}, url_owners={},
+                        publish=False, last_synced_at=last)
+        self.assertEqual(result.selected_changed, 2)  # rows 4 and 5; row 6 predates the last sync
+        self.assertEqual(plan(rows).selected_changed, 3)  # no previous sync: every selected row counts
+
+    def test_buckets_are_exclusive_and_complete(self):
+        rows = self.rows() + [row(7, source_url='https://www.jobkorea.co.kr/Recruit/GI_Read/5')]
+        refs = {'6': existing_from(6, seen=SEEN - timedelta(days=2))}
+        result = plan(rows, refs=refs)
+        self.assertTrue(g.check_accounting(len(rows), result))
+        self.assertEqual(sum(result.counts().values()), len(rows))
+        self.assertFalse(g.check_accounting(len(rows) + 1, result))
+
+    def test_slack_text_separates_sync_stage_and_reasons(self):
+        summary = dict(g._summary(plan(self.rows()), {}), status='SUCCEEDED', source_code='jobkorea_live',
+                       fetched=6, run_id='r-1')
+        sent = []
+        from unittest.mock import patch
+        with patch('crawler.notifications.slack.webhook_config', return_value=('https://hooks.invalid/x', {})), \
+                patch('crawler.notifications.slack.send', side_effect=lambda url, body: sent.append(body) or (True, 200, None)):
+            g._notify(summary, {})
+        text = sent[0]['text']
+        for part in ('Source rows read 6 (all source codes)', 'changed since last sync 3',
+                     'Unchanged (already synced) 0', 'Skipped `SOURCE_NOT_SELECTED`: jobkorea 1, jobkorea_imported 2'):
+            self.assertIn(part, text)
+
+
 class SettingsTest(unittest.TestCase):
     def test_valid_settings_force_verify_full(self):
         settings = g.target_settings(dict(ENV, PGSSLMODE='disable', GCP_SYNC_TARGET_SSLMODE='disable'))

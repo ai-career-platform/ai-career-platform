@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from urllib.parse import quote
 
+from crawler.adapters.jobkorea_html_offline import HtmlPostingError, _source_id
 from crawler.jobs.fixture_night_window import KST, night_slot
 from crawler.jobs.import_jobkorea_html import FetchBlocked, FetchError, fetch_pages, import_pages, load_approval_file
 from crawler.jobs.incremental_checkpoint import KeywordCheckpointStore
@@ -225,6 +226,16 @@ class NightStore:
                 WHERE night_date=%s ORDER BY started_at""", (night_date,))
             return c.fetchall()
 
+    def fetched_tonight(self, night_date):
+        """External IDs a keyword job of this night already fetched (#368 early dedupe)."""
+        # A discovery seen at or after a finished job of this night started was written by that job.
+        rows = self.connection.execute("""SELECT DISTINCT d.external_posting_id
+            FROM crawler_training.keyword_posting_discoveries d
+            JOIN crawler_training.night_job_results r
+              ON r.keyword_id = d.keyword_id AND r.night_date = %s AND r.outcome <> 'RUNNING'
+            WHERE d.source_code = 'jobkorea_live' AND d.last_seen_at >= r.started_at""", (night_date,)).fetchall()
+        return {r[0] for r in rows}
+
     def recover_stale(self, now):
         """A RUNNING row older than the job deadline means the process died (deploy/kill)."""
         rows = self.connection.execute("""SELECT job_id FROM crawler_training.night_job_results
@@ -279,6 +290,26 @@ def _outcome(report):
     return ('PARTIAL' if report['invalid'] else 'SUCCEEDED'), None
 
 
+def skip_fetched_tonight(seen_tonight, skipped):
+    """#368: build fetch_pages' ``skip`` predicate for postings another keyword fetched tonight.
+
+    The ID comes from the same canonical ``/Recruit/GI_Read/<digits>`` parser that produces the
+    stored ``external_posting_id``; a URL it cannot parse is never skipped (it is fetched and
+    handled by the normal import path). Postings from earlier nights are not in ``seen_tonight``,
+    so they are still requested and change/close detection keeps its nightly granularity.
+    """
+    def skip(url):
+        try:
+            external_id = _source_id(url)
+        except HtmlPostingError:
+            return False
+        if external_id in seen_tonight:
+            skipped.append(('jobkorea_live', external_id))
+            return True
+        return False
+    return skip
+
+
 def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, now_mono=clock.monotonic, now_utc=None):
     """Execute one keyword job; DB result is written before any notice. Never raises."""
     job_id = store.start(choice, night_date)
@@ -296,12 +327,17 @@ def run_job(store, choice, night_date, *, approval=None, fetcher=fetch_pages, no
             if counter[0] >= REQUESTS_PER_JOB:
                 raise FetchBlocked('REQUEST_BUDGET')
             counter[0] += 1
+        skipped = []
+        skip = skip_fetched_tonight(store.fetched_tonight(night_date), skipped)
         pages = fetcher(list_url=search_url(choice.keyword), limit=DETAIL_LIMIT, approval=approval,
-                        purpose=PURPOSE, before_request=before_request)
+                        purpose=PURPOSE, before_request=before_request, skip=skip)
         report = import_pages(_bounded(pages, deadline, counter, count_requests=False), recorder, live=True)
+        # fetched = detail pages actually processed; duplicates = same-page repeats + postings
+        # skipped before their detail request because they were already fetched tonight.
         report['fetched'] = report['inserted'] + report['updated'] + report['unchanged'] + report['duplicates'] + report['invalid']
+        report['duplicates'] += len(skipped)
         outcome, error = _outcome(report)
-        for source_code, external_id in dict.fromkeys(recorder.keys):
+        for source_code, external_id in dict.fromkeys(recorder.keys + skipped):
             keywords.record_discovery(choice.keyword_id, source_code, external_id)
         if outcome == 'FAILED':
             keywords.transition(job_id, 'RUNNING', 'FAILED')
