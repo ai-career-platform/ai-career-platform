@@ -73,6 +73,9 @@ class SourceRow:
     external_posting_id: str
     payload: dict
     updated_at: datetime
+    # MIGRATION_UNBLOCK: False when the row's origin is not proven (Staging source without a
+    # gate-approved night job behind it). plan() skips such rows as PROVENANCE_UNVERIFIED.
+    provenance_ok: bool = True
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,9 @@ def plan(rows, *, source_code, source_id, refs, url_owners, publish):
         key = row.external_posting_id
         if row.source_code != source_code:
             result.skipped.append((key, 'SOURCE_NOT_SELECTED'))
+            continue
+        if not row.provenance_ok:
+            result.skipped.append((key, 'PROVENANCE_UNVERIFIED'))
             continue
         try:
             values = map_row(row, publish=publish)
@@ -322,8 +328,34 @@ def _parse_run_ids(values):
     return sorted(set(ids))
 
 
-def read_source(connection, live_run_ids=None, source_code=DEFAULT_SOURCE_CODE):
+# Staging source provenance (MIGRATION_UNBLOCK). A row is proven when a discovery of it (first or last
+# seen) falls inside a finished night job with real HTTP requests whose start lies inside its own night
+# (21:00 KST night_date .. 08:00 KST next day). Night jobs are created only after live_gate() returned
+# ALLOWED for a valid T61 approval (night_crawl.run_night_step), so such a job is code-level evidence
+# that the fetch was approved. Rows without it (e.g. the 2026-11-08 CLI imports, clock-injected test
+# jobs) are skipped as PROVENANCE_UNVERIFIED instead of blocking the whole sync.
+STAGING_PROVENANCE_SQL = """
+SELECT p.source_code, p.external_posting_id, p.payload, p.updated_at,
+       EXISTS (
+         SELECT 1 FROM crawler_training.keyword_posting_discoveries d
+           JOIN crawler_training.night_job_results r ON r.keyword_id = d.keyword_id
+          WHERE d.source_code = p.source_code AND d.external_posting_id = p.external_posting_id
+            AND r.http_requests > 0 AND r.outcome IN ('SUCCEEDED', 'PARTIAL')
+            AND r.started_at >= (r.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
+            AND r.started_at < (r.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul'
+            AND (d.first_seen_at BETWEEN r.started_at - interval '1 minute'
+                                     AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
+                 OR d.last_seen_at BETWEEN r.started_at - interval '1 minute'
+                                       AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute')
+       ) AS provenance_ok
+  FROM crawler_training.postings p ORDER BY p.source_code, p.external_posting_id"""
+
+
+def read_source(connection, live_run_ids=None, source_code=DEFAULT_SOURCE_CODE, require_provenance=False):
     """Busy check and posting snapshot in one READ ONLY transaction (no writes to the source).
+
+    ``require_provenance`` (Staging source via ``execute``): every row carries ``provenance_ok``
+    (STAGING_PROVENANCE_SQL); unproven rows are skipped by plan(), proven ones sync as before.
 
     ``live_run_ids`` (local source): only postings written or re-checked by those LIVE harvest
     runs. Every run must exist, be finished, be ``mode='live'`` for ``source_code`` and have made
@@ -349,6 +381,14 @@ def read_source(connection, live_run_ids=None, source_code=DEFAULT_SOURCE_CODE):
                 busy['harvest_runs'] = harvest
             if any(busy.values()):
                 return busy, []
+            if live_run_ids is None and require_provenance:
+                cursor.execute("SELECT to_regclass('crawler_training.keyword_posting_discoveries') IS NOT NULL")
+                if not (has_night and cursor.fetchone()[0]):
+                    cursor.execute('SELECT source_code, external_posting_id, payload, updated_at, false'
+                                   ' FROM crawler_training.postings ORDER BY source_code, external_posting_id')
+                else:
+                    cursor.execute(STAGING_PROVENANCE_SQL)
+                return busy, [SourceRow(*record) for record in cursor.fetchall()]
             if live_run_ids is None:
                 cursor.execute('SELECT source_code, external_posting_id, payload, updated_at'
                                ' FROM crawler_training.postings ORDER BY source_code, external_posting_id')
@@ -479,20 +519,46 @@ def verify_target(cursor, rows, *, source_code, publish):
             'source_target_match': bool(rows) and matched == len(rows)}
 
 
+WRITER_WINDOW = timedelta(days=7)
+
+
+def other_writers(cursor, source_id, writer, now):
+    """Other sync writers of this data source in the last WRITER_WINDOW (single-writer policy).
+
+    Every run records its writer in error_summary['source'] ('local' or 'staging'); runs of the
+    older deployed code carry no such key and are counted as 'staging'.
+    """
+    cursor.execute("SELECT error_summary, max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
+                   " AND status IN ('succeeded', 'running') AND started_at >= %s GROUP BY error_summary",
+                   (source_id, now - WRITER_WINDOW))
+    seen = {}
+    for summary, last in cursor.fetchall():
+        try:
+            other = (json.loads(summary) or {}).get('source') if summary else None
+        except (TypeError, ValueError):
+            other = None
+        other = other or 'staging'
+        if other != writer:
+            seen[other] = max(seen.get(other, last), last)
+    return {k: v.isoformat() for k, v in seen.items()}
+
+
 def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_SOURCE_CODE,
-             publish=False, now=None, live_run_ids=None):
+             publish=False, now=None, live_run_ids=None, require_provenance=False, cutover_confirmed=False):
     """One sync. Returns a secret-free result dict; raises SyncError on connection-level failures."""
     now = now or datetime.now(timezone.utc)
-    base = {'mode': mode, 'source_code': source_code, 'publish': publish}
+    base = {'mode': mode, 'source_code': source_code, 'publish': publish,
+            'source': 'local' if live_run_ids is not None else 'staging'}
     if live_run_ids is not None:
-        base['source'] = 'local'
         base['live_run_ids'] = list(live_run_ids)
         if mode == 'scheduled':
             return dict(base, status='FAILED', error_code='LOCAL_SOURCE_ONE_SHOT_ONLY')
+    elif require_provenance:
+        base['provenance'] = 'night_job_required'
     if mode == 'scheduled' and in_night_window(now):
         return dict(base, status='SKIPPED', reason='NIGHT_WINDOW_OPEN')
     busy, rows = read_source(source_connection, live_run_ids, source_code) if live_run_ids is not None \
-        else read_source(source_connection)
+        else read_source(source_connection, require_provenance=require_provenance)
     if any(busy.values()):
         return dict(base, status='SKIPPED', reason='CRAWLER_BUSY', busy=busy)
     target = target_connection
@@ -511,7 +577,8 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
     if not locked:
         return dict(base, status='SKIPPED', reason='SYNC_IN_PROGRESS')
     try:
-        return _locked_sync(target, rows, base, now, mode=mode, source_code=source_code, publish=publish)
+        return _locked_sync(target, rows, base, now, mode=mode, source_code=source_code, publish=publish,
+                            cutover_confirmed=cutover_confirmed)
     finally:
         target.rollback()
         with target.cursor() as cursor:
@@ -519,11 +586,23 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
         target.commit()
 
 
-def _locked_sync(target, rows, base, now, *, mode, source_code, publish):
+def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover_confirmed=False):
     urls = {row.payload.get('source_url') for row in rows
             if row.source_code == source_code and isinstance(row.payload, dict) and row.payload.get('source_url')}
     with target.cursor() as cursor:
         source_id, refs, owners, companies = load_target(cursor, source_code, urls)
+        others = other_writers(cursor, source_id, base['source'], now)
+        if others:
+            base = dict(base, other_writers=others)
+            # Single writer: a run from a second source refuses until the PM confirms the cutover
+            # (the other writer's schedule is stopped). dry-run and verify only report it.
+            if mode in ('run', 'scheduled') and not cutover_confirmed:
+                target.rollback()
+                return dict(base, status='SKIPPED' if mode == 'scheduled' else 'FAILED',
+                            **({'reason': 'OTHER_SYNC_SOURCE_ACTIVE'} if mode == 'scheduled'
+                               else {'error_code': 'OTHER_SYNC_SOURCE_ACTIVE'}))
+        base = dict(base, already_in_target=sum(1 for r in rows if r.source_code == source_code
+                                                and r.external_posting_id in refs))
         if mode == 'scheduled':
             day_start = datetime.combine(now.astimezone(KST).date(), NIGHT_END, KST)
             cursor.execute("SELECT count(*) FROM career.ingestion_runs WHERE source_id = %s"
@@ -602,11 +681,9 @@ def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, slee
             raise SyncError('LOCAL_SOURCE_ONE_SHOT_ONLY')
         if not local and (mode == 'verify' or live_run_ids):
             raise SyncError('LIVE_RUN_ID_NEEDS_LOCAL_SOURCE')
-        # STAGING_SAFETY_GATE: the Staging source selects every 'jobkorea_live' row by label only and has
-        # no provenance ledger; its 5 such rows are of UNKNOWN origin. Fail closed (no connection at all)
-        # unless an operator explicitly acknowledges unverified rows for a dry-run/run decision.
-        if not local and environ.get('GCP_SYNC_ALLOW_UNVERIFIED_STAGING') != '1':
-            raise SyncError('SOURCE_PROVENANCE_REQUIRED')
+        # MIGRATION_UNBLOCK (replaces the earlier blanket SOURCE_PROVENANCE_REQUIRED refusal, which also
+        # blocked approved rows): the Staging source now syncs only rows proven by a gate-approved night
+        # job (STAGING_PROVENANCE_SQL); every other row is skipped as PROVENANCE_UNVERIFIED.
     except SyncError as error:
         return {'mode': mode, 'status': 'FAILED', 'error_code': error.code, 'attempts': 0}
     if connect_src is None:
@@ -618,7 +695,8 @@ def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, slee
             source = connect_src()
             target = connect_tgt(environ)
             result = run_sync(source, target, mode=mode, source_code=source_code, publish=publish,
-                              live_run_ids=run_ids)
+                              live_run_ids=run_ids, require_provenance=not local,
+                              cutover_confirmed=environ.get('GCP_SYNC_CUTOVER_CONFIRMED') == '1')
         except SyncError as error:
             result = {'mode': mode, 'status': 'FAILED', 'error_code': error.code}
             if error.retryable and attempt < attempts:

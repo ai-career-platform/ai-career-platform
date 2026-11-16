@@ -138,63 +138,47 @@ ROLLBACK;
 SQL
 
 sec "8b. per-posting provenance (every jobkorea_live row exactly once)"
-# discovery keyword + first_seen_at -> the night job of that keyword whose run window contains it.
-# evidence: LIVE_JOB_LINKED (job with HTTP > 0) / DISCOVERY_WITHOUT_JOB / NO_DISCOVERY.
+# Same rule as crawler/jobs/gcp_sync.py STAGING_PROVENANCE_SQL: a discovery of the posting (first or last
+# seen) inside a finished night job with HTTP > 0 whose start lies inside its own night (21:00-08:00 KST).
+# evidence: LIVE_JOB_LINKED / JOB_LINKED_SYNTHETIC_CLOCK / JOB_LINKED_FAILED / DISCOVERY_WITHOUT_JOB / NO_DISCOVERY
+# evidence_total = number of rows in the same class (one row per posting, so the totals add up to the row count).
 psql_ro ai_career_crawler_training <<'SQL' 2>&1
 BEGIN READ ONLY;
 WITH live AS (
   SELECT external_posting_id, updated_at, xmin::text AS insert_xid FROM crawler_training.postings
    WHERE source_code = 'jobkorea_live'),
-first_disc AS (
-  SELECT DISTINCT ON (d.external_posting_id) d.external_posting_id, d.keyword_id, k.keyword, d.first_seen_at, d.last_seen_at
-    FROM crawler_training.keyword_posting_discoveries d JOIN crawler_training.search_keywords k USING (keyword_id)
-   WHERE d.source_code = 'jobkorea_live' ORDER BY d.external_posting_id, d.first_seen_at),
-prov AS (
-  SELECT l.external_posting_id, l.updated_at, l.insert_xid, f.keyword, f.first_seen_at, f.last_seen_at,
-         j.job_id, j.night_date, j.attempt, j.started_at, j.ended_at, j.outcome, j.http_requests, j.inserted,
-         -- a real night job runs inside its own night (21:00 KST night_date .. 08:00 KST next day);
-         -- clock-injected tests write a night_date that does not match their real start time
-         (j.started_at >= (j.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
-          AND j.started_at < (j.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
-    FROM live l
-    LEFT JOIN first_disc f USING (external_posting_id)
-    LEFT JOIN LATERAL (
-      SELECT r.* FROM crawler_training.night_job_results r
-       WHERE r.keyword_id = f.keyword_id
-         AND f.first_seen_at BETWEEN r.started_at - interval '1 minute'
-                                 AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
-       ORDER BY r.started_at LIMIT 1) j ON true),
-classified AS (
-  SELECT prov.*, CASE
-           WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND window_consistent THEN 'LIVE_JOB_LINKED'
-           WHEN job_id IS NOT NULL THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
-           WHEN keyword IS NOT NULL THEN 'DISCOVERY_WITHOUT_JOB'
-           ELSE 'NO_DISCOVERY' END AS evidence
-    FROM prov)
-SELECT * FROM classified ORDER BY updated_at, external_posting_id;
--- summary: every jobkorea_live row is in exactly one evidence class (the classified CTE has one row per posting)
-WITH live AS (SELECT external_posting_id, updated_at, xmin::text AS insert_xid FROM crawler_training.postings
-               WHERE source_code = 'jobkorea_live'),
-first_disc AS (
-  SELECT DISTINCT ON (d.external_posting_id) d.external_posting_id, d.keyword_id, d.first_seen_at
-    FROM crawler_training.keyword_posting_discoveries d WHERE d.source_code = 'jobkorea_live'
-   ORDER BY d.external_posting_id, d.first_seen_at),
-prov AS (
-  SELECT l.external_posting_id, f.keyword_id, j.job_id, j.http_requests,
-         (j.started_at >= (j.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
-          AND j.started_at < (j.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
-    FROM live l LEFT JOIN first_disc f USING (external_posting_id)
-    LEFT JOIN LATERAL (
-      SELECT r.* FROM crawler_training.night_job_results r
-       WHERE r.keyword_id = f.keyword_id
-         AND f.first_seen_at BETWEEN r.started_at - interval '1 minute'
-                                 AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
-       ORDER BY r.started_at LIMIT 1) j ON true)
-SELECT CASE WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND window_consistent THEN 'LIVE_JOB_LINKED'
-            WHEN job_id IS NOT NULL THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
-            WHEN keyword_id IS NOT NULL THEN 'DISCOVERY_WITHOUT_JOB'
-            ELSE 'NO_DISCOVERY' END AS evidence, count(*)
-  FROM prov GROUP BY 1 ORDER BY 1;
+cand AS (
+  SELECT d.external_posting_id, k.keyword, d.first_seen_at, d.last_seen_at, r.job_id, r.night_date, r.attempt,
+         r.started_at, r.ended_at, r.outcome, r.http_requests, r.inserted,
+         (r.started_at >= (r.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
+          AND r.started_at < (r.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
+    FROM crawler_training.keyword_posting_discoveries d
+    JOIN crawler_training.search_keywords k USING (keyword_id)
+    LEFT JOIN crawler_training.night_job_results r ON r.keyword_id = d.keyword_id
+     AND (d.first_seen_at BETWEEN r.started_at - interval '1 minute'
+                              AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
+          OR d.last_seen_at BETWEEN r.started_at - interval '1 minute'
+                                AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute')
+   WHERE d.source_code = 'jobkorea_live'),
+graded AS (
+  SELECT cand.*, CASE
+           WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND outcome IN ('SUCCEEDED', 'PARTIAL')
+                AND window_consistent THEN 'LIVE_JOB_LINKED'
+           WHEN job_id IS NOT NULL AND NOT coalesce(window_consistent, false) THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
+           WHEN job_id IS NOT NULL THEN 'JOB_LINKED_FAILED'
+           ELSE 'DISCOVERY_WITHOUT_JOB' END AS evidence
+    FROM cand),
+best AS (
+  SELECT DISTINCT ON (external_posting_id) * FROM graded
+   ORDER BY external_posting_id,
+            array_position(ARRAY['LIVE_JOB_LINKED','JOB_LINKED_SYNTHETIC_CLOCK','JOB_LINKED_FAILED','DISCOVERY_WITHOUT_JOB'], evidence),
+            started_at NULLS LAST, first_seen_at)
+SELECT l.external_posting_id, l.updated_at, l.insert_xid, b.keyword, b.first_seen_at, b.last_seen_at, b.job_id,
+       b.night_date, b.attempt, b.started_at, b.ended_at, b.outcome, b.http_requests, b.inserted, b.window_consistent,
+       coalesce(b.evidence, 'NO_DISCOVERY') AS evidence,
+       count(*) OVER (PARTITION BY coalesce(b.evidence, 'NO_DISCOVERY')) AS evidence_total
+  FROM live l LEFT JOIN best b USING (external_posting_id)
+ ORDER BY l.updated_at, l.external_posting_id;
 -- every night job (approval windows are compared with these times in the report)
 SELECT r.night_date, k.keyword, r.attempt, r.job_id, r.started_at, r.ended_at, r.outcome, r.http_requests,
        r.inserted, r.updated, r.unchanged, r.duplicates, r.failed, r.error_code

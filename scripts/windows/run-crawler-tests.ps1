@@ -56,11 +56,13 @@ if ($Suite -in 'pg','all') {
     if ($hasDisposableAdmin) {
         Step 'pg-gcp-sync' @{ CRAWLER_GCP_SYNC_PG_TEST='1'; CRAWLER_GCP_SYNC_ADMIN_DSN="postgresql://postgres@127.0.0.1:$PgPort/postgres" } @('crawler.tests.local_gcp_sync_pg')
         Step 'pg-gcp-sync-local-source' @{ CRAWLER_GCP_SYNC_PG_TEST='1'; CRAWLER_GCP_SYNC_ADMIN_DSN="postgresql://postgres@127.0.0.1:$PgPort/postgres" } @('crawler.tests.local_gcp_sync_local_source_pg')
+        Step 'pg-gcp-sync-staging-provenance' @{ CRAWLER_GCP_SYNC_PG_TEST='1'; CRAWLER_GCP_SYNC_ADMIN_DSN="postgresql://postgres@127.0.0.1:$PgPort/postgres" } @('crawler.tests.local_gcp_sync_staging_provenance_pg')
         # GOAL_3 harvest writes 1,000+ synthetic rows: disposable clusters only (the test also refuses 5432).
         Step 'pg-harvest-1000' @{ CRAWLER_HARVEST_PG_TEST='1'; CRAWLER_LOCAL_DATABASE_URL=$staging } @('crawler.tests.local_harvest_pg')
     } else {
         Add-Result 'pg-gcp-sync' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null
         Add-Result 'pg-gcp-sync-local-source' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null
+        Add-Result 'pg-gcp-sync-staging-provenance' 'NOT_RUN' $null 0 'needs disposable superuser cluster (see header)' $null
         Add-Result 'pg-harvest-1000' 'NOT_RUN' $null 0 'disposable cluster only (writes 1,000+ synthetic rows)' $null
     }
     Step 'pg-html-integration'  @{ CRAWLER_LOCAL_PG_TEST='1' } @('crawler.tests.local_html_pg_integration')
