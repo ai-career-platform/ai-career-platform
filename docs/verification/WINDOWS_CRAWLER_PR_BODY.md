@@ -1,10 +1,8 @@
 # feat(crawler): Windows local crawler and safe GCP sync cutover
 
-> PR body for `feat/crawler-windows-local-pc` → `main`. Open it from
-> https://github.com/ai-career-platform/ai-career-platform/compare/main...feat/crawler-windows-local-pc
-> (no GitHub credentials are available on the Windows PC; the agent did not create it).
-> **Merge order: PR #371 first, then rebase this branch onto main** (resolution recorded on
-> `integration/pr371-windows-crawler`, see §7). Do not merge without an independent approving review and green CI.
+> PR body for `feat/crawler-windows-local-pc` → `main`.
+> PR #371 is merged (`a134e40`). This branch already contains it: `129d1e1` merges main and resolves the 2 `gcp_sync.py` hunks exactly as on the tested `integration/pr371-windows-crawler` (`558e48e`, identical tree). The diff against main holds only this branch's changes.
+> Do not merge without an independent approving review and green CI.
 
 ## 1. Purpose
 
@@ -58,23 +56,38 @@ Move crawler collection to a dedicated Windows PC, and prepare the first safe GC
 
 ## 7. Tests
 
-| Where | Unit | PostgreSQL 18 (disposable cluster) |
-|---|---|---|
-| This branch (`efa436a`) | crawler 546 ran, 541 pass, 5 skip (Linux-only) | provenance 8/8, local-source 7/7 (the main-only gcp-sync test_08 date failure is fixed by #371) |
-| **Integrated with #371** (`integration/pr371-windows-crawler`, `ea1c1e5`) | crawler 554 ran, **549 pass, 0 fail, 5 skip**; backend 21/21 | 99 ran, **98 pass, 0 fail, 1 skip**: gcp-sync 12/12 (with #371's time-bomb fix), local-source 7/7, staging-provenance 8/8, harvest 9/9, html 2/2, t64 14/14, night executor/caller 15 + 1 skip, night integration 13/13, t155 read 3/3 + write 6/6, t152 2/2, night e2e 7/7; egress 0 |
-| Not run | staging-mode and t64-permissions (hard-code `db:5432`), Docker container test (Docker not installed) | |
+Run on `558e48e`, whose tree is identical to this PR's head `129d1e1`, on a freshly created disposable PostgreSQL 18.7 cluster (port 5436). 17 steps, 0 failures, 0 outside network requests. Log: `C:\dev\crawler-data-int3\logs\tests-20261116-214411`.
+
+| Suite | Ran | Pass | Fail | Skip |
+|---|---|---|---|---|
+| Crawler unit | 554 | 549 | 0 | 5 (Linux-only) |
+| Backend | 21 | 21 | 0 | 0 |
+| PostgreSQL | 99 | 98 | 0 | 1 |
+
+- **PostgreSQL by step:**
+  - gcp-sync 12/12 (with #371's date fix);
+  - local-source 7/7 and staging-provenance 8/8;
+  - harvest 9/9, html 2/2, t64 14/14;
+  - night executor/caller 15 + 1 skip, night integration 13/13, night e2e 7/7;
+  - t155 read 3/3, t155 write 6/6, t152 2/2.
+- **Not run:**
+  - staging-mode and t64-permissions, which hard-code `db:5432`;
+  - the Docker container test (Docker isn't installed).
 
 - **Real-data dry-run:** run `8e54090d` against a disposable TLS target that already holds Staging's 50350626 gave 4 inserts and 1 duplicate. The real run was refused (`OTHER_SYNC_SOURCE_ACTIVE`) and wrote nothing.
 - **TLS rehearsal:** 1,050 rows went through dry-run → run → verify → re-run → rollback. Negative cases (wrong certificate name, admin login, fixture run) were refused.
 - **Conflict with #371** is in `gcp_sync.py` (2 hunks). Resolution: the provenance skip goes through #371's `Plan.skip()` before `selected_changed` counting, and both helper sets are kept.
+  - **Checked mechanically:** all 42 lines #371 adds to `gcp_sync.py` are present. All 10 of #371's other files are intact.
+  - **Of the Windows side's 274 added lines**, only the old `skipped.append` line is replaced by that `skip()` call.
 
 ## 8. Operational scope of this PR
 
 - **No deploy, no production or GCP write, no cron or credential change.**
 - **Changes once deployed to Staging:**
   - the Staging sync skips unproven rows;
-  - it refuses to run while another writer was active within 7 days.
+  - it refuses to run while another writer (`local`) has synced since Staging's last confirmed cutover. There is no time window.
   - Today no other writer exists, so the 08:05 cron keeps syncing proven rows.
+  - No target migration is needed. If the provenance tables are missing on Staging, every row is skipped (fail-closed).
 - **New migration 0013** (harvest tables): applied manually, never at startup.
 
 ## 9. Not done / follow-ups
