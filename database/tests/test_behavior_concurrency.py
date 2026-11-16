@@ -16,7 +16,7 @@ class ConsentConcurrencyTest(unittest.TestCase):
     def setUpClass(cls):
         name = os.environ.get("PGDATABASE", "")
         if (os.environ.get("D1_TEST_ONLY") != "YES"
-                or not re.search(r"test|ci|local|tmp|dev", name, re.I)
+                or not re.search(r"(^|[_-])(test|ci|local|tmp|dev)([_0-9-]|$)", name, re.I)
                 or re.search(r"stag|prod|live", name, re.I)):
             raise unittest.SkipTest("disposable test DB and D1_TEST_ONLY=YES required")
 

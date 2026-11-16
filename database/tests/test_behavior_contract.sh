@@ -135,4 +135,31 @@ purged="$(q "SELECT behavior_mock.purge_expired()")"
 after="$(q "SELECT count(*) FROM behavior_mock.behavior_events")"
 expect_eq "purge removed only the expired event" "$purged/$((before - after))" "1/1"
 
+# 8. concurrency: collection and withdrawal for the same user are serialized (per-user lock)
+race() {
+  local first="$1" second="$2" n="$3" app="t71-race-$3" out
+  local uid_q="'$(uid "$n")'"
+  q "INSERT INTO behavior_mock.users VALUES ($uid_q)" >/dev/null
+  consent "$uid_q, 'behavior_tracking', true" >/dev/null
+  local collect="SET LOCAL ROLE t71_ingest; SELECT behavior_mock.record_behavior_event($uid_q, 'page.view', now(), '{}');"
+  local withdraw="SET LOCAL ROLE t71_consent; SELECT behavior_mock.record_consent($uid_q, 'behavior_tracking', false);"
+  local first_sql second_sql
+  if [[ "$first" == collect ]]; then first_sql="$collect"; second_sql="$withdraw"; else first_sql="$withdraw"; second_sql="$collect"; fi
+  out="$(mktemp)"
+  psql_test -qAt -c "SET application_name = '$app'; BEGIN; $first_sql SELECT pg_sleep(2); COMMIT;" >"$out" 2>&1 </dev/null &
+  local pid=$! tries=0
+  until [[ "$(q "SELECT count(*) FROM pg_stat_activity WHERE application_name = '$app' AND wait_event = 'PgSleep'")" == "1" ]]; do
+    tries=$((tries + 1)); [[ $tries -lt 300 ]] || { echo "FAIL race $first/$second never reached sync point"; cat "$out"; exit 1; }
+    sleep 0.05
+  done
+  local result
+  result="$(psql_test -qAt -c "BEGIN; $second_sql COMMIT;" | tr -d '\r' | tail -1)"
+  wait "$pid" || { echo "FAIL race $first/$second first transaction failed"; cat "$out"; exit 1; }
+  rm -f "$out"
+  expect_eq "race $first-first then $second: no event survives withdrawal" "$(count_user "$uid_q")" "0"
+  if [[ "$second" == collect ]]; then expect_eq "race withdraw-first: waiting collection sees withdrawal" "$result" "blocked_no_consent"; fi
+}
+race collect withdraw 31
+race withdraw collect 32
+
 echo "T71_BEHAVIOR_CONTRACT_TEST=PASS"

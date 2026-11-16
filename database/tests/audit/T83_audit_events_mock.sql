@@ -162,7 +162,11 @@ LANGUAGE plpgsql AS $$
 DECLARE
     probe audit_mock.audit_events;
 BEGIN
-    IF TG_OP = 'UPDATE' AND OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL THEN
+    -- anonymization is allowed only when the actor's user row is already gone, i.e. the FK
+    -- ON DELETE SET NULL of an account deletion. A direct UPDATE while the user still exists
+    -- would silently erase attribution and is rejected.
+    IF TG_OP = 'UPDATE' AND OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL
+       AND NOT EXISTS (SELECT 1 FROM audit_mock.users u WHERE u.user_id = OLD.actor_user_id) THEN
         probe := NEW;
         probe.actor_user_id := OLD.actor_user_id;
         IF probe IS NOT DISTINCT FROM OLD THEN
@@ -170,8 +174,10 @@ BEGIN
             RETURN NEW;
         END IF;
     END IF;
+    -- purge_expired() marks its own transaction id; a plain SET of the flag (or a value left
+    -- over in the session) does not match the current transaction and is rejected
     IF TG_OP = 'DELETE'
-       AND current_setting('audit_mock.purge_in_progress', true) = 'on'
+       AND current_setting('audit_mock.purge_in_progress', true) = txid_current()::text
        AND OLD.retain_until <= now() THEN
         RETURN OLD;
     END IF;
@@ -200,10 +206,15 @@ LANGUAGE plpgsql AS $$
 DECLARE
     deleted bigint;
 BEGIN
-    PERFORM set_config('audit_mock.purge_in_progress', 'on', true);
+    PERFORM set_config('audit_mock.purge_in_progress', txid_current()::text, true);
     DELETE FROM audit_mock.audit_events WHERE retain_until <= now();
     GET DIAGNOSTICS deleted = ROW_COUNT;
     PERFORM set_config('audit_mock.purge_in_progress', 'off', true);
+    -- every purge leaves its own (security-class) audit record in the same transaction
+    INSERT INTO audit_mock.audit_events (occurred_at, actor_type, action_code, resource_type, result,
+                                         metadata, retention_class)
+    VALUES (now(), 'system', 'system.audit.purge', 'audit_event', 'success',
+            jsonb_build_object('deleted', deleted), 'security');
     RETURN deleted;
 END $$;
 

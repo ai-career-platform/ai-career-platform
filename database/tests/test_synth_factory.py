@@ -115,7 +115,15 @@ class IsolationTest(unittest.TestCase):
         sql = sf.render_sql(sf.generate(1, 5, 2, 5))
         guard = sql.index("current_database()")
         self.assertLess(guard, sql.index("BEGIN;"))
-        self.assertIn("staging|stage|prod|live", sql)
+        self.assertIn(sf.SHARED_DB_RE, sql)
+        self.assertIn(sf.DISPOSABLE_DB_RE, sql)
+
+    def test_database_name_guard_uses_whole_tokens(self):
+        for ok in ("ci_t147", "career_test", "local-dev", "tmp1", "TEST", "t147_ci_2"):
+            self.assertTrue(sf.is_disposable_db_name(ok), ok)
+        for bad in ("career_social", "device_registry", "specialist_db", "latest_jobs",
+                    "career_staging_test", "prod_ci", "career", "t10test"):
+            self.assertFalse(sf.is_disposable_db_name(bad), bad)
 
     def test_cli_refuses_staging(self):
         with tempfile.TemporaryDirectory() as d:

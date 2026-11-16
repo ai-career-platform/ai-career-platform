@@ -101,10 +101,19 @@ expect_rejected "reactivate merged code (owner)" "UPDATE taxonomy_mock.taxonomy_
 # 5. deprecate without replacement
 curator "taxonomy_mock.deprecate_code('skill', 'SPRING_FRAMEWORK', '2.0.0', '단독 사용 빈도가 낮아 신규 입력 중단')" >/dev/null
 expect_eq "deprecated code still resolves with flag" "$(resolve skill 'spring framework')" "SPRING_FRAMEWORK,SPRING_FRAMEWORK,code,true"
+
+# 5b. deprecated -> merged is allowed; merged -> merged is not; shared ambiguous alias becomes exact
+curator "taxonomy_mock.merge_code('skill', 'SPRING_FRAMEWORK', 'SPRING_BOOT', '2.0.0', '스프링 표기 단일화')" >/dev/null
+expect_eq "former ambiguous alias now resolves exactly (Spring)" "$(resolve skill 'Spring')" "SPRING_BOOT,SPRING_BOOT,alias,false"
+expect_eq "former ambiguous Korean alias now exact (스프링)"     "$(resolve skill '스프링')"  "SPRING_BOOT,SPRING_BOOT,alias,false"
+expect_eq "merged deprecated code resolves to survivor" "$(resolve skill 'spring framework')" "SPRING_FRAMEWORK,SPRING_BOOT,code,true"
+expect_eq "merge log lists aliases made exact" "$(q "SELECT jsonb_array_length(detail->'aliases_made_exact') = 2 AND detail->'aliases_made_exact' ? 'Spring' FROM taxonomy_mock.taxonomy_change_log WHERE code = 'SPRING_FRAMEWORK' AND change_type = 'merge'")" "t"
+expect_rejected "re-merge an already merged code" "SET ROLE t137_curator; SELECT taxonomy_mock.merge_code('skill', 'GOLANG', 'SPRING_BOOT', '2.0.0', '다시 병합 시도 테스트');"
+expect_eq "already merged code keeps its first survivor" "$(q "SELECT replaced_by || '@' || deprecated_in FROM taxonomy_mock.taxonomy_codes WHERE code = 'GOLANG'")" "GO@2.0.0"
 expect_eq "T05 is_active follows status (merged/deprecated -> false)" "$(q "SELECT string_agg(code || '=' || is_active, ',' ORDER BY code) FROM taxonomy_mock.taxonomy_codes WHERE code IN ('GO','GOLANG','SPRING_FRAMEWORK')")" "GO=true,GOLANG=false,SPRING_FRAMEWORK=false"
 
 # 6. change log is complete and append-only
-expect_eq "change log rows (add, alias_add x2, merge, deprecate)" "$(q "SELECT string_agg(change_type, ',' ORDER BY change_id) FROM taxonomy_mock.taxonomy_change_log")" "add,alias_add,alias_add,merge,deprecate"
+expect_eq "change log rows (add, alias_add x2, merge, deprecate, merge)" "$(q "SELECT string_agg(change_type, ',' ORDER BY change_id) FROM taxonomy_mock.taxonomy_change_log")" "add,alias_add,alias_add,merge,deprecate,merge"
 expect_rejected "change log UPDATE (owner)" "UPDATE taxonomy_mock.taxonomy_change_log SET reason = 'rewritten history';"
 expect_rejected "change log DELETE (owner)" "DELETE FROM taxonomy_mock.taxonomy_change_log;"
 

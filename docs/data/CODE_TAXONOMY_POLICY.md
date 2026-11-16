@@ -40,6 +40,7 @@
 
 - 은퇴한 코드(`deprecated`·`merged`)는 다시 `active` 로 되돌리지 않습니다. 필요하면 새 코드를 만듭니다.
 - 병합 체인(A→B→C)은 최대 5단계, **순환은 금지**합니다. 병합 대상은 반드시 `active` 여야 합니다.
+- 병합할 코드는 `active` 또는 `deprecated` 여야 합니다. 이미 `merged` 인 코드는 다시 병합하지 않습니다 (처음 정한 대체 코드·폐기 버전이 바뀌면 옛 데이터의 뜻이 달라짐).
 
 ## 3. 별칭(동의어) 규칙
 
@@ -50,7 +51,7 @@
 | ambiguous 별칭 (다의어) | 한 표기가 여러 뜻이면 모든 후보에 연결하고 `ambiguous` 로 표시 (예: `Spring` → `SPRING_BOOT`, `SPRING_FRAMEWORK`). **자동으로 하나를 고르지 않음** |
 | 혼합 금지 | 같은 표기를 exact 와 ambiguous 로 동시에 쓰지 않음 |
 | 충돌 금지 | 별칭이 **다른 코드의 철자**와 같으면 거부 (예: `TypeScript` 를 `JAVASCRIPT` 별칭으로 등록 불가). 새 코드가 기존 별칭과 같아도 거부 |
-| 병합 시 | 별칭은 살아 있는 코드로 옮김. 옮길 코드와 철자가 같은 별칭(예: `go lang` = `GOLANG`)이나 이미 있는 별칭은 정리 |
+| 병합 시 | 별칭은 살아 있는 코드로 옮김. 옮길 코드와 철자가 같은 별칭(예: `go lang` = `GOLANG`)이나 이미 있는 별칭은 정리. 병합으로 뜻이 하나만 남은 ambiguous 별칭(예: SPRING_FRAMEWORK → SPRING_BOOT 후 `Spring`)은 **exact 로 바꾸고** 변경 이력에 남김 |
 | 한글 표기 | 한글 별칭을 적극 등록 (예: `리액트`, `쿠버네티스`, `서버 개발자`) |
 
 **조회 순서 (`resolve_term`)**
@@ -108,7 +109,7 @@
 | 파일 | 내용 |
 |---|---|
 | [`database/tests/taxonomy/T137_code_taxonomy_mock.sql`](../../database/tests/taxonomy/T137_code_taxonomy_mock.sql) | 정책을 옮긴 mock 스키마 `taxonomy_mock` + T10 코드 기반 샘플 (Migration 아님) |
-| [`database/tests/test_code_taxonomy.sh`](../../database/tests/test_code_taxonomy.sh) | 일회용 `postgres:18.1` 컨테이너에서 42개 항목 검증 |
+| [`database/tests/test_code_taxonomy.sh`](../../database/tests/test_code_taxonomy.sh) | 일회용 `postgres:18.1` 컨테이너에서 48개 항목 검증 |
 
 ```bash
 D1_TEST_ONLY=YES bash database/tests/test_code_taxonomy.sh
@@ -134,4 +135,4 @@ D1_TEST_ONLY=YES bash database/tests/test_code_taxonomy.sh
 6. 정규화 규칙에서 추가로 남길 기호가 있는지 (예: `F#`, `Objective-C`)
 7. 직무 다의어(예: "엔지니어", "개발자" 단독 입력) 처리 기준
 
-**판정:** `T137_STATUS=PARTIAL` — T05 B04/B05 기준 정책·mock 검증 PASS(로컬 42항목), 코드 기준선·변경 절차 PM 승인 전, T17 미완료로 실연동 HOLD.
+**판정:** `T137_STATUS=PARTIAL` — T05 B04/B05 기준 정책·mock 검증 PASS(로컬 48항목), 코드 기준선·변경 절차 PM 승인 전, T17 미완료로 실연동 HOLD.

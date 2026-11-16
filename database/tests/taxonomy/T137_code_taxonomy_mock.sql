@@ -78,7 +78,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
     IF EXISTS (SELECT 1 FROM taxonomy_mock.taxonomy_aliases a
                WHERE a.entity_type = NEW.entity_type AND a.alias_norm = NEW.alias_norm
-                 AND a.kind <> NEW.kind AND (a.code, a.kind) IS DISTINCT FROM (NEW.code, NEW.kind)) THEN
+                 AND a.kind <> NEW.kind AND a.code <> NEW.code) THEN  -- same code = same row (PK); skip its old version on UPDATE
         RAISE EXCEPTION 'alias % mixes exact and ambiguous meanings', NEW.alias_display USING ERRCODE = '23505';
     END IF;
     IF EXISTS (SELECT 1 FROM taxonomy_mock.taxonomy_codes c
@@ -218,11 +218,23 @@ END $$;
 CREATE FUNCTION taxonomy_mock.merge_code(p_entity_type varchar, p_from varchar, p_into varchar,
                                          p_version varchar, p_reason text) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = taxonomy_mock, pg_temp AS $$
+DECLARE
+    from_status varchar;
+    demoted     text[];
 BEGIN
     PERFORM taxonomy_mock.require_version(p_version);
     IF NOT EXISTS (SELECT 1 FROM taxonomy_mock.taxonomy_codes
                    WHERE entity_type = p_entity_type AND code = p_into AND status = 'active') THEN
         RAISE EXCEPTION 'merge target % must be an active code', p_into USING ERRCODE = '23514';
+    END IF;
+    -- an already merged code keeps its first survivor; re-merging would silently rewrite
+    -- replaced_by / deprecated_in (deprecated -> merged is allowed: a replacement was found later)
+    SELECT status INTO from_status FROM taxonomy_mock.taxonomy_codes
+    WHERE entity_type = p_entity_type AND code = p_from;
+    IF from_status IS NULL THEN
+        RAISE EXCEPTION 'unknown code %', p_from USING ERRCODE = '22023';
+    ELSIF from_status = 'merged' THEN
+        RAISE EXCEPTION 'code % is already merged; it cannot be merged again', p_from USING ERRCODE = '23514';
     END IF;
     -- move aliases to the survivor by re-pointing them (an INSERT copy would hit the
     -- one-code-per-exact-alias index and be skipped silently). First drop redundant ones:
@@ -237,6 +249,16 @@ BEGIN
                       WHERE s.entity_type = p_entity_type AND s.code = p_into AND s.alias_norm = a.alias_norm));
     UPDATE taxonomy_mock.taxonomy_aliases SET code = p_into
     WHERE entity_type = p_entity_type AND code = p_from;
+    -- an ambiguous alias whose other meaning was just merged away now has one meaning:
+    -- make it exact so resolve_term auto-resolves it and validate_taxonomy stays clean
+    WITH single AS (
+        UPDATE taxonomy_mock.taxonomy_aliases a SET kind = 'exact'
+        WHERE a.entity_type = p_entity_type AND a.code = p_into AND a.kind = 'ambiguous'
+          AND (SELECT count(*) FROM taxonomy_mock.taxonomy_aliases o
+               WHERE o.entity_type = a.entity_type AND o.alias_norm = a.alias_norm) = 1
+        RETURNING a.alias_display
+    )
+    SELECT array_agg(alias_display ORDER BY alias_display) INTO demoted FROM single;
     UPDATE taxonomy_mock.taxonomy_codes
     SET status = 'merged', replaced_by = p_into, deprecated_in = p_version
     WHERE entity_type = p_entity_type AND code = p_from;
@@ -244,7 +266,8 @@ BEGIN
         RAISE EXCEPTION 'unknown code %', p_from USING ERRCODE = '22023';
     END IF;
     INSERT INTO taxonomy_mock.taxonomy_change_log (version, entity_type, code, change_type, detail, reason)
-    VALUES (p_version, p_entity_type, p_from, 'merge', jsonb_build_object('into', p_into), p_reason);
+    VALUES (p_version, p_entity_type, p_from, 'merge',
+            jsonb_build_object('into', p_into, 'aliases_made_exact', coalesce(demoted, '{}'::text[])), p_reason);
 END $$;
 
 CREATE FUNCTION taxonomy_mock.deprecate_code(p_entity_type varchar, p_code varchar, p_version varchar, p_reason text)

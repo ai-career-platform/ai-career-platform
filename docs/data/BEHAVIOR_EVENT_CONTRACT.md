@@ -162,9 +162,11 @@ D1_TEST_ONLY=YES bash database/tests/test_behavior_contract.sh
 
 ## 2026-11-09 concurrency regression review
 
-Collection and consent changes acquire the same user-row lock before reading or changing consent. The lock lasts until transaction completion. A collection that started first is committed before withdrawal deletes its events; a withdrawal that started first is visible before a waiting collection checks consent. Account deletion uses the same user row.
+Collection and consent changes acquire the same **per-user advisory lock** (`pg_advisory_xact_lock(hashtextextended('t71:user:' || user_id, 0))`) before reading or changing consent. The lock lasts until transaction completion. It deliberately does not lock the `users` row, so logins (`last_login_at`), profile writes and FK inserts that reference the user are not blocked by event collection. A collection that started first is committed before withdrawal deletes its events; a withdrawal that started first is visible before a waiting collection checks consent. Account deletion needs no extra lock: an event insert racing a user delete fails its FK check instead of leaving an orphan.
 
 Two synchronized, separate-connection regression cases failed on the previous mock (one event remained after withdrawal) and passed after this change. The original behavior-contract DB test body also passed on isolated native PostgreSQL 18 / Windows. No shared Staging changes were made. The contract remains DRAFT/PARTIAL pending integration and policy approvals.
+
+The same two race cases also run inside `database/tests/test_behavior_contract.sh` (section 8), so the regular disposable-DB test and any CI job that runs it cover the lock automatically; the Python test remains for running against an already-loaded local DB.
 
 To reproduce after loading the mock SQL in a disposable DB, put `psql` on PATH, set `PGHOST`, `PGPORT`, `PGUSER`, and `PGDATABASE`, then run:
 
