@@ -32,7 +32,10 @@ function Add-Result($Name, $Exit, $Tests, $Seconds, $Text, $Log) {
 }
 function Step([string]$Name, [hashtable]$Env, [string[]]$Modules) {
     $saved = @{}
-    $Env = @{ CRAWLER_LOCAL_DATABASE_URL = $student } + $Env
+    # step values override the default (hashtable '+' throws on a duplicate key)
+    $merged = @{ CRAWLER_LOCAL_DATABASE_URL = $student }
+    foreach ($k in $Env.Keys) { $merged[$k] = $Env[$k] }
+    $Env = $merged
     foreach ($k in $Env.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $Env[$k]) }
     $log = Join-Path $out "$Name.log"
     $t = [Diagnostics.Stopwatch]::StartNew()
