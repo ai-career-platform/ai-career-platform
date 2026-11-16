@@ -337,6 +337,7 @@ def _locked_run(store, source, *, keywords, limits, now_mono, now_utc):
     try:
         # ---- phase 1: result pages, round-robin by page level
         active, quiet = list(keywords), {k: 0 for k in keywords}
+        previous_links = {}   # keyword -> link list of its previous page (pagination-not-advancing guard)
         for page in range(1, limits.max_pages + 1):
             for keyword in list(active):
                 planned = min(len(new_items), limits.max_new_details) + min(len(revisit_items), limits.max_revisits)
@@ -359,6 +360,17 @@ def _locked_run(store, source, *, keywords, limits, now_mono, now_utc):
                                       _code(exc.reason))
                     active.remove(keyword)
                     continue
+                if urls and previous_links.get(keyword) == urls:
+                    # The site ignored the page parameter (e.g. Page_No unsupported) and served the previous page
+                    # again: every further page would cost a request for nothing. Stop this keyword now.
+                    store.record_page(run_id, keyword, page, dict(links=len(urls), new=0, known=0,
+                                                                  cross_dup=len(urls)), 'PAGE_REPEATED')
+                    stats[keyword]['pages'] += 1
+                    stats[keyword]['links'] += len(urls)
+                    stats[keyword]['cross_dup'] += len(urls)
+                    active.remove(keyword)
+                    continue
+                previous_links[keyword] = urls
                 fresh = [u for u in urls if posting_id(u) not in seen]
                 known = store.known(source_code, [posting_id(u) for u in fresh])
                 counts = dict(links=len(urls), new=0, known=0, cross_dup=len(urls) - len(fresh))
