@@ -119,6 +119,27 @@ class NightlyPostgresTest(unittest.TestCase):
         base = n.new_inserts(c, now - timedelta(hours=24), now - timedelta(seconds=1))
         self.assertEqual(got - base, 1)
 
+    def test_4_a_page_parameter_the_site_ignores_stops_the_keyword_after_one_wasted_page(self):
+        # page 2..10 of keyword 0 return page 1 again (what a wrong Page_No would look like on the live site)
+        import shutil
+        from pathlib import Path
+        tmp = tempfile.mkdtemp()
+        try:
+            build_fixture(tmp, base=700_000_000 + uuid.uuid4().int % 50_000_000)
+            first = Path(tmp, 'search', '0-p1.html').read_text(encoding='utf-8')
+            for page in range(2, 11):
+                Path(tmp, 'search', f'0-p{page}.html').write_text(first, encoding='utf-8')
+            keywords, source = h.FixtureSource.from_dir(tmp)
+            limits = h.HarvestLimits(max_pages=10, max_new_details=0, known_page_stop=10, max_requests=2000)
+            out = h.run_harvest(self.connection, source, keywords=keywords[:1], limits=limits)
+            pages = self.connection.execute(
+                "SELECT page_no, coalesce(error_code, '') FROM crawler_training.harvest_pages WHERE run_id = %s"
+                " ORDER BY page_no", (out['run_id'],)).fetchall()
+            self.assertEqual(pages, [(1, ''), (2, 'PAGE_REPEATED')])      # not 10 pages
+            self.assertEqual(source.requests, 2)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_3_test_mode_writes_nothing(self):
         counts = ("SELECT (SELECT count(*) FROM crawler_training.harvest_runs),"
                   " (SELECT count(*) FROM crawler_training.harvest_items), (SELECT count(*) FROM crawler_training.postings)")
