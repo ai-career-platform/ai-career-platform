@@ -36,6 +36,11 @@
 **`post-night-gcp.ps1` 실행 조건:** `gcp_sync=true`, CA 파일, `career_sync` 비밀번호, LIVE run 이 모두 있어야 합니다.
 - 일회성 cutover 플래그는 쓰지 않습니다. 첫 cutover 는 별도 승인된 수동 실행입니다.
 
+**웹사이트 단계 (`nightly site-check`):** published 로 이관된 경우에만 실행합니다.
+- 공개 API 목록에서 제목·회사가 같은 항목을 찾고, 그 상세 API 의 `source_url` 이 해당 공고의 `GI_Read/<id>` 와 같을 때만 "표시됨"으로 셉니다.
+- draft 이관은 `NOT_RUN / DRAFT_NOT_PUBLIC` 입니다.
+- 실측: 실제 사이트 API 를 읽기 전용으로 90항목 조회했고 모두 HTTP 200 이었습니다. 대상 공고가 없어 결과는 NOT_RUN 입니다.
+
 ## 2. 실측 결과
 
 | 항목 | 결과 | 증거 |
