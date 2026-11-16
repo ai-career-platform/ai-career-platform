@@ -2,6 +2,12 @@
 
 판정 원칙: 실제로 수행한 것만 PASS. 비밀값은 출력·기록하지 않습니다.
 
+> **정정 (2026-11-16, [CRAWLER_STAGING_SAFETY_CHECK_RESULT.md](CRAWLER_STAGING_SAFETY_CHECK_RESULT.md))**: 이 문서의 Staging 판단은 main 의 11-12 이전 증거만 근거로 했습니다. PR #371 브랜치의 CRAWLER_RECOVERY_2026-11-16 에 기록된 내용은 다음과 같습니다.
+> - Staging `jobkorea_live` 는 29건입니다.
+> - 1박 단위 T61 승인으로 실제 LIVE 야간 수집이 있었습니다.
+> - 08:05 GCP Sync cron 은 활성이고, Cloud SQL 에 29건이 draft 로 있으며 공개는 0 입니다.
+> - 여기의 fail-closed 가드는 승인된 Staging Sync 까지 멈추므로, 범위를 좁히기 전에는 배포하지 않습니다.
+
 선행 문서: [CRAWLER_OPERATIONAL_UNBLOCK_PLAN.md](CRAWLER_OPERATIONAL_UNBLOCK_PLAN.md) (6.3 Staging 점검, 7 GCP, 11 승인 항목).
 
 ## 0. 이번 작업에서 실제로 일어난 일
