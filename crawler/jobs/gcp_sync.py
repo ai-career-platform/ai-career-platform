@@ -330,7 +330,8 @@ def _parse_run_ids(values):
 
 # Staging source provenance (MIGRATION_UNBLOCK). A row is proven when a discovery of it (first or last
 # seen) falls inside a finished night job with real HTTP requests whose start lies inside its own night
-# (21:00 KST night_date .. 08:00 KST next day). Night jobs are created only after live_gate() returned
+# (21:00 KST night_date .. 08:00 KST next day), and the stored payload was last written no later than
+# that job ended (a later overwrite, e.g. a test or a CLI import reusing the id, is not proven). Night jobs are created only after live_gate() returned
 # ALLOWED for a valid T61 approval (night_crawl.run_night_step), so such a job is code-level evidence
 # that the fetch was approved. Rows without it (e.g. the 2026-11-08 CLI imports, clock-injected test
 # jobs) are skipped as PROVENANCE_UNVERIFIED instead of blocking the whole sync.
@@ -347,6 +348,8 @@ SELECT p.source_code, p.external_posting_id, p.payload, p.updated_at,
                                      AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
                  OR d.last_seen_at BETWEEN r.started_at - interval '1 minute'
                                        AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute')
+            -- the stored payload is the one that job fetched or confirmed: nothing wrote it afterwards
+            AND p.updated_at <= coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
        ) AS provenance_ok
   FROM crawler_training.postings p ORDER BY p.source_code, p.external_posting_id"""
 
@@ -519,30 +522,40 @@ def verify_target(cursor, rows, *, source_code, publish):
             'source_target_match': bool(rows) and matched == len(rows)}
 
 
-WRITER_WINDOW = timedelta(days=7)
+def _summary_obj(summary):
+    """error_summary is a text column: a JSON object, legacy text, NULL or malformed. Never raises."""
+    try:
+        value = json.loads(summary) if summary else None
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def other_writers(cursor, source_id, writer, now):
-    """Other sync writers of this data source in the last WRITER_WINDOW (single-writer policy).
+    """Other sync writers of this data source that have not been retired by a cutover (single writer).
 
-    Every run records its writer in error_summary['source'] ('local' or 'staging'); runs of the
-    older deployed code carry no such key and are counted as 'staging'.
+    Every run of any status counts (a PARTIAL run is stored as 'failed' but has written rows). Each run
+    records its writer in error_summary['source'] ('local'/'staging') from the moment its row is
+    inserted; rows of the older deployed code carry no such key and count as 'staging'. A writer is
+    retired once this writer completed a cutover-confirmed run after that writer's last run. A 'running'
+    row older than STALE_AFTER is a crashed run: it still marks activity but not a sync in progress.
     """
-    cursor.execute("SELECT error_summary, status, max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
-                   " AND status IN ('succeeded', 'running') AND started_at >= %s GROUP BY error_summary, status",
-                   (source_id, now - WRITER_WINDOW))
-    seen = {}
-    for summary, status, last in cursor.fetchall():
-        try:
-            other = (json.loads(summary) or {}).get('source') if summary else None
-        except (TypeError, ValueError):
-            other = None
-        other = other or 'staging'
-        if other != writer:
-            entry = seen.setdefault(other, {'last_run_at': last, 'running': False})
-            entry['last_run_at'] = max(entry['last_run_at'], last)
-            entry['running'] = entry['running'] or status == 'running'
-    return {k: {'last_run_at': v['last_run_at'].isoformat(), 'running': v['running']} for k, v in seen.items()}
+    cursor.execute('SELECT error_summary, status, started_at FROM career.ingestion_runs WHERE source_id = %s',
+                   (source_id,))
+    seen, my_cutover = {}, None
+    for summary, status, started in cursor.fetchall():
+        obj = _summary_obj(summary)
+        who = obj.get('source') if isinstance(obj.get('source'), str) else 'staging'
+        if who == writer:
+            cut = obj.get('cutover')
+            if status == 'succeeded' and isinstance(cut, dict) and cut.get('confirmed') is True:
+                my_cutover = started if my_cutover is None else max(my_cutover, started)
+            continue
+        entry = seen.setdefault(who, {'last_run_at': started, 'running': False})
+        entry['last_run_at'] = max(entry['last_run_at'], started)
+        entry['running'] = entry['running'] or (status == 'running' and started > now - STALE_AFTER)
+    return {k: {'last_run_at': v['last_run_at'].isoformat(), 'running': v['running']} for k, v in seen.items()
+            if my_cutover is None or v['last_run_at'] >= my_cutover}
 
 
 # A confirmed cutover is accepted only when the other writer has been quiet for longer than its daily
@@ -641,12 +654,19 @@ def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover
         target.rollback()
         return dict(base, status='DRY_RUN', fetched=len(rows), **_summary(result, {}))
     with target.cursor() as cursor:
-        cursor.execute("UPDATE career.ingestion_runs SET status = 'failed', ended_at = now(),"
-                       " error_summary = %s WHERE source_id = %s AND status = 'running' AND started_at < %s",
-                       (json.dumps({'error_code': 'STALE_RUN'}), source_id, now - STALE_AFTER))
-        stale = cursor.rowcount
-        cursor.execute("INSERT INTO career.ingestion_runs (source_id, status, fetched_count) VALUES (%s, 'running', %s)"
-                       ' RETURNING ingestion_run_id, started_at', (source_id, len(rows)))
+        # close crashed runs, keeping their writer marker (the single-writer rule still sees them)
+        cursor.execute("SELECT ingestion_run_id, error_summary FROM career.ingestion_runs WHERE source_id = %s"
+                       " AND status = 'running' AND started_at < %s", (source_id, now - STALE_AFTER))
+        crashed = cursor.fetchall()
+        for crashed_id, crashed_summary in crashed:
+            cursor.execute("UPDATE career.ingestion_runs SET status = 'failed', ended_at = now(), error_summary = %s"
+                           " WHERE ingestion_run_id = %s AND status = 'running'",
+                           (json.dumps(dict(_summary_obj(crashed_summary), error_code='STALE_RUN')), crashed_id))
+        stale = len(crashed)
+        # the writer marker is stored from the first moment, so a run killed now is still attributed
+        cursor.execute("INSERT INTO career.ingestion_runs (source_id, status, fetched_count, error_summary)"
+                       " VALUES (%s, 'running', %s, %s) RETURNING ingestion_run_id, started_at",
+                       (source_id, len(rows), json.dumps({'source': base['source'], 'mode': mode})))
         run_id, started_at = cursor.fetchone()
     target.commit()
     try:
@@ -690,6 +710,8 @@ def _notify(result, environ):
                      f" · Failed {result['failed']}")
     if result.get('error_code'):
         lines.append(f"Error code: `{result['error_code']}`")
+    if result.get('reason'):
+        lines.append(f"Reason: `{result['reason']}`")
     accepted, http_status, _ = send(url, {'text': '\n'.join(lines)})
     return {'slack': 'SENT' if accepted else 'FAILED', 'http_status': http_status}
 
@@ -744,8 +766,11 @@ def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, slee
                         pass
         break
     result['attempts'] = attempt
-    if mode == 'scheduled' and result['status'] in ('SUCCEEDED', 'PARTIAL', 'FAILED'):
-        result.update(_notify(result, environ))
+    # a scheduled run stopped by the single-writer rule is reported too, so a halted sync is never silent
+    refused = result['status'] == 'SKIPPED' and str(result.get('reason', '')).startswith(('OTHER_SYNC', 'CUTOVER'))
+    if mode == 'scheduled' and (result['status'] in ('SUCCEEDED', 'PARTIAL', 'FAILED') or refused):
+        notice = _notify(result, environ)  # never overwrite the run's own 'reason'
+        result.update({('slack_reason' if k == 'reason' else k): v for k, v in notice.items()})
     return result
 
 

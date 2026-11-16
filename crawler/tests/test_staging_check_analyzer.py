@@ -102,6 +102,29 @@ class AnalyzerTest(unittest.TestCase):
         self.assertEqual(by['50246410']['approval_basis'], 'approval_file:jobkorea-t61-night-20261113.json')  # 13:30Z in window
         self.assertIn('50246410', r['migratable_ids'])
 
+    def test_failed_provenance_query_is_incomplete_not_ok(self):
+        text = sample()
+        start = text.index('===== 8b.')
+        end = text.index('===== 8c.')
+        broken = text[:start] + '===== 8b. per-posting provenance =====\nERROR:  syntax error at or near "x"\n' + text[end:]
+        r = analyzer.analyze(broken)
+        self.assertEqual((r['status'], r['classified_rows']), ('INCOMPLETE', 0))
+        self.assertTrue(any(p.startswith('MISSING_8B_TABLE') for p in r['problems']))
+
+    def test_journal_mentions_do_not_count_as_an_enabled_cron(self):
+        text = sample().replace('5 23 * * * /home/kant/ai-career-staging-poc/gcp-sync/run_gcp_sync.sh scheduled >> log 2>&1',
+                                '--- cron executions (syslog/journal, last 14 days)\n'
+                                'Nov 16 23:05:01 host CRON[1]: (kant) CMD (/home/kant/x/run_gcp_sync.sh scheduled)')
+        g = analyzer.analyze(text)['gcp_sync']
+        self.assertEqual((g['cron_registered'], g['cron_enabled'], g['cron_schedule']), (False, False, None))
+
+    def test_payload_changed_after_job_is_not_migratable(self):
+        r = analyzer.analyze(sample(total=7, extra_rows=[row('50000009', 'JOB_LINKED_PAYLOAD_CHANGED',
+                                                              '2026-11-12 22:00:00+09', 'j1')]))
+        by = {x['external_posting_id']: x for x in r['rows']}
+        self.assertEqual(by['50000009']['class'], 'UNVERIFIED_ORIGIN')
+        self.assertNotIn('50000009', r['migratable_ids'])
+
     def test_commented_cron_line_is_registered_but_not_enabled(self):
         text = sample().replace('5 23 * * * /home', '# 5 23 * * * /home')
         g = analyzer.analyze(text)['gcp_sync']

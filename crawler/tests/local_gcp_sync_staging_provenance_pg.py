@@ -82,7 +82,8 @@ class StagingProvenanceTest(unittest.TestCase):
                           " (%s, 2, '2026-11-12', 'FAILED', 3, '2026-11-12 23:00+09', '2026-11-12 23:00:20+09')",
                           (ok_job, test_job, failed_job))
             rows = {'101': '2026-11-12 22:00:30+09', '102': '2026-11-12 22:00:31+09', '103': '2026-11-08 09:50:48+09',
-                    '104': '2026-11-16 12:59:31+09', '105': '2026-11-12 23:00:10+09', '106': '2026-11-08 09:50:48+09'}
+                    '104': '2026-11-16 12:59:31+09', '105': '2026-11-12 23:00:10+09', '106': '2026-11-08 09:50:48+09',
+                    '107': '2026-11-14 10:00:00+09'}  # 107: proved by A's job, then overwritten later
             for n, at in rows.items():
                 owner.execute('INSERT INTO crawler_training.postings VALUES (%s, %s, %s, %s)',
                               ('jobkorea_live', n, J(posting(int(n))), at))
@@ -92,7 +93,8 @@ class StagingProvenanceTest(unittest.TestCase):
                     (1, '102', '2026-11-12 22:00:31+09', '2026-11-12 22:00:31+09'),   # A2
                     (2, '104', '2026-11-16 12:59:31+09', '2026-11-16 12:59:31+09'),   # C test clock
                     (2, '105', '2026-11-12 23:00:10+09', '2026-11-12 23:00:10+09'),   # E failed job
-                    (1, '106', '2026-11-08 09:50:48+09', '2026-11-12 22:00:35+09')]   # D refreshed by A's job
+                    (1, '106', '2026-11-08 09:50:48+09', '2026-11-12 22:00:35+09'),   # D refreshed by A's job
+                    (1, '107', '2026-11-12 22:00:32+09', '2026-11-12 22:00:32+09')]   # F payload overwritten after
             for k, n, first, last in disc:
                 owner.execute('INSERT INTO crawler_training.keyword_posting_discoveries VALUES (%s, %s, %s, %s, %s)',
                               (k, 'jobkorea_live', n, first, last))
@@ -134,15 +136,15 @@ class StagingProvenanceTest(unittest.TestCase):
     def test_01_staging_dry_run_keeps_proven_rows_and_skips_unproven(self):
         result = self.sync('dry-run')
         self.assertEqual((result['status'], result['source'], result['inserted']), ('DRY_RUN', 'staging', 3))
-        self.assertEqual(result['skipped_reasons'], {'PROVENANCE_UNVERIFIED': 4, 'SOURCE_NOT_SELECTED': 1})
+        self.assertEqual(result['skipped_reasons'], {'PROVENANCE_UNVERIFIED': 5, 'SOURCE_NOT_SELECTED': 1})
         self.assertEqual(self.target_ids(), [])
 
     def test_02_staging_run_copies_only_proven_rows_and_records_its_writer(self):
         result = self.sync('run')
         self.assertEqual((result['status'], result['inserted']), ('SUCCEEDED', 3))
-        self.assertEqual(self.target_ids(), ['101', '102', '106'])  # 103 no job, 104 test clock, 105 failed, 201 no job
+        self.assertEqual(self.target_ids(), ['101', '102', '106'])  # 103 no job, 104 test clock, 105 failed, 107 rewritten, 201 no job
         summary = json.loads(self.owner('SELECT error_summary FROM career.ingestion_runs')[0][0])
-        self.assertEqual((summary['source'], summary['skipped_reasons']['PROVENANCE_UNVERIFIED']), ('staging', 4))
+        self.assertEqual((summary['source'], summary['skipped_reasons']['PROVENANCE_UNVERIFIED']), ('staging', 5))
 
     def test_03_second_writer_is_refused_until_cutover_is_confirmed(self):
         dry = self.sync('dry-run', local=True)
@@ -163,7 +165,7 @@ class StagingProvenanceTest(unittest.TestCase):
         self.assertEqual(no_evidence['error_code'], 'CUTOVER_EVIDENCE_REQUIRED')
         sid = self.owner("SELECT source_id FROM career.data_sources WHERE code = 'jobkorea_live'")[0][0]
         self.owner("INSERT INTO career.ingestion_runs (source_id, status, started_at, error_summary)"
-                   " VALUES (%s, 'running', now() - interval '30 hours', '{\"source\": \"staging\"}')", (sid,))
+                   " VALUES (%s, 'running', now() - interval '10 minutes', '{\"source\": \"staging\"}')", (sid,))
         running = self.sync('run', local=True, cutover=True, evidence='CHG-1')
         self.assertEqual(running['error_code'], 'OTHER_SYNC_RUNNING')
         self.owner("DELETE FROM career.ingestion_runs WHERE status = 'running'")
@@ -175,8 +177,10 @@ class StagingProvenanceTest(unittest.TestCase):
         recorded = json.loads(self.owner("SELECT error_summary FROM career.ingestion_runs WHERE error_summary::jsonb->>'source'"
                                          " = 'local' AND status = 'succeeded'")[0][0])
         self.assertEqual(recorded['cutover']['evidence'], 'CHG-1 staging crontab 0 lines 2026-11-18')
-        again = self.sync('run', local=True, cutover=True, evidence='CHG-1')
+        # Staging is retired by that confirmed cutover: later local runs need no flags while Staging stays quiet
+        again = self.sync('run', local=True)
         self.assertEqual((again['status'], again['inserted'], again['updated'], again['duplicate']), ('SUCCEEDED', 0, 0, 2))
+        self.assertNotIn('other_writers', again)
         back = self.sync('run')
         self.assertEqual((back['status'], back['error_code']), ('FAILED', 'OTHER_SYNC_SOURCE_ACTIVE'))
         self.assertIn('local', back['other_writers'])
@@ -193,9 +197,10 @@ class StagingProvenanceTest(unittest.TestCase):
         rows = self.owner(script_sql)
         evidence = {r[0]: r[15] for r in rows}
         self.assertEqual(sorted(k for k, v in evidence.items() if v == 'LIVE_JOB_LINKED'), ['101', '102', '106'])
-        self.assertEqual((evidence['103'], evidence['104'], evidence['105'], evidence['201']),
-                         ('NO_DISCOVERY', 'JOB_LINKED_SYNTHETIC_CLOCK', 'JOB_LINKED_FAILED', 'NO_DISCOVERY'))
-        self.assertEqual(sum(1 for _ in rows), 7)
+        self.assertEqual((evidence['103'], evidence['104'], evidence['105'], evidence['107'], evidence['201']),
+                         ('NO_DISCOVERY', 'JOB_LINKED_SYNTHETIC_CLOCK', 'JOB_LINKED_FAILED', 'JOB_LINKED_PAYLOAD_CHANGED',
+                          'NO_DISCOVERY'))
+        self.assertEqual(sum(1 for _ in rows), 8)
         sync_ok = {r[1] for r in self.owner(g.STAGING_PROVENANCE_SQL) if r[0] == 'jobkorea_live' and r[4]}
         self.assertEqual(sync_ok, {'101', '102', '106'})
 
@@ -206,6 +211,34 @@ class StagingProvenanceTest(unittest.TestCase):
         run = self.sync('run', local=True)
         self.assertEqual((run['status'], run['error_code'], list(run['other_writers'])),
                          ('FAILED', 'OTHER_SYNC_SOURCE_ACTIVE', ['staging']))
+
+    def test_06_no_time_window_bypass_crashed_run_marker_and_malformed_rows(self):
+        sid = self.owner("SELECT source_id FROM career.data_sources WHERE code = 'jobkorea_live'")[0][0]
+        # Staging last synced 10 days ago (old code, no 'source' key): still a writer, cutover still required
+        self.owner("UPDATE career.ingestion_runs SET started_at = started_at - interval '10 days',"
+                   " ended_at = ended_at - interval '10 days'")
+        self.owner("INSERT INTO career.ingestion_runs (source_id, status, started_at, ended_at, error_summary)"
+                   " VALUES (%s, 'failed', now() - interval '11 days', now() - interval '11 days', '\"x\"'),"
+                   " (%s, 'running', now() - interval '2 hours', NULL, '{\"source\": \"local\", \"mode\": \"run\"}')",
+                   (sid, sid))
+        quiet = self.sync('run', local=True)
+        self.assertEqual(quiet['error_code'], 'OTHER_SYNC_SOURCE_ACTIVE')  # waiting is not a cutover
+        self.assertNotIn('local', quiet['other_writers'])                  # own crashed run is not a rival
+        ok = self.sync('run', local=True, cutover=True, evidence='CHG-2 staging cron removed')
+        self.assertEqual(ok['status'], 'SUCCEEDED')
+        crashed = json.loads(self.owner("SELECT error_summary FROM career.ingestion_runs WHERE status = 'failed'"
+                                        " AND error_summary LIKE '%%STALE_RUN%%'")[0][0])
+        self.assertEqual((crashed['source'], crashed['error_code']), ('local', 'STALE_RUN'))
+
+    def test_07_a_partial_or_failed_run_of_the_other_writer_still_counts(self):
+        sid = self.owner("SELECT source_id FROM career.data_sources WHERE code = 'jobkorea_live'")[0][0]
+        # a PARTIAL run is stored as 'failed' but has written rows: Staging is active again
+        self.owner("INSERT INTO career.ingestion_runs (source_id, status, started_at, ended_at, error_summary)"
+                   " VALUES (%s, 'failed', now(), now(), '{\"source\": \"staging\", \"result\": \"PARTIAL\"}')", (sid,))
+        refused = self.sync('run', local=True)
+        self.assertEqual(refused['error_code'], 'OTHER_SYNC_SOURCE_ACTIVE')
+        recent = self.sync('run', local=True, cutover=True, evidence='CHG-3')
+        self.assertEqual(recent['error_code'], 'OTHER_SYNC_RECENT')
 
 
 if __name__ == '__main__':

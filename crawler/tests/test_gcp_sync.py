@@ -209,6 +209,21 @@ class ScheduleTest(unittest.TestCase):
         self.assertEqual((scheduled['attempts'], manual['attempts'], sleeps), (1, 1, []))
         self.assertNotIn('slack', manual)
 
+    def test_refused_scheduled_run_is_notified_and_keeps_its_reason(self):
+        original = g.run_sync
+        g.run_sync = lambda *a, **k: {'mode': 'scheduled', 'status': 'SKIPPED', 'reason': 'OTHER_SYNC_SOURCE_ACTIVE'}
+        try:
+            result = g.execute('scheduled', {}, connect_src=lambda: _Closable(), connect_tgt=lambda environ: _Closable())
+        finally:
+            g.run_sync = original
+        self.assertEqual((result['reason'], result['slack']), ('OTHER_SYNC_SOURCE_ACTIVE', 'DISABLED'))
+        self.assertIn('slack_reason', result)
+
+    def test_error_summary_parsing_never_raises(self):
+        for text, expected in ((None, {}), ('', {}), ('legacy text', {}), ('"x"', {}), ('[1]', {}),
+                               ('{"source": "local"}', {'source': 'local'})):
+            self.assertEqual(g._summary_obj(text), expected)
+
     def test_cutover_refusal_order(self):
         now = datetime(2026, 11, 18, 9, 0, tzinfo=timezone.utc)
         old = {'staging': {'last_run_at': '2026-11-16T23:05:01+00:00', 'running': False}}

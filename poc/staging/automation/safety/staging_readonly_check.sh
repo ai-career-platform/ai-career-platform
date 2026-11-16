@@ -22,6 +22,8 @@ sec() { printf '\n===== %s =====\n' "$1"; }
 redact() {
   sed -E \
     -e 's#([A-Za-z0-9_]*(PASS|PASSWORD|TOKEN|SECRET|KEY|WEBHOOK|RUL)[A-Za-z0-9_]*)=[^[:space:]"]+#\1=<redacted>#Ig' \
+    -e 's#(--?[A-Za-z_-]*(pass|password|token|secret|key|webhook)[A-Za-z_-]*)([= ]+)[^[:space:]"]+#\1\3<redacted>#Ig' \
+    -e 's#("[A-Za-z0-9_]*(pass|password|token|secret|key|webhook)[A-Za-z0-9_]*" *: *")[^"]*#\1<redacted>#Ig' \
     -e 's#(://)[^/@[:space:]]+@#\1<redacted>@#g' \
     -e 's#hooks\.slack\.com/services/[A-Za-z0-9/_-]+#hooks.slack.com/services/<redacted>#g' \
     -e '/-----BEGIN [A-Z ]+-----/,/-----END [A-Z ]+-----/c\<pem redacted>'
@@ -69,7 +71,7 @@ ls -la "$B/gcp-sync/logs" 2>&1 | awk '{print $1, $3, $5, $6, $7, $8, $9}'
 if [ -f "$B/gcp-sync/gcp-sync.env" ]; then
   echo "gcp_sync_env_mode=$(stat -c %a "$B/gcp-sync/gcp-sync.env")"
   echo "GCP_SYNC_PUBLISH_value=$(grep -E '^GCP_SYNC_PUBLISH=' "$B/gcp-sync/gcp-sync.env" | head -1 | cut -d= -f2 | tr -cd '01')"
-  echo "keys_present=$(grep -oE '^[A-Z_]+=' "$B/gcp-sync/gcp-sync.env" | tr -d '=' | tr '\n' ' ')"
+  echo "env_names_present: $(grep -oE '^[A-Z_]+=' "$B/gcp-sync/gcp-sync.env" | tr -d '=' | tr '\n' ' ')"
   echo "target_user_is_career_sync=$(grep -cE '^GCP_SYNC_TARGET_USER=career_sync$' "$B/gcp-sync/gcp-sync.env")"
 else echo "NO_GCP_SYNC_ENV_FILE"; fi
 echo "lock_file=$(ls -la "$B/gcp-sync/.lock" 2>&1 | awk '{print $6, $7, $8}')"
@@ -101,7 +103,7 @@ pgrep -af 'gcp_sync|run_gcp_sync|import_jobkorea_html|harvest' 2>/dev/null || ec
 dc exec -T backend sh -c 'ps -eo pid,etime,args 2>/dev/null | grep -E "gcp_sync|import_jobkorea|harvest" | grep -v grep || echo none' 2>&1
 
 sec "7. backend live/gcp env (SET/UNSET only)"
-dc exec -T backend sh -c 'for v in CRAWLER_DB_MODE CRAWLER_NIGHT_ENABLED CRAWLER_LIVE_SCHEDULE_APPROVED CRAWLER_NIGHT_POLICY_FILE GCP_SYNC_PUBLISH GCP_SYNC_TARGET_HOST GCP_SYNC_ALLOW_UNVERIFIED_STAGING SLACK_WEBHOOK_URL SLACK_WEBHOOK_RUL; do if [ -n "$(printenv $v)" ]; then echo "$v=SET"; else echo "$v=UNSET"; fi; done' 2>&1
+dc exec -T backend sh -c 'for v in CRAWLER_DB_MODE CRAWLER_NIGHT_ENABLED CRAWLER_LIVE_SCHEDULE_APPROVED CRAWLER_NIGHT_POLICY_FILE GCP_SYNC_PUBLISH GCP_SYNC_TARGET_HOST GCP_SYNC_ALLOW_UNVERIFIED_STAGING SLACK_WEBHOOK_URL SLACK_WEBHOOK_RUL; do if [ -n "$(printenv $v)" ]; then echo "$v: SET"; else echo "$v: UNSET"; fi; done' 2>&1
 
 sec "8. crawler DB (READ ONLY)"
 psql_ro ai_career_crawler_training <<'SQL' 2>&1
@@ -140,7 +142,9 @@ SQL
 sec "8b. per-posting provenance (every jobkorea_live row exactly once)"
 # Same rule as crawler/jobs/gcp_sync.py STAGING_PROVENANCE_SQL: a discovery of the posting (first or last
 # seen) inside a finished night job with HTTP > 0 whose start lies inside its own night (21:00-08:00 KST).
-# evidence: LIVE_JOB_LINKED / JOB_LINKED_SYNTHETIC_CLOCK / JOB_LINKED_FAILED / DISCOVERY_WITHOUT_JOB / NO_DISCOVERY
+# and the stored payload was last written no later than that job ended.
+# evidence: LIVE_JOB_LINKED / JOB_LINKED_PAYLOAD_CHANGED / JOB_LINKED_SYNTHETIC_CLOCK / JOB_LINKED_FAILED /
+#           DISCOVERY_WITHOUT_JOB / NO_DISCOVERY
 # evidence_total = number of rows in the same class (one row per posting, so the totals add up to the row count).
 psql_ro ai_career_crawler_training <<'SQL' 2>&1
 BEGIN READ ONLY;
@@ -148,12 +152,14 @@ WITH live AS (
   SELECT external_posting_id, updated_at, xmin::text AS insert_xid FROM crawler_training.postings
    WHERE source_code = 'jobkorea_live'),
 cand AS (
-  SELECT d.external_posting_id, k.keyword, d.first_seen_at, d.last_seen_at, r.job_id, r.night_date, r.attempt,
-         r.started_at, r.ended_at, r.outcome, r.http_requests, r.inserted,
+  SELECT d.external_posting_id, coalesce(k.keyword, '#' || d.keyword_id) AS keyword, d.first_seen_at, d.last_seen_at,
+         r.job_id, r.night_date, r.attempt, r.started_at, r.ended_at, r.outcome, r.http_requests, r.inserted,
          (r.started_at >= (r.night_date + time '21:00') AT TIME ZONE 'Asia/Seoul'
-          AND r.started_at < (r.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent
+          AND r.started_at < (r.night_date + 1 + time '08:00') AT TIME ZONE 'Asia/Seoul') AS window_consistent,
+         (p.updated_at <= coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute') AS payload_from_job
     FROM crawler_training.keyword_posting_discoveries d
-    JOIN crawler_training.search_keywords k USING (keyword_id)
+    JOIN crawler_training.postings p ON p.source_code = d.source_code AND p.external_posting_id = d.external_posting_id
+    LEFT JOIN crawler_training.search_keywords k USING (keyword_id)
     LEFT JOIN crawler_training.night_job_results r ON r.keyword_id = d.keyword_id
      AND (d.first_seen_at BETWEEN r.started_at - interval '1 minute'
                               AND coalesce(r.ended_at, r.started_at + interval '15 minutes') + interval '1 minute'
@@ -163,15 +169,17 @@ cand AS (
 graded AS (
   SELECT cand.*, CASE
            WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND outcome IN ('SUCCEEDED', 'PARTIAL')
-                AND window_consistent THEN 'LIVE_JOB_LINKED'
+                AND window_consistent AND payload_from_job THEN 'LIVE_JOB_LINKED'
            WHEN job_id IS NOT NULL AND NOT coalesce(window_consistent, false) THEN 'JOB_LINKED_SYNTHETIC_CLOCK'
+           WHEN job_id IS NOT NULL AND coalesce(http_requests, 0) > 0 AND outcome IN ('SUCCEEDED', 'PARTIAL')
+                THEN 'JOB_LINKED_PAYLOAD_CHANGED'
            WHEN job_id IS NOT NULL THEN 'JOB_LINKED_FAILED'
            ELSE 'DISCOVERY_WITHOUT_JOB' END AS evidence
     FROM cand),
 best AS (
   SELECT DISTINCT ON (external_posting_id) * FROM graded
    ORDER BY external_posting_id,
-            array_position(ARRAY['LIVE_JOB_LINKED','JOB_LINKED_SYNTHETIC_CLOCK','JOB_LINKED_FAILED','DISCOVERY_WITHOUT_JOB'], evidence),
+            array_position(ARRAY['LIVE_JOB_LINKED','JOB_LINKED_PAYLOAD_CHANGED','JOB_LINKED_SYNTHETIC_CLOCK','JOB_LINKED_FAILED','DISCOVERY_WITHOUT_JOB'], evidence),
             started_at NULLS LAST, first_seen_at)
 SELECT l.external_posting_id, l.updated_at, l.insert_xid, b.keyword, b.first_seen_at, b.last_seen_at, b.job_id,
        b.night_date, b.attempt, b.started_at, b.ended_at, b.outcome, b.http_requests, b.inserted, b.window_consistent,
