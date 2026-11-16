@@ -160,6 +160,58 @@ def format_gcp(window, result):
     return {'text': '\n'.join(lines)}
 
 
+SITE_API = 'https://slatech.co.kr/career/api/v1/job-postings'
+NIGHT_POSTINGS_SQL = """
+SELECT DISTINCT p.external_posting_id, p.payload->>'title', p.payload->>'company_name', p.payload->>'source_url'
+FROM crawler_training.harvest_items i
+JOIN crawler_training.harvest_runs r ON r.run_id = i.run_id
+JOIN crawler_training.postings p ON p.source_code = i.source_code AND p.external_posting_id = i.external_posting_id
+WHERE r.mode = 'live' AND r.http_requests > 0 AND r.source_code = %(source)s
+  AND i.outcome IN ('inserted', 'updated', 'unchanged') AND r.started_at >= %(since)s AND r.started_at < %(until)s
+"""
+
+
+def _get_json(url, timeout=20):
+    import urllib.request
+    request = urllib.request.Request(url, headers={'User-Agent': 'aicp-nightly-site-check', 'Accept': 'application/json'})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.status, json.loads(response.read().decode('utf-8'))
+
+
+def site_check(expected, *, get_json=_get_json, api=SITE_API, max_pages=50):
+    """Read-only trace DB -> public API -> detail: a posting counts as shown only when the list API returns
+    an item with its title and company AND that item's detail ``source_url`` is the posting's own URL."""
+    from urllib.parse import quote
+    want = {(e['title'], e['company_name']): e for e in expected}
+    found, scanned, cursor, statuses = {}, 0, None, set()
+    for _ in range(max_pages):
+        status, page = get_json(f'{api}?limit=100&include_closed=true' + (f'&cursor={quote(cursor)}' if cursor else ''))
+        statuses.add(status)
+        for item in page.get('items') or []:
+            scanned += 1
+            exp = want.get((item.get('title'), (item.get('company') or {}).get('name')))
+            if exp and exp['external_id'] not in found:
+                _, detail = get_json(f"{api}/{item['job_posting_id']}")
+                if detail.get('source_url') == exp['source_url']:
+                    found[exp['external_id']] = item['job_posting_id']
+        cursor = page.get('next_cursor')
+        if not cursor:
+            break
+    status = 'PASS' if expected and len(found) == len(expected) else ('PARTIAL' if found else 'NOT_FOUND')
+    return {'status': status if expected else 'NOT_RUN', 'expected': len(expected), 'found': len(found),
+            'api_items_scanned': scanned, 'http_statuses': sorted(statuses), 'matches': found}
+
+
+def format_site(window, result):
+    lines = [f'[AI Career Platform] 웹사이트 표시 검증 (야간 {window.night_date})', f"- 상태: {result.get('status')}"]
+    if result.get('reason'):
+        lines.append(f"- 사유: {result['reason']}")
+    if 'expected' in result:
+        lines += [f"- 이관 공고: {_n(result['expected'])} · 웹사이트 확인: {_n(result['found'])}",
+                  f"- API 조회 항목: {_n(result['api_items_scanned'])} ({SITE})"]
+    return {'text': '\n'.join(lines)}
+
+
 NIGHT_RUN_IDS_SQL = """
 SELECT run_id::text FROM crawler_training.harvest_runs
 WHERE mode = 'live' AND source_code = %(source)s AND http_requests > 0
@@ -370,9 +422,11 @@ def main(argv=None, *, environ=None):
     s = sub.add_parser('slack-test'); s.add_argument('--state-dir', required=True)
     nr = sub.add_parser('night-runs', help='finished LIVE run ids of one night (for the GCP step)')
     nr.add_argument('--night', required=True, help='YYYY-MM-DD the night started')
-    nt = sub.add_parser('notify', help='send the GCP step result once per night')
-    nt.add_argument('--kind', choices=['gcp'], required=True); nt.add_argument('--night', required=True)
+    nt = sub.add_parser('notify', help='send the GCP or website step result once per night')
+    nt.add_argument('--kind', choices=['gcp', 'site'], required=True); nt.add_argument('--night', required=True)
     nt.add_argument('--result-file', required=True); nt.add_argument('--state-dir', required=True)
+    sc = sub.add_parser('site-check', help='read-only: are the night\'s postings shown on the public site?')
+    sc.add_argument('--night', required=True); sc.add_argument('--result-file', required=True)
     args = p.parse_args(argv)
     if args.command == 'notify':
         night = date.fromisoformat(args.night)
@@ -381,7 +435,8 @@ def main(argv=None, *, environ=None):
             result = json.loads(Path(args.result_file).read_text(encoding='utf-8-sig'))
         except (OSError, ValueError):
             result = {'status': UNVERIFIED, 'reason': 'RESULT_FILE_UNREADABLE'}
-        print(json.dumps(SlackLedger(args.state_dir, night).notify('gcp', format_gcp(window, result), environ)))
+        fmt = format_gcp if args.kind == 'gcp' else format_site
+        print(json.dumps(SlackLedger(args.state_dir, night).notify(args.kind, fmt(window, result), environ)))
         return 0
     if args.command == 'window':
         win = night_window(_now(args.now))
@@ -395,6 +450,18 @@ def main(argv=None, *, environ=None):
         print(json.dumps(result))
         return 0 if result['slack'] in ('SENT', 'DUPLICATE_SKIPPED') else 2
     with _connect() as connection:
+        if args.command == 'site-check':
+            window = night_window(datetime.combine(date.fromisoformat(args.night), START, KST))
+            rows = connection.execute(NIGHT_POSTINGS_SQL, {'source': LIVE_SOURCE, 'since': window.start,
+                                                           'until': window.end}).fetchall()
+            expected = [{'external_id': r[0], 'title': r[1], 'company_name': r[2], 'source_url': r[3]} for r in rows]
+            try:
+                result = site_check(expected)
+            except Exception as exc:
+                result = {'status': 'FAILED', 'reason': 'SITE_' + type(exc).__name__.upper()}
+            Path(args.result_file).write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding='utf-8')
+            print(json.dumps({k: v for k, v in result.items() if k != 'matches'}))
+            return 0
         if args.command == 'night-runs':
             window = night_window(datetime.combine(date.fromisoformat(args.night), START, KST))
             ids = [r[0] for r in connection.execute(NIGHT_RUN_IDS_SQL, {'source': LIVE_SOURCE, 'since': window.start,

@@ -91,6 +91,44 @@ class GcpMessageTest(unittest.TestCase):
             self.assertEqual(send.call_count, 1)
 
 
+class SiteCheckTest(unittest.TestCase):
+    EXP = [{'external_id': '501', 'title': 'A 채용', 'company_name': '가사', 'source_url': 'https://www.jobkorea.co.kr/Recruit/GI_Read/501'},
+           {'external_id': '502', 'title': 'B 채용', 'company_name': '나사', 'source_url': 'https://www.jobkorea.co.kr/Recruit/GI_Read/502'}]
+
+    def api(self, pages, details):
+        calls = []
+
+        def get_json(url):
+            calls.append(url)
+            if '/job-postings/' in url:
+                return 200, details[url.rsplit('/', 1)[1]]
+            return 200, pages['cursor=' in url and url.split('cursor=')[1] or None]
+        return get_json, calls
+
+    def test_trace_needs_list_match_and_own_source_url_across_pages(self):
+        pages = {None: {'items': [{'job_posting_id': 'u1', 'title': 'A 채용', 'company': {'name': '가사'}},
+                                  {'job_posting_id': 'u9', 'title': '[Seed] x', 'company': {'name': 's'}}], 'next_cursor': 'c2'},
+                 'c2': {'items': [{'job_posting_id': 'u2', 'title': 'B 채용', 'company': {'name': '나사'}}], 'next_cursor': None}}
+        details = {'u1': {'source_url': self.EXP[0]['source_url']},
+                   'u2': {'source_url': 'https://www.jobkorea.co.kr/Recruit/GI_Read/999'}}   # same title, other posting
+        get_json, calls = self.api(pages, details)
+        r = n.site_check(self.EXP, get_json=get_json)
+        self.assertEqual((r['status'], r['found'], r['expected'], r['api_items_scanned']), ('PARTIAL', 1, 2, 3))
+        self.assertEqual(r['matches'], {'501': 'u1'})
+        self.assertNotIn('u9', ''.join(calls))                  # seed rows are never opened
+
+    def test_nothing_transferred_is_not_run(self):
+        get_json, _ = self.api({None: {'items': [], 'next_cursor': None}}, {})
+        self.assertEqual(n.site_check([], get_json=get_json)['status'], 'NOT_RUN')
+
+    def test_site_message(self):
+        w = n.night_window(kst(2026, 11, 17, 23, 0))
+        text = n.format_site(w, {'status': 'NOT_RUN', 'reason': 'DRAFT_NOT_PUBLIC'})['text']
+        self.assertIn('사유: DRAFT_NOT_PUBLIC', text)
+        text = n.format_site(w, {'status': 'PASS', 'expected': 2, 'found': 2, 'api_items_scanned': 92})['text']
+        self.assertIn('웹사이트 확인: 2건', text)
+
+
 class LedgerTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

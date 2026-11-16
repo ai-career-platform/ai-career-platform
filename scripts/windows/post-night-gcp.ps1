@@ -56,12 +56,23 @@ else {
         }
     }
 }
+# website step: only postings transferred as published can appear (the site never shows drafts)
+$siteFile = Join-Path $logDir "site-check-$Night.json"
+if ($r.status -in @('SUCCEEDED', 'PARTIAL') -and $r.publish -eq $true) {
+    & cmd /d /c "`"$VenvPy`" -m crawler.jobs.nightly site-check --night $Night --result-file `"$siteFile`" 2>&1" | Out-Null
+} else {
+    $why = if ($r.status -in @('SUCCEEDED', 'PARTIAL')) { 'DRAFT_NOT_PUBLIC' } else { "GCP_STEP_$($r.status)" }
+    [ordered]@{ status = 'NOT_RUN'; reason = $why } | ConvertTo-Json | Set-Content -Path $siteFile -Encoding utf8
+}
 if ($cfg -and $cfg.slack -eq $true) {
     $envFile = Join-Path $RepoRoot '.env'
     foreach ($line in Get-Content $envFile -Encoding utf8) {
         if ($line -match '^\s*(SLACK_WEBHOOK_URL|SLACK_WEBHOOK_RUL)\s*=\s*(.+?)\s*$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim('"').Trim("'")) }
     }
-    try { PyJson @('notify', '--kind', 'gcp', '--night', $Night, '--result-file', "`"$resultFile`"", '--state-dir', "`"$stateDir`"") | Out-Null }
+    try {
+        PyJson @('notify', '--kind', 'gcp', '--night', $Night, '--result-file', "`"$resultFile`"", '--state-dir', "`"$stateDir`"") | Out-Null
+        PyJson @('notify', '--kind', 'site', '--night', $Night, '--result-file', "`"$siteFile`"", '--state-dir', "`"$stateDir`"") | Out-Null
+    }
     finally { foreach ($k in 'SLACK_WEBHOOK_URL', 'SLACK_WEBHOOK_RUL') { [Environment]::SetEnvironmentVariable($k, $null) } }
 }
 $r | ConvertTo-Json -Compress -Depth 6
