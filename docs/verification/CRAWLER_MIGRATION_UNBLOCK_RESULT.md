@@ -20,7 +20,7 @@
 
 ## 3. Staging 점검 실행 패키지 (담당자용, 한 번에 복사)
 
-스크립트 `poc/staging/automation/safety/staging_readonly_check.sh` 는 이번 작업에서 8b 출처 규칙을 Sync 코드와 같게 고쳤습니다. 그래서 **SHA-256 이 바뀌었습니다** (정정 2026-11-16: 처음 적은 `4fe2638e…` 는 Windows 작업 사본의 CRLF 줄바꿈으로 계산한 잘못된 값입니다. GitHub·Linux 에서 받는 LF 파일 기준 값은 아래와 같습니다. `.gitattributes` 에 `*.sh eol=lf` 를 추가해 재발을 막았습니다): `6db6448a850aea9e10a904847350d83ae5b019d02df91772333ca0418c09004f` (이전 `a0053fd9…` 는 폐기).
+스크립트 `poc/staging/automation/safety/staging_readonly_check.sh` 는 이번 작업에서 8b 출처 규칙을 Sync 코드와 같게 고쳤습니다. 그래서 **SHA-256 이 바뀌었습니다** (최신 값은 `efa436a` 기준. CRAWLER_PR_INTEGRATION_AND_CUTOVER_READINESS §7 참고. 정정 2026-11-16: 처음 적은 `4fe2638e…` 는 Windows 작업 사본의 CRLF 줄바꿈으로 계산한 잘못된 값입니다. GitHub·Linux 에서 받는 LF 파일 기준 값은 아래와 같습니다. `.gitattributes` 에 `*.sh eol=lf` 를 추가해 재발을 막았습니다): `50996b38a99a5b42e6619e7fa686a425254441100405485dafa5af4b2c0af7bd` (이전 `a0053fd9…` 는 폐기).
 
 안전성 재확인 결과:
 
@@ -39,7 +39,7 @@ WORK=$(mktemp -d /tmp/aicp-check-XXXX) && cd "$WORK"
 curl -fsSL -o staging_readonly_check.sh \
   https://raw.githubusercontent.com/ai-career-platform/ai-career-platform/feat/crawler-windows-local-pc/poc/staging/automation/safety/staging_readonly_check.sh
 # 2) 무결성·안전성 확인 (불일치하거나 쓰기 명령이 보이면 중단)
-echo "6db6448a850aea9e10a904847350d83ae5b019d02df91772333ca0418c09004f  staging_readonly_check.sh" | sha256sum -c -
+echo "50996b38a99a5b42e6619e7fa686a425254441100405485dafa5af4b2c0af7bd  staging_readonly_check.sh" | sha256sum -c -
 bash -n staging_readonly_check.sh
 grep -nE '\b(rm|mv|cp|tee|chmod|chown|kill)\b|crontab +-(e|r)|systemctl +(start|stop|restart|enable|disable)|compose[^|]*\b(up|down|restart|stop|start|run|pull|build)\b|\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|COPY)\b' staging_readonly_check.sh \
   | grep -vE '^[0-9]+:\s*#|redacted|^2[0-9]:' && { echo "STOP: unexpected command"; exit 1; } || echo "SAFE_TO_RUN"
