@@ -195,7 +195,7 @@ def preflight(approval, limits, keywords, *, now=None):
         problems.append('REQUESTS_EXCEED_APPROVAL')
     urls = []
     for keyword in keywords:
-        for page in (1, limits.max_pages):
+        for page in sorted({1, limits.max_pages}):
             url = paged_search_url(search_url(keyword), page)
             decision = check_collection_permission(approval, CollectionIntent(
                 'jobkorea', url, 'WEB', HARVEST_PURPOSE, limits.max_requests, now))

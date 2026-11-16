@@ -602,6 +602,11 @@ def execute(mode, environ, *, connect_src=None, connect_tgt=connect_target, slee
             raise SyncError('LOCAL_SOURCE_ONE_SHOT_ONLY')
         if not local and (mode == 'verify' or live_run_ids):
             raise SyncError('LIVE_RUN_ID_NEEDS_LOCAL_SOURCE')
+        # STAGING_SAFETY_GATE: the Staging source selects every 'jobkorea_live' row by label only and has
+        # no provenance ledger; its 5 such rows are of UNKNOWN origin. Fail closed (no connection at all)
+        # unless an operator explicitly acknowledges unverified rows for a dry-run/run decision.
+        if not local and environ.get('GCP_SYNC_ALLOW_UNVERIFIED_STAGING') != '1':
+            raise SyncError('SOURCE_PROVENANCE_REQUIRED')
     except SyncError as error:
         return {'mode': mode, 'status': 'FAILED', 'error_code': error.code, 'attempts': 0}
     if connect_src is None:

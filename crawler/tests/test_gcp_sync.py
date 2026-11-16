@@ -185,7 +185,7 @@ class ScheduleTest(unittest.TestCase):
             calls.append(1)
             raise g.SyncError('SOURCE_CONNECT_FAILED', retryable=True)
 
-        result = g.execute('scheduled', {}, connect_src=failing_source, sleep=sleeps.append)
+        result = g.execute('scheduled', dict(ACK), connect_src=failing_source, sleep=sleeps.append)
         self.assertEqual((len(calls), sleeps, result['attempts']), (3, [60, 120], 3))
         self.assertEqual(result['error_code'], 'SOURCE_CONNECT_FAILED')
         self.assertEqual(result['slack'], 'DISABLED')  # no webhook in this environment
@@ -196,11 +196,25 @@ class ScheduleTest(unittest.TestCase):
         def tls_fail(environ):
             raise g.SyncError('TARGET_TLS_FAILED')
 
-        scheduled = g.execute('scheduled', {}, connect_src=lambda: _Closable(), connect_tgt=tls_fail, sleep=sleeps.append)
-        manual = g.execute('run', {}, connect_src=lambda: (_ for _ in ()).throw(
+        scheduled = g.execute('scheduled', dict(ACK), connect_src=lambda: _Closable(), connect_tgt=tls_fail, sleep=sleeps.append)
+        manual = g.execute('run', dict(ACK), connect_src=lambda: (_ for _ in ()).throw(
             g.SyncError('SOURCE_CONNECT_FAILED', retryable=True)), sleep=sleeps.append)
         self.assertEqual((scheduled['attempts'], manual['attempts'], sleeps), (1, 1, []))
         self.assertNotIn('slack', manual)
+
+    def test_staging_source_fails_closed_without_explicit_acknowledgement(self):
+        def never(*_):
+            raise AssertionError('must not connect')
+        for mode in ('dry-run', 'run', 'scheduled'):
+            result = g.execute(mode, {}, connect_src=never, connect_tgt=never, sleep=self.fail)
+            self.assertEqual((result['status'], result['error_code'], result['attempts']),
+                             ('FAILED', 'SOURCE_PROVENANCE_REQUIRED', 0))
+            self.assertNotIn('slack', result)
+        other = g.execute('run', {'GCP_SYNC_ALLOW_UNVERIFIED_STAGING': 'yes'}, connect_src=never, connect_tgt=never)
+        self.assertEqual(other['error_code'], 'SOURCE_PROVENANCE_REQUIRED')  # only the exact value '1'
+
+
+ACK = {'GCP_SYNC_ALLOW_UNVERIFIED_STAGING': '1'}
 
 
 class _Closable:
