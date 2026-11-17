@@ -95,6 +95,64 @@ describe('createHttpClient', () => {
   });
 });
 
+describe('createHttpClient — success bodies that are not JSON (E2E-006 D-1)', () => {
+  const client = (response: Response, onUnauthorized = vi.fn<(error: ApiError) => void>()) =>
+    ({ http: createHttpClient({ baseUrl: '/api', fetch: vi.fn<typeof fetch>().mockResolvedValue(response), onUnauthorized }), onUnauthorized });
+  const html = '<!doctype html><html><body><div id="root"></div></body></html>';
+
+  it('keeps parsing a normal JSON 200', async () => {
+    const { http } = client(jsonResponse(200, { items: [], next_cursor: null }));
+    await expect(http.request('/v1/job-roles')).resolves.toEqual({ items: [], next_cursor: null });
+  });
+
+  it('rejects an HTML 200 (SPA fallback / proxy page) as INVALID_RESPONSE instead of returning undefined', async () => {
+    const { http, onUnauthorized } = client(new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } }));
+    const error: unknown = await http.request('/v1/job-roles').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 200, path: '/v1/job-roles', code: 'INVALID_RESPONSE', userMessage: undefined, requestId: undefined });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it('rejects a JSON content-type whose body does not parse, keeping the X-Request-ID', async () => {
+    const { http } = client(new Response('{"items": [', { status: 200, headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'req-0123456789abcdef' } }));
+    await expect(http.request('/v1/job-roles')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', requestId: 'req-0123456789abcdef' });
+  });
+
+  it('rejects HTML even when served without a content-type', async () => {
+    const { http } = client(new Response(html, { status: 200, headers: { 'Content-Type': '' } }));
+    await expect(http.request('/v1/job-roles')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
+  it('still accepts valid JSON served with a non-JSON content-type (existing fixtures and proxies)', async () => {
+    const { http } = client(new Response('{"ok":true}', { status: 200 })); // text/plain;charset=UTF-8
+    await expect(http.request('/v1/x')).resolves.toEqual({ ok: true });
+  });
+
+  it('keeps the empty-body contract: 204, 205 and an empty 200/201 resolve to undefined', async () => {
+    for (const response of [new Response(null, { status: 204 }), new Response(null, { status: 205 }),
+      new Response('', { status: 200 }), new Response('  ', { status: 201, headers: { 'Content-Type': 'application/json' } })]) {
+      await expect(client(response).http.request('/v1/x', { method: 'DELETE' })).resolves.toBeUndefined();
+    }
+  });
+
+  it('leaves 4xx/5xx JSON errors unchanged, with their request id', async () => {
+    await expect(client(jsonResponse(404, { code: 'NOT_FOUND', status: 404, message: '요청한 정보를 찾을 수 없습니다.' }, { 'X-Request-ID': 'req-aaaaaaaaaaaaaaaa' })).http.request('/v1/job-roles/x'))
+      .rejects.toMatchObject({ status: 404, code: 'NOT_FOUND', requestId: 'req-aaaaaaaaaaaaaaaa' });
+    await expect(client(jsonResponse(500, { code: 'INTERNAL_ERROR', status: 500, message: '서버 오류' }, { 'X-Request-ID': 'req-bbbbbbbbbbbbbbbb' })).http.request('/v1/job-roles'))
+      .rejects.toMatchObject({ status: 500, code: 'INTERNAL_ERROR', requestId: 'req-bbbbbbbbbbbbbbbb' });
+  });
+
+  it('maps a body that cannot be read to a network error and passes aborts through', async () => {
+    const used = jsonResponse(200, {});
+    await used.text(); // 이미 소비된 본문
+    await expect(client(used).http.request('/v1/x')).rejects.toMatchObject({ name: 'ApiError', status: 0 });
+
+    const aborting = new Response('{}', { status: 200 });
+    vi.spyOn(aborting, 'text').mockRejectedValue(new DOMException('aborted', 'AbortError'));
+    await expect(client(aborting).http.request('/v1/x')).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
 describe('createMockFetch', () => {
   const http = createHttpClient({ baseUrl: '/api', fetch: createMockFetch('/api') });
 

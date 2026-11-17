@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useApi } from '../api/ApiContext';
+import { displayRequestId } from '../api/errors';
 import { useQuery } from '../api/useQuery';
 import { useAuth } from '../auth/useAuth';
 import { Button } from '../components/Button';
@@ -96,7 +97,7 @@ export function JobExplorerPage() {
           {list.status === 'error' && (
             <StatePanel variant="error" title="직무 목록을 불러오지 못했습니다"
               description="네트워크 또는 서버 상태를 확인한 뒤 다시 시도해 주세요."
-              actionLabel="다시 시도" onAction={list.retry} />
+              actionLabel="다시 시도" onAction={list.retry} requestId={displayRequestId(list.error)} />
           )}
           {list.status === 'ready' && list.data.items.length === 0 && (
             <StatePanel variant="empty" title="검색 결과가 없습니다"
@@ -149,7 +150,7 @@ export function JobExplorerPage() {
           {selected && detail.status === 'loading' && <StatePanel variant="loading" title="상세 정보를 불러오는 중입니다" />}
           {selected && detail.status === 'error' && (
             <StatePanel variant="error" title="상세 정보를 불러오지 못했습니다"
-              actionLabel="다시 시도" onAction={detail.retry} />
+              actionLabel="다시 시도" onAction={detail.retry} requestId={displayRequestId(detail.error)} />
           )}
           {selected && detail.status === 'ready' && (
             <div className="role-explorer-profile">
@@ -181,7 +182,7 @@ export function JobExplorerPage() {
               {auth.state.status === 'authenticated' && mySkills.status === 'loading' && <p role="status">내 보유 기술을 불러오는 중입니다.</p>}
               {auth.state.status === 'authenticated' && mySkills.status === 'error' && (
                 <StatePanel variant="error" title="내 보유 기술을 불러오지 못했습니다"
-                  actionLabel="다시 시도" onAction={mySkills.retry} />
+                  actionLabel="다시 시도" onAction={mySkills.retry} requestId={displayRequestId(mySkills.error)} />
               )}
               {comparison && detail.data.required_skills.length > 0 && (
                 <>

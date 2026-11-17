@@ -19,6 +19,7 @@ import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { MarketTrendsPage } from './pages/MarketTrendsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RecommendationsPage } from './pages/RecommendationsPage';
+import { RouteErrorPage } from './pages/RouteErrorPage';
 import { UiPreviewPage } from './pages/UiPreviewPage';
 import { JobPostingsPage } from './pages/JobPostingsPage';
 import { BookmarksPage, CareerHistoryPage, TargetRolesPage } from './pages/MyCareerWorkspace';
@@ -166,7 +167,10 @@ export const buildRoutes: BuildRoutes = (
       </AuthProvider>
       </CrawlerNavigationProvider>
     ),
-    children: [
+    // E2E-006 D-1: 레이아웃 자체가 실패하면 마지막 안전망으로 이 화면(스택트레이스 없음)
+    errorElement: <RouteErrorPage />,
+    // 화면 하나가 렌더링 중 실패해도 상단·메뉴(AppLayout)는 남기고 그 자리에만 오류 화면을 보입니다.
+    children: [{ errorElement: <RouteErrorPage />, children: [
       { index: true, element: <LandingPage /> },
       { path: 'system-status', element: <HomePage /> },
       { path: 'job-roles', element: <JobExplorerPage /> },
@@ -202,7 +206,7 @@ export const buildRoutes: BuildRoutes = (
       ...adminAuditRoutes(features),
       ...crawlerAdminRoutes(features),
       { path: '*', element: <NotFoundPage /> },
-    ],
+    ] }],
   },
 ];
 

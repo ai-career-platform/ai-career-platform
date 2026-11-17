@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
+import { createHttpClient } from '../api/http';
 import { WithApi } from '../test/WithApi';
 import { AuthContext } from '../auth/useAuth';
 import type { AuthContextValue, AuthState } from '../auth/useAuth';
@@ -150,5 +151,50 @@ describe('paging after search changes', () => {
     expect(await screen.findByText('첫 직무')).toBeInTheDocument();
     expect(get).toHaveBeenLastCalledWith('/v1/job-roles?limit=20');
     expect(screen.getByText('1 페이지')).toBeInTheDocument();
+  });
+});
+
+describe('error handling (E2E-006 D-1 / D-2)', () => {
+  const RID = 'req-0123456789abcdef';
+
+  it('shows the request id of a failed list call and recovers on retry', async () => {
+    get.mockRejectedValueOnce(new ApiError(500, '/v1/job-roles', undefined, 'INTERNAL_ERROR', '서버 오류', RID));
+    get.mockResolvedValueOnce(page([role('1', '개발자')]));
+    renderPage();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('직무 목록을 불러오지 못했습니다');
+    expect(within(alert).getByText(RID)).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('개발자')).toBeInTheDocument();
+    expect(screen.queryByText(/문의용 요청 번호/)).not.toBeInTheDocument();
+  });
+
+  it('shows no request-id line for a network failure (no response, so no id)', async () => {
+    get.mockRejectedValueOnce(new ApiError(0, '/v1/job-roles', 'Network error'));
+    renderPage();
+    expect(await screen.findByText('직무 목록을 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.queryByText(/문의용 요청 번호/)).not.toBeInTheDocument();
+  });
+
+  it('shows the request id of a 4xx detail failure', async () => {
+    get.mockResolvedValueOnce(page([role('1', '개발자')]));
+    get.mockRejectedValueOnce(new ApiError(404, '/v1/job-roles/1', undefined, 'NOT_FOUND', '요청한 정보를 찾을 수 없습니다.', 'req-ffffffffffffffff'));
+    renderPage();
+    fireEvent.click(await screen.findByText('개발자'));
+    expect(await screen.findByText('상세 정보를 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByText('req-ffffffffffffffff')).toBeInTheDocument();
+  });
+
+  it('turns an HTML 200 from the real HTTP client into the error panel instead of crashing, then recovers', async () => {
+    const html = new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'Content-Type': 'text/html' } });
+    const json = new Response(JSON.stringify(page([role('1', '개발자')])), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const http = createHttpClient({ baseUrl: '/api', fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(html).mockResolvedValueOnce(json) });
+    get.mockImplementation((path) => http.request(path));
+    renderPage();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('직무 목록을 불러오지 못했습니다');
+    expect(document.body).not.toHaveTextContent(/Unexpected Application Error|reading 'items'/);
+    fireEvent.click(within(alert).getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('개발자')).toBeInTheDocument();
   });
 });

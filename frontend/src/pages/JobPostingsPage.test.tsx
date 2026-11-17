@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/errors';
+import { createHttpClient } from '../api/http';
 import { WithApi } from '../test/WithApi';
 import { JobPostingsPage } from './JobPostingsPage';
 
@@ -221,5 +223,43 @@ describe('paging after filter changes', () => {
     expect(await screen.findByText('첫 공고')).toBeInTheDocument();
     expect(listCalls().at(-1)).toBe('/v1/job-postings?limit=20&sort=-published_at&include_closed=false');
     expect(screen.getByText('1 페이지')).toBeInTheDocument();
+  });
+});
+
+describe('error handling (E2E-006 D-1 / D-2)', () => {
+  const RID = 'req-0123456789abcdef';
+
+  it('shows the request id of a failed posting list (5xx) and recovers on retry', async () => {
+    let fail = true;
+    serve({ list: () => {
+      if (fail) throw new ApiError(500, '/v1/job-postings', undefined, 'INTERNAL_ERROR', '서버 오류', RID);
+      return { items: [posting('p1', '첫 공고')], next_cursor: null };
+    } });
+    renderPage();
+    expect(await screen.findByText('채용공고를 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByText(RID)).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' }).at(-1)!);
+    expect(await screen.findByText('첫 공고')).toBeInTheDocument();
+    expect(screen.queryByText(/문의용 요청 번호/)).not.toBeInTheDocument();
+  });
+
+  it('shows the request id of a 4xx detail failure', async () => {
+    serve({ detail: () => { throw new ApiError(404, '/v1/job-postings/p1', undefined, 'NOT_FOUND', '없음', 'req-ffffffffffffffff'); } });
+    renderPage();
+    fireEvent.click(await screen.findByText('첫 공고'));
+    expect(await screen.findByText('상세 정보를 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByText('req-ffffffffffffffff')).toBeInTheDocument();
+  });
+
+  it('turns an HTML 200 list from the real HTTP client into the error panel instead of crashing', async () => {
+    const html = () => new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'Content-Type': 'text/html' } });
+    const http = createHttpClient({ baseUrl: '/api', fetch: vi.fn<typeof fetch>().mockImplementation(async () => html()) });
+    get.mockImplementation((path) => http.request(path));
+    renderPage();
+    expect(await screen.findByText('채용공고를 불러오지 못했습니다')).toBeInTheDocument();
+    expect(screen.getByText('기업 목록을 불러오지 못했습니다')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Unexpected Application Error|reading 'items'/);
+    expect(screen.queryByText(/문의용 요청 번호/)).not.toBeInTheDocument();     // HTML 대체 응답에는 X-Request-ID 가 없음
   });
 });
