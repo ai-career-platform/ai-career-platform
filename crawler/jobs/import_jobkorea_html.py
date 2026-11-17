@@ -99,16 +99,34 @@ def load_approval_file(path):
             values[key] = datetime.fromisoformat(values[key].replace('Z', '+00:00'))
         for key in ('allowed_urls', 'allowed_purposes'):
             values[key] = tuple(values[key])
+        # T61 shared policy: the provider's permission is a separate private file referenced by path. A missing or
+        # invalid file leaves provider_permission None, which blocks every LIVE request (see _permit).
+        values.pop('provider_permission', None)          # never accepted inline: only via the referenced file
+        provider_file = values.pop('provider_permission_file', None)
+        if provider_file is not None:
+            from crawler.policy.provider_permission import load_provider_permission
+            values['provider_permission'] = load_provider_permission(provider_file)
         return SourceApproval(**values)
     except Exception:
         return None
 
 
-def _permit(approval, purpose, url, calls, now, discovered_from=None):
-    decision = check_collection_permission(approval, CollectionIntent('jobkorea', url, 'WEB', purpose or '', calls, now,
-                                                                      discovered_from=discovered_from))
+def live_permission_reason(approval, intent):
+    """'ALLOWED' only when BOTH the PM approval gate and the provider permission admit ``intent``."""
+    from crawler.policy.provider_permission import check_provider_permission
+    decision = check_collection_permission(approval, intent)
     if not decision.allowed:
-        raise FetchBlocked('UNAPPROVED_SOURCE')
+        return decision.reason.value
+    return check_provider_permission(getattr(approval, 'provider_permission', None), approval, intent).value
+
+
+def _permit(approval, purpose, url, calls, now, discovered_from=None):
+    """Every LIVE request passes here: PM approval (T61 gate) AND the provider's permission."""
+    reason = live_permission_reason(approval, CollectionIntent('jobkorea', url, 'WEB', purpose or '', calls, now,
+                                                               discovered_from=discovered_from))
+    if reason != 'ALLOWED':
+        raise FetchBlocked('UNAPPROVED_SOURCE' if not reason.startswith(('PROVIDER', 'PM_WINDOW', 'ITEM'))
+                           else reason)
 
 
 def fetch_pages(urls=None, *, list_url=None, limit=10, approval=None, purpose=None, now=None, before_request=None,

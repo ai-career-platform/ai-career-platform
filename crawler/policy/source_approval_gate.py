@@ -72,6 +72,9 @@ class SourceApproval:
     max_search_pages: int = 1
     # 0 = harvest disabled. 1..2000 = discovered detail pages allowed per harvest run.
     max_harvest_details: int = 0
+    # T61 shared policy: the provider's own permission (crawler.policy.provider_permission). Not checked by
+    # check_collection_permission (the PM-level gate); every LIVE request additionally requires it.
+    provider_permission: object | None = None
 
 
 @dataclass(frozen=True)

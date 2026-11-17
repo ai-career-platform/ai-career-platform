@@ -4,6 +4,7 @@ The T61 gate is patched to ALLOWED and the fetcher returns the bundled JobKorea 
 with substituted posting IDs, so the real parser/normalizer/upsert/discovery/checkpoint code runs
 without any network request. Needs migrations 0002, 0003, 0007 and 0012.
 """
+from crawler.tests.provider_fixture import provider as _provider
 import os
 import unittest
 from datetime import date, datetime, timedelta, timezone
@@ -200,7 +201,8 @@ class NightIntegrationTests(unittest.TestCase):
                                   review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
                                   allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS) + tuple(approve),
                                   allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
-                                  retention_days=1, stop_on_block=True, max_discovered_details=discover)
+                                  retention_days=1, stop_on_block=True, max_discovered_details=discover,
+                                  provider_permission=_provider(valid_until_utc=datetime(9999, 1, 1, tzinfo=timezone.utc)))
         kwargs = dict(environ=GATED_ENV, approval_loader=lambda path: approval)
         return kwargs, patch.object(importer, '_get', side_effect=responses), patch.object(importer.time, 'sleep')
 
@@ -276,7 +278,8 @@ class NightIntegrationTests(unittest.TestCase):
                                  review_due_utc=self.at(0).astimezone(timezone.utc), collection_method='WEB',
                                  allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
                                  allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
-                                 retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)
+                                 retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT,
+                                 provider_permission=_provider())
         def count():
             return self.connection.execute('SELECT (SELECT count(*) FROM crawler_training.keyword_jobs),'
                                            '(SELECT count(*) FROM crawler_training.night_job_results)').fetchone()

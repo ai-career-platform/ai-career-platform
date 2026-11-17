@@ -197,10 +197,12 @@ def preflight(approval, limits, keywords, *, now=None):
     for keyword in keywords:
         for page in sorted({1, limits.max_pages}):
             url = paged_search_url(search_url(keyword), page)
-            decision = check_collection_permission(approval, CollectionIntent(
+            # PM approval AND the provider's permission (T61 shared policy), same check as every LIVE request
+            from crawler.jobs.import_jobkorea_html import live_permission_reason
+            reason = live_permission_reason(approval, CollectionIntent(
                 'jobkorea', url, 'WEB', HARVEST_PURPOSE, limits.max_requests, now))
-            if not decision.allowed:
-                problems.append(f'{decision.reason.value}:{keyword}:p{page}')
+            if reason != 'ALLOWED':
+                problems.append(f'{reason}:{keyword}:p{page}')
             if page == 1:
                 urls.append(url)
     return not problems, sorted(set(problems)), urls

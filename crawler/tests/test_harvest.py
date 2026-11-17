@@ -2,6 +2,7 @@
 
 No network: every HTTP function is replaced by a fake that fails the test when it is not expected.
 """
+from crawler.tests.provider_fixture import provider as _provider
 import unittest
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -23,7 +24,7 @@ def approval(**over):
                 evidence_ref='private:REF-1', valid_from_utc=NOW - timedelta(days=1),
                 review_due_utc=NOW + timedelta(days=1), collection_method='WEB', allowed_urls=(AX,),
                 allowed_purposes=(gate.HARVEST_PURPOSE,), max_requests=500, retention_days=30,
-                stop_on_block=True, max_search_pages=5, max_harvest_details=300)
+                stop_on_block=True, max_search_pages=5, max_harvest_details=300, provider_permission=_provider())
     base.update(over)
     return gate.SourceApproval(**base)
 
@@ -199,6 +200,19 @@ class LiveCliTest(unittest.TestCase):
                       allowed_urls=[AX], allowed_purposes=[gate.HARVEST_PURPOSE], max_requests=50,
                       retention_days=30, stop_on_block=True, max_search_pages=2, max_harvest_details=10)
         with tempfile.TemporaryDirectory() as tmp:
+            from crawler.tests.provider_fixture import provider_json
+            # PM approval only (no provider permission file): preflight refuses, nothing is sent
+            pm_only = os.path.join(tmp, 'pm-only.json')
+            with open(pm_only, 'w', encoding='utf-8') as handle:
+                json.dump(record, handle)
+            out = io.StringIO()
+            with redirect_stdout(out), mock.patch.object(ij, '_get', side_effect=AssertionError('network')):
+                self.assertEqual(h.main(['live', '--policy-file', pm_only, '--keyword', 'AX', '--pages', '2', '--new',
+                                         '10', '--max-requests', '13', '--check']), 2)
+            refused = json.loads(out.getvalue())
+            self.assertIn('PROVIDER_PERMISSION_MISSING:AX:p1', refused['problems'])
+            self.assertEqual(refused['external_requests'], 0)
+            record['provider_permission_file'] = provider_json(os.path.join(tmp, 'provider.json'))
             path = os.path.join(tmp, 'approval.json')
             with open(path, 'w', encoding='utf-8') as handle:
                 json.dump(record, handle)
