@@ -55,14 +55,30 @@ function renderPage(url = '/job-postings') {
 beforeEach(() => { get.mockReset(); });
 
 describe('job postings (T18 API)', () => {
+  it('names cards from visible title and company, keeping status and deadline in the description', async () => {
+    serve({ list: () => ({ items: [posting('p1', '첫 공고'), posting('p2', '첫 공고', { company: company(C2, '베타'), status: 'closed', expires_at: null })], next_cursor: null }) });
+    renderPage();
+    const first = await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' });
+    const second = screen.getByRole('button', { name: '첫 공고 베타 · 백엔드' });
+    expect(first).toHaveAccessibleDescription('모집 중 서울 · 정규직 · 마감 2026년 12월 31일');
+    expect(second).toHaveAccessibleDescription('마감 서울 · 정규직 · 마감일 미정');
+    for (const card of [first, second]) {
+      expect(card).not.toHaveAccessibleName(/모집 중|마감/);
+      for (const id of (card.getAttribute('aria-labelledby') ?? '').split(' ')) {
+        expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1);
+      }
+      expect(card.querySelector('button,a,input')).toBeNull();
+    }
+  });
+
   it('shows postings with status, company, role, location, type and deadline', async () => {
     serve({ list: () => ({ items: [posting('p1', '첫 공고'), posting('p2', '닫힌 공고', { status: 'closed', expires_at: null, location_text: null, employment_type: null })], next_cursor: null }) });
     renderPage();
-    expect(await screen.findByRole('button', { name: '첫 공고 상세 보기' })).toHaveTextContent('모집 중');
-    expect(screen.getByRole('button', { name: '첫 공고 상세 보기' })).toHaveTextContent('서울 · 정규직 · 마감 2026년 12월 31일');
-    const closed = screen.getByRole('button', { name: '닫힌 공고 상세 보기' });
-    expect(closed).toHaveTextContent('마감');
-    expect(closed).toHaveTextContent('지역 미등록 · 고용형태 미등록 · 마감일 미정');
+    expect(await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' })).toHaveAccessibleDescription(/모집 중/);
+    expect(screen.getByRole('button', { name: '첫 공고 알파 · 백엔드' })).toHaveAccessibleDescription(/서울 · 정규직 · 마감 2026년 12월 31일/);
+    const closed = screen.getByRole('button', { name: '닫힌 공고 알파 · 백엔드' });
+    expect(closed).toHaveAccessibleDescription(/마감/);
+    expect(closed).toHaveAccessibleDescription(/지역 미등록 · 고용형태 미등록 · 마감일 미정/);
     expect(listCalls()[0]).toBe('/v1/job-postings?limit=20&sort=-published_at&include_closed=false');
   });
 
@@ -116,7 +132,7 @@ describe('job postings (T18 API)', () => {
   it('shows required/preferred skills, level, company intro and a safe external link', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { source_url: 'https://jobs.example.com/x' }) });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' }));
     const skills = await screen.findByRole('list', { name: '요구 기술' });
     expect(within(skills).getByText('Python · 필수 · 요구 수준 4/5')).toBeInTheDocument();
     expect(within(skills).getByText('Git · 우대 · 요구 수준 미등록')).toBeInTheDocument();
@@ -132,7 +148,7 @@ describe('job postings (T18 API)', () => {
   it('refuses unsafe source links and says when no link is provided', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { source_url: 'javascript:alert(1)' }) });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' }));
     expect(await screen.findByText('이 공고는 원문 링크가 제공되지 않았습니다.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /원문/ })).not.toBeInTheDocument();
   });
@@ -145,7 +161,7 @@ describe('job postings (T18 API)', () => {
       company: () => companyDetail({ description: payload, website_url: 'data:text/html,<script>alert(1)</script>' }),
     });
     const { container } = renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: `${payload} 상세 보기` }));
+    fireEvent.click(await screen.findByRole('button', { name: `${payload} 알파 · 백엔드` }));
     await waitFor(() => expect(screen.getAllByText(payload).length).toBeGreaterThanOrEqual(3));
     expect(container.querySelector('img, script, [onerror]')).toBeNull();
     expect(container.querySelector('a[href^="data:"], a[href^="javascript:"]')).toBeNull();
@@ -154,7 +170,7 @@ describe('job postings (T18 API)', () => {
   it('does not invent dates or status when the API has none', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { published_at: null, expires_at: null, job_role: null, description: null, required_skills: [] }) });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' }));
     expect(await screen.findByText('등록된 요구 기술이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('등록된 상세 설명이 없습니다.')).toBeInTheDocument();
     const facts = document.querySelector('.t24-detail-facts');
@@ -183,7 +199,7 @@ describe('job postings (T18 API)', () => {
     let failCompany = true;
     serve({ company: () => { if (failCompany) throw new Error('down'); return companyDetail(); } });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 알파 · 백엔드' }));
     expect(await screen.findByText('설명입니다')).toBeInTheDocument();
     const retry = await screen.findByRole('button', { name: '다시 시도' });
     failCompany = false;
@@ -200,8 +216,8 @@ describe('job postings (T18 API)', () => {
       return base?.(path);
     }) as typeof get);
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '가 상세 보기' }));
-    fireEvent.click(screen.getByRole('button', { name: '나 상세 보기' }));
+    fireEvent.click(await screen.findByRole('button', { name: '가 알파 · 백엔드' }));
+    fireEvent.click(screen.getByRole('button', { name: '나 알파 · 백엔드' }));
     expect(await screen.findByText('설명입니다')).toBeInTheDocument();
     resolveSlow(detailOf('p1', { description: 'LATE-ONLY' }));
     await Promise.resolve();

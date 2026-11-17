@@ -288,23 +288,24 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
             <>
               <ul className="t24-posting-list" aria-label="채용공고 검색 결과">
                 {list.data.items.map((posting) => (
-                  <li key={posting.job_posting_id}>
-                    <button type="button" className="t24-posting"
-                      aria-label={`${posting.title} 상세 보기`}
+                  <li key={posting.job_posting_id} className="t24-posting">
+                    <span className="t24-posting-top">
+                      <span id={`posting-card-status-${posting.job_posting_id}`} className={`t24-status ${posting.status === 'closed' ? 't24-status-closed' : ''}`}>
+                        {posting.status === 'closed' ? '마감' : '모집 중'}
+                      </span>
+                      <span className="t24-posting-arrow" aria-hidden="true">↗</span>
+                    </span>
+                    <button type="button" className="t24-posting-action"
+                      aria-labelledby={`posting-card-title-${posting.job_posting_id} posting-card-company-${posting.job_posting_id}`}
+                      aria-describedby={`posting-card-status-${posting.job_posting_id} posting-card-meta-${posting.job_posting_id}`}
                       aria-pressed={posting.job_posting_id === selected}
                       onClick={() => setSelected(posting.job_posting_id)}>
-                      <span className="t24-posting-top">
-                        <span className={`t24-status ${posting.status === 'closed' ? 't24-status-closed' : ''}`}>
-                          {posting.status === 'closed' ? '마감' : '모집 중'}
-                        </span>
-                        <span className="t24-posting-arrow" aria-hidden="true">↗</span>
-                      </span>
-                      <strong>{posting.title}</strong>
-                      <span className="t24-posting-company">{posting.company.name} · {posting.job_role?.name ?? '직무 미등록'}</span>
-                      <span className="t24-posting-meta">
-                        {posting.location_text ?? '지역 미등록'} · {employmentLabel(posting.employment_type)} · {posting.expires_at ? `마감 ${formatDate(posting.expires_at)}` : '마감일 미정'}
-                      </span>
+                      <strong id={`posting-card-title-${posting.job_posting_id}`}>{posting.title}</strong>
                     </button>
+                    <span id={`posting-card-company-${posting.job_posting_id}`} className="t24-posting-company">{posting.company.name} · {posting.job_role?.name ?? '직무 미등록'}</span>
+                    <span id={`posting-card-meta-${posting.job_posting_id}`} className="t24-posting-meta">
+                      {posting.location_text ?? '지역 미등록'} · {employmentLabel(posting.employment_type)} · {posting.expires_at ? `마감 ${formatDate(posting.expires_at)}` : '마감일 미정'}
+                    </span>
                   </li>
                 ))}
               </ul>

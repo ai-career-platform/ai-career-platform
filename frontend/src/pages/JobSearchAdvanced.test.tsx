@@ -143,7 +143,7 @@ function open(url: string, svc = createMockJobSearchService({ postings: POSTINGS
   return { router, svc };
 }
 const results = () => within(screen.getByRole('list', { name: '채용공고 검색 결과' })).getAllByRole('button')
-  .map((b) => b.getAttribute('aria-label')!.replace(' 상세 보기', ''));
+  .map((b) => b.querySelector('strong')!.textContent);
 const titles = (ids: string[]) => ids.map((k) => T98.postings[k]!.title);
 const where = () => screen.getByTestId('where').textContent;
 
