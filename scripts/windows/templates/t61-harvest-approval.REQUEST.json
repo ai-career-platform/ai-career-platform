@@ -17,5 +17,6 @@
   "stop_on_block": true,
   "max_discovered_details": 0,
   "max_search_pages": 1,
-  "max_harvest_details": 5
+  "max_harvest_details": 5,
+  "provider_permission_file": "C:\\dev\\crawler-data\\secrets\\t61\\jobkorea-provider-permission.json"
 }

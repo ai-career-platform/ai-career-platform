@@ -1,4 +1,5 @@
 """CRAWLER_NIGHT_01 pure policy: KST window, keyword pacing, retries, live gate, wiring, Slack text."""
+from crawler.tests.provider_fixture import provider as _provider
 import json
 import unittest
 from datetime import date, datetime, timedelta, timezone
@@ -76,7 +77,8 @@ def approval(**extra):
                   evidence_ref='ref', valid_from_utc=datetime(2026, 1, 1, tzinfo=timezone.utc),
                   review_due_utc=datetime(2027, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
                   allowed_urls=('https://www.jobkorea.co.kr/Recruit/GI_Read/1',),
-                  allowed_purposes=(nc.PURPOSE,), max_requests=10, retention_days=30, stop_on_block=True)
+                  allowed_purposes=(nc.PURPOSE,), max_requests=10, retention_days=30, stop_on_block=True,
+                  provider_permission=_provider())
     values.update(extra)
     return SourceApproval(**values)
 

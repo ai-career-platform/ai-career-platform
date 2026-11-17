@@ -16,6 +16,7 @@ Refuses to run against the operational crawler DB (CRAWLER_DB_MODE=staging, or a
 schedule). Results are left in the isolated DB as evidence and summarised to
 ``CRAWLER_NIGHT_E2E_OUT`` (JSON) when set.
 """
+from crawler.tests.provider_fixture import provider as _provider
 import json
 import os
 import unittest
@@ -133,7 +134,8 @@ class StagingNightE2E(unittest.TestCase):
                               review_due_utc=datetime(9000, 1, 1, tzinfo=timezone.utc), collection_method='WEB',
                               allowed_urls=tuple(nc.search_url(k) for k in nc.NIGHT_KEYWORDS),
                               allowed_purposes=(nc.PURPOSE,), max_requests=nc.DETAIL_LIMIT + 2,
-                              retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT)
+                              retention_days=1, stop_on_block=True, max_discovered_details=nc.DETAIL_LIMIT,
+                              provider_permission=_provider(valid_until_utc=datetime(9999, 1, 1, tzinfo=timezone.utc)))
 
     def notify(self, kind, night_date, rows, environ, **kw):
         def sender(url, payload):

@@ -1,0 +1,17 @@
+{
+  "_comment": "REQUEST FORM, NOT A PERMISSION. Filled ONLY from evidence the provider (JobKorea) actually issued: a signed letter, contract or API terms that allow automated collection AND storage. The PM records it and stores the copy ONLY at C:\\dev\\crawler-data\\secrets\\t61\\ (never in Git). provider = the issuer (never the PM). evidence_sha256 = SHA-256 of the private evidence document. Every limit must be within what the evidence states. As-is the empty fields make every LIVE request refuse (PROVIDER_EVIDENCE_MISSING). Policy: docs/data/T61_PM_APPROVAL_POLICY.md",
+  "source_code": "jobkorea",
+  "provider": "",
+  "permission_type": "WRITTEN_PERMISSION",
+  "granted_to": "AI Career Platform",
+  "evidence_ref": "",
+  "evidence_sha256": "",
+  "valid_from_utc": "2026-11-17T00:00:00Z",
+  "valid_until_utc": "2026-11-18T00:00:00Z",
+  "allowed_methods": ["WEB"],
+  "allowed_purposes": ["harvest_collection"],
+  "allowed_url_prefixes": ["https://www.jobkorea.co.kr/Search/", "https://www.jobkorea.co.kr/Recruit/GI_Read/"],
+  "max_requests_per_day": 0,
+  "storage_allowed": false,
+  "max_items": 100
+}

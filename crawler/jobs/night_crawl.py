@@ -159,9 +159,10 @@ def live_gate(*, environ, keyword, now, approval_loader=load_approval):
     approval = approval_loader(path) if path else None
     if approval is None:
         return 'UNAPPROVED_SOURCE', None
-    decision = check_collection_permission(approval, CollectionIntent(
+    from crawler.jobs.import_jobkorea_html import live_permission_reason
+    reason = live_permission_reason(approval, CollectionIntent(
         'jobkorea', search_url(keyword), 'WEB', PURPOSE, DETAIL_LIMIT + 2, _aware(now)))
-    return ('ALLOWED', approval) if decision.allowed else (decision.reason.value, None)
+    return ('ALLOWED', approval) if reason == 'ALLOWED' else (reason, None)
 
 
 class _Recording:
