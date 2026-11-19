@@ -54,6 +54,10 @@
 - JobKorea 가 발급한 계정 파라미터가 붙은 실제 호출 URL 과 등록 IP 는 Git 밖 API 설정 파일(`jobkorea-api.json`)에만 둡니다. 승인·허가 파일과 로그에는 공개 형태만 씁니다.
 - API 실행(`crawler.jobs.jobkorea_api`)은 첫 요청 전에 송신 IP 가 등록 IP 인지 확인하고, 아니면 요청 없이 `SOURCE_IP_NOT_REGISTERED` 로 멈춥니다.
 - 누적 상한 1,000건은 `jobkorea_api` 와 `jobkorea_live` 저장 건수를 합산합니다.
+- **읽기 전용 Probe 예외 (PM 결정 2026-11-19):** 목적 `api_probe` 에 한해 제공자 허가의 `storage_allowed` 검사를 하지 않습니다. 그 밖의 허가 검사는 그대로 적용합니다.
+  - 적용 조건: `collection_method=API`, 요청 정확히 1회, `Size` 5 이하, PM 승인 `max_harvest_details` 5 이하.
+  - 금지: DB 쓰기·원문 파일 저장. `run_api_collection` 은 Probe 소스를 DB 접근 전에 거부합니다(`READ_ONLY_PROBE`).
+  - 일반 API 수집(`api_collection`)과 HTML 수집은 여전히 `storage_allowed=true` 가 필요합니다.
 
 **기타 규칙:**
 - PM 승인 파일 안에 `provider_permission` 을 직접 써 넣어도 무시합니다. 참조된 별도 파일만 인정합니다.
@@ -69,6 +73,7 @@
 | PM 내부 승인 | **YES** (1절) | 본 문서, 2026-11-17 |
 | JobKorea 제공자 허가 | **NOT_CONFIRMED** | 서면 허가·계약 없음.<br>API 신청은 미승인.<br>약관상 수집·저장 제한([T61_STEP06](T61_STEP06_JOBKOREA_WEBSITE_TERMS.md), [SOURCE_REGISTRY](SOURCE_REGISTRY.md) §7).<br>문의서는 미발송([JOBKOREA_DATA_PERMISSION_INQUIRY_2026-11](JOBKOREA_DATA_PERMISSION_INQUIRY_2026-11.md)) |
 | JobKorea 공식 XML API | **PM 보고: 승인 완료** (2026-11-19).<br>**증빙 미수령**: 승인 메일, 호출 URL, 식별값이 이 PC 에 없음 | `Jobkorea_API_Guide_v4_1.pdf`(V4.1) 는 채팅으로만 받았습니다. 원본 파일이 없어 SHA-256 은 기록하지 못했습니다.<br>2026-11-19 이 PC 의 송신 IP 는 PM 이 알려준 등록 IP 2개와 다릅니다. PM 은 이후 등록했다고 보고했으며, 등록 여부는 승인 메일 또는 `--check` 로 확인합니다 |
+| API 읽기 전용 Probe | 2026-11-19 1회 실행: **HTTP 302** (리다이렉트, 따라가지 않음). 공고 수신 0건, DB 쓰기 0 | 승인 안내문 사본(원본 `.eml` 아님) + PM Probe 결정. 저장 허가는 확인되지 않음(`storage_allowed=false`) |
 | LIVE 실행 | **차단** (`PROVIDER_PERMISSION_MISSING`) | 2절 코드 |
 | 과거 LIVE 기록 | 승인 B 1회 (2026-11-16, run `8e54090d`, 7 요청, 5건) | PM 위험 수용으로 실행했습니다. 제공자 허가 강제 이전의 기록이며, 지금 같은 실행은 차단됩니다 |
 

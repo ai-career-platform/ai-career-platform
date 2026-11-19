@@ -248,6 +248,106 @@ class LiveSourceTest(unittest.TestCase):
         self.assertEqual((ctx.exception.reason, ctx.exception.http_status), ('HTTP_403', 403))
         self.assertNotIn('SECRET', repr(ctx.exception) + str(ctx.exception.__cause__) + str(ctx.exception.__context__))
 
+    def test_redirect_target_is_reported_without_its_query(self):
+        from urllib.error import HTTPError
+        from unittest import mock
+        error = HTTPError(PRIVATE_URL, 302, 'Found', {'Location': '/Error/IpDenied.asp?api=SECRET-TOKEN'}, None)
+        with mock.patch.object(api, 'build_opener') as opener:
+            opener.return_value.open.side_effect = error
+            with self.assertRaises(FetchBlocked) as ctx:
+                api._http_get(PRIVATE_URL)
+        self.assertEqual(ctx.exception.redirect_to, 'https://api.jobkorea.co.kr/Error/IpDenied.asp')
+
+
+def probe_approval(**over):
+    """PM probe approval with a provider record that does NOT allow storage (storage_allowed=False)."""
+    base = dict(allowed_purposes=(gate.API_PROBE_PURPOSE, gate.API_PURPOSE), max_requests=1, max_harvest_details=5,
+                provider_permission=provider(permission_type='API_CONTRACT', allowed_methods=('API',),
+                                             allowed_purposes=(gate.API_PROBE_PURPOSE, gate.API_PURPOSE),
+                                             allowed_url_prefixes=(ENDPOINT,), max_requests_per_day=1,
+                                             storage_allowed=False))
+    base.update(over)
+    return approval(**base)
+
+
+class ReadOnlyProbeTest(unittest.TestCase):
+    """PM decision 2026-11-19: a read-only probe (1 request, <= 5 postings, no storage) without storage permission."""
+
+    def probe_source(self, appr=None, *, ip='203.0.113.7', responses=None, limits=None):
+        calls = []
+
+        def get(url):
+            calls.append(url)
+            return (responses or [page([item(50000030)], total=7)]).pop(0)
+
+        limits = limits or api.ApiLimits(**api.PROBE_LIMITS)
+        return api.LiveApiSource(appr or probe_approval(), CONFIG, limits, get=get, sleep=lambda s: None,
+                                 now_mono=lambda: 0.0, now_utc=lambda: NOW, ip_lookup=lambda: ip,
+                                 read_only=True), calls
+
+    def test_probe_is_allowed_without_storage_permission(self):
+        self.assertEqual(live_permission_reason(probe_approval(), api_intent(purpose=gate.API_PROBE_PURPOSE, calls=1)),
+                         'ALLOWED')
+        source, calls = self.probe_source()
+        result = api.probe(source, 'AX')
+        self.assertEqual((result['items'], result['total_results'], len(calls)), (1, 7, 1))
+        self.assertIn('Size=5', calls[0])
+
+    def test_collection_still_needs_storage_permission(self):
+        appr = probe_approval(max_requests=30, max_harvest_details=100)
+        self.assertEqual(live_permission_reason(appr, api_intent(calls=30)), 'PROVIDER_STORAGE_NOT_ALLOWED')
+        self.assertEqual(live_permission_reason(appr, api_intent(purpose=gate.API_PROBE_PURPOSE, calls=30)),
+                         'OUT_OF_SCOPE')
+        # a probe-sized approval cannot be used for collection either
+        source = api.LiveApiSource(probe_approval(), CONFIG, api.ApiLimits(**api.PROBE_LIMITS),
+                                   get=lambda url: self.fail('no request expected'), sleep=lambda s: None,
+                                   now_utc=lambda: NOW, ip_lookup=lambda: '203.0.113.7')
+        with self.assertRaises(FetchBlocked) as ctx:
+            source.fetch('AX', 1, 5, '1')
+        self.assertEqual(ctx.exception.reason, 'PROVIDER_STORAGE_NOT_ALLOWED')
+
+    def test_probe_without_api_permission_is_refused(self):
+        for appr in (probe_approval(provider_permission=None),
+                     probe_approval(allowed_purposes=(gate.API_PURPOSE,)),
+                     probe_approval(approval_status='HOLD')):
+            source, calls = self.probe_source(appr)
+            with self.subTest(appr=appr.approval_status), self.assertRaises(FetchBlocked):
+                source.fetch('AX', 1, 5, '1')
+            self.assertEqual(calls, [])
+
+    def test_probe_from_an_unregistered_ip_is_refused(self):
+        source, calls = self.probe_source(ip='198.51.100.1')
+        with self.assertRaises(FetchBlocked) as ctx:
+            source.fetch('AX', 1, 5, '1')
+        self.assertEqual((ctx.exception.reason, calls), ('SOURCE_IP_NOT_REGISTERED', []))
+
+    def test_probe_is_limited_to_one_request_of_five_postings(self):
+        source, calls = self.probe_source(responses=[page([]), page([])])
+        source.fetch('AX', 1, 5, '1')
+        with self.assertRaises(FetchBlocked) as ctx:
+            source.fetch('AX', 2, 5, '1')
+        self.assertEqual((ctx.exception.reason, len(calls)), ('PROBE_LIMIT', 1))
+        bigger, calls = self.probe_source()
+        with self.assertRaises(FetchBlocked):
+            bigger.fetch('AX', 1, 6, '1')
+        wider, calls2 = self.probe_source(limits=api.ApiLimits(max_requests=2, page_size=5))
+        with self.assertRaises(FetchBlocked):
+            wider.fetch('AX', 1, 5, '1')
+        self.assertEqual(calls + calls2, [])
+        self.assertEqual(live_permission_reason(probe_approval(max_harvest_details=6),
+                                                api_intent(purpose=gate.API_PROBE_PURPOSE, calls=1)), 'OUT_OF_SCOPE')
+        with self.assertRaises(ValueError):
+            api.probe(self.probe_source()[0], 'AX', size=6)
+
+    def test_probe_source_cannot_write_to_the_database(self):
+        class NoDb:
+            def __getattr__(self, name):
+                raise AssertionError('database touched')
+
+        source, calls = self.probe_source()
+        result = api.run_api_collection(NoDb(), source, keywords=['AX'], limits=api.ApiLimits(**api.PROBE_LIMITS))
+        self.assertEqual((result['status'], result['reason'], calls), ('BLOCKED', 'READ_ONLY_PROBE', []))
+
 
 class CliTest(unittest.TestCase):
     def test_live_without_files_is_refused_without_any_request(self):

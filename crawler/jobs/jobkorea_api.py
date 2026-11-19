@@ -44,7 +44,11 @@ from crawler.adapters.jobkorea_api_xml import (MAX_PAGE_SIZE, MAX_RESPONSE_BYTES
 from crawler.jobs.harvest import HarvestStore, Item, _code
 from crawler.jobs.import_jobkorea_html import USER_AGENT, FetchBlocked, FetchError, load_approval_file
 from crawler.policy.provider_permission import PM_POLICY_MAX_ITEMS
-from crawler.policy.source_approval_gate import API_PURPOSE, CollectionIntent, public_api_endpoint
+from crawler.policy.source_approval_gate import (API_PROBE_MAX_ITEMS, API_PROBE_MAX_REQUESTS, API_PROBE_PURPOSE,
+                                                 API_PURPOSE, CollectionIntent, public_api_endpoint)
+
+PROBE_LIMITS = dict(target_new=API_PROBE_MAX_ITEMS, page_size=API_PROBE_MAX_ITEMS, max_pages=1,
+                    max_requests=API_PROBE_MAX_REQUESTS)
 
 SOURCE_CODES = {'fixture': 'jobkorea_api_fixture', 'live': 'jobkorea_api'}
 # Every stored JobKorea posting counts toward the PM's 1,000 cap and as an existing duplicate.
@@ -144,6 +148,18 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
+def _public_location(location, base):
+    """Redirect target as scheme://host/path only (never the query, which may echo the API identifier)."""
+    if not location:
+        return None
+    try:
+        from urllib.parse import urljoin
+        parts = urlsplit(urljoin(base, location))
+        return f'{parts.scheme}://{parts.hostname}{parts.path}'[:200]
+    except ValueError:
+        return 'UNPARSEABLE'
+
+
 def _http_get(url, *, timeout=15):
     """GET -> body bytes. Errors carry a code only: the URL (with the API identifier) never leaves here."""
     try:
@@ -156,7 +172,9 @@ def _http_get(url, *, timeout=15):
                 raise FetchBlocked('RESPONSE_TOO_LARGE')
             return data
     except HTTPError as exc:
-        raise FetchBlocked(f'HTTP_{exc.code}', http_status=exc.code) from None
+        blocked = FetchBlocked(f'HTTP_{exc.code}', http_status=exc.code)
+        blocked.redirect_to = _public_location(exc.headers.get('Location') if exc.headers else None, url)
+        raise blocked from None
     except (TimeoutError, URLError) as exc:
         timed_out = isinstance(exc, TimeoutError) or isinstance(getattr(exc, 'reason', None), TimeoutError)
         raise FetchBlocked('TIMEOUT' if timed_out else 'NETWORK_ERROR') from None
@@ -178,8 +196,11 @@ class LiveApiSource:
     live = True
 
     def __init__(self, approval, config, limits, *, get=_http_get, sleep=clock.sleep, now_mono=clock.monotonic,
-                 now_utc=None, ip_lookup=None):
-        self.approval, self.config, self.limits = approval, config, limits
+                 now_utc=None, ip_lookup=None, read_only=False):
+        """``read_only=True``: the T61 read-only probe (purpose api_probe): at most 1 request of <= 5 postings,
+        and ``run_api_collection`` refuses this source, so nothing can be stored."""
+        self.approval, self.config, self.limits, self.read_only = approval, config, limits, read_only
+        self.purpose = API_PROBE_PURPOSE if read_only else API_PURPOSE
         self.get, self.sleep, self.now_mono = get, sleep, now_mono
         self.now_utc = now_utc or (lambda: datetime.now(timezone.utc))
         self.ip_lookup = ip_lookup or (lambda: egress_ip(get))
@@ -195,8 +216,11 @@ class LiveApiSource:
 
     def fetch(self, keyword, page, size, order):
         from crawler.jobs.import_jobkorea_html import live_permission_reason
+        if self.read_only and (self.requests >= API_PROBE_MAX_REQUESTS or size > API_PROBE_MAX_ITEMS
+                               or self.limits.max_requests != API_PROBE_MAX_REQUESTS):
+            raise FetchBlocked('PROBE_LIMIT')
         reason = live_permission_reason(self.approval, CollectionIntent(
-            'jobkorea', self.config.public_url, 'API', API_PURPOSE, self.limits.max_requests, self.now_utc()))
+            'jobkorea', self.config.public_url, 'API', self.purpose, self.limits.max_requests, self.now_utc()))
         if reason != 'ALLOWED':
             raise FetchBlocked(reason if reason.startswith(('PROVIDER', 'PM_WINDOW', 'ITEM')) else 'UNAPPROVED_SOURCE')
         if self.requests >= self.limits.max_requests:
@@ -241,6 +265,8 @@ def keyword_index(keywords, keyword):
 # ---------------------------------------------------------------- runner
 def run_api_collection(connection, source, *, keywords, limits, now_mono=clock.monotonic):
     """One API run. Returns a secret-free summary dict. Never raises after the run row exists."""
+    if getattr(source, 'read_only', False):
+        return {'status': 'BLOCKED', 'reason': 'READ_ONLY_PROBE', 'api_requests': 0}   # before any DB access
     if not getattr(connection, 'autocommit', False):
         return {'status': 'BLOCKED', 'reason': 'AUTOCOMMIT_REQUIRED'}
     store = HarvestStore(connection)
@@ -369,7 +395,7 @@ def _locked_run(store, source, *, keywords, limits, now_mono):
 
 
 # ---------------------------------------------------------------- preflight and probe
-def preflight(approval, config, limits, *, now=None):
+def preflight(approval, config, limits, *, now=None, purpose=API_PURPOSE):
     """No-network check that the approval and the private config admit this run. (ok, problems)."""
     from crawler.jobs.import_jobkorea_html import live_permission_reason
     now = now or datetime.now(timezone.utc)
@@ -381,7 +407,7 @@ def preflight(approval, config, limits, *, now=None):
     if problems:
         return False, problems
     reason = live_permission_reason(approval, CollectionIntent(
-        'jobkorea', config.public_url, 'API', API_PURPOSE, limits.max_requests, now))
+        'jobkorea', config.public_url, 'API', purpose, limits.max_requests, now))
     if reason != 'ALLOWED':
         problems.append(reason)
     if limits.target_new > (approval.max_harvest_details or 0):
@@ -389,10 +415,14 @@ def preflight(approval, config, limits, *, now=None):
     return not problems, problems
 
 
-def probe(source, keyword, *, size=5):
-    """One small request: status of the XML, encoding and the first ids/titles. Writes nothing."""
+def probe(source, keyword, *, size=API_PROBE_MAX_ITEMS):
+    """One small request: status of the XML, encoding and the first ids/titles. Writes nothing (no DB, no file):
+    the response is parsed in memory and only ids and titles are returned."""
+    if not 1 <= size <= API_PROBE_MAX_ITEMS:
+        raise ValueError('probe size must be 1..5')
     page = parse_api_response(source.fetch(keyword, 1, size, '1'), require_total=False)
-    sample = [{'GI_No': item_posting_id(i), 'GI_Subject': (i.get('GI_Subject') or '')[:80]} for i in page.items[:3]]
+    sample = [{'GI_No': item_posting_id(i), 'GI_Subject': (i.get('GI_Subject') or '')[:120]}
+              for i in page.items[:API_PROBE_MAX_ITEMS]]
     return {'encoding': page.encoding, 'total_results': page.total_results, 'page_count': page.page_count,
             'items': len(page.items), 'sample': sample}
 
@@ -427,8 +457,11 @@ def main(argv=None, *, environ=None):
     live.add_argument('--probe', action='store_true', help='One request with Size=5; no DB write')
     args = parser.parse_args(argv)
     try:
-        limits = ApiLimits(target_new=args.new, page_size=args.size, max_pages=args.pages,
-                           max_requests=args.max_requests, deadline_seconds=args.deadline_seconds)
+        if getattr(args, 'probe', False):          # the read-only probe has fixed limits: 1 request, Size<=5
+            limits = ApiLimits(deadline_seconds=args.deadline_seconds, **PROBE_LIMITS)
+        else:
+            limits = ApiLimits(target_new=args.new, page_size=args.size, max_pages=args.pages,
+                               max_requests=args.max_requests, deadline_seconds=args.deadline_seconds)
         keywords = args.keyword or list(NIGHT_KEYWORDS)
         if args.command == 'fixture':
             fixture_keywords, source = FixtureApiSource.from_dir(args.fixture_dir)
@@ -436,8 +469,10 @@ def main(argv=None, *, environ=None):
         else:
             approval = load_approval_file(args.policy_file)
             config = load_api_config(args.api_config, endpoint=args.endpoint)
-            ok, problems = preflight(approval, config, limits)
-            report = {'command': 'api-preflight', 'ok': ok, 'problems': problems, 'keywords': keywords,
+            purpose = API_PROBE_PURPOSE if args.probe else API_PURPOSE
+            ok, problems = preflight(approval, config, limits, purpose=purpose)
+            report = {'command': 'api-preflight', 'ok': ok, 'problems': problems, 'purpose': purpose,
+                      'keywords': keywords,
                       'endpoint': config.public_url if config else None, 'limits': asdict(limits),
                       'jobkorea_requests': 0}
             if not ok:
@@ -451,11 +486,11 @@ def main(argv=None, *, environ=None):
             if environ.get('CRAWLER_LIVE_SCHEDULE_APPROVED') != '1':
                 print(json.dumps({'status': 'BLOCKED', 'reason': 'PM_ACTIVATION_REQUIRED', 'jobkorea_requests': 0}))
                 return 2
-            source = LiveApiSource(approval, config, limits)
+            source = LiveApiSource(approval, config, limits, read_only=args.probe)
             if args.probe:
                 result = probe(source, keywords[0])
-                print(json.dumps({'command': 'api-probe', 'jobkorea_requests': source.requests, **result},
-                                 ensure_ascii=False))
+                print(json.dumps({'command': 'api-probe', 'jobkorea_requests': source.requests, 'http_status': 200,
+                                  'database_writes': 0, 'raw_response_saved': False, **result}, ensure_ascii=False))
                 return 0
         with _connect() as connection:
             result = run_api_collection(connection, source, keywords=keywords, limits=limits)
@@ -463,7 +498,8 @@ def main(argv=None, *, environ=None):
         print(json.dumps({'status': 'STOPPED', 'reason': exc.code}))
         return 2
     except FetchError as exc:
-        print(json.dumps({'status': 'STOPPED', 'reason': exc.reason, 'http_status': exc.http_status}))
+        print(json.dumps({'status': 'STOPPED', 'reason': exc.reason, 'http_status': exc.http_status,
+                          'redirect_to': getattr(exc, 'redirect_to', None)}))
         return 2
     except (ValueError, OSError) as exc:
         print(json.dumps({'status': 'STOPPED', 'reason': type(exc).__name__}))

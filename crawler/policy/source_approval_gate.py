@@ -33,6 +33,11 @@ _STRICT_DETAIL = re.compile(r"https://www\.jobkorea\.co\.kr/Recruit/GI_Read/[0-9
 # an API approval never admits HTML pages and a WEB approval never admits the API. The approval lists the
 # endpoint's public form (scheme, host, path); the account parameters JobKorea issued stay in a private file.
 API_PURPOSE = "api_collection"
+# PM decision 2026-11-19 (T61 read-only probe): one API request, <= 5 postings, nothing stored. Only this purpose
+# separates "may call the API" from "may store the data"; every other LIVE request still needs storage permission.
+API_PROBE_PURPOSE = "api_probe"
+API_PROBE_MAX_REQUESTS = 1
+API_PROBE_MAX_ITEMS = 5
 API_ENDPOINT_FILES = ("JK_GI_XML_List.asp", "JK_Starter_XML_List.asp")
 
 
@@ -273,9 +278,12 @@ def _check_api(approval: SourceApproval, intent: CollectionIntent) -> GateDecisi
         or any(not public_api_endpoint(u) for u in approval.allowed_urls)
         or intent.url not in approval.allowed_urls
         or intent.discovered_from is not None
-        or intent.purpose != API_PURPOSE or API_PURPOSE not in approval.allowed_purposes
+        or intent.purpose not in (API_PURPOSE, API_PROBE_PURPOSE) or intent.purpose not in approval.allowed_purposes
         or type(approval.max_harvest_details) is not int or not 1 <= approval.max_harvest_details <= MAX_HARVEST_DETAILS
     ):
+        return GateDecision(False, GateReason.OUT_OF_SCOPE)
+    if intent.purpose == API_PROBE_PURPOSE and (
+            intent.requested_calls != API_PROBE_MAX_REQUESTS or approval.max_harvest_details > API_PROBE_MAX_ITEMS):
         return GateDecision(False, GateReason.OUT_OF_SCOPE)
     if (
         type(approval.max_requests) is not int or approval.max_requests < 1
