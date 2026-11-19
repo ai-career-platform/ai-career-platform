@@ -1,0 +1,8 @@
+{
+  "_comment": "Private API configuration. Copy to C:\\dev\\crawler-data\\secrets\\t61\\jobkorea-api.json and fill with the request URLs EXACTLY as JobKorea's approval email gives them (including the account parameters). Never commit the filled copy. registered_ips = the outbound IPs registered with JobKorea; a run from any other IP is refused before any API request.",
+  "endpoints": {
+    "all": "",
+    "starter": ""
+  },
+  "registered_ips": []
+}

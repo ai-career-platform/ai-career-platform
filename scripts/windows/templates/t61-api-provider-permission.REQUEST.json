@@ -1,0 +1,17 @@
+{
+  "_comment": "REQUEST FORM, NOT A PERMISSION. JobKorea official XML API (guide V4.1). Filled ONLY from JobKorea's own API approval (the approval email / account notice JobKorea sent). Stored ONLY at C:\\dev\\crawler-data\\secrets\\t61\\ (never in Git). provider = JobKorea (never the PM). evidence_sha256 = SHA-256 of the saved approval email (.eml/.pdf). allowed_url_prefixes = the endpoint's public form (scheme://host/path, NO query: the account parameters stay in the API config file). Separate from the WEB (HTML) permission: allowed_methods API admits only the XML API. As-is the empty fields refuse every request (PROVIDER_EVIDENCE_MISSING). Policy: docs/data/T61_PM_APPROVAL_POLICY.md",
+  "source_code": "jobkorea",
+  "provider": "",
+  "permission_type": "API_CONTRACT",
+  "granted_to": "AI Career Platform",
+  "evidence_ref": "",
+  "evidence_sha256": "",
+  "valid_from_utc": "2026-11-19T00:00:00Z",
+  "valid_until_utc": "2026-11-20T00:00:00Z",
+  "allowed_methods": ["API"],
+  "allowed_purposes": ["api_collection"],
+  "allowed_url_prefixes": [""],
+  "max_requests_per_day": 0,
+  "storage_allowed": false,
+  "max_items": 1000
+}
