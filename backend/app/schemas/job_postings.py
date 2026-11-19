@@ -72,6 +72,8 @@ class JobPostingSummary(_Strict):
     location_text: str | None
     published_at: datetime | None
     expires_at: datetime | None
+    # 데이터 출처 코드 (예: synthetic_seed, jobkorea_api). 화면의 출처 표시에 쓴다. 모르면 null.
+    source: str | None = None
 
 
 class JobPostingPage(_Strict):

@@ -45,6 +45,8 @@ JobKorea XML API ──(등록 IP 34.64.45.17)── ai-career-vm
 | 웹사이트 조회 | `status IN ('published','closed')` 만 표시. `draft` 는 보이지 않음. 기존 API 변경 없이 표시 가능 |
 | VM | Python 3.11(시스템, psycopg 없음). backend 이미지: Python 3.12, psycopg 3.3.4. 컨테이너에서 Cloud SQL 5432 연결 가능. Cloud SQL CA 파일 있음 |
 | `.env` 관리자 계정(`postgres`) | `career` 스키마 권한 없음. 카탈로그만 읽을 수 있음 |
+| `career.data_sources` 열 | `source_id`(기본값), `code` UNIQUE, `name`, `license_ref`, `retention_days`(>0), `is_active`(기본 true), 시각 열(기본값). 아래 INSERT 로 충분 |
+| `career_sync` 비밀번호 | 승인된 저장소 어디에도 없음: Windows `gcp-sync.env` 는 사용자만 있고 비밀번호가 비어 있음, `.env` 없음, GCP Secret Manager 없음, VM 은 CA 파일만 있음 (2026-11-19) |
 
 ## 실행 전에 필요한 것
 
@@ -95,9 +97,9 @@ scripts/gcp/run-jobkorea-collector.sh run --new 100     # 저장 (1~4 충족 후
 | 요구 (가이드 V4.1) | 상태 |
 |---|---|
 | 공고 하단 안내문, "잡코리아" 링크 | **구현** (`JobPostingsPage.tsx` 상세 영역, 원문이 jobkorea.co.kr 이거나 출처 코드가 `jobkorea*` 일 때). 운영 배포 전 |
-| 목록 하단 "잡코리아 제공" 링크 | **미구현**: 목록 API 가 공고별 출처를 주지 않습니다. 목록 응답에 출처 코드를 추가해야 합니다 |
+| 목록 하단 "잡코리아 제공" · "잡코리아 채용정보 더보기" 링크 | **구현**: 목록 API(`JobPostingSummary`)에 선택 필드 `source`(데이터 출처 코드)를 추가했고, 목록에 JobKorea 공고가 있으면 표시합니다. 운영 배포 전 |
 
-목록 표시가 준비될 때까지 JobKorea 공고는 `draft` 로 둡니다.
+운영 배포와 PM 의 `publish` 결정 전까지 JobKorea 공고는 `draft` 로 둡니다.
 
 ## 기존 경로와의 관계
 

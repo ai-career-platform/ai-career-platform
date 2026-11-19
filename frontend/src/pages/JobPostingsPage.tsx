@@ -308,6 +308,14 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
                   </li>
                 ))}
               </ul>
+              {list.data.items.some((posting) => isJobKoreaPosting(null, posting.source)) && (
+                // JobKorea API guide V4.1: the job list shows the JobKorea source with a link to the JobKorea site.
+                <p className="t24-jobkorea-attribution" data-testid="jobkorea-list-attribution">
+                  <a href={JOBKOREA_HOME} target="_blank" rel="noopener noreferrer">잡코리아 제공</a>
+                  {' · '}
+                  <a href={JOBKOREA_HOME} target="_blank" rel="noopener noreferrer">잡코리아 채용정보 더보기</a>
+                </p>
+              )}
               <nav className="t24-pages" aria-label="공고 목록 페이지">
                 <Button variant="outline" disabled={stack.length === 1}
                   onClick={() => movePage(stack.slice(0, -1))}>이전</Button>

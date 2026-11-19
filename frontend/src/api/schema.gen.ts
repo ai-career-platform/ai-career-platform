@@ -1451,6 +1451,8 @@ export interface components {
             published_at: string | null;
             /** Format: date-time */
             expires_at: string | null;
+            /** @description 데이터 출처 코드 (예: synthetic_seed, jobkorea_api). 출처 표시용. 모르면 null */
+            source?: string | null;
         };
         JobPostingPage: {
             items: components["schemas"]["JobPostingSummary"][];

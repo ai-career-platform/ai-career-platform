@@ -129,6 +129,32 @@ describe('job postings (T18 API)', () => {
     expect(link).toHaveAttribute('target', '_blank');
   });
 
+  it('shows the JobKorea attribution required by the official API guide, only for JobKorea postings', async () => {
+    serve({
+      list: () => ({ items: [posting('p1', '잡코리아 공고', { source: 'jobkorea_api' }), posting('p2', '다른 공고', { source: 'synthetic_seed' })], next_cursor: null }),
+      detail: (path) => detailOf(path.split('/').pop() ?? '', { source: 'jobkorea_api', source_url: 'https://www.jobkorea.co.kr/Recruit/GI_Read/51943020' }),
+      company: () => companyDetail({ source: 'jobkorea_api' }),
+    });
+    renderPage();
+    const listNote = await screen.findByTestId('jobkorea-list-attribution');
+    expect(within(listNote).getByRole('link', { name: '잡코리아 제공' })).toHaveAttribute('href', 'https://www.jobkorea.co.kr');
+    expect(within(listNote).getByRole('link', { name: '잡코리아 채용정보 더보기' })).toHaveAttribute('rel', 'noopener noreferrer');
+    fireEvent.click(screen.getByRole('button', { name: '잡코리아 공고 상세 보기' }));
+    const detailNote = await screen.findByTestId('jobkorea-attribution');
+    expect(detailNote).toHaveTextContent('자세한 채용정보는 반드시 상세정보를 통해 확인하시기 바랍니다.');
+    expect(detailNote).toHaveTextContent('본 정보는 채용기업과 잡코리아의 동의 없이 무단전재 또는 재배포, 재가공할 수 없습니다.');
+    expect(within(detailNote).getByRole('link', { name: '잡코리아' })).toHaveAttribute('href', 'https://www.jobkorea.co.kr');
+  });
+
+  it('shows no JobKorea attribution when no JobKorea posting is listed', async () => {
+    serve({});
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: '첫 공고 상세 보기' }));
+    expect(await screen.findByText('알파 소개')).toBeInTheDocument();
+    expect(screen.queryByTestId('jobkorea-list-attribution')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('jobkorea-attribution')).not.toBeInTheDocument();
+  });
+
   it('refuses unsafe source links and says when no link is provided', async () => {
     serve({ detail: (path) => detailOf(path.split('/').pop() ?? '', { source_url: 'javascript:alert(1)' }) });
     renderPage();
