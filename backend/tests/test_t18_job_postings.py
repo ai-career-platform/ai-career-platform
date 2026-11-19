@@ -273,7 +273,7 @@ def test_routes_are_public_and_match_contract_shape(client, fake):
     assert r.status_code == 200
     assert set(r.json()["items"][0]) == {
         "job_posting_id", "title", "status", "company", "job_role", "employment_type", "location_text",
-        "published_at", "expires_at"}
+        "published_at", "expires_at", "source"}
 
     r = client.get(f"{API_V1_PREFIX}/job-postings/{fake.postings[0].job_posting_id}")
     assert r.status_code == 200
@@ -361,3 +361,11 @@ def test_openapi_yaml_matches_public_catalog_contract():
     for p in ["/companies", "/companies/{company_id}", "/job-postings", "/job-postings/{job_posting_id}"]:
         responses = spec["paths"][p]["get"]["responses"]
         assert "503" in responses and "401" not in responses
+
+
+def test_list_items_carry_the_data_source_code_for_attribution(client, fake):
+    """JobKorea API guide V4.1: the list needs the source to show the JobKorea attribution link."""
+    fake.postings[0] = PostingRow(**{**fake.postings[0].__dict__, "source_code": "jobkorea_api"})
+    items = {i["job_posting_id"]: i for i in client.get(f"{API_V1_PREFIX}/job-postings").json()["items"]}
+    assert items[str(fake.postings[0].job_posting_id)]["source"] == "jobkorea_api"
+    assert items[str(fake.postings[1].job_posting_id)]["source"] is None

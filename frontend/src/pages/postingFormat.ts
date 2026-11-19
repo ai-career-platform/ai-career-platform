@@ -34,6 +34,14 @@ export function safeExternalUrl(value: string | null | undefined): { href: strin
   }
 }
 
+/** JobKorea 공식 XML API 가이드(V4.1)가 요구하는 출처 표시 대상인지: 원문 호스트 또는 기업의 데이터 출처 코드로 판단합니다. */
+export const JOBKOREA_HOME = 'https://www.jobkorea.co.kr';
+
+export function isJobKoreaPosting(sourceHost: string | null | undefined, sourceCode: string | null | undefined): boolean {
+  const host = (sourceHost ?? '').toLowerCase();
+  return host === 'www.jobkorea.co.kr' || host === 'jobkorea.co.kr' || (sourceCode ?? '').startsWith('jobkorea');
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** URL 에서 읽은 ID 가 UUID 모양이 아니면 버려서 엉뚱한 요청이 나가지 않게 합니다. */

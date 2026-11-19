@@ -57,6 +57,8 @@ class PostingRow:
     expires_at: datetime | None
     description: str | None = None
     source_url: str | None = None
+    # 데이터 출처 코드 (career.data_sources.code). 출처 표시(예: JobKorea API 가이드)에 쓴다.
+    source_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -123,7 +125,7 @@ job_postings = table(
     column("title", String), column("description", String), column("employment_type", String),
     column("location_text", String), column("source_url", String), column("status", String),
     column("published_at", DateTime(timezone=True)), column("expires_at", DateTime(timezone=True)),
-    schema=_SCHEMA,
+    column("source_id", Uuid), schema=_SCHEMA,
 )
 job_posting_skills = table("job_posting_skills", column("job_posting_id", Uuid), column("skill_id", Uuid),
                            column("is_required", Boolean), column("required_level", Integer), schema=_SCHEMA)
@@ -202,6 +204,7 @@ class SqlJobPostingRepository:
             c.company_id, c.name.label("company_name"),
             r.job_role_id, r.code.label("job_role_code"), r.name.label("job_role_name"),
             p.employment_type, p.location_text, p.published_at, p.expires_at,
+            data_sources.c.code.label("source_code"),
         ]
         if detail:
             cols += [p.description, p.source_url]
@@ -210,6 +213,7 @@ class SqlJobPostingRepository:
             .select_from(job_postings)
             .join(companies, c.company_id == p.company_id)
             .outerjoin(job_roles, r.job_role_id == p.job_role_id)
+            .outerjoin(data_sources, data_sources.c.source_id == p.source_id)
         )
 
     @staticmethod
@@ -221,6 +225,7 @@ class SqlJobPostingRepository:
             employment_type=row.employment_type, location_text=row.location_text,
             published_at=row.published_at, expires_at=row.expires_at,
             description=row.description if detail else None, source_url=row.source_url if detail else None,
+            source_code=row.source_code,
         )
 
     def _visibility(self, f: PostingFilter, now: datetime):

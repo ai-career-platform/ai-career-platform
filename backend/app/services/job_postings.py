@@ -77,7 +77,7 @@ def _summary(row: PostingRow) -> dict:
         job_role=None if row.job_role_id is None else JobRoleRef(
             job_role_id=row.job_role_id, code=row.job_role_code, name=row.job_role_name),
         employment_type=row.employment_type, location_text=row.location_text,
-        published_at=row.published_at, expires_at=row.expires_at,
+        published_at=row.published_at, expires_at=row.expires_at, source=row.source_code,
     )
 
 

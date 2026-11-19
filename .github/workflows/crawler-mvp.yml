@@ -51,7 +51,7 @@ jobs:
         env:
           CRAWLER_GCP_SYNC_PG_TEST: '1'
           CRAWLER_GCP_SYNC_ADMIN_DSN: postgresql://postgres@127.0.0.1:5432/postgres
-        run: python -m unittest crawler.tests.local_gcp_sync_pg -v
+        run: python -m unittest crawler.tests.local_gcp_sync_pg crawler.tests.local_jobkorea_collector_pg -v
       - name: Test constructed HTML through real isolated PostgreSQL and API
         env:
           CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
@@ -85,5 +85,13 @@ jobs:
           python -m unittest crawler.tests.local_t155_admin_write_pg -v
           # CRAWLER_NIGHT_04 whole-night E2E (synthetic, mocked HTTP); leaves its rows as evidence, so it runs last
           CRAWLER_NIGHT_E2E=1 python -m unittest crawler.tests.staging_night_e2e -v
+      - name: Test JobKorea XML API runner in isolated PostgreSQL
+        env:
+          CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training
+          CRAWLER_API_PG_TEST: '1'
+          CRAWLER_API_PG_ALLOW_MAIN: '1'   # CI's throwaway service DB, never a PC's crawler DB
+        run: |
+          psql "$CRAWLER_LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f crawler/storage/migrations/0013_harvest_runs.sql
+          python -m unittest crawler.tests.local_jobkorea_api_pg -v
       - name: Verify disabled crawler systemd unit files
         run: systemd-analyze verify poc/staging/crawler/ai-career-crawler-dispatch.service poc/staging/crawler/ai-career-crawler-dispatch.timer poc/staging/crawler/ai-career-t154-night-20261108.service poc/staging/crawler/ai-career-t154-night-20261108.timer
