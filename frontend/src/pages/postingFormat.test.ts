@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
+import { employmentLabel, formatDate, isJobKoreaPosting, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 
 describe('postingFormat', () => {
   it('labels known employment types, passes unknown ones through, and admits missing ones', () => {
@@ -23,6 +23,15 @@ describe('postingFormat', () => {
     for (const bad of ['javascript:alert(1)', 'data:text/html,hi', 'ftp://example.com', 'https://user:pw@example.com', '//example.com', '', null, undefined]) {
       expect(safeExternalUrl(bad)).toBeNull();
     }
+  });
+
+  it('marks JobKorea postings for the attribution required by the official API guide', () => {
+    expect(isJobKoreaPosting('www.jobkorea.co.kr', null)).toBe(true);
+    expect(isJobKoreaPosting('JOBKOREA.CO.KR', null)).toBe(true);
+    expect(isJobKoreaPosting(null, 'jobkorea_api')).toBe(true);
+    expect(isJobKoreaPosting('www.jobkorea.co.kr.evil.example', 'synthetic_seed')).toBe(false);
+    expect(isJobKoreaPosting('example.com', 'synthetic_seed')).toBe(false);
+    expect(isJobKoreaPosting(undefined, undefined)).toBe(false);
   });
 
   it('keeps only UUID-shaped ids from the URL', () => {

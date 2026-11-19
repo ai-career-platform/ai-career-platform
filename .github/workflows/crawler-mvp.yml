@@ -51,7 +51,7 @@ jobs:
         env:
           CRAWLER_GCP_SYNC_PG_TEST: '1'
           CRAWLER_GCP_SYNC_ADMIN_DSN: postgresql://postgres@127.0.0.1:5432/postgres
-        run: python -m unittest crawler.tests.local_gcp_sync_pg -v
+        run: python -m unittest crawler.tests.local_gcp_sync_pg crawler.tests.local_jobkorea_collector_pg -v
       - name: Test constructed HTML through real isolated PostgreSQL and API
         env:
           CRAWLER_LOCAL_DATABASE_URL: postgresql://crawler_student@127.0.0.1:5432/ai_career_crawler_training

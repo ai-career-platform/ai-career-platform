@@ -7,7 +7,7 @@ import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
 import { StatePanel } from '../components/StatePanel';
 import { TextField } from '../components/TextField';
-import { employmentLabel, formatDate, safeExternalUrl, uuidOrEmpty } from './postingFormat';
+import { employmentLabel, formatDate, isJobKoreaPosting, JOBKOREA_HOME, safeExternalUrl, uuidOrEmpty } from './postingFormat';
 import { PostingBookmarkToggle } from './PostingBookmarkToggle';
 import {
   EMPLOYMENT_TYPES, MAX_VALUES, POSTED_WITHIN, POSTED_WITHIN_LABELS, REGIONS,
@@ -392,6 +392,16 @@ export function JobPostingsPage({ advanced = false, searchService }: { advanced?
                 {source
                   ? <p>원문은 외부 사이트입니다. <a href={source.href} target="_blank" rel="noopener noreferrer">{source.host}에서 원문 보기</a> — 이동 전 출처의 이용 조건을 확인하세요.</p>
                   : <p>이 공고는 원문 링크가 제공되지 않았습니다.</p>}
+                {isJobKoreaPosting(source?.host, companyDetail.status === 'ready' ? companyDetail.data.source : null) && (
+                  <div className="t24-jobkorea-attribution" data-testid="jobkorea-attribution">
+                    <p><a href={JOBKOREA_HOME} target="_blank" rel="noopener noreferrer">잡코리아 제공</a></p>
+                    <p>
+                      자세한 채용정보는 반드시 상세정보를 통해 확인하시기 바랍니다.<br />
+                      본 정보는 채용기업과 <a href={JOBKOREA_HOME} target="_blank" rel="noopener noreferrer">잡코리아</a>의
+                      {' '}동의 없이 무단전재 또는 재배포, 재가공할 수 없습니다.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

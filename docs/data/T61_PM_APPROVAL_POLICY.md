@@ -96,6 +96,8 @@
 
 ### 4-1. 공식 XML API 로 수집할 때
 
+GCP VM 에서 Cloud SQL 로 바로 저장하는 수집기는 [JOBKOREA_GCP_COLLECTOR.md](JOBKOREA_GCP_COLLECTOR.md) 를 따릅니다. 아래 1~4단계(증빙·설정·허가·승인)는 같습니다.
+
 1. **증빙 보관:** JobKorea API 승인 메일 원본(`.eml` 또는 PDF)과 가이드 PDF 를 `C:\dev\crawler-data\secrets\t61\` 에 둡니다.
    - 승인 메일의 SHA-256 을 계산합니다.
 2. **API 설정:** `scripts/windows/templates/jobkorea-api-config.REQUEST.json` 을 복사합니다.

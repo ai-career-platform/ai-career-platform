@@ -142,12 +142,15 @@ def _effective_published(values, fallback):
     return values['published_at'] if values['published_at'] is not None else fallback
 
 
-def plan(rows, *, source_code, source_id, refs, url_owners, publish, last_synced_at=None):
+def plan(rows, *, source_code, source_id, refs, url_owners, publish, last_synced_at=None, preserve_on_null=False,
+         max_inserts=None):
     """Decide INSERT / UPDATE / DUPLICATE / SKIP / FAIL per source row. Pure; no I/O.
 
     refs: {external_id: Existing} for this data source.
     url_owners: {source_url: [(job_posting_id, source_id), ...]} for every target posting.
     last_synced_at: start of the previous successful sync; only used to count source changes.
+    preserve_on_null: an empty source value never clears a stored value (the JobKorea API collector).
+    max_inserts: at most this many INSERTs; further new postings are skipped as INSERT_LIMIT.
     """
     result = Plan()
     batch_urls = set()
@@ -178,6 +181,8 @@ def plan(rows, *, source_code, source_id, refs, url_owners, publish, last_synced
                 result.skip(row, 'INVALID: Expiry precedes publish time')
             elif owners:
                 result.failed.append((key, 'URL_CONFLICT'))
+            elif max_inserts is not None and len(result.inserts) >= max_inserts:
+                result.skip(row, 'INSERT_LIMIT')
             else:
                 result.inserts.append((key, dict(values, published_at=published), row.updated_at))
             continue
@@ -192,7 +197,8 @@ def plan(rows, *, source_code, source_id, refs, url_owners, publish, last_synced
                 and desired['expires_at'] < desired['published_at']:
             result.skip(row, 'INVALID: Expiry precedes publish time')
             continue
-        changes = {k: desired[k] for k in COMPARED if desired[k] != existing.values[k]}
+        changes = {k: desired[k] for k in COMPARED if desired[k] != existing.values[k]
+                   and not (preserve_on_null and desired[k] is None)}
         if changes:
             result.updates.append((existing, changes, row.updated_at))
         else:
@@ -627,6 +633,15 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
                                                                       publish=publish))
         finally:
             target.rollback()
+    return sync_rows(target, rows, base, now, mode=mode, source_code=source_code, publish=publish,
+                     cutover_confirmed=cutover_confirmed, cutover_evidence=cutover_evidence)
+
+
+def sync_rows(target, rows, base, now, *, mode, source_code, publish, cutover_confirmed=False, cutover_evidence=None,
+              preserve_on_null=False, max_new=None, cumulative_cap=None):
+    """Plan and (unless dry-run) apply ``rows`` under the target advisory lock. Shared by the Staging/local sync
+    and the JobKorea API collector. ``max_new`` caps this run's INSERTs; ``cumulative_cap`` caps the data
+    source's total postings (stored refs + this run's INSERTs)."""
     with target.cursor() as cursor:
         cursor.execute('SELECT pg_try_advisory_lock(%s)', (LOCK_KEY,))
         locked = cursor.fetchone()[0]
@@ -635,7 +650,8 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
         return dict(base, status='SKIPPED', reason='SYNC_IN_PROGRESS')
     try:
         return _locked_sync(target, rows, base, now, mode=mode, source_code=source_code, publish=publish,
-                            cutover_confirmed=cutover_confirmed, cutover_evidence=cutover_evidence)
+                            cutover_confirmed=cutover_confirmed, cutover_evidence=cutover_evidence,
+                            preserve_on_null=preserve_on_null, max_new=max_new, cumulative_cap=cumulative_cap)
     finally:
         target.rollback()
         with target.cursor() as cursor:
@@ -644,7 +660,7 @@ def run_sync(source_connection, target_connection, *, mode, source_code=DEFAULT_
 
 
 def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover_confirmed=False,
-                 cutover_evidence=None):
+                 cutover_evidence=None, preserve_on_null=False, max_new=None, cumulative_cap=None):
     urls = {row.payload.get('source_url') for row in rows
             if row.source_code == source_code and isinstance(row.payload, dict) and row.payload.get('source_url')}
     with target.cursor() as cursor:
@@ -675,8 +691,13 @@ def _locked_sync(target, rows, base, now, *, mode, source_code, publish, cutover
         cursor.execute("SELECT max(started_at) FROM career.ingestion_runs WHERE source_id = %s"
                        " AND status = 'succeeded'", (source_id,))
         last_synced_at = cursor.fetchone()[0]
+    caps = [c for c in (max_new, None if cumulative_cap is None else max(cumulative_cap - len(refs), 0))
+            if c is not None]
+    if caps:
+        base = dict(base, insert_limit=min(caps), target_refs_before=len(refs))
     result = plan(rows, source_code=source_code, source_id=source_id, refs=refs, url_owners=owners,
-                  publish=publish, last_synced_at=last_synced_at)
+                  publish=publish, last_synced_at=last_synced_at, preserve_on_null=preserve_on_null,
+                  max_inserts=min(caps) if caps else None)
     if not check_accounting(len(rows), result):
         target.rollback()
         return dict(base, status='FAILED', error_code='COUNT_MISMATCH', fetched=len(rows), **result.counts())
