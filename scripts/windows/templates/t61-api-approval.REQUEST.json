@@ -1,0 +1,18 @@
+{
+  "_comment": "REQUEST FORM, NOT AN APPROVAL. PM approval for the JobKorea official XML API run (initial 100 new postings). HOLD/enabled false: refused as-is. The PM fills approved_by/evidence_ref/validity, sets APPROVED+enabled and stores the copy ONLY at C:\\dev\\crawler-data\\secrets\\t61\\ (never in Git). allowed_urls = the endpoint's public form (scheme://host/path, no query), identical to the provider file's prefix. max_harvest_details = new postings this approval admits (<= 1000). max_requests = JobKorea API requests per run.",
+  "source_code": "jobkorea",
+  "approval_status": "HOLD",
+  "enabled": false,
+  "approved_by": "",
+  "evidence_ref": "",
+  "valid_from_utc": "2026-11-19T00:00:00Z",
+  "review_due_utc": "2026-11-19T12:00:00Z",
+  "collection_method": "API",
+  "allowed_urls": [""],
+  "allowed_purposes": ["api_collection"],
+  "max_requests": 30,
+  "retention_days": 30,
+  "stop_on_block": true,
+  "max_harvest_details": 100,
+  "provider_permission_file": "C:\\dev\\crawler-data\\secrets\\t61\\jobkorea-api-provider-permission.json"
+}

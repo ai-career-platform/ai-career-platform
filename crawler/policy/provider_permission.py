@@ -73,6 +73,14 @@ def _aware(value):
     return isinstance(value, datetime) and value.tzinfo is not None and value.utcoffset() is not None
 
 
+def _read_only_probe(intent):
+    """PM decision 2026-11-19: a single official-API probe that stores nothing needs API permission, not storage.
+    The probe's no-write guarantee is enforced by the caller (``jobkorea_api`` read-only source)."""
+    from crawler.policy.source_approval_gate import API_PROBE_MAX_REQUESTS, API_PROBE_PURPOSE
+    return (getattr(intent, 'method', None) == 'API' and getattr(intent, 'purpose', None) == API_PROBE_PURPOSE
+            and getattr(intent, 'requested_calls', None) == API_PROBE_MAX_REQUESTS)
+
+
 def check_provider_permission(permission, approval, intent):
     """ProviderReason for one proposed LIVE request (``intent``) under the PM ``approval``."""
     if not isinstance(permission, ProviderPermission):
@@ -98,7 +106,7 @@ def check_provider_permission(permission, approval, intent):
     if (intent.method not in permission.allowed_methods or intent.purpose not in permission.allowed_purposes
             or not any(isinstance(p, str) and p and intent.url.startswith(p) for p in permission.allowed_url_prefixes)):
         return ProviderReason.PROVIDER_OUT_OF_SCOPE
-    if permission.storage_allowed is not True:
+    if permission.storage_allowed is not True and not _read_only_probe(intent):
         return ProviderReason.PROVIDER_STORAGE_NOT_ALLOWED
     limit = permission.max_requests_per_day
     pm_requests = getattr(approval, 'max_requests', None)

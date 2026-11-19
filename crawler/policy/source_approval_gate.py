@@ -29,6 +29,16 @@ MAX_HARVEST_DETAILS = 2000
 SEARCH_PAGE_PARAM = "Page_No"
 # The one spelling the list parser emits; discovered links must match it exactly.
 _STRICT_DETAIL = re.compile(r"https://www\.jobkorea\.co\.kr/Recruit/GI_Read/[0-9]+")
+# Official XML API (collection_method 'API', guide V4.1). A separate permission type from WEB scraping:
+# an API approval never admits HTML pages and a WEB approval never admits the API. The approval lists the
+# endpoint's public form (scheme, host, path); the account parameters JobKorea issued stay in a private file.
+API_PURPOSE = "api_collection"
+# PM decision 2026-11-19 (T61 read-only probe): one API request, <= 5 postings, nothing stored. Only this purpose
+# separates "may call the API" from "may store the data"; every other LIVE request still needs storage permission.
+API_PROBE_PURPOSE = "api_probe"
+API_PROBE_MAX_REQUESTS = 1
+API_PROBE_MAX_ITEMS = 5
+API_ENDPOINT_FILES = ("JK_GI_XML_List.asp", "JK_Starter_XML_List.asp")
 
 
 class GateReason(str, Enum):
@@ -239,6 +249,53 @@ def _in_scope(approval: SourceApproval, intent: CollectionIntent) -> bool:
     return 1 <= limit <= MAX_DISCOVERED_DETAILS and within_discovery
 
 
+def public_api_endpoint(url: object) -> bool:
+    """A JobKorea XML API endpoint without query, credentials, port or fragment."""
+    if not isinstance(url, str) or not url.isascii():
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = parsed.hostname or ""
+        return (
+            parsed.scheme in {"https", "http"}
+            and (host == "jobkorea.co.kr" or host.endswith(".jobkorea.co.kr"))
+            and parsed.netloc == host
+            and not parsed.query and not parsed.fragment
+            and parsed.path.rsplit("/", 1)[-1] in API_ENDPOINT_FILES
+        )
+    except ValueError:
+        return False
+
+
+def _check_api(approval: SourceApproval, intent: CollectionIntent) -> GateDecision:
+    """Official XML API requests: listed endpoint, API purpose, usage policy and request budget."""
+    if approval.collection_method != "API" or intent.method != "API":
+        return GateDecision(False, GateReason.METHOD_NOT_ALLOWED)
+    if (
+        approval.source_code != "jobkorea"
+        or intent.source_code != approval.source_code
+        or not approval.allowed_urls
+        or any(not public_api_endpoint(u) for u in approval.allowed_urls)
+        or intent.url not in approval.allowed_urls
+        or intent.discovered_from is not None
+        or intent.purpose not in (API_PURPOSE, API_PROBE_PURPOSE) or intent.purpose not in approval.allowed_purposes
+        or type(approval.max_harvest_details) is not int or not 1 <= approval.max_harvest_details <= MAX_HARVEST_DETAILS
+    ):
+        return GateDecision(False, GateReason.OUT_OF_SCOPE)
+    if intent.purpose == API_PROBE_PURPOSE and (
+            intent.requested_calls != API_PROBE_MAX_REQUESTS or approval.max_harvest_details > API_PROBE_MAX_ITEMS):
+        return GateDecision(False, GateReason.OUT_OF_SCOPE)
+    if (
+        type(approval.max_requests) is not int or approval.max_requests < 1
+        or type(approval.retention_days) is not int or approval.retention_days < 0
+        or approval.stop_on_block is not True
+    ):
+        return GateDecision(False, GateReason.MISSING_USAGE_POLICY)
+    if type(intent.requested_calls) is not int or not 1 <= intent.requested_calls <= approval.max_requests:
+        return GateDecision(False, GateReason.OUT_OF_SCOPE)
+    return GateDecision(True, GateReason.ALLOWED)
+
+
 def check_collection_permission(
     approval: SourceApproval | None,
     intent: CollectionIntent,
@@ -272,6 +329,8 @@ def check_collection_permission(
         return GateDecision(False, GateReason.EXPIRED)
     if not isinstance(approval.allowed_urls, tuple) or not isinstance(approval.allowed_purposes, tuple):
         return GateDecision(False, GateReason.INVALID_POLICY)
+    if approval.collection_method == "API" or intent.method == "API":
+        return _check_api(approval, intent)
     limit = approval.max_discovered_details
     if type(limit) is not int or not 0 <= limit <= MAX_DISCOVERED_DETAILS:
         return GateDecision(False, GateReason.INVALID_POLICY)
