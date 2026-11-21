@@ -6,7 +6,7 @@
 운영 안전장치 — 승인 전에는 아무것도 발송되지 않습니다:
 - 기본 공급자는 `UnavailableNotificationProvider` (worker 가 아무 행도 꺼내지 않음).
 - 기본 템플릿 목록(`DEFAULT_TEMPLATES`)은 T95 대로 **전부 미승인**이라 enqueue 가 거부합니다.
-- outbox 표는 `database/proposed/T96_notification_deliveries.sql` (정식 migration 아님).
+- outbox 표는 `database/migrations/0005_notifications.sql` (T96·T97).
 - 비밀 변수(링크·토큰)가 있는 템플릿은 outbox 에 넣지 않습니다(저장 금지). 비밀번호 재설정은 T93 즉시 발송 경로를 유지합니다.
 로그에는 delivery_id·유형·상태·마스킹된 주소만 남깁니다.
 """

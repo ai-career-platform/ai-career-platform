@@ -2,7 +2,7 @@
  * 기업 콘솔 — 조직 구성·멤버 초대 (T124, UI 제안 UI-N06). 계약: T121·T122(PROPOSED), 서버 T123(플래그 뒤).
  * - 기업 관리자: 멤버 역할 변경·제외, 초대·재전송·취소. 기업 담당자: 목록 보기, 스스로 나가기.
  * - 검증 전 조직은 초대를 막고 이유를 보여 줍니다. 403(역할 부족)·404(소속 아님)·409(마지막 관리자 등)를 각각 안내합니다.
- * - 지금은 Mock Adapter 만 연결됩니다. 초대 메일은 Mock 메일함에만 쌓입니다.
+ * - Mock 모드면 Mock Adapter(초대 메일은 Mock 메일함에만 쌓임), 아니면 실제 API(T123, migration 0008).
  */
 import { useId, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -16,6 +16,7 @@ import { explain } from '../company/companyErrors';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { StatePanel } from '../components/StatePanel';
+import { env } from '../config/env';
 import './CompanyConsolePage.css';
 
 const when = (iso: string) => new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Seoul' })
@@ -233,7 +234,7 @@ export function CompanyConsolePage({ postingsUi = false }: { postingsUi?: boolea
   return (
     <section className="company-page" aria-labelledby="company-title">
       <h1 id="company-title">기업 콘솔</h1>
-      <p className="company-notice" role="note">기업 기능은 승인 전 기능입니다. 가상 데이터(Mock)이며 서버 연동은 없습니다.</p>
+      {env.mockEnabled && <p className="company-notice" role="note">기업 기능은 승인 전 기능입니다. 가상 데이터(Mock)이며 서버 연동은 없습니다.</p>}
       {(mine.status === 'loading' || mine.status === 'idle') && <StatePanel variant="loading" title="내 조직을 불러오는 중입니다" />}
       {mine.status === 'error' && <StatePanel variant="error" title="내 조직을 불러오지 못했습니다" actionLabel="다시 시도" onAction={mine.retry} />}
       {mine.status === 'ready' && (

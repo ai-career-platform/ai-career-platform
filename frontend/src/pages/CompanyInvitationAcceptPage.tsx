@@ -30,7 +30,7 @@ export function CompanyInvitationAcceptPage() {
       setResult({ kind: 'ok', joined: await service.accept(token) });
     } catch (error) {
       const text = error instanceof ApiError && error.status === 409 ? '이미 이 조직의 멤버입니다.'
-        : error instanceof ApiError && error.status === 0 ? '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+        : error instanceof ApiError && (error.status === 0 || error.status === 503) ? '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'
           : '초대가 만료되었거나, 취소되었거나, 지금 로그인한 계정의 이메일로 보낸 초대가 아닙니다. 기업 관리자에게 다시 요청해 주세요.';
       setResult({ kind: 'error', text });
     } finally { setBusy(false); }

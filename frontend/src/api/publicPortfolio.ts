@@ -1,9 +1,10 @@
 /**
  * 공개 포트폴리오 (T130 화면). 정책: docs/enterprise/T128_PUBLIC_PROFILE_CONSENT_POLICY.md — **PROPOSED, openapi.yaml 에 없음**.
- * 서버(T129)는 `PUBLIC_PORTFOLIO_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소가 없어 켜도 503 입니다.
+ * 서버(T129)는 `PUBLIC_PORTFOLIO_API=true` 일 때만 경로가 생기고(기본 꺼짐), 저장소는 PostgreSQL(migration 0007)입니다.
  * 비공개가 기본이고, 선택 → 미리보기 → 확인(동의) 뒤에만 공유 링크를 만들 수 있습니다.
  */
 import type { HttpClient } from './http';
+import type { Experience, Project } from './me';
 
 export const PUBLISHABLE = [
   'display_name', 'headline', 'bio', 'location_text', 'experience.organization', 'experience.title',
@@ -63,17 +64,31 @@ export interface PublicPortfolioReader {
 
 const ME = '/v1/me/public-profile';
 
-/** 실제 API 어댑터(준비만, 연결하지 않음 — T128 승인·migration 전). */
+/**
+ * 실제 API 어댑터(T129, migration 0007). 계약: backend/app/routers/public_portfolio.py.
+ * - 내 경력·프로젝트 목록은 기존 프로필 API(`/v1/me/experiences`, `/v1/me/projects`)에서 옵니다.
+ * - 공개 조회는 로그인 토큰 없이 보냅니다(`token: null`) — 받는 사람은 로그인하지 않습니다.
+ */
 export function createHttpPortfolioService(http: HttpClient): PortfolioService & PublicPortfolioReader {
   return {
     settings: (signal) => http.request<Settings>(ME, { signal }),
-    ownItems: async () => { throw new Error('use the existing profile APIs (T37) for own items'); },
+    ownItems: async (signal) => {
+      const [experiences, projects] = await Promise.all([
+        http.request<Experience[]>('/v1/me/experiences', { signal }),
+        http.request<Project[]>('/v1/me/projects', { signal }),
+      ]);
+      return {
+        experiences: experiences.map((e) => ({ id: e.experience_id, label: `${e.organization} · ${e.title}` })),
+        projects: projects.map((p) => ({ id: p.project_id, label: p.title })),
+      };
+    },
     updateSelection: (body) => http.request<Selection>(`${ME}/selection`, { method: 'PUT', body }),
     preview: (signal) => http.request<PublicProfile>(`${ME}/preview`, { signal }),
     confirm: (version) => http.request<Selection>(`${ME}/consent`, { method: 'POST', body: { version } }),
     withdraw: () => http.request<void>(`${ME}/consent`, { method: 'DELETE' }),
     createLink: (ttl_days) => http.request<CreatedLink>(`${ME}/links`, { method: 'POST', body: { ttl_days } }),
     revokeLink: (id) => http.request<void>(`${ME}/links/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    view: (token, signal) => http.request<PublicProfile>(`/v1/public/portfolios/${encodeURIComponent(token)}`, { signal }),
+    view: (token, signal) => http.request<PublicProfile>(`/v1/public/portfolios/${encodeURIComponent(token)}`,
+      { signal, token: null }),
   };
 }

@@ -7,7 +7,7 @@
 import { ApiError } from '../api/errors';
 import {
   APPLICATIONS_PATH, MEMO_MAX, NEEDS_DATE, canMove,
-  type JobApplication, type JobApplicationService, type JobApplicationUpdate, type Stage,
+  type JobApplication, type JobApplicationCreate, type JobApplicationService, type JobApplicationUpdate, type Stage,
 } from '../api/jobApplications';
 
 const DAY = 86_400_000;
@@ -25,7 +25,7 @@ const SEED: Seed[] = [
 ];
 
 export type MockApplicationOptions = { now?: () => Date; latencyMs?: number; seed?: (userId: string) => Seed[] };
-type Failure = 'list' | 'update' | 'remove';
+type Failure = 'list' | 'create' | 'update' | 'remove';
 
 export function createMockApplicationBackend(options: MockApplicationOptions = {}) {
   const now = options.now ?? (() => new Date());
@@ -76,6 +76,24 @@ export function createMockApplicationBackend(options: MockApplicationOptions = {
           const items = [...store(userId)].sort((a, b) => b.updated_at.localeCompare(a.updated_at)
             || b.application_id.localeCompare(a.application_id));
           return { items: structuredClone(items), next_cursor: null };
+        },
+        async create(body: JobApplicationCreate) {
+          await wait(); maybeFail('create');
+          const rows = store(userId);
+          if (rows.some((x) => x.posting.job_posting_id === body.job_posting_id)) throw conflict();
+          const stage = body.stage ?? 'interested';
+          if (body.memo && body.memo.length > MEMO_MAX) throw new ApiError(422, APPLICATIONS_PATH, undefined, 'VALIDATION_FAILED');
+          const at = now().toISOString();
+          const row: JobApplication = {
+            application_id: `00000000-0000-4000-9000-${String(rows.length + 1).padStart(12, '0')}`,
+            stage, applied_on: NEEDS_DATE.includes(stage) ? body.applied_on ?? kstDate(now()) : null,
+            next_step_on: body.next_step_on ?? null, memo: body.memo ?? null, version: 1,
+            created_at: at, updated_at: at, stage_changed_at: at,
+            posting: { job_posting_id: body.job_posting_id, title: '가상 공고 (Mock)', company_name: '가상 기업 (Mock)',
+              status: 'published', expires_at: null },
+          };
+          rows.push(row);
+          return structuredClone(row);
         },
         async update(id, body: JobApplicationUpdate) {
           await wait(); maybeFail('update');

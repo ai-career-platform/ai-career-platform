@@ -11,7 +11,8 @@
 | UI-N04 알림함(신규 ID 제안) | `/me/notifications` | 최신 순 목록, 안 읽음 표시(굵은 제목 + "안 읽음" 글자 + 왼쪽 띠 — 색만 쓰지 않음), 한 건·전체 읽음 처리, 빈 상태·오류·다시 시도 |
 | UI-005 알림 수신 설정 | `/me/notification-settings` | 분류별 묶음(fieldset), 필수 알림은 체크된 채 잠김("필수 알림 — 끌 수 없음"), 선택 알림은 바꾸면 바로 저장, 실패 시 원래 값으로 되돌리고 알림 |
 
-- **기능 플래그** `VITE_API_MOCK=true` + `VITE_NOTIFICATIONS_UI=true`일 때만 경로·메뉴가 생깁니다. 운영·일반 빌드에서는 항상 꺼져 있습니다(T82·T85와 같은 방식).
+- **기능 플래그** `VITE_NOTIFICATIONS_UI=true`일 때만 경로·메뉴가 생깁니다(기본 꺼짐, Staging 이미지는 `false` 고정). Mock 모드면 Mock Adapter, 아니면 실제 API를 씁니다.
+- **실제 API(추가)**: 서버 `NOTIFICATIONS_API=true`(기본 꺼짐) + `database/migrations/0005_notifications.sql`. §3 경로 그대로 구현(`backend/app/routers/notifications.py`). 알림함은 outbox 의 `channel='in_app' AND status='sent'` 본인 행, 수신 설정은 `notification_preferences` 표(행 없음 = T95 기본값). 운영(GCP) 적용·플래그 켜기는 별도 PM 승인.
 - 켜져 있어도 로그인 사용자만 들어갑니다(`RequireAuth`). 데이터는 **로그인 사용자 ID별 Mock 저장소**로 분리합니다.
 - 마케팅·추천 알림은 동의 전 **기본 꺼짐**입니다. 화면이 임의로 켜지 않습니다(지시서 §5).
 
