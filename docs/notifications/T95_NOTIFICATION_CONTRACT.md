@@ -61,7 +61,7 @@
 | 재시도 중 동의 철회·계정 비활성 | 다음 시도 전 다시 확인해 `cancelled` |
 | 대기열 | DB 기반 outbox(제안) — 요청 트랜잭션과 같이 기록해 유실 방지. T93의 "즉시 3회 재시도" 방식은 대기열 도입 전 임시 |
 
-## 6. 발송 기록·보존 (제안 표, Migration 미작성)
+## 6. 발송 기록·보존 (`database/migrations/0005_notifications.sql`, 운영 적용 전)
 
 `notification_deliveries`(제안):
 

@@ -1,4 +1,4 @@
-"""T142 제안 DDL을 일회용 PostgreSQL에 적용해 제약을 확인한다(승인 전 migration 아님).
+"""T142 migration 0006(구 제안 DDL)을 일회용 PostgreSQL에 적용해 제약을 확인한다.
 
 `T142_ADMIN_URL`(관리자 접속, 예: postgresql://user@127.0.0.1:55496/postgres)이 있을 때만 실행.
 매번 `t142_ddl_<임의>` DB를 새로 만들고 끝나면 지운다. 공유·Staging DB에는 접속하지 않는다.
@@ -32,7 +32,7 @@ def db():
             conn.execute("CREATE SCHEMA career")
             for m in MIGRATIONS:
                 conn.execute((ROOT / "database" / "migrations" / m).read_text(encoding="utf-8"))
-            conn.execute((ROOT / "database" / "proposed" / "T142_personal_data_requests.sql").read_text(encoding="utf-8"))
+            conn.execute((ROOT / "database" / "migrations" / "0006_personal_data_requests.sql").read_text(encoding="utf-8"))
             yield conn
     finally:
         with psycopg.connect(ADMIN_URL, autocommit=True) as admin:

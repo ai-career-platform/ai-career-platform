@@ -79,7 +79,7 @@ T110, T136, T53, T104~T109 는 NOT_STARTED 입니다. T137 별칭 표 migration 
 | 필요 | 위치 | 상태 |
 |---|---|---|
 | T139 skills 부분 인덱스 | `database/proposed/T139_skill_suggest_index.sql` | 제안(현재 불필요) |
-| T142 개인정보 요청 표 | `database/proposed/T142_personal_data_requests.sql` | 제안 |
+| T142 개인정보 요청 표 | `database/migrations/0006_personal_data_requests.sql` | migration 0006(운영 적용은 별도 승인) |
 | T145 작업 표 | `database/proposed/T145_background_jobs.sql` | 제안 |
 | T155 관리자 명령 원장 | `crawler/storage/migrations/0011_admin_commands.sql` | **PR(#233)**, Staging 미적용 |
 | T137 별칭·상태 표 | (T137·T138 결정) | 미승인 |

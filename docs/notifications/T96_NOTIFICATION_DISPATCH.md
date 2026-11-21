@@ -10,9 +10,9 @@
 |---|---|
 | `backend/app/services/notifications.py` | 유형 10종 사양(T95 표와 시험으로 일치 고정), 템플릿 등록부, 접수(`NotificationDispatcher`), 발송 worker(`NotificationWorker`), 공급자 계약(`Unavailable`/`Mock`), 마스킹, 메모리 구현 |
 | `backend/app/repositories/notifications.py` | PostgreSQL outbox(`SqlNotificationOutbox`)·수신자 조회(`SqlRecipientDirectory`, `users.status` + `user_consents` 최신 행) |
-| `database/proposed/T96_notification_deliveries.sql` | outbox 표 **제안 DDL**. `database/migrations` 밖이라 러너가 적용하지 않음 |
+| `database/migrations/0005_notifications.sql` | outbox 표 + T97 알림함 `read_at`·수신 설정 표(migration 0005). 운영(GCP) 적용은 별도 PM 승인 |
 | `backend/tests/test_t96_notifications.py` | 단위 21건 (메모리 outbox·Mock 공급자) |
-| `backend/tests/test_t96_notifications_postgres.py` | 일회용 PG 7건 (제안 DDL·최소 권한 역할·동시성) |
+| `backend/tests/test_t96_notifications_postgres.py` | 일회용 PG 7건 (migration 0005·최소 권한 역할·동시성) |
 
 API 경로는 추가하지 않았습니다(수신 설정 API는 T95 제안 단계, 알림함 API는 계약 없음 → T97 참고).
 
@@ -79,7 +79,7 @@ CI(`backend-tests.yml`)는 PostgreSQL 18.1 서비스에서 두 파일을 모두 
 |---|---|---|
 | 실제 메일 공급자 연결·실발송 | HOLD | 공급자·발신 주소·SPF/DKIM, 멱등 키 지원(D5) |
 | 템플릿 승인 | HOLD | PM(+법무: 마케팅·정책 변경) |
-| outbox 표 정식 migration·Staging 적용 | HOLD | DDL 승인 후 번호 부여(`database/migrations`), 수동 적용 |
+| outbox 표 정식 migration·Staging 적용 | migration 0005 작성 / 적용 HOLD | 운영·Staging 적용은 별도 PM 승인 후 수동 |
 | 신규 동의 코드 3개 Seed | HOLD | T95 §10-4 (시험은 일회용 DB에만 삽입) |
 | worker 실행 스케줄·CLI | 미구현 | 운영 방식 결정 후 (T51 worker 방식 재사용 예정) |
 | 비밀번호 재설정을 이 모듈로 이전 | 안 함 | D2 — 비밀 변수 암호화 저장 방식이 승인되면 재검토 |

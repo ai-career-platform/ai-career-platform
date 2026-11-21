@@ -62,12 +62,15 @@ describe('feature flag and access', () => {
     expect(screen.queryByRole('link', { name: '지원 현황 (Mock)' })).not.toBeInTheDocument();
   });
 
-  it('default routes keep it off, the flag needs mock mode, and no HTTP adapter is wired', async () => {
+  it('default routes keep it off; the flag alone opens it and the provider uses the mock only in mock mode', async () => {
     const { routes } = await import('../routes');
     expect(JSON.stringify(routes, (k, v) => (k === 'element' ? undefined : v))).not.toContain('me/applications');
     expect(readFileSync(resolve(cwd(), 'src/config/env.ts'), 'utf8'))
-      .toContain("applicationsUi: import.meta.env.VITE_API_MOCK === 'true' && import.meta.env.VITE_APPLICATIONS_UI === 'true'");
-    expect(readFileSync(resolve(cwd(), 'src/applications/ApplicationServiceProvider.tsx'), 'utf8')).not.toMatch(/^import .*(createHttp|useApi)|fetch\(/m);
+      .toContain("applicationsUi: import.meta.env.VITE_APPLICATIONS_UI === 'true'");
+    const provider = readFileSync(resolve(cwd(), 'src/applications/ApplicationServiceProvider.tsx'), 'utf8');
+    expect(provider).toContain('env.mockEnabled ? createMockApplicationBackend');
+    expect(provider).toContain('api.jobApplications');
+    expect(provider).not.toMatch(/fetch\(/);
   });
 
   it('anonymous users go to login', async () => {
